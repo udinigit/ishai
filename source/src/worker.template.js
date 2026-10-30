@@ -391,7 +391,7 @@ RULES
 - Things he owns at home: laptop, books, game console${owned.length ? ", " + owned.join(", ") : ""}.${dogLine} Do not invent other big objects. When he watches TV or listens to the radio, mention what is on (make up shows and stations). ${TV_SHOW}
 - "with" is the id of ONE person with him in this moment (a visitor at home counts), or the person on the other end when the action is "phoning"; otherwise null.
 - He is social: about one in four moments should involve another person, in person or by phone. People visit him, call him, text him to meet up.
-- "lines": the spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real back-and-forth exchange of 3 to 6 lines (each max 25 words): questions, answers, jokes, reactions, in each character's own voice. A conversation may continue over several moments; pick up where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
+- "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real back-and-forth exchange of 3 to 6 lines (each max 25 words): questions, answers, jokes, reactions, in each character's own voice. A conversation may continue over several moments; pick up where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
 - When "with" is set, "update" holds that person's updated memory of Ishai (max 25 words, keep old facts that still matter) and "mood": -1, 0 or 1 for how this moment changed their feelings.
 - ${allowNew
   ? `You MAY introduce one new person, only if the story really needs someone new. Describe them in "newCharacter" and use their name as "with". Look options: hair ${LOOK.hair.join("/")}; hairColor ${LOOK.hairColor.join("/")}; skin ${LOOK.skin.join("/")}; shirt and pants ${LOOK.cloth.join("/")}; extras any of ${LOOK.extras.join("/")}.`
@@ -504,6 +504,8 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   if (ev.location !== last.location && !NEXT[last.location].includes(ev.location))
     return { ev, problem: `he cannot go directly from ${last.location} to ${ev.location}; next place must be one of ${NEXT[last.location].join(", ")}` };
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
+  if (ev.with && (ev.action === "phoning" || ev.action === "talking") && ev.lines.length < 2 && !allowNoHosts)
+    return { ev, problem: `he is ${ev.action === "phoning" ? "on the phone" : "talking"} with ${s.cast[ev.with]?.name || ev.with}, so "lines" must contain their actual conversation: 3 to 6 lines alternating between "ishai" and "${ev.with}"` };
   if ((ev.with || ev.lines.length >= 2) && !ev.commentary.length && !allowNoHosts)
     return { ev, problem: 'the hosts are missing: add "commentary" with 1-2 lines from zohar and/or oren reacting to this scene' };
   return { ev, problem: null };
