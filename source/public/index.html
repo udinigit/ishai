@@ -323,13 +323,16 @@
         if (o.water){ R(x-1,y+10,3,2,'#c9ced4'); if (Math.floor(t/300)%2) R(x-2,y+12,1,1,'#9fd3f0'); }
         break; }
       case 'idle': {
-        head(x,y,{closed:blinkOn(t), look:(Math.floor(t/4000)%3)-1}); torso(x,y); armsDown(x,y); legs(x,y,0); break; }
+        const k = o.still ? 'none' : fid(11, t, false, false); if (k==='shift') x += Math.floor(t/700)%2;
+        head(x,y,{closed:blinkOn(t), look: lookFid(t, k, (Math.floor(t/4000)%3)-1)}); if (k==='turn') backHair(x,y,C.hair);
+        torso(x,y); armsFid(x,y,t,k); legs(x,y,legsFid(t,k)); break; }
       case 'talking': {
         const mine = SPEAKING==='ishai';
         head(x,y,{closed:blinkOn(t), look:o.face||1, talk: mine && Math.floor(t/160)%2}); torso(x,y);
+        const k = fid(11, t, true, false);
         if (mine && f2){ R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10,1,2,C.skin); }
-        else armsDown(x,y);
-        legs(x,y,0);
+        else armsFid(x,y,t, mine ? 'gesture' : (k==='gesture' ? 'cross' : k));
+        legs(x,y,legsFid(t,k));
         if (mine) bubble(x+8,y-7,t);
         break; }
       case 'exercising': {
@@ -424,6 +427,31 @@
     ctx.globalAlpha = base * .85; [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dx,dy]) => ctx.drawImage(sil, ox+dx, oy+dy)); ctx.globalAlpha = base;
     ctx.drawImage(layer, ox, oy);
   }
+  // ---- fidgets: little things real people do while standing around or listening (clock-driven, same for every viewer) ----
+  const strHash = str => { let h = 7; for (const ch of String(str)) h = (h*31 + ch.charCodeAt(0)) >>> 0; return h; };
+  function fid(seed, t, talking, seated){
+    if ((g !== ctx && g !== lctx) || DREAMING) return 'none';     // portraits and dreams stay still
+    const w = Math.floor(t/4000), r = hash(w*131 + seed*7 + 3);
+    const list = seated ? (talking ? ['nod','gesture','look','none','none','scratch'] : ['look','scratch','none','none','none','phone'])
+      : talking ? ['gesture','nod','shrug','shift','tap','none','none','gesture','look']
+      : ['tap','stretch','look','scratch','turn','shift','cross','phone','stomp','none','none','none'];
+    return list[Math.floor(r*list.length)];
+  }
+  function armsFid(x,y,t,kind){
+    const ph = Math.floor(t/400)%2;
+    switch(kind){
+      case 'stretch': if (Math.floor(t/1300)%3 !== 2) armsUp(x,y); else armsDown(x,y); break;
+      case 'scratch': R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+7,1,3,C.shirt); R(x+8,y+4+ph,1,3,C.skin); break;
+      case 'gesture': R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10-ph,2,1,C.shirt); R(x+11,y+10-ph,1,1,C.skin); break;
+      case 'shrug': if (ph){ R(x+1,y+9,1,2,C.shirt); R(x,y+10,1,1,C.shirt); R(x-1,y+9,1,1,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10,1,1,C.shirt); R(x+10,y+9,1,1,C.skin); } else armsDown(x,y); break;
+      case 'cross': armsFront(x,y); R(x+2,y+12,6,1,C.shirtShade); R(x+2,y+12,1,1,C.skin); R(x+7,y+12,1,1,C.skin); break;
+      case 'phone': armsFront(x,y); R(x+3,y+12,4,1,C.skin); R(x+4,y+10,2,3,'#2a2a2a'); R(x+4,y+10,2,1,'#7fd0ff'); break;
+      default: armsDown(x,y);
+    }
+  }
+  const legsFid = (t, kind) => kind==='tap' ? (Math.floor(t/220)%2 ? 1 : 0) : kind==='stomp' ? (Math.floor(t/160)%2 ? 2 : 1) : 0;
+  const lookFid = (t, kind, dflt) => kind==='look' ? (Math.floor(t/900)%2 ? 1 : -1) : kind==='turn' ? 0 : dflt;
+  function backHair(x,y,h){ R(x+1,y+1,8,7,h); R(x+2,y,6,1,h); }   // turned away: the back of the head
   // o: face (-1/0/1), legs ('stand'|'sit'|false), talkPhase, walk
   function person(L, x, y, t, o={}){
     if (!o.muted && !o._inner) return outlined(x-12, y-10, 36, 36, () => person(L, x, y, t, Object.assign({}, o, {_inner:true})));
@@ -433,7 +461,11 @@
     const theirs = o.talkPhase && !!SPEAKING && SPEAKING!=='ishai' && !(SPEAKING in {zohar:1,oren:1});
     const fw = o.walk ? Math.floor(t/220)%4 : 0, bob = o.walk && fw%2 ? -1 : 0;
     y += bob;
-    head(x,y,{closed:blinkOn(t,o.seed??1700), look:o.face??-1, talk: theirs && Math.floor(t/170)%2});
+    const seated = o.legs==='sit' || o.legs===false;
+    const kind = (!o.walk && !o.muted && !o.still) ? fid(o.seed ?? strHash(L.hair + L.shirt + L.skin + L.pants), t, theirs || !!o.talkPhase, seated) : 'none';
+    if (kind==='shift') x += Math.floor(t/700)%2;
+    const y0 = y; if (kind==='nod') y += Math.floor(t/260)%2;
+    head(x,y,{closed:blinkOn(t,o.seed??1700), look: lookFid(t, kind, o.face??-1), talk: theirs && Math.floor(t/170)%2});
     // hair styles
     const h = pal.hair;
     if (L.hair==='bald'){ R(x+2,y,6,3,pal.skin); R(x+3,y,2,1,tint(pal.skin,.3)); }
@@ -447,11 +479,13 @@
     if (ex.includes('mustache')) R(x+3,y+5,4,1,h);
     if (ex.includes('beard')){ R(x+2,y+6,1,2,h); R(x+7,y+6,1,2,h); R(x+3,y+7,4,1,h); }
     if (ex.includes('earring')) R(x+1,y+6,1,1,'#d4af37');
+    if (kind==='turn') backHair(x,y,h);
+    y = y0;
     torso(x,y);
-    if (o.walk) armsDown(x,y, fw===1?1:fw===3?-1:0); else if (o.arms!==false) armsDown(x,y);
+    if (o.walk) armsDown(x,y, fw===1?1:fw===3?-1:0); else if (o.arms!==false) armsFid(x,y,t,kind);
     if (ex.includes('apron')){ R(x+3,y+10,4,6,'#f0ead8'); R(x+3,y+9,1,1,'#f0ead8'); R(x+6,y+9,1,1,'#f0ead8'); }
     if (ex.includes('scarf')){ R(x+2,y+8,6,2,'#c23b3b'); R(x+6,y+10,1,3,'#c23b3b'); }
-    if (o.legs==='sit') sitLegs(x,y); else if (o.legs!==false) legs(x,y, o.walk ? (fw===1?1:fw===3?2:0) : 0);
+    if (o.legs==='sit') sitLegs(x,y); else if (o.legs!==false) legs(x,y, o.walk ? (fw===1?1:fw===3?2:0) : legsFid(t, kind));
     Object.assign(C, keep);
     if (theirs) bubble(x-7,y-7,t);
   }
@@ -561,6 +595,12 @@
     if (loc==='cafe') return 4;                             // café entrance door (left)
     return nearX > W/2 ? W+8 : -18;                         // street and park: nearest edge
   }
+  // now and then a standing friend takes a couple of steps and comes back (not while it is their turn to talk)
+  function wander(id){
+    if (SPEAKING === id) return 0;
+    const now = Date.now(), r = hash(Math.floor(now / 20000) * 17 + strHash(id)), e = now % 20000;
+    return r < .35 && e > 1000 && e < 12000 ? (r < .175 ? -9 : 9) : 0;
+  }
   function wantComp(w){ compWant = w; return comp.mode==='here' && comp.id===w.id; } // true = draw them in place now
   function compUpdate(t, scene){
     const n = performance.now(), dts = Math.min(.1, (n - (comp.last||n))/1000); comp.last = n;
@@ -577,7 +617,7 @@
     if (w && comp.id === w.id && comp.mode === 'out') comp.mode = 'in';               // changed their mind: come back, don't re-enter
     if (w) comp.tx = w.x;
     if (!comp.id) return;
-    const target = comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x : (comp.tx ?? comp.x));
+    const target = comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x + (w.kind==='floor' && actor.action!=='walking' ? wander(comp.id) : 0) : (comp.tx ?? comp.x));
     if (comp.mode==='here' && Math.abs(target - comp.x) > 2) comp.mode = 'in';     // their spot moved (table -> counter): walk there
     if (comp.mode==='here'){ comp.x = target;
       if (together){ markHead(comp.id, comp.x, scene.walkY); person(comp.look, comp.x, scene.walkY, t+300, {face: actor.x > comp.x ? 1 : -1}); }
@@ -1047,9 +1087,10 @@
       const dir = actor.paceDir||1;
       const gx = a==='walking' ? actor.x - 12*dir : (actor.x > W-40 ? actor.x-13 : actor.x+13);
       if (wantComp({id: actor.with || 'stranger', look: cl, x: gx, kind:'floor'})){
-        markHead(actor.with, gx, y);
+        const cx = a==='walking' ? gx : comp.x;   // standing friends may wander a step or two (see compUpdate)
+        markHead(actor.with, cx, y);
         if (a==='walking') person(cl, gx, y, t+300, {walk:true, face:dir});
-        else { face = gx > actor.x ? 1 : -1; person(cl, gx, y, t, {face:-face, talkPhase:a==='talking'}); }
+        else { face = cx > actor.x ? 1 : -1; person(cl, cx, y, t, {face:-face, talkPhase:a==='talking'}); }
       }
     }
     if (withIsPost() && settled) face = actor.loc==='street' ? 0 : 1;

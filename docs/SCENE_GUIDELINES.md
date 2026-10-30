@@ -78,3 +78,8 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 ## 9. Dreams
 - While Ishai sleeps, a thought bubble above his bed replays the day's highlights (`DREAM`, from the worker's `s.hl`: moments with a person, a new place, a goal or an unlock), 7 s each, zoomed on the people.
 - Dream pictures are drawn off screen with `DREAMING = true`, so they never touch live state (companions, the dog, speech-bubble heads). Any new scene must draw correctly with a fake, hidden actor.
+
+## 10. Fidgets and idle life
+- Standing or listening characters fidget every few seconds (`fid()`): foot tap, stomp, weight shift, stretch, look around, scratch head, turn around, cross arms, check phone. Talking adds gestures, nods and shrugs. Seated people nod, gesture and look around.
+- Standing friends take a couple of steps and come back now and then (`wander()`), never while it is their turn to speak.
+- Ishai does small errands inside long moments (`ERRANDS`). All of it runs on the real clock so every viewer sees the same thing. Portraits and dreams stay still.
