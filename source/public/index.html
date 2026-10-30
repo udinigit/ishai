@@ -104,6 +104,13 @@
   .pip{position:absolute;z-index:5;top:11%;left:2.5%;width:34%;opacity:0;transition:opacity .9s;pointer-events:none;
     background:#0b0716;border:2px solid #ff9ad0;border-radius:6px;box-shadow:0 0 14px rgba(255,154,208,.35);overflow:hidden}
   .pip.on{opacity:1}
+  .adb{position:absolute;z-index:5;left:0;right:0;bottom:12%;display:flex;align-items:center;gap:8px;padding:4px 10px 4px 6px;
+    transform:translateX(-105%);transition:transform .7s cubic-bezier(.2,.8,.2,1);pointer-events:none;border-top:2px solid;border-bottom:2px solid}
+  .adb.on{transform:translateX(0)}
+  .adb canvas{width:clamp(48px,14vw,84px);image-rendering:pixelated;image-rendering:crisp-edges;flex:none}
+  .adb .t{font-size:clamp(12px,3vw,19px);line-height:1.1}
+  .adb .t small{display:block;font-size:.75em;opacity:.85}
+  .adb .ad{position:absolute;top:2px;right:6px;font-size:clamp(9px,2vw,12px);opacity:.7;letter-spacing:1px}
   .pip canvas{display:block;width:100%;image-rendering:pixelated;image-rendering:crisp-edges}
   .pip .tag{position:absolute;z-index:1;top:3px;left:5px;font-size:clamp(10px,2.4vw,14px);color:#fff;background:#c2185b;padding:0 5px;border-radius:3px;letter-spacing:.5px}
   .pip .cap{font-size:clamp(10px,2.3vw,14px);line-height:1.15;padding:2px 6px;color:#f4f1ff;height:2.3em;overflow:hidden;background:#140c26}
@@ -119,6 +126,7 @@
     <canvas id="scene" width="192" height="108"></canvas>
 
     <div class="pip" id="pip" aria-hidden="true"><span class="tag">● LIVE · STUDIO</span><canvas id="pipCv" width="64" height="40"></canvas><div class="cap" id="pipCap"></div></div>
+    <div class="adb" id="adb" aria-hidden="true"><canvas id="adCv" width="40" height="20"></canvas><div class="t" id="adT"></div><span class="ad">AD</span></div>
     <div class="say" id="say" hidden><b id="sayWho"></b><span id="sayText"></span></div>
     <div class="nosig" id="nosig"><span id="nosigText">[ SUBJECT NOT IN FRAME ]</span></div>
     <div class="hud bot"><span id="place">ISHAI // APARTMENT</span><span id="hudAction">--</span></div>
@@ -1911,6 +1919,45 @@
     if (age >= 0 && age < 15 * 60000 && quiet) playStudio(st); else if (age >= 15 * 60000) studioDone.add(st.id);
   }, 1000);
   function DEV_ONLY_NARRATION_SKIP(){ return !!forceLoc; }   // previews stay clean
+  // ================= commercial breaks: sliding banners for fake brands and Watch-Ishai merch =================
+  // Only when it is quiet (he is alone, or asleep); every 6 minutes, same banner for every viewer.
+  const adCv = $('adCv'), actx = adCv.getContext('2d');
+  const EYE = (x,y) => { R(x+1,y,6,1,'#f4f1ff'); R(x,y+1,8,3,'#f4f1ff'); R(x+1,y+4,6,1,'#f4f1ff'); R(x+3,y+1,2,3,'#1d1238'); R(x+3,y+1,1,1,'#9fd0ff'); };
+  const BANNERS = [
+    {bg:COOOLA.bg, fg:COOOLA.fg, title:'Sponsored by COOOLA', sub:'Something to drink about.', draw(t){ R(0,0,40,20,COOOLA.dark); for (let i=0;i<3;i++) R(4+i*12,4,7,12,COOOLA.bg), R(4+i*12,8,7,2,COOOLA.fg), R(4+i*12,4,7,1,'#c9ced4'); bolt(16+Math.floor(t/300)%2,6,COOOLA.bolt); }},
+    {bg:'#7a1020', fg:'#ffd36a', title:'A BUTCHER IS BORN · tonight 21:00', sub:'Can Grandpa Moti stay undefeated? Never gory. Always tender.', draw(t){ R(0,0,40,20,'#3a0a10'); const a=Math.floor(t/250)%2;
+      R(8,6-a,14,7,'#c9ced4'); R(8,6-a,14,1,'#f4f4f4'); R(20,9-a,8,3,'#5a3a2a'); R(10,8-a,2,2,'#3a0a10'); R(26,13,10,5,'#c0504a'); R(27,14,8,1,'#f2c0b0'); }},
+    {bg:'#1d1238', fg:'#ff9ad0', title:'Official WATCH-ISHAI tee', sub:'"I watched Ishai water Moshe." 100% cotton, 0% privacy.', draw(t){ R(0,0,40,20,'#2a1f5a');
+      R(12,4,16,14,'#f4f1ff'); R(8,4,5,5,'#f4f1ff'); R(27,4,5,5,'#f4f1ff'); R(17,4,6,1,'#2a1f5a'); EYE(16,9); }},
+    {bg:'#1d1238', fg:'#9fd0ff', title:'WATCH-ISHAI mug', sub:'Now 40% more mug. Coffee not included. Neither is Ishai.', draw(t){ R(0,0,40,20,'#2a1f5a');
+      R(12,5,14,13,'#f4f1ff'); R(26,8,4,1,'#f4f1ff'); R(29,8,1,6,'#f4f1ff'); R(26,13,4,1,'#f4f1ff'); EYE(15,9);
+      for (let i=0;i<2;i++){ const ph=(t/900+i/2)%1; alpha(1-ph,()=>R(15+i*5,3-Math.floor(ph*3),1,2,'#f4f1ff')); } }},
+    {bg:'#1b3a6a', fg:'#ffd36a', title:'Sleep like Ishai', sub:'Official bed sheets. Blue. Slightly wrinkled. Exactly like his.', draw(t){ R(0,0,40,20,'#0f2240');
+      R(4,10,32,6,'#3b7bc2'); R(4,10,32,1,'#5a9ad8'); R(5,8,8,3,'#f2efe0'); R(4,16,2,3,'#6a4e38'); R(34,16,2,3,'#6a4e38'); const z=Math.floor(t/700)%3; R(28-z,3+z,3,1,'#cfe8ff'); }},
+    {bg:'#2f5a2a', fg:'#d8ffb0', title:'Moshe the Basil plush', sub:'Soft. Leafy. Waterproof, unlike the original.', draw(t){ R(0,0,40,20,'#1a3a18');
+      R(15,12,10,6,'#c96a3b'); R(15,12,10,1,'#e08a5a'); const s=Math.floor(t/500)%2; R(17,6+s,3,6,'#4caf50'); R(21,5,3,7,'#4caf50'); R(14,7,3,3,'#7fbf6a'); R(23,6-s,3,3,'#7fbf6a'); R(19,9,1,1,'#1a3a18'); R(21,9,1,1,'#1a3a18'); }},
+    {bg:'#5a3a8a', fg:'#ffffff', title:'Watch-Ishai accessories', sub:'Keychains, tote bags, a lanyard nobody asked for. Available nowhere. Yet.', draw(t){ R(0,0,40,20,'#3a2460');
+      R(6,6,12,11,'#e0b04a'); R(9,3,1,4,'#c9ced4'); R(14,3,1,4,'#c9ced4'); R(9,3,6,1,'#c9ced4'); EYE(8,10); R(24,8,9,9,'#c9ced4'); R(28,4,1,4,'#c9ced4'); EYE(25,11); }},
+    {bg:'#c9a24a', fg:'#2a1a0a', title:'HummusPrime', sub:'Fresh hummus by drone. Because chickpeas deserve wings.', draw(t){ R(0,0,40,20,'#f2e6c0');
+      const y = 4 + Math.round(Math.sin(t/300)); R(12,y,16,2,'#555'); R(10,y-1,4,1,'#888'); R(26,y-1,4,1,'#888'); R(17,y+2,6,5,'#e8d090'); R(17,y+2,6,1,'#b9813f'); }},
+    {bg:'#3a2a10', fg:'#ffd36a', title:'Wee Laddie Virgin Scotch', sub:"For kids. You won't believe it's not alcohol.", draw(t){ R(0,0,40,20,'#1e1408');
+      R(16,4,8,14,'#b07a2a'); R(18,1,4,3,'#b07a2a'); R(17,9,6,4,'#f2e6c0'); R(19,10,2,2,'#c23b3b'); }},
+    {bg:'#e8e0f0', fg:'#3a2a5a', title:'FluffNap pillows', sub:'Sleep so deep your neighbors will check on you.', draw(t){ R(0,0,40,20,'#c9c0dc');
+      const p = Math.floor(t/800)%2; R(8,7-p,24,8+p,'#ffffff'); R(8,7-p,24,1,'#f0e8ff'); R(10,9,1,1,'#c9c0dc'); }}
+  ];
+  const AD_EVERY = 6 * 60000, AD_SHOW = 9000; let adOn = null;
+  function adTick(){
+    const now = Date.now(), slot = Math.floor(now / AD_EVERY), e = now % AD_EVERY - 20000;
+    const quiet = !forceLoc && !actor.with && !SPEAKING && !studioOn && !actor.switching && (SAY.who !== 'radio' || performance.now() > SAY.until)
+      && (actor.action === 'sleeping' || !['talking','phoning'].includes(actor.action));
+    const want = e >= 0 && e < AD_SHOW && quiet ? BANNERS[Math.floor(hash(slot * 5 + 11) * BANNERS.length)] : null;
+    const el = $('adb');
+    if (want !== adOn){ adOn = want; el.classList.toggle('on', !!want);
+      if (want){ el.style.background = want.bg; el.style.color = want.fg; el.style.borderColor = want.fg;
+        $('adT').innerHTML = ''; const b = document.createElement('div'); b.textContent = want.title.replace('tonight 21:00', hourNow() >= 21.5 ? 'tomorrow 21:00' : hourNow() >= 21 ? 'ON NOW' : 'tonight 21:00'); const sm = document.createElement('small'); sm.textContent = want.sub; b.appendChild(sm); $('adT').appendChild(b); } }
+    if (adOn){ const prev = g; g = actx; try { adOn.draw(wall()); } catch(e){} g = prev; }
+  }
+  setInterval(adTick, 120);
   let castSig = '';
   setInterval(()=>{ if ($('castPanel').hidden) return; const sig = actor.loc + '|' + [...settledOnCamera()].join(',') + '|' + UNLOCKED.has('dog'); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
