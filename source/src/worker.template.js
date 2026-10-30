@@ -226,6 +226,7 @@ function publicState(s, dev) {
     build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
     events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, text: dev ? e.text : "", with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null })),
     talk: (s.talk || []).slice(-80), dev: !!dev,
+    studio: s.studio || null,
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
     unlocked: s.unlocked,
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [] } : null,
@@ -244,6 +245,31 @@ function storyClock(ms) {
   const p = Object.fromEntries(f.formatToParts(new Date(ms)).map(x => [x.type, x.value]));
   const hour = Number(p.hour) % 24;
   return { label: `${p.weekday} ${String(hour).padStart(2, "0")}:${p.minute}`, hour };
+}
+
+// ---------- hourly studio recap (picture-in-picture on the page) ----------
+async function studioRecap(env, s, storyMs) {
+  const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || id;
+  const fmt = e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " with " + nm(e.with) : ""}: ${e.text}` +
+    (e.lines || []).slice(0, 2).map(l => ` ${nm(l.who)}: "${l.say}"`).join("");
+  const lastHour = s.events.filter(e => storyMs - e.t < 3600000).map(fmt);
+  if (lastHour.length < 3) return null;
+  const today = (s.log?.lines || []).map(l => l.split(' Ishai: "')[0].split(" [")[0].slice(0, 150));
+  const earlier = today.slice(0, Math.max(0, today.length - lastHour.length)).filter((_, i, a) => i % Math.max(1, Math.floor(a.length / 12)) === 0).slice(-12);
+  const messages = [{ role: "system", content:
+`You write a 30-second "live from the studio" update for a reality show about Ishai, a man in Tel Aviv. Two hosts:
+- ${HOSTS.zohar}
+- ${HOSTS.oren}
+They recap today for viewers, focusing on the LAST HOUR, with sarcastic, witty remarks and banter. PG-13, never cruel about real groups or people.
+STRICT: mention only things that are in the log below. Never invent events, people, objects or plans. Do not say what will happen next (teasing "we'll see" is fine).
+Reply with ONLY JSON: {"lines":[{"who":"zohar"|"oren","say":"..."}]} with 4 to 6 lines, alternating hosts, max 25 words each. The first line greets viewers ("Live from the studio..."), the last line sends them back to the cameras.` },
+  { role: "user", content: `Earlier today:\n${earlier.join("\n") || "(nothing much)"}\n\nLAST HOUR:\n${lastHour.join("\n")}\n\nWrite the studio update. JSON only.` }];
+  const raw = await runModel(env, messages);
+  let o; try { o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch { return null; }
+  const lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 200) }))
+    .filter(l => (l.who === "zohar" || l.who === "oren") && l.say.length > 3).slice(0, 6);
+  if (lines.length < 3) return null;
+  return { id: "studio-" + Math.floor(storyMs / 3600000), t: storyMs, lines };
 }
 
 async function tick(env, force) {
@@ -320,6 +346,11 @@ async function tick(env, force) {
     (ev.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : nm(l.who)}: "${l.say}"`).join("") +
     (ev.commentary || []).map(c => ` [${c.who}] ${c.say}`).join(""));
   if (s.log.lines.length > 450) s.log.lines = s.log.lines.slice(-450);
+  // once an hour (08:00-23:00) the hosts go live from the studio with a recap
+  { const key = Math.floor(storyMs / 3600000), hr = clock.hour;
+    const quiet = !ev.with && !s.scene && !BATH_ACTIONS.includes(ev.action) && ev.action !== "sleeping" && ev.action !== "phoning"; // never during a conversation
+    if (hr >= 8 && hr <= 23 && s.studioKey !== key && quiet) { s.studioKey = key;
+      try { const st = await studioRecap(env, s, storyMs); if (st) s.studio = st; } catch (e) { console.log("studio", e && e.message); } } }
   await saveState(env, s);
   return s;
 }

@@ -101,6 +101,13 @@
   .snd{font:inherit;font-size:clamp(15px,3.8vw,20px);background:transparent;color:var(--phos);border:1px solid var(--phos-faint);
     border-radius:6px;padding:0 10px;cursor:pointer;margin-left:auto}
   .snd:focus-visible{outline:2px solid var(--phos);outline-offset:2px}
+  .pip{position:absolute;z-index:5;top:11%;right:2.5%;width:36%;opacity:0;transition:opacity .9s;pointer-events:none;
+    background:#0b0716;border:2px solid #ff9ad0;border-radius:6px;box-shadow:0 0 14px rgba(255,154,208,.35);overflow:hidden}
+  .pip.on{opacity:1}
+  .pip canvas{display:block;width:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+  .pip .tag{position:absolute;z-index:1;top:3px;left:5px;font-size:clamp(10px,2.4vw,14px);color:#fff;background:#c2185b;padding:0 5px;border-radius:3px;letter-spacing:.5px}
+  .pip .cap{font-size:clamp(11px,2.7vw,16px);line-height:1.15;padding:3px 6px 5px;color:#f4f1ff;min-height:2.4em;background:#140c26}
+  .pip .cap b{font-weight:normal}
 </style>
 </head>
 <body>
@@ -111,6 +118,7 @@
     <div class="hud top"><span class="rec"><span class="dot"></span>REC <span id="cam">CAM-01</span></span><span id="clock">--:--:--</span></div>
     <canvas id="scene" width="192" height="108"></canvas>
 
+    <div class="pip" id="pip" aria-hidden="true"><span class="tag">● LIVE · STUDIO</span><canvas id="pipCv" width="64" height="40"></canvas><div class="cap" id="pipCap"></div></div>
     <div class="say" id="say" hidden><b id="sayWho"></b><span id="sayText"></span></div>
     <div class="nosig" id="nosig"><span id="nosigText">[ SUBJECT NOT IN FRAME ]</span></div>
     <div class="hud bot"><span id="place">ISHAI // APARTMENT</span><span id="hudAction">--</span></div>
@@ -465,7 +473,7 @@
     const kind = (!o.walk && !o.muted && !o.still) ? fid(o.seed ?? strHash(L.hair + L.shirt + L.skin + L.pants), t, theirs || !!o.talkPhase, seated) : 'none';
     if (kind==='shift') x += Math.floor(t/700)%2;
     const y0 = y; if (kind==='nod') y += Math.floor(t/260)%2;
-    head(x,y,{closed:blinkOn(t,o.seed??1700), look: lookFid(t, kind, o.face??-1), talk: theirs && Math.floor(t/170)%2});
+    head(x,y,{closed:blinkOn(t,o.seed??1700), look: lookFid(t, kind, o.face??-1), talk: (theirs || o.talking) && Math.floor(t/170)%2});
     // hair styles
     const h = pal.hair;
     if (L.hair==='bald'){ R(x+2,y,6,3,pal.skin); R(x+3,y,2,1,tint(pal.skin,.3)); }
@@ -1866,6 +1874,43 @@
     }
   }
   setInterval(radioTick, 1000);
+  // ================= live from the studio: an hourly recap by the hosts, picture-in-picture =================
+  let STUDIO = null; const studioDone = new Set(); let studioOn = false, studioWho = null;
+  const pipCv = $('pipCv'), pctx = pipCv.getContext('2d');
+  function drawStudio(t){
+    const prev = g; g = pctx;
+    R(0,0,64,40,'#1d1238'); for (let x=2;x<64;x+=8) R(x,0,1,29,'#25174a');
+    [10,32,54].forEach((x,i)=>{ R(x-2,0,4,2,'#444'); alpha(.12 + .05*((Math.floor(t/500)+i)%2),()=>R(x-6,2,12,26,'#fff6d8')); });
+    R(21,4,22,14,'#ff9ad0'); R(22,5,20,12,'#2a1f5a');                                 // the show's logo screen: an eye
+    R(27,9,10,4,'#f4f1ff'); R(28,8,8,1,'#f4f1ff'); R(28,13,8,1,'#f4f1ff'); R(31,9,3,4,'#1d1238'); R(31,9,1,1,'#9fd0ff');
+    person(HOSTS.zohar.look, 9, 11, t, {legs:false, face:1, talking: studioWho==='zohar', seed:21});
+    person(HOSTS.oren.look, 45, 11, t + 700, {legs:false, face:-1, talking: studioWho==='oren', seed:22});
+    R(0,29,64,1,'#c9b37a'); R(0,30,64,10,'#3a2a5a'); R(0,33,64,1,'#ff9ad0'); R(0,35,64,1,'#9fd0ff');
+    R(18,26,3,3,'#f2f2f2'); R(19,27,1,1,'#8a5a3a'); cooolaCan(42,24);                 // her coffee, his (sponsored) Cooola
+    g = prev;
+  }
+  async function playStudio(st){
+    studioDone.add(st.id); studioOn = true; const pip = $('pip'), cap = $('pipCap'); cap.textContent = '';
+    const anim = () => { if (!studioOn) return; drawStudio(wall()); requestAnimationFrame(anim); }; anim();
+    pip.classList.add('on');
+    await new Promise(r => setTimeout(r, 1200));
+    for (let i = 0; i < st.lines.length; i++){
+      const l = st.lines[i]; studioWho = l.who;
+      cap.innerHTML = ''; const b = document.createElement('b'); b.style.color = HOSTS[l.who].color; b.textContent = HOSTS[l.who].name + ': ';
+      const tx = document.createElement('span'); cap.append(b, tx);
+      await Promise.all([Sound.say(l.who, l.say), typeInto(tx, l.say, true, ch => Sound.blip(l.who, ch), null),
+        addMsg({id: st.id + ':' + i, t: st.t, who: l.who, say: l.say, host: true}, false)]);
+      studioWho = null; await new Promise(r => setTimeout(r, 1400 + Math.min(2500, l.say.length * 25)));
+    }
+    pip.classList.remove('on'); await new Promise(r => setTimeout(r, 1000)); studioOn = false;
+  }
+  setInterval(() => {
+    const st = STUDIO; if (!st || studioOn || studioDone.has(st.id) || DEV_ONLY_NARRATION_SKIP()) return;
+    const age = Date.now() - st.t;
+    const quiet = !actor.with && !SPEAKING && !actor.switching && !actor.ride && actor.action !== 'phoning' && actor.action !== 'sleeping'; // only when things get quiet
+    if (age >= 0 && age < 15 * 60000 && quiet) playStudio(st); else if (age >= 15 * 60000) studioDone.add(st.id);
+  }, 1000);
+  function DEV_ONLY_NARRATION_SKIP(){ return !!forceLoc; }   // previews stay clean
   let castSig = '';
   setInterval(()=>{ if ($('castPanel').hidden) return; const sig = actor.loc + '|' + [...settledOnCamera()].join(',') + '|' + UNLOCKED.has('dog'); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
@@ -1955,6 +2000,7 @@
       if (s.dev) enableDev();
       if (!loaded) TALK_HISTORY = s.talk || [];
       NOTES = s.notes || ''; setCast(s.cast);
+      if (s.studio) STUDIO = s.studio;
       if (s.world) { WORLD = s.world; $('stNext').textContent = weatherLabel(); }
       if (Array.isArray(s.dream)) DREAM = s.dream;
       // items appear when the moment that brings them is shown, not before (broadcast delay)
