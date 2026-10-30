@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-30b",
+  "version": "2026-10-30c",
   "written": "2026-10-30T14:30+02:00",
   "arcs": [
     {
@@ -26,6 +26,11 @@
       "id": "levi-radio",
       "title": "Mrs. Levi's old radio",
       "stage": "Waiting; starts Monday."
+    },
+    {
+      "id": "falafel",
+      "title": "Falafel the dog",
+      "stage": "Planned: Sat — a stray at Avi's kiosk; Sun — Ishai adopts him and names him Falafel."
     }
   ],
   "beats": [
@@ -108,19 +113,66 @@
           "say": "Shabbat shalom, Ishush. Your challah is better than you."
         }
       ]
+    },
+    {
+      "id": "1031-stray",
+      "startAt": "2026-10-31T11:00:00+02:00",
+      "deadlineAt": "2026-10-31T13:30:00+02:00",
+      "location": "street",
+      "with": "Avi (avi)",
+      "unlock": "stray",
+      "goal": "On a slow Shabbat walk Ishai stops by Avi's kiosk and notices a scruffy sandy stray dog hanging around. Avi admits he has been secretly feeding it falafel balls. Ishai kneels, the dog sniffs him and decides he is acceptable. Ishai pretends not to be charmed. Complete when the stray has clearly entered the story.",
+      "forceAction": "talking",
+      "forceWith": "avi",
+      "forceText": "By Avi's kiosk, a scruffy sandy stray sits and stares at Ishai like they have met before.",
+      "forceLines": [
+        {
+          "who": "avi",
+          "say": "Don't look at me, champion. He showed up Tuesday. Now he's family."
+        },
+        {
+          "who": "ishai",
+          "say": "You're feeding him falafel?"
+        },
+        {
+          "who": "avi",
+          "say": "Only the good ones."
+        }
+      ],
+      "forceCommentary": [
+        {
+          "who": "zohar",
+          "say": "A stray dog and a lonely designer. I'm not saying it's destiny. I'm saying it's destiny."
+        },
+        {
+          "who": "oren",
+          "say": "Moshe the basil will not take this well."
+        }
+      ]
+    },
+    {
+      "id": "1101-adopt",
+      "startAt": "2026-11-01T13:30:00+02:00",
+      "deadlineAt": "2026-11-01T18:00:00+02:00",
+      "location": "apartment",
+      "with": "Avi (avi)",
+      "unlock": "dog",
+      "goal": "Ishai can't stop thinking about the stray. He goes back to Avi's kiosk, gets Avi's blessing, names the dog Falafel and brings him home through the building corridor (Mrs. Levi has strong opinions about dogs and then falls in love). Spread it over several moments. Complete in the moment Falafel arrives in apartment 4.",
+      "forceAction": "idle",
+      "forceText": "Ishai carries the scruffy stray up to apartment 4 and sets him down. 'Welcome home, Falafel.' Moshe the basil has a new roommate.",
+      "forceCommentary": [
+        {
+          "who": "zohar",
+          "say": "HE ADOPTED THE DOG. I need a minute. I need several minutes."
+        },
+        {
+          "who": "oren",
+          "say": "Falafel. He named a dog after lunch. Respect."
+        }
+      ]
     }
   ],
   "overrides": [
-    {
-      "id": "tv",
-      "startAt": "2026-11-01T10:00:00+02:00",
-      "deadlineAt": "2026-11-01T20:00:00+02:00"
-    },
-    {
-      "id": "radio",
-      "startAt": "2026-11-02T15:00:00+02:00",
-      "deadlineH": 24
-    },
     {
       "id": "fri-invite-noa",
       "forceCommentary": [
@@ -226,6 +278,16 @@
           "say": "Shabbat shalom, Noa. Thanks for coming."
         }
       ]
+    },
+    {
+      "id": "tv",
+      "startAt": "2026-11-01T09:30:00+02:00",
+      "deadlineAt": "2026-11-01T12:30:00+02:00"
+    },
+    {
+      "id": "radio",
+      "startAt": "2026-11-03T15:00:00+02:00",
+      "deadlineH": 24
     }
   ]
 }

@@ -27,7 +27,7 @@ const DIRECTOR_SEED = [
     goal: "Mrs. Levi gives Ishai her late husband's old radio, insisting it 'needs a young man'. He pretends he doesn't need it, then secretly starts loving it.",
     forceText: "Mrs. Levi leaves her old radio at Ishai's door with a note: 'For you, motek. Don't argue.'" }
 ];
-const ITEMS = { tv: "a TV", radio: "an old radio" };
+const ITEMS = { tv: "a TV", radio: "an old radio", dog: "a scruffy sandy dog named Falafel", stray: null };
 
 // ---------- real world (all free, no keys); refreshed about once an hour ----------
 const WEATHER_URL = "https://api.open-meteo.com/v1/forecast?latitude=32.08&longitude=34.78&current=temperature_2m,weather_code,is_day,wind_speed_10m&timezone=Asia%2FJerusalem";
@@ -324,13 +324,16 @@ function castSection(s, last) {
 function buildMessages(s, clock, now, goal) {
   const last = s.events[s.events.length - 1];
   const owned = s.unlocked.map(u => ITEMS[u]).filter(Boolean);
+  const dogLine = s.unlocked.includes("dog")
+    ? "\n- Falafel, Ishai's scruffy sandy dog (adopted from Avi's kiosk), goes everywhere with him: he walks him, feeds him, Falafel begs at the counter, naps in his own bed, steals socks. Mention Falafel now and then; the hosts adore him."
+    : s.unlocked.includes("stray") ? "\n- A scruffy sandy stray dog hangs around Avi's kiosk on Herzl Street; Avi secretly feeds it falafel balls. Ishai keeps noticing it." : "";
   const world = Object.entries(PLACES).map(([k, v]) => `- ${k}: ${v}. Allowed actions: ${allowed(k, s.unlocked).join(", ")}`).join("\n");
   const gapMin = Math.round((now - (last.created || last.t)) / 60000);
   const gap = gapMin > 45 ? `\nNote: about ${gapMin >= 120 ? Math.round(gapMin / 60) + " hours" : gapMin + " minutes"} passed since the last moment; account for that.` : "";
   const direction = goal
     ? `\nSECRET STORY DIRECTION (viewers must not notice it is directed): ${goal.goal}\n` +
       `Work towards it naturally, step by step; it does not have to happen in this moment. ${timeLeft(deadlineOf(goal) - now)} left. ` + (goal.where ? `It happens at: ${goal.where}. ` : "") + (goal.with ? `Involves: ${goal.with}. ` : "") +
-      `In the moment it is fully done, set "complete":"${goal.id}".` + (goal.unlock ? ` Until then Ishai does NOT have ${ITEMS[goal.unlock]}.` : "")
+      `In the moment it is fully done, set "complete":"${goal.id}".` + (goal.unlock && ITEMS[goal.unlock] ? ` Until then Ishai does NOT have ${ITEMS[goal.unlock]}.` : "")
     : "";
   const name = id => s.cast[id]?.name || id;
   const recent = s.events.slice(-8).map(e =>
@@ -381,7 +384,7 @@ RULES
 - Location must be one of: ${Object.keys(LOCATIONS).join(", ")}. Action must be allowed in that location.
 - He can only move to a neighboring location: ${Object.entries(NEXT).map(([k, v]) => `${k} -> ${v.join("/")}`).join("; ")}.
 - If he goes somewhere without a camera, use location "offscreen" with action "away".
-- Things he owns at home: laptop, books, game console${owned.length ? ", " + owned.join(", ") : ""}. Do not invent other big objects. When he watches TV or listens to the radio, mention what is on (make up shows and stations). ${TV_SHOW}
+- Things he owns at home: laptop, books, game console${owned.length ? ", " + owned.join(", ") : ""}.${dogLine} Do not invent other big objects. When he watches TV or listens to the radio, mention what is on (make up shows and stations). ${TV_SHOW}
 - "with" is the id of ONE person with him in this moment (a visitor at home counts), or the person on the other end when the action is "phoning"; otherwise null.
 - He is social: about one in four moments should involve another person, in person or by phone. People visit him, call him, text him to meet up.
 - "lines": the spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real back-and-forth exchange of 3 to 6 lines (each max 25 words): questions, answers, jokes, reactions, in each character's own voice. A conversation may continue over several moments; pick up where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
@@ -604,7 +607,7 @@ function newGoal(d, now) {
   const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
   return {
     id: str(d.id, 30) || "g" + now.toString(36), goal: str(d.goal, 600), forceText: str(d.forceText, 260),
-    unlock: ITEMS[d.unlock] ? d.unlock : null,
+    unlock: d.unlock && d.unlock in ITEMS ? d.unlock : null,
     startAfter: d.startAt ? Date.parse(d.startAt) : now + Math.max(0, Number(d.startAfterH) || 0) * 3600000,
     deadlineH: clamp(Number(d.deadlineH) || 24, .1, 24 * 14), deadlineAt: d.deadlineAt ? Date.parse(d.deadlineAt) : null,
     where: str(d.location, 20) || null, with: str(d.with, 60) || null, forceWith: str(d.forceWith, 20) || null,

@@ -422,6 +422,60 @@
     Object.assign(C, keep);
     if (theirs) bubble(x-7,y-7,t);
   }
+  // ---- Falafel the dog (and, before the adoption, the stray at Avi's kiosk) ----
+  const DOGPAL = {B:'#d9b27a', D:'#b48a52', W:'#f2ead8', E:'#161616', N:'#2a1a12', K:'#7a5232', T:'#e0606a'};
+  const DOG = {
+    standA:['........KK.','.......BBBB','D......BEBN','DBBBBBBBWW.','.BBBBBBBW..','.B.B..B.B..','.B.B..B.B..'],
+    standB:['........KK.','D......BBBB','.D.....BEBN','.BBBBBBBWW.','.BBBBBBBW..','.B..B.B..B.','B...B.B...B'],
+    sitA:  ['.....KK..','....BBBB.','....BEBN.','..BBBWWT.','.BBBBW...','DBBBBBB..','.BBB.B.B.'],
+    sitB:  ['.....KK..','....BBBB.','....BEBN.','..BBBWW..','.BBBBW...','.BBBBBB..','DBBB.B.B.'],
+    sleep: ['.........','.........','.........','........KK.','D......BBBB','BBBBBBBBBBN','BBBBBBBBBB.']
+  };
+  function dogMap(map, x, y, flip){
+    const w = Math.max(...map.map(r=>r.length));
+    map.forEach((row,j)=>[...row].forEach((ch,i)=>{ const c = DOGPAL[ch]; if (c) R(flip ? x + (w-1-i) : x + i, y + j, 1, 1, c); }));
+  }
+  // feet on floorY; pose: walk | sit | sleep; dir: 1 = facing right
+  function drawDog(x, floorY, t, pose, dir){
+    const f2 = Math.floor(t/180)%2, wag = Math.floor(t/260)%2;
+    const map = pose==='walk' ? (f2 ? DOG.standB : DOG.standA) : pose==='sleep' ? DOG.sleep : (wag ? DOG.sitA : DOG.sitB);
+    const y = floorY - map.length;
+    outlined(Math.round(x)-2, y-8, 16, map.length+10, () => {
+      dogMap(map, Math.round(x), y, dir < 0);
+      if (pose==='sleep'){ const ph = (t/2400)%1; alpha(1-ph, () => zee(Math.round(x)+8+Math.floor(ph*4), y-2-Math.floor(ph*6), '#cfe8ff')); }
+    });
+  }
+  const dog = { x:0, loc:null, last:0, lastBark:0 };
+  function liveLayer(t, scene){ compUpdate(t, scene); dogUpdate(t, scene); } // drawn under the scene's night lighting
+  function dogUpdate(t, scene){
+    if (!UNLOCKED.has('dog') || actor.loc==='offscreen' || actor.switching){ dog.loc = null; return; }
+    const floor = scene.walkY + 22, a = actor.action, settled = !actor.travelling && !actor.hidden;
+    const moving = actor.travelling || a==='walking';
+    const mdir = actor.travelling ? Math.sign(actor.targetX - actor.x) || 1 : (actor.paceDir || 1);
+    if (dog.loc !== actor.loc){ dog.loc = actor.loc; dog.x = actor.x - 12*mdir; }
+    let target = actor.x + (actor.x > W-40 ? -12 : 12), pose = 'sit', fy = floor;
+    if (moving) { target = actor.x - 10*mdir; pose = 'walk'; }
+    else if (actor.hidden && BATH.has(a)) { target = 62; }                                   // waits at the bathroom door
+    else if (actor.loc==='apartment'){
+      if (a==='sleeping' || a==='listening') { target = 52; pose = 'sleep'; fy = 94; }      // his own bed
+      else if (a==='working' || a==='gaming') target = 64;
+      else if (['eating','cooking','drinking'].includes(a)) target = 142;                    // begging by the counter
+      else if (a==='reading' || a==='watching') { target = 98; pose = 'sleep'; }
+    }
+    else if (actor.loc==='park' && (a==='idle' || a==='exercising' || a==='talking' || a==='reading' || a==='eating')){
+      target = 80 + Math.sin(t/2600)*45; pose = 'walk';                                      // running around
+    }
+    else if (actor.loc==='cafe' && settled && ['eating','drinking','working','reading','talking'].includes(a)) target = 96; // under the table
+    const n = performance.now(), dts = Math.min(.1, (n - (dog.last||n))/1000); dog.last = n;
+    const d = target - dog.x, step = (moving ? 26 : 45) * dts;
+    dog.x += Math.abs(d) <= step ? d : Math.sign(d)*step;
+    const arrived = Math.abs(target - dog.x) < 1;
+    drawDog(dog.x, arrived ? fy : floor, t, arrived ? pose : 'walk', arrived ? (pose==='walk' ? Math.sign(Math.cos(t/2600))||1 : (actor.x >= dog.x ? 1 : -1)) : Math.sign(d)||1);
+    // an occasional bark (same moment for every viewer)
+    const sec = Math.floor(Date.now()/1000);
+    if (pose !== 'sleep' && sec % 71 === 0 && dog.lastBark !== sec){ dog.lastBark = sec; Sound.bark(); }
+  }
+
   // ---- bystanders: muted, slightly faded, and the same for every viewer (driven by the clock) ----
   const CROWD = [
     {hair:'short',hairColor:'black',skin:'brown',shirt:'gray',pants:'navy',extras:[]},
@@ -540,6 +594,7 @@
       R(160,48,12,6,'#e8e2d6'); R(160,54,12,1,'#bdb6a8');
       R(177,38,14,42,C.fridge); R(177,52,14,1,'#b8bec4'); R(179,44,1,5,'#9aa3ad'); R(179,55,1,7,'#9aa3ad'); R(182,40,3,3,'#e0605a'); R(184,46,5,6,COOOLA.bg); bolt(185,46,COOOLA.fg);
       R(96,95,44,10,C.rug); R(98,97,40,6,C.rugLight); R(100,99,36,2,C.rug);
+      if (UNLOCKED.has('dog')){ R(50,90,16,6,'#8a3b3b'); R(51,91,14,3,'#c96a5a'); R(134,93,7,2,'#3b7bc2'); R(135,92,5,1,'#c9a26a'); }
       // bed back
       R(3,60,6,32,C.woodDark); R(4,58,4,2,C.woodDark); R(9,76,40,8,C.sheet); R(10,72,9,5,C.pillow); R(10,76,9,1,'#cfc8b6');
       // desk chair back, armchair back
@@ -594,6 +649,7 @@
       // floor
       drawFloor(t,a,settled,actor,this);
       // light
+      liveLayer(t, this);
       let dark = 0; if (isNight(hf)) dark = S('sleeping') ? .62 : .28; else if (hf<7||hf>=18) dark=.12;
       if (dark) alpha(dark,()=>R(0,0,W,H,'#050a1e'));
       if (S('watching')){ const c = ['#9fd0ff','#ffd36a','#ff9a9a','#a0ffb0'][Math.floor(t/1500)%4];
@@ -633,6 +689,7 @@
       if (Math.floor(t/80000) % 3 === 1) crowdWalk(t, 4, 80000, 0, 74, -1, .85);
       R(68,70,6,8,C.terracotta); R(69,62,1,8,C.leaf); R(71,60,1,10,C.leafDark); R(73,63,1,7,C.leaf); R(67,64,2,2,C.leaf); R(73,61,2,2,C.leafDark);
       drawFloor(t,a,settled,actor,this);
+      liveLayer(t, this);
       if (isNight(hf)) alpha(.15,()=>R(0,0,W,H,'#050a1e'));
     }
   };
@@ -666,6 +723,11 @@
       R(116,60,26,2,'#5e4027'); R(116,64,26,2,'#7a5534'); R(118,66,2,6,'#333'); R(138,66,2,6,'#333');
       R(84,30,2,42,'#3a3a3a'); R(80,28,10,3,'#3a3a3a'); R(81,31,8,1, night?'#fff3b0':'#777');
       if (night) alpha(.18,()=>{ ctx.beginPath(); ctx.moveTo(80,32); ctx.lineTo(90,32); ctx.lineTo(104,92); ctx.lineTo(66,92); ctx.fill(); });
+      // the stray who hangs around Avi's kiosk (until Ishai adopts him)
+      if (UNLOCKED.has('stray') && !UNLOCKED.has('dog')){
+        const scratch = Math.floor(t/7000)%4===0, sx = 138 + Math.round(Math.sin(t/9000)*6);
+        drawDog(sx, 88, t, scratch ? 'walk' : 'sit', Math.sin(t/9000) > 0 ? 1 : -1);
+      }
       // bystanders: a far lane of pedestrians, someone waiting on the bench
       crowdWalk(t, 0, 26000, 0, 61, 1, .7); crowdWalk(t, 1, 33000, 9000, 61, -1, .7); crowdWalk(t, 5, 41000, 20000, 63, 1, .75);
       if (Math.floor(t/90000) % 3 !== 0) crowdStill(t, 3 + Math.floor(t/90000) % 4, 124, 48, {legs:'sit'}, .8 * fadeWin(t, 90000));
@@ -680,6 +742,7 @@
       } else if (cx < W+10){ const col = ['#c23b3b','#3b7bc2','#e0b04a','#dcdcdc'][lap%4];
         R(cx,96,26,6,col); R(cx+5,92,14,4,col); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0');
         R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111'); if (night) R(cx+25,97,2,2,'#fff3b0'); }
+      liveLayer(t, this);
       if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
     }
   };
@@ -718,6 +781,7 @@
       const pl = sit && companionLook(a); if (pl && wantComp({id: actor.with || 'stranger', look: pl, x: 134, kind:'seat'})) person(pl,134,62,t,{legs:'sit',face:-1});
       R(108,77,38,3,'#9a7048'); R(110,80,2,6,'#333'); R(142,80,2,6,'#333');
       if (!sit) drawFloor(t,a,settled,actor,this);
+      liveLayer(t, this);
       if (night) alpha(.38,()=>R(0,0,W,H,'#050a1e'));
     }
   };
@@ -763,6 +827,7 @@
       R(66,78,4,4,'#e8e4d8'); R(70,79,1,2,'#e8e4d8'); // cup
       if (settled && a==='working'){ R(74,76,8,6,C.metal); R(73,81,10,1,C.metalDark); }
       if (!atTable) drawFloor(t,a,settled,actor,this);
+      liveLayer(t, this);
       if (isNight(hf)) alpha(.15,()=>R(0,0,W,H,'#050a1e'));
     }
   };
@@ -897,7 +962,7 @@
     }
     const settled = !actor.travelling && !actor.hidden;
     SCENES[actor.loc].draw(t, hf, actor.action, settled, actor);
-    if (actor.loc !== 'offscreen') compUpdate(t, SCENES[actor.loc]);
+
     if (rainy() && (actor.loc==='street' || actor.loc==='park')) drawRain(0,0,W,H,t,90);
     const off = actor.loc==='offscreen';
     $('nosig').style.display = off ? 'flex' : 'none';
@@ -1041,6 +1106,11 @@
       tick();
     }
 
+    function bark(){
+      if (!on()) return;
+      noise(.09,{vol:.12,type:'bandpass',freq:650,q:2}); noise(.08,{vol:.1,type:'bandpass',freq:720,q:2,when:.16});
+      tone(420,.07,'square',.025,0,out,.6); tone(460,.06,'square',.02,.16,out,.6);
+    }
     const btn = $('snd');
     function setMode(m){
       if (!init()){ btn.textContent = 'NO AUDIO'; return; }
@@ -1058,7 +1128,7 @@
       const resume = () => { document.removeEventListener('pointerdown', resume, true); document.removeEventListener('keydown', resume, true); if (mode === 'off') setMode(saved); };
       document.addEventListener('pointerdown', resume, true); document.addEventListener('keydown', resume, true);
     }
-    return { blip, key, say, setAmbience };
+    return { blip, key, say, setAmbience, bark };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -1268,7 +1338,13 @@
     const visible = settledOnCamera();
     const people = Object.values(CAST).filter(c => visible.has(c.id) || c.lastSeen || c.scenes)
       .sort((a,b)=>(visible.has(b.id)-visible.has(a.id)) || (b.lastSeen||0)-(a.lastSeen||0));
-    if (!people.length){ const p = document.createElement('div'); p.className='meta'; p.textContent = 'Nobody else has appeared on camera yet.'; el.appendChild(p); }
+    if (UNLOCKED.has('dog')){
+      const c = document.createElement('canvas'); c.width = 14; c.height = 12; const pc = c.getContext('2d'); const prev = g; g = pc;
+      R(0,0,14,12,'#0b120b'); dogMap(DOG.sitA, 2, 3, false); g = prev;
+      const d = card(ISHAI_LOOK,'FALAFEL','#e8c48a',"Ishai's dog. Scruffy, sandy, adopted from Avi's kiosk.",null,'Eats everything. Trusts nobody but Ishai and Avi.', false);
+      d.replaceChild(c, d.firstChild); el.appendChild(d);
+    }
+    if (!people.length && !UNLOCKED.has('dog')){ const p = document.createElement('div'); p.className='meta'; p.textContent = 'Nobody else has appeared on camera yet.'; el.appendChild(p); }
     people.forEach(c=>{
       const seen = visible.has(c.id) ? '● ON CAMERA NOW' : 'last seen ' + fmtHM.format(new Date(c.lastSeen)) + (c.scenes ? ` · ${c.scenes} scene${c.scenes>1?'s':''}` : '');
       el.appendChild(card(c.look, c.name.toUpperCase(), tint(CLOTH[c.look?.shirt]||CLOTH.gray,.45),
