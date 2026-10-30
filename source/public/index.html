@@ -501,13 +501,23 @@
   // soft fade at both ends of a time window, so still bystanders never blink in or out
   const fadeWin = (t, len) => Math.max(0, Math.min(1, (t % len) / 1500, (len - t % len) / 1500));
   // companions who join Ishai fade in at tables/benches, and walk in from a door or the edge when standing
+  // ---- doors open when Ishai or a companion walks through them ----
+  function doorBusy(cx){
+    const near = (x) => Math.abs(x + 5 - cx) < 9;
+    if (!actor.hidden && (actor.travelling || actor.pending) && near(actor.x)) return true;
+    if (comp.id && comp.mode !== 'here' && near(comp.x)) return true;
+    if (actor.hidden && BATH.has(actor.action) && cx === 53 && actor.loc==='apartment') return false;
+    return false;
+  }
+  // draw an open doorway over a closed door (x,y,w,h = the door leaf); the leaf swings in
+  function openDoor(x, y, w, h){ R(x, y, w, h, '#14100c'); R(x, y, 3, h, '#6a4e38'); R(x+3, y, 1, h, '#3a2a1c'); }
   // ---- companion controller: every friend walks in from an exit point, and walks out the same way ----
   const comp = { id:null, look:null, x:0, mode:null, loc:null, last:0 };
   let compWant = null; // what the scene wants this frame: {id, look, x, kind:'seat'|'floor'}
   function exitX(loc, id, nearX){
     if (loc==='apartment') return 135;                      // front door
     if (loc==='corridor') return id==='levi' ? 106 : 180;   // Mrs. Levi's door, otherwise the stairs
-    if (loc==='cafe') return -14;                           // café entrance (left)
+    if (loc==='cafe') return 4;                             // café entrance door (left)
     return nearX > W/2 ? W+8 : -18;                         // street and park: nearest edge
   }
   function wantComp(w){ compWant = w; return comp.mode==='here' && comp.id===w.id; } // true = draw them in place now
@@ -594,6 +604,7 @@
       // bathroom door (the camera never looks inside)
       const inBath = actor.hidden && BATH.has(a) && actor.loc==='apartment';
       R(46,50,15,30,C.doorFrame); R(47,52,13,28,'#7d6a58'); R(49,55,9,8,'#8a7663'); R(49,66,9,10,'#8a7663'); R(57,66,1,2,C.gold);
+      if (doorBusy(53) && (BATH.has(a) || BATH.has(actor.prevAction||''))) openDoor(47,52,13,28);
       R(50,47,7,3, inBath ? '#c23b3b' : '#3a3a3a'); R(51,48,5,1, inBath ? '#ffb0b0' : '#555');
       if (inBath){ alpha(.7,()=>R(47,79,13,1,'#ffe8a0'));
         if (a==='showering') for (let i=0;i<4;i++){ const ph=(t/1400+i/4)%1; alpha((1-ph)*.8,()=>R(48+i*3+(Math.floor(ph*6)%2),78-Math.floor(ph*14),2,1,'#f2f2f2')); } }
@@ -601,6 +612,7 @@
       ['#c23b3b','#e0b04a','#3b7bc2','#7fbf6a','#d0d0d0','#9a5bc2','#c27a3b'].forEach((c,i)=>{ const h=6+(i%3); R(65+i*4,44-h,3,h,c); });
       R(102,22,18,24,'#1b2230'); R(104,24,14,20,'#f0d070'); R(106,30,10,10,'#e0605a'); R(108,26,6,2,'#1b2230');
       R(131,46,18,34,C.doorFrame); R(133,48,14,32,C.door); R(135,51,10,10,'#6a4e38'); R(135,64,10,12,'#6a4e38'); R(144,64,2,2,C.gold);
+      if (doorBusy(140)) openDoor(133,48,14,32);
       R(151,64,25,2,C.top); R(151,66,25,14,C.counter); R(153,68,9,10,'#7a6b5c'); R(164,68,9,10,'#7a6b5c');
       R(161,72,1,2,C.metal); R(165,72,1,2,C.metal); R(154,63,4,1,'#333'); R(166,63,4,1,'#333');
       R(160,48,12,6,'#e8e2d6'); R(160,54,12,1,'#bdb6a8');
@@ -689,6 +701,8 @@
       // doors: 3, 4 (Ishai), 5
       const door=(x,c,n)=>{ R(x,34,18,44,'#3e2f22'); R(x+2,36,14,42,c); R(x+13,56,2,2,C.gold); R(x+6,40,6,4,'#c9b37a'); digit(n,x+8,40); };
       door(10,'#6a4e38',3); door(34,'#8a3a32',4); door(104,'#6a4e38',5);
+      if (doorBusy(45)) openDoor(36,36,14,42);     // Ishai's door
+      if (doorBusy(111)) openDoor(106,36,14,42);   // Mrs. Levi's door
       R(32,96,22,3,'#9a3a3a'); // doormat
       // elevator
       R(132,30,30,48,'#6d737a'); R(134,34,13,44,'#a9b0b8'); R(147,34,13,44,'#9aa1a9'); R(146,34,1,44,'#5c6168');
@@ -723,6 +737,7 @@
       // Ishai's building entrance
       cooolaSign(104,8,32,13,false); R(110,21,2,4,'#555'); R(128,21,2,4,'#555');
       R(18,50,22,22,'#5a4c3f'); R(21,53,16,19,'#3a2d22'); R(28,53,2,19,'#2a2018'); R(22,46,14,4,'#c9b37a'); digit(4,28,47,'#3a2d22');
+      if (doorBusy(31)) { R(21,53,16,19,'#14100c'); R(21,53,3,19,'#4a3a2c'); R(34,53,3,19,'#4a3a2c'); }
       // kiosk (falafel)
       R(150,48,36,24,'#d8d0c0'); for (let i=0;i<9;i++) R(148+i*4.5,44,4,5, i%2?'#e0605a':'#f4f4f4');
       R(154,52,28,12,'#2a2a2a');
@@ -733,6 +748,8 @@
       R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=(t/40)%0; x<W; x+=20) R(x+4,101,10,1,'#e8e8a0');
       // bench + streetlight
       R(116,60,26,2,'#5e4027'); R(116,64,26,2,'#7a5534'); R(118,66,2,6,'#333'); R(138,66,2,6,'#333');
+      // bus stop sign
+      R(146,46,1,26,'#555'); R(143,42,8,7,'#2f6fb5'); R(144,43,6,1,'#f2f2f2'); R(145,45,4,2,'#f2f2f2'); R(144,48,6,1,'#f2c230');
       R(84,30,2,42,'#3a3a3a'); R(80,28,10,3,'#3a3a3a'); R(81,31,8,1, night?'#fff3b0':'#777');
       if (night) alpha(.18,()=>{ ctx.beginPath(); ctx.moveTo(80,32); ctx.lineTo(90,32); ctx.lineTo(104,92); ctx.lineTo(66,92); ctx.fill(); });
       // the stray who hangs around Avi's kiosk (until Ishai adopts him)
@@ -819,12 +836,14 @@
     draw(t,hf,a,settled,actor){
       R(0,0,W,80,'#7a4a32'); for (let y=0,i=0;y<78;y+=5,i++) { R(0,y,W,1,'#6a3e2a'); for (let x=(i%2)*6;x<W;x+=12) R(x,y,1,5,'#6a3e2a'); }
       R(0,78,W,30,'#3a2a20'); for (let x=0;x<W;x+=10) R(x,78,1,30,'#33251c');
-      // window to the street
-      R(6,14,50,40,'#d9d4c7'); drawSky(8,16,46,36,hf,t); R(8,40,46,12,'#6f7f8f'); R(30,16,2,36,'#d9d4c7'); R(4,54,54,3,'#5e4027');
+      // entrance (left) and the window to the street
+      R(0,40,18,40,'#4a3220'); R(2,42,14,38,'#6a4e38'); R(3,44,12,16,'#9fc3d8'); R(13,62,2,3,C.gold); R(1,36,16,4,'#e0b04a'); // door + sign
+      if (doorBusy(9)) { R(2,42,14,38,'#14100c'); R(2,42,3,38,'#6a4e38'); }
+      R(24,14,44,40,'#d9d4c7'); drawSky(26,16,40,36,hf,t); R(26,40,40,12,'#6f7f8f'); R(45,16,2,36,'#d9d4c7'); R(22,54,48,3,'#5e4027');
       // neon sign hanging in the window on two thin wires; a gentle neon flicker, never vanishing
-      R(20,16,1,14,'#3a3a3a'); R(41,16,1,14,'#3a3a3a');
+      R(35,16,1,14,'#3a3a3a'); R(56,16,1,14,'#3a3a3a');
       const fl = (t % 9000) < 260 ? ((Math.floor(t/60)%2) ? .55 : .85) : 1;
-      alpha(fl, () => cooolaSign(16,30,30,9,true));
+      alpha(fl, () => cooolaSign(31,30,30,9,true));
       // menu board
       R(128,10,46,22,'#1e1e1e'); R(127,9,48,1,'#5e4027');
       for (let i=0;i<4;i++){ R(132,14+i*4,20+((i*7)%10),1,'#e8e8e8'); R(164,14+i*4,6,1,'#f0d070'); }
@@ -836,8 +855,8 @@
       R(126,62,6,4,'#e0b04a'); R(134,62,6,4,'#c27a3b'); // pastries
       cooolaCan(143,61); cooolaCan(147,61); cooolaCan(160,61);
       // other customers
-      crowdStill(t, 3, 14, 66, {legs:false, face:1}); if (Math.floor(t/150000) % 3) crowdStill(t, 5, 34, 66, {legs:false, face:-1}, .8 * fadeWin(t, 150000));
-      R(10,80,36,2,'#9a7048'); R(26,82,4,16,'#5e4027'); R(20,79,3,3,'#e8e4d8'); R(36,79,3,3,'#e8e4d8');
+      crowdStill(t, 3, 24, 66, {legs:false, face:1}); if (Math.floor(t/150000) % 3) crowdStill(t, 5, 40, 66, {legs:false, face:-1}, .8 * fadeWin(t, 150000));
+      R(20,80,34,2,'#9a7048'); R(35,82,4,16,'#5e4027'); R(30,79,3,3,'#e8e4d8'); R(44,79,3,3,'#e8e4d8');
       if (Math.floor(t/70000) % 2) crowdStill(t, 6, 100, 74, {}, .85 * fadeWin(t, 70000));
       // plant & lamp
       R(100,8,1,14,'#222'); R(96,22,9,4,'#e0b04a'); alpha(.12,()=>R(86,26,30,50,'#ffe8a0'));
@@ -926,7 +945,7 @@
                  cafe: {exit:W+8, entry:W+8},                                         // right edge -> café
                  offscreen: {exit:128, entry:128, ride:true} },                       // bus stop: bus or taxi
     park:      { street: {exit:W+8, entry:W+8} },                                     // right edge -> street
-    cafe:      { street: {exit:-14, entry:-14} },                                     // entrance -> street
+    cafe:      { street: {exit:4, entry:4} },                                         // entrance door -> street
     offscreen: { street: {ride:true} }
   };
   function route(from, to){ // shortest path through the map, e.g. cafe -> street -> corridor -> apartment
@@ -952,7 +971,7 @@
         startLeg(); return;
       }
     }
-    const prev = actor.action; actor.action = a; actor.pending = null; actor.with = w;
+    const prev = actor.action; actor.prevAction = prev; actor.action = a; actor.pending = null; actor.with = w;
     if (BATH.has(prev) && actor.hidden){ if (BATH.has(a)){ updateLabels(); return; } actor.hidden = false; actor.x = 48; }
     const bed = new Set(['sleeping','waking']);
     if (bed.has(prev) && bed.has(a)) { actor.x = standX(loc,a,w); }
