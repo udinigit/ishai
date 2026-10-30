@@ -665,6 +665,15 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
       ev.stuck = true; } }
   if (!ev.with && ev.action === "talking") ev.action = "idle"; // nobody to talk to
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
+  // dialogue must not repeat itself (inside this moment or from the conversation so far)
+  { const norm = t => String(t).toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+    const same = (x, y) => norm(x) === norm(y) || similar(x, y) >= 0.75;
+    const seen = []; ev.lines = ev.lines.filter(l => { if (seen.some(x => same(x, l.say))) return false; seen.push(l.say); return true; });
+    const said = (s.talk || []).filter(m => !m.host).slice(-24).map(m => m.say);
+    const reused = ev.lines.filter(l => said.some(p => same(p, l.say)));
+    if (reused.length >= 2 && !allowNoHosts) return { ev, problem: `the dialogue repeats lines already said ("${reused[0].say.slice(0, 60)}"). Write NEW lines that move the conversation on, or let it end` };
+    ev.lines = ev.lines.filter(l => !said.some(p => same(p, l.say)));
+    if (ev.with && reused.length >= 2) ev.stuck = true; }
   if (ev.with && ev.with !== last.with && !(BATH_ACTIONS.includes(last.action) && s.scene && s.scene.w === ev.with) && !(ev.scene && ev.scene.why) && ev.action !== "sleeping" && !allowNoHosts)
     return { ev, problem: `a conversation with ${s.cast[ev.with]?.name || ev.with} starts here, so fill "scene" (type, why, ishaiWants, theyWant, beats, ending, lines) and write its first lines` };
   if (ev.with && ev.lines.length < 6 && !allowNoHosts)
