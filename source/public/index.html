@@ -387,7 +387,8 @@
     const prev = g; g = lctx; lctx.setTransform(1,0,0,1,-bx+1,-by+1); fn(); lctx.setTransform(1,0,0,1,0,0); g = prev;
     sctx.drawImage(layer,0,0); sctx.globalCompositeOperation = 'source-in'; sctx.fillStyle = '#0b0b10'; sctx.fillRect(0,0,sil.width,sil.height); sctx.globalCompositeOperation = 'source-over';
     const ox = bx-1, oy = by-1;
-    ctx.globalAlpha = .85; [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dx,dy]) => ctx.drawImage(sil, ox+dx, oy+dy)); ctx.globalAlpha = 1;
+    const base = ctx.globalAlpha;
+    ctx.globalAlpha = base * .85; [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dx,dy]) => ctx.drawImage(sil, ox+dx, oy+dy)); ctx.globalAlpha = base;
     ctx.drawImage(layer, ox, oy);
   }
   // o: face (-1/0/1), legs ('stand'|'sit'|false), talkPhase, walk
@@ -432,6 +433,12 @@
     {hair:'short',hairColor:'gray',skin:'light',shirt:'navy',pants:'gray',extras:['scarf']},
     {hair:'long',hairColor:'black',skin:'tan',shirt:'red',pants:'blue',extras:['earring']}
   ];
+  // soft fade at both ends of a time window, so still bystanders never blink in or out
+  const fadeWin = (t, len) => Math.max(0, Math.min(1, (t % len) / 1500, (len - t % len) / 1500));
+  // companions who join Ishai fade in at tables/benches, and walk in from a door or the edge when standing
+  const seatComp = { key:null, since:0 };
+  function seatFade(key){ const n = performance.now(); if (seatComp.key !== key){ seatComp.key = key; seatComp.since = n; } return Math.min(1, (n - seatComp.since) / 700); }
+  const walkComp = { id:null, loc:null, x:0, last:0, look:null };
   // a walker crossing between x0 and x1 every `period` ms; returns x or null when off screen
   function walkerX(t, period, offset, x0, x1, dir){
     const ph = ((t + offset) % period) / period; const x = x0 + (x1 - x0) * ph;
@@ -543,7 +550,7 @@
       if (S('drinking')) drawIshai('drinking',158,70,t);
       // a guest at the kitchen island (Shabbat dinner, coffee with a friend)
       const guest = settled && ['eating','drinking','cooking'].includes(a) ? companionLook(a) : null;
-      if (guest) person(guest, 172, 70, t + 400, {legs:false, face:-1, talkPhase:true});
+      if (guest) alpha(seatFade('island'+actor.with), () => person(guest, 172, 70, t + 400, {legs:false, face:-1, talkPhase:true}));
       if (S('cooking')) drawIshai('cooking',159,70,t);
       R(148,84,42,2,C.top); R(148,86,42,10,C.island); R(150,88,38,1,'#52616e');
       if (isShabbatEve()){
@@ -634,7 +641,7 @@
       if (night) alpha(.18,()=>{ ctx.beginPath(); ctx.moveTo(80,32); ctx.lineTo(90,32); ctx.lineTo(104,92); ctx.lineTo(66,92); ctx.fill(); });
       // bystanders: a far lane of pedestrians, someone waiting on the bench
       crowdWalk(t, 0, 26000, 0, 61, 1, .7); crowdWalk(t, 1, 33000, 9000, 61, -1, .7); crowdWalk(t, 5, 41000, 20000, 63, 1, .75);
-      if (Math.floor(t/90000) % 3 !== 0) crowdStill(t, 3 + Math.floor(t/90000) % 4, 124, 48, {legs:'sit'});
+      if (Math.floor(t/90000) % 3 !== 0) crowdStill(t, 3 + Math.floor(t/90000) % 4, 124, 48, {legs:'sit'}, .8 * fadeWin(t, 90000));
       crowdWalk(t, 6, 57000, 31000, 67, -1, .85);
       drawFloor(t,a,settled,actor,this);
       // car
@@ -672,7 +679,7 @@
       // bystanders on the far lawn and a jogger
       crowdWalk(t, 2, 38000, 5000, 50, 1, .6); crowdWalk(t, 7, 47000, 21000, 52, -1, .6);
       alpha(.75, () => person(CROWD[4], walkerX(t, 15000, 3000, -14, W+4, 1), 66 - (Math.floor(t/190)%2), t, {walk:true, face:1, muted:true}));
-      if (Math.floor(t/120000) % 2) crowdStill(t, 1, 170, 48, {}, .7); // someone watching the duck
+      if (Math.floor(t/120000) % 2) crowdStill(t, 1, 156, 66, {face:1}, .75 * fadeWin(t, 120000)); // someone watching the duck, on the path
       // Cooola vending machine
       R(60,52,12,28,COOOLA.bg); R(61,54,10,10,'#2a1240'); for (let i=0;i<3;i++) cooolaCan(62+i*3,57);
       R(61,66,10,1,COOOLA.fg); bolt(64,69,COOOLA.bolt); R(62,76,8,2,'#111'); if (night) alpha(.25,()=>R(58,50,16,32,COOOLA.fg));
@@ -681,7 +688,7 @@
       const sit = settled && (a==='reading'||a==='eating');
       if (settled && a==='reading') drawIshai('reading',122,62,t,{legs:'sit'});
       if (settled && a==='eating') drawIshai('eating',122,62,t,{legs:'sit',food:'#e0c060'});
-      const pl = sit && companionLook(a); if (pl) person(pl,134,62,t,{legs:'sit',face:-1});
+      const pl = sit && companionLook(a); if (pl) alpha(seatFade('bench'+actor.with), () => person(pl,134,62,t,{legs:'sit',face:-1}));
       R(108,77,38,3,'#9a7048'); R(110,80,2,6,'#333'); R(142,80,2,6,'#333');
       if (!sit) drawFloor(t,a,settled,actor,this);
       if (night) alpha(.38,()=>R(0,0,W,H,'#050a1e'));
@@ -709,15 +716,15 @@
       R(126,62,6,4,'#e0b04a'); R(134,62,6,4,'#c27a3b'); // pastries
       cooolaCan(143,61); cooolaCan(147,61); cooolaCan(160,61);
       // other customers
-      crowdStill(t, 3, 14, 66, {legs:false, face:1}); if (Math.floor(t/150000) % 3) crowdStill(t, 5, 34, 66, {legs:false, face:-1});
+      crowdStill(t, 3, 14, 66, {legs:false, face:1}); if (Math.floor(t/150000) % 3) crowdStill(t, 5, 34, 66, {legs:false, face:-1}, .8 * fadeWin(t, 150000));
       R(10,80,36,2,'#9a7048'); R(26,82,4,16,'#5e4027'); R(20,79,3,3,'#e8e4d8'); R(36,79,3,3,'#e8e4d8');
-      if (Math.floor(t/70000) % 2) crowdStill(t, 6, 100, 74, {}, .85);
+      if (Math.floor(t/70000) % 2) crowdStill(t, 6, 100, 74, {}, .85 * fadeWin(t, 70000));
       // plant & lamp
       R(100,8,1,14,'#222'); R(96,22,9,4,'#e0b04a'); alpha(.12,()=>R(86,26,30,50,'#ffe8a0'));
       // table (Ishai sits behind it)
       R(66,60,22,14,'#3a3a46'); // chair back
       const atTable = settled && ['eating','drinking','working','reading','talking'].includes(a) && !withIsPost();
-      const cl = atTable && companionLook(a); if (cl) person(cl,90,68,t,{legs:false,face:-1,talkPhase:a==='talking'});
+      const cl = atTable && companionLook(a); if (cl) alpha(seatFade('table'+actor.with), () => person(cl,90,68,t,{legs:false,face:-1,talkPhase:a==='talking'}));
       if (atTable){
         if (a==='talking') drawIshai('talking',72,68,t,{face:1});
         else drawIshai(a,72,68,t,{food:'#e0b04a'});
@@ -749,10 +756,25 @@
     let face = 0;
     const atIsland = actor.loc==='apartment' && ['eating','drinking','cooking'].includes(a);
     const cl = settled && !withIsPost() && !atIsland && a!=='sleeping' && a!=='waking' ? companionLook(a) : null;
+    const nowP = performance.now(), dts = Math.min(.1, (nowP - (walkComp.last || nowP)) / 1000); walkComp.last = nowP;
+    if (walkComp.loc !== actor.loc){ walkComp.id = null; walkComp.loc = actor.loc; }
+    const doorX = {apartment:135, corridor:106, cafe:-12}[actor.loc];
     if (cl){
-      if (a==='walking'){ const dir = actor.paceDir||1; person(cl, actor.x - 12*dir, y, t+300, {walk:true, face:dir}); }
-      else { const gx = actor.x > W-40 ? actor.x-13 : actor.x+13; face = gx > actor.x ? 1 : -1;
-        person(cl, gx, y, t, {face:-face, talkPhase:a==='talking'}); }
+      const id = actor.with || 'stranger';
+      const dir = actor.paceDir||1;
+      const gx = a==='walking' ? actor.x - 12*dir : (actor.x > W-40 ? actor.x-13 : actor.x+13);
+      if (walkComp.id !== id){ walkComp.id = id; walkComp.look = cl; walkComp.x = doorX ?? (gx > W/2 ? W+6 : -16); }
+      const d = gx - walkComp.x, step = (a==='walking' ? 40 : 28) * dts;
+      walkComp.x += Math.abs(d) <= step ? d : Math.sign(d) * step;
+      const arrived = Math.abs(gx - walkComp.x) < 1;
+      if (a==='walking' || !arrived) person(cl, walkComp.x, y, t+300, {walk:true, face: a==='walking' ? dir : Math.sign(d)||1});
+      else { face = gx > actor.x ? 1 : -1; person(cl, walkComp.x, y, t, {face:-face, talkPhase:a==='talking'}); }
+    } else if (walkComp.id && !withIsPost()){
+      // the companion leaves: walk back out through the door / off the edge
+      const out = doorX ?? (walkComp.x > W/2 ? W+16 : -26), d = out - walkComp.x, step = 28 * dts;
+      walkComp.x += Math.abs(d) <= step ? d : Math.sign(d) * step;
+      if (Math.abs(out - walkComp.x) < 1) walkComp.id = null;
+      else person(walkComp.look, walkComp.x, y, t+300, {walk:true, face: Math.sign(d)||1});
     }
     if (withIsPost() && settled) face = actor.loc==='street' ? 0 : 1;
     if (actor.travelling || a==='walking') drawIshai('walk', actor.x, y, t);
