@@ -217,6 +217,18 @@
     line(x+4,y+4, x+4+Math.round(Math.sin(hA)*2), y+4-Math.round(Math.cos(hA)*2), '#222');
     line(x+4,y+4, x+4+Math.round(Math.sin(mA)*3), y+4-Math.round(Math.cos(mA)*3), '#c23b3b');
   }
+  // ---- Cooola: the show's (fake) sponsor. Purple + lime, blocky letters, a lightning bolt ----
+  const COOOLA = {bg:'#5b2a86', fg:'#b6ff3b', bolt:'#ffd84a', dark:'#3d1a5e'};
+  const FONT = {C:['111','100','100','100','111'], O:['111','101','101','101','111'], L:['100','100','100','100','111'], A:['010','101','111','101','101']};
+  function word(txt, x, y, c){ [...txt].forEach((ch,k)=>{ const gl = FONT[ch]; if (gl) gl.forEach((row,j)=>[...row].forEach((b,i)=>{ if (b==='1') R(x+k*4+i, y+j, 1, 1, c); })); }); }
+  function bolt(x,y,c){ R(x+1,y,2,1,c); R(x,y+1,2,1,c); R(x,y+2,3,1,c); R(x+1,y+3,2,1,c); R(x+1,y+4,1,1,c); }
+  // a sign: w >= 29, h >= 9
+  function cooolaSign(x,y,w,h,glow){
+    if (glow) alpha(.18,()=>R(x-2,y-2,w+4,h+4,COOOLA.fg));
+    R(x,y,w,h,COOOLA.bg); R(x,y,w,1,COOOLA.fg); R(x,y+h-1,w,1,COOOLA.fg);
+    const tx = x + Math.floor((w-27)/2); word('COOOLA', tx, y+Math.floor((h-5)/2), COOOLA.fg); bolt(tx+24, y+Math.floor((h-5)/2), COOOLA.bolt);
+  }
+  function cooolaCan(x,y){ R(x,y,3,5,COOOLA.bg); R(x,y+2,3,1,COOOLA.fg); R(x,y,3,1,'#c9ced4'); }
   function zee(x,y,c){ R(x,y,3,1,c); R(x+1,y+1,1,1,c); R(x,y+2,3,1,c); }
   function bubble(x,y,t){ R(x,y,9,5,'#f4f4f4'); R(x+1,y+5,2,1,'#f4f4f4'); const n=Math.floor(t/350)%4;
     for (let i=0;i<3;i++) if (i<n) R(x+2+i*2,y+2,1,1,'#333'); }
@@ -444,7 +456,7 @@
       R(151,64,25,2,C.top); R(151,66,25,14,C.counter); R(153,68,9,10,'#7a6b5c'); R(164,68,9,10,'#7a6b5c');
       R(161,72,1,2,C.metal); R(165,72,1,2,C.metal); R(154,63,4,1,'#333'); R(166,63,4,1,'#333');
       R(160,48,12,6,'#e8e2d6'); R(160,54,12,1,'#bdb6a8');
-      R(177,38,14,42,C.fridge); R(177,52,14,1,'#b8bec4'); R(179,44,1,5,'#9aa3ad'); R(179,55,1,7,'#9aa3ad'); R(182,40,3,3,'#e0605a');
+      R(177,38,14,42,C.fridge); R(177,52,14,1,'#b8bec4'); R(179,44,1,5,'#9aa3ad'); R(179,55,1,7,'#9aa3ad'); R(182,40,3,3,'#e0605a'); R(184,46,5,6,COOOLA.bg); bolt(185,46,COOOLA.fg);
       R(96,95,44,10,C.rug); R(98,97,40,6,C.rugLight); R(100,99,36,2,C.rug);
       // bed back
       R(3,60,6,32,C.woodDark); R(4,58,4,2,C.woodDark); R(9,76,40,8,C.sheet); R(10,72,9,5,C.pillow); R(10,76,9,1,'#cfc8b6');
@@ -466,7 +478,7 @@
       R(60,84,40,2,C.woodLight); R(60,86,40,10,C.wood); R(61,96,2,6,C.woodDark); R(97,96,2,6,C.woodDark); R(64,88,10,1,C.woodDark);
       const lx = a==='gaming' ? 88 : 77;
       R(lx,78,7,6,C.metal); R(lx,78,7,1,'#c4cbd3'); R(lx-1,83,9,1,C.metalDark); R(lx+3,80,1,1,'#d0d6dc');
-      R(64,80,3,4,'#e8e4d8'); R(67,81,1,2,'#e8e4d8');
+      R(64,80,3,4,'#e8e4d8'); R(67,81,1,2,'#e8e4d8'); cooolaCan(92,79);
       // armchair
       if (S('reading')) drawIshai('reading',111,62,t);
       if (S('watching')) drawIshai('watching',111,62,t);
@@ -557,12 +569,13 @@
           const lit = night ? ((wx*7+wy*3+bi)%5<3) : false;
           R(wx,wy,4,5, lit ? '#ffd36a' : (night?'#1a2238':'#a9c8dc')); } });
       // Ishai's building entrance
+      cooolaSign(104,8,32,13,false); R(110,21,2,4,'#555'); R(128,21,2,4,'#555');
       R(18,50,22,22,'#5a4c3f'); R(21,53,16,19,'#3a2d22'); R(28,53,2,19,'#2a2018'); R(22,46,14,4,'#c9b37a'); digit(4,28,47,'#3a2d22');
       // kiosk (falafel)
       R(150,48,36,24,'#d8d0c0'); for (let i=0;i<9;i++) R(148+i*4.5,44,4,5, i%2?'#e0605a':'#f4f4f4');
       R(154,52,28,12,'#2a2a2a');
       person(postLook('street',EXTRA.kiosk),163,51,t,{legs:false,face:-1,talkPhase: settled && a==='talking' && withIsPost()});
-      R(150,62,36,2,'#bdb6a8'); R(150,64,36,8,'#d8d0c0'); R(155,60,6,2,'#d98c4a'); R(170,60,6,2,'#7fbf6a'); R(177,60,4,2,'#e0c060');
+      R(150,62,36,2,'#bdb6a8'); R(150,64,36,8,'#d8d0c0'); cooolaSign(153,64,30,8,false); cooolaCan(182,59); R(155,60,6,2,'#d98c4a'); R(170,60,6,2,'#7fbf6a'); R(177,60,4,2,'#e0c060');
       // sidewalk, curb, road
       R(0,72,W,20,'#8d8d8d'); for (let x=0;x<W;x+=16) R(x,72,1,20,'#7a7a7a'); R(0,82,W,1,'#7a7a7a');
       R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=(t/40)%0; x<W; x+=20) R(x+4,101,10,1,'#e8e8a0');
@@ -575,7 +588,11 @@
       drawFloor(t,a,settled,actor,this);
       // car
       const cx = ((t/12) % 520) - 60;
-      if (cx < W+10){ const col = ['#c23b3b','#3b7bc2','#e0b04a','#dcdcdc'][Math.floor(t/6240)%4];
+      const lap = Math.floor(t/6240);
+      if (lap % 3 === 2 && cx < W+10){ // the Cooola bus
+        R(cx-10,88,56,14,'#e8e4d8'); R(cx-10,88,56,2,'#cfc8b6'); for (let i=0;i<5;i++) R(cx-6+i*10,90,7,4, night?'#ffd36a':'#9fd3f0');
+        cooolaSign(cx+2,94,31,7,false); R(cx-4,102,6,3,'#111'); R(cx+34,102,6,3,'#111'); if (night) R(cx+45,96,2,2,'#fff3b0');
+      } else if (cx < W+10){ const col = ['#c23b3b','#3b7bc2','#e0b04a','#dcdcdc'][lap%4];
         R(cx,96,26,6,col); R(cx+5,92,14,4,col); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0');
         R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111'); if (night) R(cx+25,97,2,2,'#fff3b0'); }
       if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
@@ -601,6 +618,9 @@
       // lamp
       R(96,40,2,40,'#333'); R(93,37,8,4,'#333'); R(94,41,6,1, night?'#fff3b0':'#777');
       if (night) alpha(.18,()=>R(86,42,22,40,'#fff3b0'));
+      // Cooola vending machine
+      R(60,52,12,28,COOOLA.bg); R(61,54,10,10,'#2a1240'); for (let i=0;i<3;i++) cooolaCan(62+i*3,57);
+      R(61,66,10,1,COOOLA.fg); bolt(64,69,COOOLA.bolt); R(62,76,8,2,'#111'); if (night) alpha(.25,()=>R(58,50,16,32,COOOLA.fg));
       // bench back
       R(110,64,34,2,'#7a5534'); R(110,68,34,2,'#7a5534'); R(112,70,2,12,'#333'); R(140,70,2,12,'#333');
       const sit = settled && (a==='reading'||a==='eating');
@@ -622,6 +642,7 @@
       R(0,78,W,30,'#3a2a20'); for (let x=0;x<W;x+=10) R(x,78,1,30,'#33251c');
       // window to the street
       R(6,14,50,40,'#d9d4c7'); drawSky(8,16,46,36,hf,t); R(8,40,46,12,'#6f7f8f'); R(30,16,2,36,'#d9d4c7'); R(4,54,54,3,'#5e4027');
+      if (Math.floor(t/2500)%7) cooolaSign(16,30,30,9,true); // neon, flickers now and then
       // menu board
       R(128,10,46,22,'#1e1e1e'); R(127,9,48,1,'#5e4027');
       for (let i=0;i<4;i++){ R(132,14+i*4,20+((i*7)%10),1,'#e8e8e8'); R(164,14+i*4,6,1,'#f0d070'); }
@@ -631,6 +652,7 @@
       R(170,56,14,10,'#aab2bc'); R(172,58,10,3,'#2a2a2a'); R(176,64,2,2,'#e8e4d8');
       for (let i=0;i<3;i++){ const ph=(t/700+i*.33)%1; alpha(1-ph,()=>R(176+i,54-Math.floor(ph*8),1,1,'#f2f2f2')); }
       R(126,62,6,4,'#e0b04a'); R(134,62,6,4,'#c27a3b'); // pastries
+      cooolaCan(143,61); cooolaCan(147,61); cooolaCan(160,61);
       // plant & lamp
       R(100,8,1,14,'#222'); R(96,22,9,4,'#e0b04a'); alpha(.12,()=>R(86,26,30,50,'#ffe8a0'));
       // table (Ishai sits behind it)
@@ -726,7 +748,11 @@
     else { actor.targetX = standX(loc,a,w); actor.travelling = Math.abs(actor.x-actor.targetX) > 1; }
     updateLabels();
   }
-  function beginSwitch(){ actor.switching = performance.now() + 900; actor.hidden = true; }
+  function beginSwitch(){
+    // about one switch in four is "sponsored"; the choice comes from the clock so all viewers see the same thing
+    actor.bumper = Math.floor(Date.now()/60000) % 4 === 0;
+    actor.switching = performance.now() + (actor.bumper ? 2200 : 900); actor.hidden = true;
+  }
   function finishSwitch(){
     const {loc, a, w} = actor.pending; const from = actor.loc; actor.pending = null; actor.switching = 0;
     const sc = SCENES[loc];
@@ -759,8 +785,14 @@
   function render(t){
     const hf = hourNow();
     if (actor.switching){
-      drawStatic(1);
       const next = actor.pending ? SCENES[actor.pending.loc] : null;
+      if (actor.bumper){ // "this camera switch is brought to you by Cooola"
+        R(0,0,W,H,COOOLA.dark); for (let i=0;i<8;i++) R(0,i*14+(Math.floor(t/60)%14),W,1,COOOLA.bg);
+        cooolaSign(64,40,64,24,true); R(64,40,64,24,COOOLA.bg); word('COOOLA',70,47,COOOLA.fg); word('COOOLA',71,47,COOOLA.fg); bolt(118,47,COOOLA.bolt); R(64,40,64,1,COOOLA.fg); R(64,63,64,1,COOOLA.fg);
+        $('nosig').style.display='flex'; $('nosigText').textContent = 'THIS CAMERA SWITCH IS BROUGHT TO YOU BY COOOLA';
+        return;
+      }
+      drawStatic(1);
       $('nosig').style.display='flex'; $('nosigText').textContent = next ? `[ SWITCHING TO ${next.cam} ]` : '[ ... ]';
       return;
     }
