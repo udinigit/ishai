@@ -49,9 +49,19 @@ const NEED_H = { eat: 5, drink: 3, bathroom: 4, shower: 26 };
 const NEEDS = { watching: "tv", listening: "radio" }; // actions that need an item
 
 // The two hosts who comment on the show for viewers (they replace the narration on the public page)
+// --- keep the hosts from repeating themselves ---
+const words = t => String(t || "").toLowerCase().replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(w => w.length > 2);
+function similar(a, b) {
+  const A = new Set(words(a)), B = new Set(words(b)); if (!A.size || !B.size) return 0;
+  let n = 0; A.forEach(w => B.has(w) && n++); return n / Math.min(A.size, B.size);
+}
+const recentHostLines = (s, n = 24) => s.events.slice(-30).flatMap(e => (e.commentary || []).map(c => c.say)).slice(-n);
+const isRepeat = (say, prev) => prev.some(p => similar(say, p) >= 0.6 || words(say).slice(0, 4).join(" ") === words(p).slice(0, 4).join(" "));
+
 const HOSTS = {
   zohar: "Zohar: sassy, sharp-tongued, a little edgy. Roasts Ishai's choices but is secretly rooting for him. Lives for romance drama and ships Ishai with Dana.",
-  oren: "Oren: cynical and deadpan, pretends to be bored. Dry one-liners and made-up statistics. Secretly, deeply invested in Moshe the basil."
+  oren: "Oren: cynical and deadpan, pretends to be bored. Dry one-liners and made-up statistics. Secretly, deeply invested in Moshe the basil.",
+  rules: "Running jokes (shipping Dana, Moshe the basil, made-up statistics) at most once an hour each; mostly react to what is new right now: a look, a pause, an object, the weather, what someone just said."
 };
 
 // Fictional "sponsors" the hosts plug shamelessly now and then (never real brands)
@@ -401,7 +411,8 @@ RULES
 COMMENTATORS (they talk to the viewers, who do NOT see your "text", only the picture and the spoken lines):
 - ${HOSTS.zohar}
 - ${HOSTS.oren}
-"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: tell viewers what is happening and any detail they cannot see, make them care about the characters, tease what might come, and make them laugh. Comment on most moments. REQUIRED: whenever another character is present or anyone speaks, include 1-2 commentary lines reacting to it (write the dialogue first, then the hosts react). They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them. Never mention or advertise real brands or companies.${sponsor ? `
+- ${HOSTS.rules}
+${(() => { const r = recentHostLines(s, 12); return r.length ? `- The hosts ALREADY SAID these (never repeat them, their jokes, openings, catchphrases or topics; find something NEW about THIS moment):\n${r.map(x => "  * " + x).join("\n")}\n` : ""; })()}"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: tell viewers what is happening and any detail they cannot see, make them care about the characters, tease what might come, and make them laugh. Comment on most moments. REQUIRED: whenever another character is present or anyone speaks, include 1-2 commentary lines reacting to it (write the dialogue first, then the hosts react). They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them. Never mention or advertise real brands or companies.${sponsor ? `
 - THIS MOMENT: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
 
 Reply with ONLY this JSON, nothing else:
@@ -498,7 +509,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     .filter(l => l.who && l.say).slice(0, 6);
   ev.commentary = (Array.isArray(o.commentary) ? o.commentary : [])
     .map(c => ({ who: str(c?.who, 10).toLowerCase(), say: str(c?.say, 160).replace(/^["']|["']$/g, "") }))
-    .filter(c => HOSTS[c.who] && c.say).slice(0, 2);
+    .filter(c => (c.who === "zohar" || c.who === "oren") && c.say).slice(0, 2);
   if (ev.with && o.update && typeof o.update === "object")
     ev.update = { memory: str(o.update.memory, 180), mood: Number(o.update.mood) || 0 };
 
@@ -512,6 +523,10 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
   if (ev.with && (ev.action === "phoning" || ev.action === "talking") && ev.lines.length < 2 && !allowNoHosts)
     return { ev, problem: `he is ${ev.action === "phoning" ? "on the phone" : "talking"} with ${s.cast[ev.with]?.name || ev.with}, so "lines" must contain their actual conversation: 3 to 6 lines alternating between "ishai" and "${ev.with}"` };
+  { const prev = recentHostLines(s);
+    const rep = ev.commentary.find(c => isRepeat(c.say, prev));
+    if (rep) { if (!allowNoHosts) return { ev, problem: `the host line "${rep.say}" repeats something the hosts already said; write fresh commentary about what is new in this moment` };
+      ev.commentary = ev.commentary.filter(c => !isRepeat(c.say, prev)); } }
   if ((ev.with || ev.lines.length >= 2) && !ev.commentary.length && !allowNoHosts)
     return { ev, problem: 'the hosts are missing: add "commentary" with 1-2 lines from zohar and/or oren reacting to this scene' };
   return { ev, problem: null };
