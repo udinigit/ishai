@@ -118,15 +118,16 @@ const PLACES = {
   street:    "Herzl Street outside the building: Avi's falafel kiosk, a bus stop bench, traffic",
   park:      "a small park nearby: a bench, a pond with one duck, a big tree",
   cafe:      "Cafe Nahat, a corner cafe",
-  offscreen: "anywhere without a camera: the supermarket, a client's office, a friend's home, the bus"
+  offscreen: "anywhere without a camera (the supermarket, a client's office, a friend's home); he gets there by bus or taxi from the bus stop on Herzl Street and comes back the same way"
 };
+// The world map (must match MAP in the page). Far places are reached by bus or taxi from the street bus stop.
 const NEXT = {
   apartment: ["corridor"],
   corridor:  ["apartment","street"],
   street:    ["corridor","park","cafe","offscreen"],
-  park:      ["street","cafe","offscreen"],
-  cafe:      ["street","park","offscreen"],
-  offscreen: ["street","park","cafe"]
+  park:      ["street"],
+  cafe:      ["street"],
+  offscreen: ["street"]
 };
 // drawing menu for characters (must match the page)
 const LOOK = {
@@ -367,7 +368,7 @@ function buildMessages(s, clock, now, goal) {
     ? `\nREAL NEWS he could hear on TV/radio${last.location === "cafe" ? " or read at the cafe" : ""} (use at most one, only if it fits; say plainly what it is about and where he sees it, e.g. "On the radio: a startup in Haifa turns seaweed into packaging. Ishai is impressed."): ` +
       wr.headlines.slice(0, 5).map(h => `"${h.title}" (${h.source})`).join("; ") + "." : "";
   const system =
-`You write a live surveillance-style reality feed about Ishai. ${PERSONA}
+`You write a live reality feed about Ishai, in the spirit of "The Truman Show": cameras follow a real man's real life. ${PERSONA}
 
 WORLD (locations with cameras, plus "offscreen"):
 ${world}
@@ -377,7 +378,10 @@ ${castSection(s, last)}
 RULES
 - Write the NEXT moment only: 1-2 short sentences, max 35 words, present tense, third person.
 - Be concrete: viewers only see this one line, so name things plainly (which show, which game, what the news says). Never write vague lines like "an article" or "a new character" without saying what it is.
-- Everyday, warm, sometimes funny. Continue the story and its ongoing threads.
+- This is reality, not a sitcom and not scripted. Ishai and everyone around him behave like real people: ordinary, believable choices, real pacing, small moments. No slapstick, no staged coincidences, no punchlines in the narration. Humor comes from real life and from the hosts.
+- Ishai does not know he is being filmed. He never talks to or about the camera, the show or the hosts.
+- Real-world logic: things take time and follow physics and logistics. He must physically get places (walk, bus or taxi), wait, carry what he buys, pay, clean up. Other people have their own jobs, schedules and moods and are not always available. Weather and time of day change plans.
+- Continue the story and its ongoing threads.
 - Respect the clock: he sleeps at night (roughly 00:00-07:30), eats at mealtimes, works on weekdays (Sunday-Thursday in Israel).
 - He is a real person: he drinks, eats, uses the bathroom and showers. Bathroom and shower happen behind the closed bathroom door; keep them brief and tasteful.
 - THE REAL WORLD is real: use the real weather and the Jewish calendar (e.g. Friday-night Shabbat dinner) naturally. If any real news sounds sad or serious, he reacts briefly and respectfully, never jokes about it, or changes the channel.

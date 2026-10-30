@@ -11,6 +11,8 @@ Owner (the director): udinigit. Read `docs/SCENE_GUIDELINES.md` before adding or
 - Bump `VERSION` and commit with a clear message; Cloudflare deploys in ~30 s and open pages auto-reload.
 
 ## Non-negotiables
+- Reality show of a real life ("The Truman Show"), not a sitcom: realistic people, physics and logistics. Ishai never knows he is filmed.
+- No teleportation: every place is on the world map (see the guidelines) with real exits, entries and ways to get there.
 - Follow `docs/SCENE_GUIDELINES.md` for anything visual.
 - Fictional brands only (Cooola, HummusPrime, Wee Laddie Virgin Scotch, A Butcher Is Born, …). Never real brands or their look-alike trade dress.
 - Narration (`text`) is dev-only; viewers see the picture, spoken lines and the hosts (Zohar, Oren).

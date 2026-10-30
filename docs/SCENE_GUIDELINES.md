@@ -2,6 +2,31 @@
 
 These rules apply to every existing and future scene, character, prop and animation in Watching Ishai.
 The goal: it should feel like watching a real place through a real camera — nothing pops, floats or teleports.
+Inspiration: "The Truman Show". A real man's real life, watched through hidden cameras. Not a sitcom, not fully scripted; realistic to a point.
+
+## 0. Realism first
+- People and places are functional and bound to real-life physics: walking takes time, doors are used, vehicles stop to let people on and off, things stay where they were put.
+- Characters behave like real people with their own routines, jobs and moods; they arrive and leave for reasons.
+- Ishai never acknowledges the cameras. Only the hosts (Zohar, Oren) talk to the audience.
+
+## 1b. The world map — no teleportation
+Every exit leads to a specific entry in a specific place. Current map (`MAP` in `index.html`, `NEXT` in the worker):
+
+| From | Exit (x) | Leads to | Entry there |
+|---|---|---|---|
+| Apartment | front door (135) | Corridor | apt 4 door (40) |
+| Corridor | apt 4 door (40) | Apartment | front door (135) |
+| Corridor | stairs (178) | Street | building entrance (26) |
+| Street | building entrance (26) | Corridor | stairs (178) |
+| Street | left edge | Park | right edge |
+| Street | right edge | Café | entrance (left) |
+| Street | bus stop (128) | Off camera | — by bus (day) or taxi (night / rain) |
+| Park | right edge | Street | left edge |
+| Café | entrance (left) | Street | right edge |
+
+- If the story jumps several places at once, the page routes Ishai through every place in between (shortest path on the map).
+- Far places are reached by bus or taxi from the street bus stop: the vehicle pulls in, stops, he gets on/off, it drives away.
+- **Adding a place** (e.g. a restaurant): decide where it physically is, add its exits/entries to `MAP` (page) and `NEXT` + `PLACES` (worker) on both sides, draw its doors/edges, and say how you get there (walk from a neighbouring scene, or bus/taxi from a stop). A place without a connection must not ship.
 
 ## 1. Every scene has clear exit points
 - Each camera location defines where people enter and leave, and they are visible in the art:

@@ -4,7 +4,10 @@ The daily planner reads this file and `plan.json`, then plans the next 24 hours.
 You (the director) can edit anything here; changes go live with the next deploy.
 
 ## Rules of the show
-- Everyday life in Tel Aviv: warm, funny, never cruel. Real weather and the Jewish calendar are real.
+- A reality show of a real life, in the spirit of "The Truman Show" — not a sitcom, not fully scripted. Ishai and the people around him behave like real people; Ishai never knows he is filmed.
+- Beats are gentle nudges of real life (an errand, a visit, a call, a decision), never staged gags or impossible coincidences. Humor comes from life itself and from the hosts.
+- Everything follows real-world logic: travel takes time and uses the map (walk / bus / taxi), people have their own schedules, weather and time of day matter.
+- Real weather and the Jewish calendar are real.
 - Ishai celebrates Shabbat at home in a warm, traditional-but-relaxed way.
 - About a third of each day stays unplanned so the live AI can improvise.
 - 3-6 key beats per day, each with a time window. New props, places or animals need art first ("art" field).

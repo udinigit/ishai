@@ -459,6 +459,7 @@
   function liveLayer(t, scene){ compUpdate(t, scene); dogUpdate(t, scene); } // drawn under the scene's night lighting
   function dogUpdate(t, scene){
     if (!UNLOCKED.has('dog') || actor.loc==='offscreen' || actor.switching){ dog.loc = null; return; }
+    if (actor.ride && actor.hidden) return; // on the bus with Ishai
     const floor = scene.walkY + 22, a = actor.action, settled = !actor.travelling && !actor.hidden;
     const moving = actor.travelling || a==='walking';
     const mdir = actor.travelling ? Math.sign(actor.targetX - actor.x) || 1 : (actor.paceDir || 1);
@@ -747,9 +748,12 @@
       // car
       const cx = ((t/12) % 520) - 60;
       const lap = Math.floor(t/6240);
-      if (lap % 3 === 2 && cx < W+10){ // the Cooola bus
-        R(cx-10,88,56,14,'#e8e4d8'); R(cx-10,88,56,2,'#cfc8b6'); for (let i=0;i<5;i++) R(cx-6+i*10,90,7,4, night?'#ffd36a':'#9fd3f0');
-        cooolaSign(cx+2,94,31,7,false); R(cx-4,102,6,3,'#111'); R(cx+34,102,6,3,'#111'); if (night) R(cx+45,96,2,2,'#fff3b0');
+      if (actor.ride){ // Ishai's bus or taxi at the stop
+        const vx = rideX(actor.ride, performance.now());
+        if (actor.ride.kind === 'bus') drawBus(vx+10, night, (performance.now()-actor.ride.t0) > RIDE.come && (performance.now()-actor.ride.t0) < RIDE.come + RIDE.stop);
+        else drawTaxi(vx, night);
+      } else if (lap % 3 === 2 && cx < W+10){ // the Cooola bus
+        drawBus(cx, night, false);
       } else if (cx < W+10){ const col = ['#c23b3b','#3b7bc2','#e0b04a','#dcdcdc'][lap%4];
         R(cx,96,26,6,col); R(cx+5,92,14,4,col); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0');
         R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111'); if (night) R(cx+25,97,2,2,'#fff3b0'); }
@@ -757,6 +761,17 @@
       if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
     }
   };
+
+  function drawBus(cx, night, doorOpen){
+    R(cx-10,88,56,14,'#e8e4d8'); R(cx-10,88,56,2,'#cfc8b6'); for (let i=0;i<5;i++) R(cx-6+i*10,90,7,4, night?'#ffd36a':'#9fd3f0');
+    cooolaSign(cx+2,94,31,7,false); R(cx-4,102,6,3,'#111'); R(cx+34,102,6,3,'#111'); if (night) R(cx+45,96,2,2,'#fff3b0');
+    R(cx+36,92,6,10, doorOpen ? '#2a2a2a' : '#cfc8b6'); // door (lines up with the bus stop)
+  }
+  function drawTaxi(cx, night){
+    R(cx,96,26,6,'#f2c230'); R(cx+5,92,14,4,'#f2c230'); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0');
+    R(cx+9,90,6,2,'#222'); R(cx+10,90,4,1, night?'#fff3b0':'#f2f2f2'); // TAXI light
+    R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111'); if (night) R(cx+25,97,2,2,'#fff3b0');
+  }
 
   // ---------- park ----------
   SCENES.park = {
@@ -888,7 +903,7 @@
 
   // ================= actor & transitions =================
   // Ishai walks to the exit, the feed switches camera, he enters the new scene and walks to his spot.
-  const actor = { loc:'apartment', action:'sleeping', x:30, targetX:30, travelling:false, hidden:false, pending:null, switching:0, with:null };
+  const actor = { loc:'apartment', action:'sleeping', x:30, targetX:30, travelling:false, hidden:false, pending:null, switching:0, with:null, ride:null };
 
   function standX(loc, a, w){ const s = SCENES[loc];
     if (w && POST[loc]===w && s.postSpot!==undefined && ['talking','idle','eating'].includes(a)) return s.postSpot;
@@ -901,21 +916,41 @@
     $('stAction').textContent = LABEL[actor.action] + ' @ ' + actor.loc.toUpperCase() + w;
     $('hudAction').textContent = LABEL[actor.action];
   }
+  // ---- the world map: every exit leads to a specific entry in the next place (no teleporting) ----
+  // MAP[here][there] = { exit: x where Ishai leaves "here" towards "there", entry: x where he appears in "here" coming from "there" }
+  const MAP = {
+    apartment: { corridor: {exit:135, entry:135} },                                   // front door
+    corridor:  { apartment: {exit:40, entry:40}, street: {exit:178, entry:178} },     // apt 4 door, stairs
+    street:    { corridor: {exit:26, entry:26},                                       // building entrance
+                 park: {exit:-14, entry:-14},                                         // left edge -> park
+                 cafe: {exit:W+8, entry:W+8},                                         // right edge -> café
+                 offscreen: {exit:128, entry:128, ride:true} },                       // bus stop: bus or taxi
+    park:      { street: {exit:W+8, entry:W+8} },                                     // right edge -> street
+    cafe:      { street: {exit:-14, entry:-14} },                                     // entrance -> street
+    offscreen: { street: {ride:true} }
+  };
+  function route(from, to){ // shortest path through the map, e.g. cafe -> street -> corridor -> apartment
+    if (from === to) return [];
+    const prev = {[from]: null}, q = [from];
+    while (q.length){ const n = q.shift(); for (const m of Object.keys(MAP[n]||{})) if (!(m in prev)){ prev[m] = n; q.push(m); } }
+    if (!(to in prev)) return [to];
+    const path = []; for (let n = to; n !== from; n = prev[n]) path.unshift(n); return path;
+  }
   function setState(loc, a, instant, w=null){
     if (!SCENES[loc]) loc = 'offscreen';
     a = fixAction(loc, a);
     if (instant){
-      Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, hidden: loc==='offscreen' || BATH.has(a), with:w});
+      Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null});
       actor.x = standX(loc,a,w); updateLabels(); return;
     }
-    if (loc !== actor.loc){
-      actor.pending = {loc, a, w}; actor.with = null;
-      if (actor.hidden && BATH.has(actor.action)){ actor.hidden = false; actor.x = 48; }
-      if (actor.loc === 'offscreen' || actor.hidden){ beginSwitch(); return; }
-      const sc = SCENES[actor.loc];
-      actor.action = 'walking';
-      actor.targetX = (sc.exitTo && sc.exitTo[loc] !== undefined) ? sc.exitTo[loc] : sc.exit;
-      actor.travelling = true; updateLabels(); return;
+    if (loc !== actor.loc || (actor.pending && actor.pending.route.length)){
+      const r = route(actor.loc, loc);
+      actor.pending = {route: r, a, w}; actor.with = null;
+      if (!r.length){ actor.pending = null; } // already heading back here
+      else {
+        if (actor.ride || actor.switching) return;    // a ride / camera switch in progress: continue with the new plan afterwards
+        startLeg(); return;
+      }
     }
     const prev = actor.action; actor.action = a; actor.pending = null; actor.with = w;
     if (BATH.has(prev) && actor.hidden){ if (BATH.has(a)){ updateLabels(); return; } actor.hidden = false; actor.x = 48; }
@@ -924,29 +959,65 @@
     else { actor.targetX = standX(loc,a,w); actor.travelling = Math.abs(actor.x-actor.targetX) > 1; }
     updateLabels();
   }
+  // walk to the exit that leads to the next place on the route
+  function startLeg(){
+    const next = actor.pending.route[0];
+    if (actor.hidden && BATH.has(actor.action)){ actor.hidden = false; actor.x = 48; }
+    if (actor.loc === 'offscreen' || actor.hidden){ beginSwitch(); return; }
+    const link = (MAP[actor.loc]||{})[next] || {exit: SCENES[actor.loc].exit};
+    actor.action = 'walking'; actor.targetX = link.exit; actor.travelling = true;
+    actor.pending.ride = !!link.ride; updateLabels();
+  }
   function beginSwitch(){
     // about one switch in four is "sponsored"; the choice comes from the clock so all viewers see the same thing
     actor.bumper = Math.floor(Date.now()/60000) % 4 === 0;
     actor.switching = performance.now() + (actor.bumper ? 2200 : 900); actor.hidden = true;
   }
   function finishSwitch(){
-    const {loc, a, w} = actor.pending; const from = actor.loc; actor.pending = null; actor.switching = 0;
-    const sc = SCENES[loc];
-    actor.loc = loc; actor.action = a; actor.with = w;
-    if (loc === 'offscreen'){ actor.hidden = true; updateLabels(); return; }
-    actor.hidden = false;
-    actor.x = (sc.entryFrom && sc.entryFrom[from] !== undefined) ? sc.entryFrom[from] : sc.entry;
-    actor.targetX = standX(loc,a,w); actor.travelling = Math.abs(actor.x-actor.targetX) > 1;
+    const p = actor.pending; actor.switching = 0;
+    if (!p || !p.route.length){ actor.pending = null; actor.hidden = actor.loc==='offscreen'; return; }
+    const from = actor.loc, hop = p.route.shift(), last = !p.route.length;
+    actor.loc = hop;
+    if (hop === 'offscreen'){ actor.hidden = true; if (last){ actor.action = p.a; actor.with = p.w; actor.pending = null; updateLabels(); } else { updateLabels(); setTimeout(()=>{ if (actor.loc==='offscreen' && actor.pending) beginSwitch(); }, 3000); } return; }
+    const link = (MAP[hop]||{})[from] || {entry: SCENES[hop].entry};
+    actor.x = link.entry;
+    if (last){ actor.action = p.a; actor.with = p.w; actor.pending = null; actor.targetX = standX(hop, p.a, p.w); }
+    else { actor.action = 'walking'; actor.targetX = ((MAP[hop]||{})[p.route[0]] || {exit: SCENES[hop].exit}).exit; p.ride = !!(MAP[hop][p.route[0]]||{}).ride; }
+    if (link.ride){ startRide('arrive'); actor.hidden = true; actor.travelling = false; }  // steps off the bus/taxi first
+    else { actor.hidden = false; actor.travelling = Math.abs(actor.x-actor.targetX) > 1; }
     updateLabels();
+  }
+  // ---- rides: the bus (or a taxi at night / in the rain) at the street bus stop ----
+  function startRide(mode){
+    const hf = hourNow();
+    actor.ride = { mode, kind: (hf >= 21 || hf < 6 || rainy()) ? 'taxi' : 'bus', t0: performance.now() };
+  }
+  const RIDE = { come: 2600, stop: 1600, go: 2000 };
+  function rideX(r, now){ // the vehicle's left x on the road
+    const stopX = r.kind === 'bus' ? 98 : 116, e = now - r.t0;
+    if (e < RIDE.come){ const p = e / RIDE.come; return -70 + (stopX + 70) * (1 - (1-p)*(1-p)); }
+    if (e < RIDE.come + RIDE.stop) return stopX;
+    const p = Math.min(1, (e - RIDE.come - RIDE.stop) / RIDE.go); return stopX + (W + 80 - stopX) * p * p;
+  }
+  function updateRide(now){
+    const r = actor.ride, e = now - r.t0;
+    if (r.mode === 'depart'){
+      if (e > RIDE.come + RIDE.stop * .5) actor.hidden = true;                 // boards
+      if (e > RIDE.come + RIDE.stop + RIDE.go){ actor.ride = null; beginSwitch(); }
+    } else {
+      if (e > RIDE.come + RIDE.stop * .4 && actor.hidden){ actor.hidden = false; actor.travelling = Math.abs(actor.x-actor.targetX) > 1; } // steps off
+      if (e > RIDE.come + RIDE.stop + RIDE.go) actor.ride = null;
+    }
   }
 
   function update(dt, now){
     if (actor.switching){ if (now >= actor.switching) finishSwitch(); return; }
-    if (actor.travelling){
+    if (actor.ride) updateRide(now);
+    if (actor.travelling && !actor.hidden){
       const dir = Math.sign(actor.targetX-actor.x); actor.x += dir*24*dt;
       if (Math.sign(actor.targetX-actor.x)!==dir){
         actor.x = actor.targetX; actor.travelling = false;
-        if (actor.pending) beginSwitch();
+        if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && actor.loc==='street') startRide('depart'); else beginSwitch(); }
         else if (BATH.has(actor.action)) actor.hidden = true;
       }
     } else if (actor.action==='walking' && !actor.pending){
@@ -962,7 +1033,7 @@
     HEADS = {};
     const hf = hourNow();
     if (actor.switching){
-      const next = actor.pending ? SCENES[actor.pending.loc] : null;
+      const next = actor.pending && actor.pending.route.length ? SCENES[actor.pending.route[0]] : null;
       if (actor.bumper){ // "this camera switch is brought to you by Cooola"
         R(0,0,W,H,COOOLA.dark); for (let i=0;i<8;i++) R(0,i*14+(Math.floor(t/60)%14),W,1,COOOLA.bg);
         cooolaSign(64,40,64,24,true); R(64,40,64,24,COOOLA.bg); word('COOOLA',70,47,COOOLA.fg); word('COOOLA',71,47,COOOLA.fg); bolt(118,47,COOOLA.bolt); R(64,40,64,1,COOOLA.fg); R(64,63,64,1,COOOLA.fg);
@@ -1436,19 +1507,20 @@
     ['apartment','listening',null,'Mrs. Levi\'s old radio crackles to life. Some station plays 8-bit love songs. He pretends not to enjoy it.',[],'radio'],
     ['apartment','sleeping',null,'Lights out. Ishai falls asleep mid-thought about the basil leaf.',[]]
   ];
-  let demoMode = false, demoIdx = 0;
+  let demoMode = false, demoIdx = +params.get('demoStart') || 0;
+  let demoStarted = false;
   function demoTick(){
     if (demoIdx % DEMO.length === 0) UNLOCKED = new Set();
     const [loc,a,w,text,lines,unlocks,comm] = DEMO[demoIdx % DEMO.length];
     if (w){ const c = DEMO_CAST.find(x=>x.id===w); if (c){ c.lastSeen = Date.now(); c.scenes = (c.scenes||0)+1; } setCast(DEMO_CAST.map(c=>({...c}))); }
-    ingest([{id:'demo-'+demoIdx, t:Date.now(), location:loc, action:a, with:w, text, unlocks: unlocks||null, lines:lines.map(([who,say])=>({who,say})), commentary:(comm||[]).map(([who,say])=>({who,say}))}], demoIdx===0); demoIdx++;
+    ingest([{id:'demo-'+demoIdx, t:Date.now(), location:loc, action:a, with:w, text, unlocks: unlocks||null, lines:lines.map(([who,say])=>({who,say})), commentary:(comm||[]).map(([who,say])=>({who,say}))}], !demoStarted); demoStarted = true; demoIdx++;
   }
   function startDemo(){
     if (demoMode) return; demoMode = true;
     $('stLink').innerHTML = '<span class="warn">DEMO (no Worker connected)</span>';
     NOTES = 'Dana keeps drawing basil leaves on his cups. Mrs. Levi suspects a midnight party.';
     setCast(DEMO_CAST);
-    $('day').textContent = 'DAY 1'; demoTick(); setInterval(demoTick, 18000);
+    $('day').textContent = 'DAY 1'; demoTick(); setInterval(demoTick, +params.get('demoMs') || 18000);
   }
 
   let updating = false;
