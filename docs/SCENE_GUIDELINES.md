@@ -33,9 +33,9 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
   - Apartment: front door (people), bathroom door (Ishai only, privacy).
   - Corridor: Ishai's door (apt 4), Mrs. Levi's door (apt 5), the stairs/exit, the elevator.
   - Street: Ishai's building entrance, left edge, right edge.
-  - Park: left edge (path to the street), right edge.
+  - Park: right edge (path to the street), left edge (further into the park).
   - Café: the entrance on the left.
-- A new scene must define its exit points in `exitX()` (companions) and `entry`/`exit`/`entryFrom`/`exitTo` (Ishai) before it ships.
+- A new scene must define its exit points in `MAP` (Ishai's routes) and `exitX()` (companions) before it ships.
 
 ## 2. Nobody appears or disappears in place
 - Main characters always **walk in** from an exit point to their spot, and **walk out** to an exit point when they leave — even from a seat (table, bench, counter). Use the companion controller (`wantComp` / `compUpdate`); never draw a companion directly at their spot without it.
