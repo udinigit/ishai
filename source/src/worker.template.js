@@ -8,7 +8,7 @@
 
 // ---------- things you can change ----------
 // Tried in order; if Cloudflare retires one, the next is used automatically.
-const MODELS = ["@cf/meta/llama-3.1-8b-instruct-fast", "@cf/zai-org/glm-4.7-flash", "@cf/meta/llama-3.2-3b-instruct"];
+const MODELS = ["@cf/qwen/qwen3-30b-a3b-fp8", "@cf/meta/llama-3.1-8b-instruct-fast", "@cf/zai-org/glm-4.7-flash", "@cf/meta/llama-3.2-3b-instruct"];
 const TZ = "Asia/Jerusalem";
 const DELAY_MIN = 5;          // broadcast delay: viewers see events 5 minutes after they are written
 const INTERVAL_MIN = 4;       // keep equal to your Cron Trigger (*/4 * * * *)
@@ -442,17 +442,23 @@ async function runModel(env, messages) {
   let lastErr;
   for (let i = modelIdx; i < MODELS.length; i++) {
     try {
-      const out = await env.AI.run(MODELS[i], { messages, max_tokens: 700, temperature: 0.9 });
-      modelIdx = i;
-      if (typeof out?.response === "string") return out.response;
+      const qwen = MODELS[i].includes("qwen3");
+      // Qwen3 "thinks" by default; /no_think keeps it cheap (no hidden reasoning tokens)
+      const msgs = qwen ? messages.map((m, k) => k === messages.length - 1 && m.role === "user" ? { ...m, content: m.content + " /no_think" } : m) : messages;
+      const out = await env.AI.run(MODELS[i], { messages: msgs, max_tokens: 700, temperature: qwen ? 0.8 : 0.9 });
+      const clean = t => t.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+      if (typeof out?.response === "string") return clean(out.response);
       const c = out?.choices?.[0]?.message?.content;
-      if (typeof c === "string") return c;
+      if (typeof c === "string") return clean(c);
       return JSON.stringify(out?.response ?? out);
     } catch (e) {
       lastErr = e;
       const msg = String(e && e.message || e);
+      if (/deprecat|no such model|unknown model|5028|5007/i.test(msg)) modelIdx = Math.max(modelIdx, i + 1); // gone for good: skip it next time
       // only move on to the next model if this one is gone; budget/other errors stop here
-      if (!/deprecat|not found|no such model|unknown model|5028|5007/i.test(msg)) throw e;
+      // the first (preferred) model may also fail for capacity/format reasons: fall back to the next one then too
+      if (i > 0 && !/deprecat|not found|no such model|unknown model|5028|5007/i.test(msg)) throw e;
+      if (i === 0 && /neuron|quota|limit exceeded|4006/i.test(msg)) throw e;
     }
   }
   throw lastErr;
