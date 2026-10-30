@@ -272,6 +272,10 @@
 
   // pose renderers. o.legs: 'stand' | 'sit' | false
   function drawIshai(pose, x, y, t, o={}){
+    if (pose==='sleeping' || pose==='listening') return outlined(6, 56, 44, 26, () => drawIshaiRaw(pose, x, y, t, o));
+    return outlined(x-12, y-10, 36, 36, () => drawIshaiRaw(pose, x, y, t, o));
+  }
+  function drawIshaiRaw(pose, x, y, t, o={}){
     const f2 = Math.floor(t/450)%2;
     const lower = () => { if (o.legs==='stand') legs(x,y,0); else if (o.legs==='sit') sitLegs(x,y); };
     switch(pose){
@@ -364,13 +368,32 @@
     return '#'+c.map(v=>v.toString(16).padStart(2,'0')).join(''); }
   function tint(hex, f=.45){ const n=parseInt(hex.slice(1),16); const c=[n>>16,(n>>8)&255,n&255].map(v=>Math.round(v+(255-v)*f));
     return '#'+c.map(v=>v.toString(16).padStart(2,'0')).join(''); }
-  function lookPal(L){
+  function mute(hex, k=.6){ // pull a color towards a dull grey (for background people)
+    const n=parseInt(hex.slice(1),16); const c=[n>>16,(n>>8)&255,n&255]; const gr=(c[0]+c[1]+c[2])/3*.85+20;
+    return '#'+c.map(v=>Math.round(v+(gr-v)*k).toString(16).padStart(2,'0')).join('');
+  }
+  function lookPal(L, muted){
     const s = SKINC[L.skin]||SKINC.fair, sh = CLOTH[L.shirt]||CLOTH.gray;
-    return {hair:HAIRC[L.hairColor]||HAIRC.black, skin:s[0], skinShade:s[1], shirt:sh, shirtShade:shade(sh), pants:CLOTH[L.pants]||CLOTH.navy};
+    const p = {hair:HAIRC[L.hairColor]||HAIRC.black, skin:s[0], skinShade:s[1], shirt:sh, shirtShade:shade(sh), pants:CLOTH[L.pants]||CLOTH.navy};
+    if (muted) Object.keys(p).forEach(k => p[k] = mute(p[k], k.startsWith('skin') ? .35 : .65));
+    return p;
+  }
+  // ---- focus: main characters get a thin dark outline so they pop from the scene ----
+  const layer = document.createElement('canvas'), lctx = layer.getContext('2d');
+  const sil = document.createElement('canvas'), sctx = sil.getContext('2d');
+  function outlined(bx, by, bw, bh, fn){
+    if (g !== ctx){ fn(); return; } // portraits etc.: no outline
+    layer.width = sil.width = bw + 2; layer.height = sil.height = bh + 2;
+    const prev = g; g = lctx; lctx.setTransform(1,0,0,1,-bx+1,-by+1); fn(); lctx.setTransform(1,0,0,1,0,0); g = prev;
+    sctx.drawImage(layer,0,0); sctx.globalCompositeOperation = 'source-in'; sctx.fillStyle = '#0b0b10'; sctx.fillRect(0,0,sil.width,sil.height); sctx.globalCompositeOperation = 'source-over';
+    const ox = bx-1, oy = by-1;
+    ctx.globalAlpha = .85; [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dx,dy]) => ctx.drawImage(sil, ox+dx, oy+dy)); ctx.globalAlpha = 1;
+    ctx.drawImage(layer, ox, oy);
   }
   // o: face (-1/0/1), legs ('stand'|'sit'|false), talkPhase, walk
   function person(L, x, y, t, o={}){
-    const pal = lookPal(L), ex = L.extras||[];
+    if (!o.muted && !o._inner) return outlined(x-12, y-10, 36, 36, () => person(L, x, y, t, Object.assign({}, o, {_inner:true})));
+    const pal = lookPal(L, o.muted), ex = L.extras||[];
     const keep = {hair:C.hair,skin:C.skin,skinShade:C.skinShade,shirt:C.shirt,shirtShade:C.shirtShade,pants:C.pants};
     Object.assign(C, pal);
     const theirs = o.talkPhase && (SPEAKING ? (SPEAKING!=='ishai' && !(SPEAKING in {zohar:1,oren:1})) : Math.floor(t/1800)%2===1);
@@ -397,6 +420,29 @@
     if (o.legs==='sit') sitLegs(x,y); else if (o.legs!==false) legs(x,y, o.walk ? (fw===1?1:fw===3?2:0) : 0);
     Object.assign(C, keep);
     if (theirs) bubble(x-7,y-7,t);
+  }
+  // ---- bystanders: muted, slightly faded, and the same for every viewer (driven by the clock) ----
+  const CROWD = [
+    {hair:'short',hairColor:'black',skin:'brown',shirt:'gray',pants:'navy',extras:[]},
+    {hair:'long',hairColor:'blonde',skin:'light',shirt:'blue',pants:'black',extras:[]},
+    {hair:'cap',hairColor:'brown',skin:'tan',shirt:'green',pants:'gray',extras:[]},
+    {hair:'bun',hairColor:'brown',skin:'fair',shirt:'white',pants:'brown',extras:['glasses']},
+    {hair:'bald',hairColor:'gray',skin:'tan',shirt:'brown',pants:'navy',extras:['beard']},
+    {hair:'curly',hairColor:'black',skin:'dark',shirt:'orange',pants:'black',extras:[]},
+    {hair:'short',hairColor:'gray',skin:'light',shirt:'navy',pants:'gray',extras:['scarf']},
+    {hair:'long',hairColor:'black',skin:'tan',shirt:'red',pants:'blue',extras:['earring']}
+  ];
+  // a walker crossing between x0 and x1 every `period` ms; returns x or null when off screen
+  function walkerX(t, period, offset, x0, x1, dir){
+    const ph = ((t + offset) % period) / period; const x = x0 + (x1 - x0) * ph;
+    return dir < 0 ? x1 - (x - x0) : x;
+  }
+  function crowdWalk(t, idx, period, offset, y, dir, fade=.8){
+    const x = walkerX(t, period, offset, -14, W+4, dir);
+    alpha(fade, () => person(CROWD[idx % CROWD.length], x, y, t + offset, {walk:true, face:dir, muted:true}));
+  }
+  function crowdStill(t, idx, x, y, o={}, fade=.8){
+    alpha(fade, () => person(CROWD[idx % CROWD.length], x, y, t + idx*977, Object.assign({face:0, muted:true}, o)));
   }
   const ISHAI_LOOK = {hair:'short',hairColor:'brown',skin:'fair',shirt:'teal',pants:'navy',extras:[]};
   // fallback looks for unnamed passers-by / staff
@@ -550,6 +596,7 @@
       R(172,34,20,44,'#1c1c1c'); R(174,38,16,4,'#2a2a2a'); R(176,44,14,4,'#2f2f2f'); R(178,50,12,4,'#333'); R(180,56,10,4,'#383838');
       R(174,24,14,6,'#1f7a3a'); R(176,26,10,2,'#d8ffd8');
       // plant
+      if (Math.floor(t/80000) % 3 === 1) crowdWalk(t, 4, 80000, 0, 74, -1, .85);
       R(68,70,6,8,C.terracotta); R(69,62,1,8,C.leaf); R(71,60,1,10,C.leafDark); R(73,63,1,7,C.leaf); R(67,64,2,2,C.leaf); R(73,61,2,2,C.leafDark);
       drawFloor(t,a,settled,actor,this);
       if (isNight(hf)) alpha(.15,()=>R(0,0,W,H,'#050a1e'));
@@ -585,8 +632,10 @@
       R(116,60,26,2,'#5e4027'); R(116,64,26,2,'#7a5534'); R(118,66,2,6,'#333'); R(138,66,2,6,'#333');
       R(84,30,2,42,'#3a3a3a'); R(80,28,10,3,'#3a3a3a'); R(81,31,8,1, night?'#fff3b0':'#777');
       if (night) alpha(.18,()=>{ ctx.beginPath(); ctx.moveTo(80,32); ctx.lineTo(90,32); ctx.lineTo(104,92); ctx.lineTo(66,92); ctx.fill(); });
-      // passer-by
-      const pw = ((t/90) % 260) - 30; if (Math.floor(t/23400)%2) person(EXTRA.stranger,W-pw,66,t,{walk:true,face:-1,seed:400});
+      // bystanders: a far lane of pedestrians, someone waiting on the bench
+      crowdWalk(t, 0, 26000, 0, 61, 1, .7); crowdWalk(t, 1, 33000, 9000, 61, -1, .7); crowdWalk(t, 5, 41000, 20000, 63, 1, .75);
+      if (Math.floor(t/90000) % 3 !== 0) crowdStill(t, 3 + Math.floor(t/90000) % 4, 124, 48, {legs:'sit'});
+      crowdWalk(t, 6, 57000, 31000, 67, -1, .85);
       drawFloor(t,a,settled,actor,this);
       // car
       const cx = ((t/12) % 520) - 60;
@@ -620,6 +669,10 @@
       // lamp
       R(96,40,2,40,'#333'); R(93,37,8,4,'#333'); R(94,41,6,1, night?'#fff3b0':'#777');
       if (night) alpha(.18,()=>R(86,42,22,40,'#fff3b0'));
+      // bystanders on the far lawn and a jogger
+      crowdWalk(t, 2, 38000, 5000, 50, 1, .6); crowdWalk(t, 7, 47000, 21000, 52, -1, .6);
+      alpha(.75, () => person(CROWD[4], walkerX(t, 15000, 3000, -14, W+4, 1), 66 - (Math.floor(t/190)%2), t, {walk:true, face:1, muted:true}));
+      if (Math.floor(t/120000) % 2) crowdStill(t, 1, 170, 48, {}, .7); // someone watching the duck
       // Cooola vending machine
       R(60,52,12,28,COOOLA.bg); R(61,54,10,10,'#2a1240'); for (let i=0;i<3;i++) cooolaCan(62+i*3,57);
       R(61,66,10,1,COOOLA.fg); bolt(64,69,COOOLA.bolt); R(62,76,8,2,'#111'); if (night) alpha(.25,()=>R(58,50,16,32,COOOLA.fg));
@@ -655,6 +708,10 @@
       for (let i=0;i<3;i++){ const ph=(t/700+i*.33)%1; alpha(1-ph,()=>R(176+i,54-Math.floor(ph*8),1,1,'#f2f2f2')); }
       R(126,62,6,4,'#e0b04a'); R(134,62,6,4,'#c27a3b'); // pastries
       cooolaCan(143,61); cooolaCan(147,61); cooolaCan(160,61);
+      // other customers
+      crowdStill(t, 3, 14, 66, {legs:false, face:1}); if (Math.floor(t/150000) % 3) crowdStill(t, 5, 34, 66, {legs:false, face:-1});
+      R(10,80,36,2,'#9a7048'); R(26,82,4,16,'#5e4027'); R(20,79,3,3,'#e8e4d8'); R(36,79,3,3,'#e8e4d8');
+      if (Math.floor(t/70000) % 2) crowdStill(t, 6, 100, 74, {}, .85);
       // plant & lamp
       R(100,8,1,14,'#222'); R(96,22,9,4,'#e0b04a'); alpha(.12,()=>R(86,26,30,50,'#ffe8a0'));
       // table (Ishai sits behind it)
