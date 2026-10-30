@@ -641,9 +641,9 @@
     if (w && comp.id === w.id && comp.mode === 'out') comp.mode = 'in';               // changed their mind: come back, don't re-enter
     if (w) comp.tx = w.x;
     if (!comp.id) return;
-    const target = comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x + (w.kind==='floor' && (actor.action!=='walking' || actor.pacePause) && !actor.travelling ? wander(comp.id) : 0) : (comp.tx ?? comp.x));
-    if (comp.mode==='here' && Math.abs(target - comp.x) > 6) comp.mode = 'in';     // a real move (table -> counter): walk there
-    else if (comp.mode==='here' && Math.abs(target - comp.x) > .5){ const st = 30 * dts; comp.x += Math.abs(target - comp.x) <= st ? target - comp.x : Math.sign(target - comp.x) * st; }     // their spot moved (table -> counter): walk there
+    const target = comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x + (w.kind==='floor' && actor.action!=='walking' && !actor.travelling ? wander(comp.id) : 0) : (comp.tx ?? comp.x));
+    if (comp.mode==='here' && Math.abs(target - comp.x) > 6 && !(actor.action==='walking' && Math.abs(target - comp.x) < 20)) comp.mode = 'in';     // a real move (table -> counter): walk there
+    else if (comp.mode==='here' && Math.abs(target - comp.x) > .5){ const st = 40 * dts; comp.x += Math.abs(target - comp.x) <= st ? target - comp.x : Math.sign(target - comp.x) * st; }     // their spot moved (table -> counter): walk there
     if (comp.mode==='here'){
       if (together){ markHead(comp.id, comp.x, scene.walkY); person(comp.look, comp.x, scene.walkY, t+300, {face: actor.x > comp.x ? 1 : -1}); }
       return; }
@@ -1112,9 +1112,9 @@
       const dir = actor.paceDir||1;
       const gx = a==='walking' ? actor.x + 12 : (actor.x > W-40 ? actor.x-13 : actor.x+13);   // walking: side by side, always on his right (no jump when turning)
       if (wantComp({id: actor.with || 'stranger', look: cl, x: gx, kind:'floor'})){
-        const cx = a==='walking' ? gx : comp.x;   // standing friends may wander a step or two (see compUpdate)
+        const cx = comp.x;   // comp.x follows gx smoothly (see compUpdate), so there is never a jump   // standing friends may wander a step or two (see compUpdate)
         markHead(actor.with, cx, y);
-        if (a==='walking') person(cl, gx, y, t+300, actor.pacePause ? {face:-1} : {walk:true, face:dir});
+        if (a==='walking') person(cl, cx, y, t+300, actor.pacePause ? {face:-1} : {walk:true, face:dir});
         else { face = cx > actor.x ? 1 : -1; person(cl, cx, y, t, {face:-face, talkPhase:a==='talking'}); }
       }
     }
@@ -1164,6 +1164,7 @@
     const steps = list[keys[Math.floor(hash(block * 13 + 5) * keys.length)]];
     // build the timeline: walk there, do things, walk back to his spot
     const x0 = standX(actor.loc, a, null); let x = x0, e = (now - start) / 1000;
+    if (!actor.err && Math.abs(actor.x - x0) > 3) return null;   // not at his spot (just arrived, or walked off): no errand this time
     const seq = [...steps, {to: x0}];
     for (const st of seq){
       if (st.pose){ if (e < st.dur) return {x, pose: st.pose, o: st.o || {}, tag: st.tag, walking:false}; e -= st.dur; continue; }
@@ -1296,7 +1297,8 @@
   function update(dt, now){
     if (actor.switching){ if (now >= actor.switching) finishSwitch(); return; }
     { const was = actor.err; actor.err = errandNow();
-      if (actor.err) actor.x = actor.err.x; else if (was && !actor.travelling) actor.x = standX(actor.loc, actor.action, actor.with); }
+      if (actor.err) actor.x = actor.err.x;
+      else if (was && !actor.travelling){ actor.targetX = standX(actor.loc, actor.action, actor.with); actor.travelling = Math.abs(actor.x - actor.targetX) > 1; } } // walk back, never jump
     if (actor.wash > 1){ if (now >= actor.wash){ actor.wash = 0; actor.targetX = actor.washExit; actor.travelling = true; } return; } // washing hands
     if (actor.viaUntil){ if (now >= actor.viaUntil){ actor.viaUntil = 0; actor.targetX = actor.viaFinal; actor.viaFinal = null; actor.travelling = Math.abs(actor.x-actor.targetX) > 1; } return; } // at the fridge
     if (actor.ride) updateRide(now);
