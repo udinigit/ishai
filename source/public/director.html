@@ -105,6 +105,7 @@
        W.shabbat ? `Shabbat: ${W.shabbat.startLabel} → ${W.shabbat.endLabel}${W.shabbat.parasha ? ' · ' + W.shabbat.parasha : ''}` : 'Shabbat: —',
        (W.holidays||[]).length ? 'Holidays: ' + W.holidays.map(h=>h.title+' '+h.date).join(', ') : '',
        'Headlines: ' + ((W.headlines||[]).map(h=>h.title).slice(0,6).join(' | ') || '—'),
+       'Radio stations: ' + (W.stations || 0) + ' music-only streams',
        (W.errors||[]).length ? 'Fetch problems: ' + W.errors.join('; ') : '',
        `Updated ${fmt(W.at)}`].filter(Boolean).join('\n');
     wd.style.whiteSpace = 'pre-line';

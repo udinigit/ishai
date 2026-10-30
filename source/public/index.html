@@ -120,6 +120,7 @@
     <span>STATUS: <b id="stAction">--</b></span>
     <span>FEED: <b id="stLink">CONNECTING…</b></span>
     <span id="stNext"></span>
+    <span id="stMusic" style="opacity:.75"></span>
     <button id="snd" class="snd" title="Tap to change sound">SOUND: OFF</button>
   </div>
 
@@ -1358,8 +1359,20 @@
     }
 
     // ---- room sounds ----
+    // ---- live music for the radio: a music-only internet station (falls back to the chiptune) ----
+    let radioEl = null, radioVol = .55;
+    function streamStart(a){
+      const st = radioPick(); if (!st) return false;
+      if (!radioEl){ radioEl = new Audio(); radioEl.preload = 'none'; radioEl.addEventListener('error', () => { if (radioEl.src) radioFail(radioEl.dataset.url); }); }
+      radioEl.dataset.url = st.url; radioEl.src = st.url; radioEl.volume = radioVol;
+      radioEl.play().catch(e => { if (e && e.name !== 'AbortError') radioFail(st.url); });
+      a.audio = radioEl; a.station = st; return true;
+    }
+    function restartAmb(){ ambKey = ''; setAmbience(wanted); }
+    const streaming = () => amb && amb.audio ? amb.station : null;
     function stopAmb(){
       if (!amb) return; const a = amb; amb = null; a.alive = false;
+      if (a.audio){ a.audio.pause(); a.audio.removeAttribute('src'); try { a.audio.load(); } catch(e){} }
       a.gain.gain.setTargetAtTime(.0001, ac.currentTime, .3);
       setTimeout(() => a.nodes.forEach(x => { try { x.stop(); } catch(e){} try { x.disconnect(); } catch(e){} }), 1600);
     }
@@ -1403,7 +1416,7 @@
       if (extra === 'shower') bed(white, 'bandpass', 3200, .05);
       if (extra === 'toilet') setTimeout(() => { if (a.alive){ noise(2.4,{vol:.12,type:'lowpass',freq:500,sweep:[1800,300],dest}); noise(1.2,{vol:.05,type:'highpass',freq:2500,when:1.4,dest}); } }, 6000 + Math.random()*8000);
       if (extra === 'tv') loop(110, 130, () => { if (Math.random()<.7) noise(.09,{vol:.07,type:'bandpass',freq:500+Math.random()*900,q:4,dest}); });
-      if (extra === 'radio') music(a);
+      if (extra === 'radio' && !streamStart(a)) music(a);
     }
     // an endless little chiptune for the radio, a new tune each time it turns on
     function music(a){
@@ -1453,10 +1466,14 @@
       const resume = () => { document.removeEventListener('pointerdown', resume, true); document.removeEventListener('keydown', resume, true); if (mode === 'off') setMode(saved); };
       document.addEventListener('pointerdown', resume, true); document.addEventListener('keydown', resume, true);
     }
-    function duck(down){ if (amb && amb.duck) amb.duck.gain.setTargetAtTime(down ? .15 : 1, ac.currentTime, .25); }
+    function duck(down){
+      if (amb && amb.duck) amb.duck.gain.setTargetAtTime(down ? .15 : 1, ac.currentTime, .25);
+      if (amb && amb.audio){ const el = amb.audio, to = down ? .12 : radioVol; let i = 0; const from = el.volume;
+        const st = setInterval(() => { i++; el.volume = from + (to - from) * Math.min(1, i / 8); if (i >= 8) clearInterval(st); }, 60); }
+    }
     function newSong(){ if (amb && amb.reseed) amb.reseed(); }
     const speaking = () => mode === 'voices';
-    return { blip, key, say, setAmbience, bark, duck, newSong, speaking };
+    return { blip, key, say, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -1728,7 +1745,13 @@
   // ================= Radio Herzl 88.2: an original station with a DJ =================
   // Music (the chiptune) with a DJ every 80 s: real weather, real light headlines, Shabbat times, fictional ads and bands.
   // Timed by the clock, so every viewer hears the same show. The DJ speaks in VOICES mode; the words always show in a bubble.
-  const RADIO_CYCLE = 80000, RADIO = { seg:-1, spoken:-1, on:false };
+  const RADIO = { seg:-1, spoken:-1, on:false, bad:new Set() };
+  const STATION_BLOCK = 20 * 60000; // a new station every 20 minutes (same for every viewer)
+  function radioPick(){
+    const list = ((WORLD && WORLD.stations) || []).filter(s => !RADIO.bad.has(s.url)); if (!list.length) return null;
+    return list[Math.floor(hash(Math.floor(Date.now() / STATION_BLOCK) * 3 + 7) * list.length)];
+  }
+  function radioFail(url){ RADIO.bad.add(url); if (Sound.streaming() !== null || RADIO.on) Sound.restartAmb(); }
   const BANDS = [['The Basil Leaves','Morning on Herzl Street'],['Falafel Kings','Extra Tahini'],['Lady Hummus','Chickpea Heart'],
     ['The Second Floor','Elevator Out of Order'],['DJ Kettle','Steam'],['Moshe and the Roots','Thirsty'],['Night Bus 5','Last Stop Jaffa'],
     ['The Sunscreen Boys','Factor Fifty'],["Grandma's Wi-Fi",'Password Is on the Fridge'],['Mediterranean Static','Signal Lost']];
@@ -1749,7 +1772,7 @@
     : h >= 12 && h < 19 ? {id:'dj_shira', name:'Shira Gold', show:'the Afternoon Drive'} : {id:'dj_yoni', name:'Night Owl Yoni', show:'Night Owls'}; }
   function djLine(seg){
     const d = dj(), r = k => hash(seg * 31 + k), pickOf = (arr, k) => arr[Math.floor(r(k) * arr.length)];
-    const song = BANDS[seg % BANDS.length], nextSong = BANDS[(seg + 1) % BANDS.length];
+    const song = BANDS[seg % BANDS.length], nextSong = BANDS[(seg + 1) % BANDS.length], live = Sound.streaming();
     const W8 = WORLD || {}, wx = W8.weather, heads = (W8.headlines || []).filter(Boolean), sh = W8.shabbat;
     const kinds = ['song','ad','weather','news','ad','song','time','ad','news'];
     if (sh && /^(Fri|Sat)/.test(sh.startLabel || '') ) kinds.push('shabbat');
@@ -1757,6 +1780,7 @@
     if (kind === 'weather' && !wx) kind = 'time'; if (kind === 'news' && !heads.length) kind = 'song';
     const hello = r(3) < .4 ? `${d.name} here, on ${d.show}. ` : '';
     const tag = r(9) < .45 ? ` This ${['song','news','hour','minute'][Math.floor(r(11)*4)]} is brought to you by ${pickOf(BRAND_TAGS, 13)}.` : '';
+    if (kind === 'song' && live) return `${hello}More ${live.tag} on Radio Herzl, 88.2. All music, no opinions. Except mine.${tag}`;
     if (kind === 'song') return `${hello}That was ${song[0]} with "${song[1]}". Coming up: ${nextSong[0]}. Radio Herzl, 88.2!${tag}`;
     if (kind === 'weather') return `${hello}${Math.round(wx.temp)} degrees and ${wx.desc} in Tel Aviv. ` + (wx.rain ? 'Umbrellas out, people.' : wx.temp >= 27 ? "Hydrate. That's an order." : wx.temp <= 14 ? 'Find a sweater.' : 'Honestly? Lovely.') + tag;
     if (kind === 'news') return `${hello}In the news: ${pickOf(heads, 5)}. ${pickOf(QUIPS, 7)}`;
@@ -1766,12 +1790,15 @@
   }
   function radioTick(){
     const playing = UNLOCKED.has('radio') && actor.loc==='apartment' && actor.action==='listening' && !actor.travelling && !actor.hidden && !actor.switching;
-    if (!playing){ if (RADIO.on){ RADIO.on = false; Sound.duck(false); if (SAY.who==='radio') SAY.until = 0; } return; }
-    const now = Date.now(), seg = Math.floor(now / RADIO_CYCLE), into = (now % RADIO_CYCLE) / 1000;
+    if (!playing){ if (RADIO.on){ RADIO.on = false; Sound.duck(false); $('stMusic').textContent = ''; if (SAY.who==='radio') SAY.until = 0; } return; }
+    const live = Sound.streaming(), CYCLE = live ? 240000 : 80000, talkAt = live ? 200 : 62;   // live music: the DJ talks every 4 minutes
+    const now = Date.now(), seg = Math.floor(now / CYCLE), into = (now % CYCLE) / 1000;
     if (!RADIO.on){ RADIO.on = true; RADIO.seg = seg; }
-    if (seg !== RADIO.seg){ RADIO.seg = seg; Sound.newSong(); }
+    if (seg !== RADIO.seg){ RADIO.seg = seg; if (!live) Sound.newSong(); }
+    const want = radioPick(); if (live && want && want.url !== live.url) Sound.restartAmb();   // station change
     $('hudAction').textContent = 'RADIO HERZL 88.2';
-    if (into >= 62 && into < 76 && RADIO.spoken !== seg){
+    $('stMusic').textContent = live ? `\u266A ${live.name} (via radio-browser.info)` : '';
+    if (into >= talkAt && into < talkAt + 14 && RADIO.spoken !== seg){
       RADIO.spoken = seg; const d = dj(), text = djLine(seg);
       Sound.duck(true); showSay('radio', d.name.toUpperCase() + ': ' + text); holdSay(14000);
       const back = setTimeout(() => Sound.duck(false), 15000);
