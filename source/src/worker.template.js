@@ -329,7 +329,7 @@ async function tick(env, force) {
     if (notable && !(lastHl && lastHl.loc === ev.location && lastHl.w === (ev.with || null)))
       { hl.push({ t: storyMs, loc: ev.location, a: ev.action, w: ev.with || null }); s.hl = hl.slice(-20); } }
   if (!ev.with && !BATH_ACTIONS.includes(ev.action)) s.scene = null;
-  else if (s.scene && s.scene.w === ev.with) s.scene.lines += (ev.lines || []).length;
+  else if (s.scene && s.scene.w === ev.with){ s.scene.lines += (ev.lines || []).length; if (sceneOverdue(s.scene, storyMs)) s.scene.leaving = true; }
   else s.scene = { w: ev.with, loc: ev.location, startedAt: storyMs, lines: (ev.lines || []).length,
     ...(ev.scene || { type: "small talk", why: "they ran into each other", ishaiWants: "a pleasant chat", theyWant: "a pleasant chat", beats: "greet, catch up, part", ending: "a natural goodbye", target: 14 }) };
   if (ev.notes) s.notes = ev.notes;
@@ -376,6 +376,12 @@ function castSection(s, last) {
 }
 
 const BATH_ACTIONS = ["bathroom", "showering"];
+// a scene must end: well past its length, too long, or bedtime
+function sceneOverdue(sc, storyMs) {
+  if (!sc) return false;
+  const h = storyClock(storyMs).hour;
+  return sc.lines >= sc.target * 1.4 || storyMs - (sc.startedAt || storyMs) > 100 * 60000 || h >= 23 || h < 6;
+}
 function buildMessages(s, clock, now, goal) {
   const last = s.events[s.events.length - 1];
   const cw = last.with || (BATH_ACTIONS.includes(last.action) && s.scene ? s.scene.w : null); // a guest waits while he is in the bathroom
@@ -406,7 +412,8 @@ function buildMessages(s, clock, now, goal) {
   const sceneBrief = sc ? `\nSCENE BRIEF (this conversation with ${name(sc.w)}): type: ${sc.type}. Why they are talking: ${sc.why}. Ishai wants: ${sc.ishaiWants}. ${name(sc.w)} wants: ${sc.theyWant}. ` +
     `Beats: ${sc.beats}. Planned ending: ${sc.ending}. Progress: ${sc.lines} of about ${sc.target} lines.` +
     (!last.with ? ` Ishai just came back from the bathroom; ${name(sc.w)} waited in the apartment and is still there.` : "") +
-    (sc.lines >= sc.target ? ` It is time to reach the planned ending now, naturally (a reason to leave, hang up, or move on).` : ` Keep both people pursuing what they want; move to the next beat when the current one is done.`) + "\n" : "";
+    (sceneOverdue(sc, now + DELAY_MIN * 60000) ? ` THE SCENE ENDS IN THIS MOMENT: they wrap up and say goodbye (2-4 lines) and ${name(sc.w)} leaves (walks out / hangs up). After this moment ${name(sc.w)} is gone.`
+      : sc.lines >= sc.target ? ` It is time to reach the planned ending now, naturally (a reason to leave, hang up, or move on).` : ` Keep both people pursuing what they want; move to the next beat when the current one is done.`) + "\n" : "";
   const allowNew = canAddPerson(s, now);
   // now and then, ask the hosts for an obvious "secret" sponsor plug
   const sponsor = now - (s.lastAd || 0) > AD_EVERY_MIN * 60000 && Math.random() < 0.35
@@ -607,6 +614,10 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (h < 6 && last.action === "sleeping" && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts)
       return { ev, problem: `he is asleep and it is the middle of the night: keep him "sleeping" (a short bathroom or water trip is the only exception)` }; }
   if (ev.with && BATH_ACTIONS.includes(ev.action)) ev.with = null; // the guest waits outside
+  if (ev.with && s.scene && s.scene.leaving && s.scene.w === ev.with) {
+    if (!allowNoHosts) return { ev, problem: `${s.cast[ev.with]?.name || ev.with} already said goodbye and left; "with" must be null now and Ishai is alone (no lines from them)` };
+    ev.with = null; ev.lines = ev.lines.filter(l => l.who === "ishai").slice(0, 1); if (ev.action === "talking") ev.action = "idle";
+  }
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
   if (ev.with && ev.with !== last.with && !(BATH_ACTIONS.includes(last.action) && s.scene && s.scene.w === ev.with) && !(ev.scene && ev.scene.why) && ev.action !== "sleeping" && !allowNoHosts)
     return { ev, problem: `a conversation with ${s.cast[ev.with]?.name || ev.with} starts here, so fill "scene" (type, why, ishaiWants, theyWant, beats, ending, lines) and write its first lines` };
