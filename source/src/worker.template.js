@@ -130,7 +130,9 @@ export default {
     if (url.pathname === "/api/state") {
       try {
         const state = await loadState(env);
-        return json(publicState(state), { "cache-control": "public, max-age=15" });
+        // narration is for the director only; viewers get places, actions and spoken lines
+        const dev = !!env.ADMIN_KEY && req.headers.get("x-admin-key") === env.ADMIN_KEY;
+        return json(publicState(state, dev), dev ? { "cache-control": "no-store" } : { "cache-control": "public, max-age=15" });
       } catch (e) { return json({ error: "state: " + String(e && e.message || e).slice(0, 120) }, {}, 500); }
     }
     // Director page: add a secret ADMIN_KEY variable in Cloudflare, then open /director
@@ -172,6 +174,7 @@ async function loadState(env) {
   if (!s.director) { s.director = []; dirty = true; }
   if (!s.done) { const n = Date.now(); s.done = { eat: n - 2 * 3600000, drink: n - 3600000, bathroom: n - 2 * 3600000, shower: n - 12 * 3600000 }; dirty = true; }
   if (!s.wishlist) { s.wishlist = {}; dirty = true; }
+  if (!s.talk) { s.talk = []; s.events.forEach(e => (e.lines || []).forEach((l, i) => s.talk.push({ id: e.id + ":" + i, t: e.t, who: l.who, say: l.say, loc: e.location }))); dirty = true; }
   s.seeded = s.seeded || [];
   for (const d of DIRECTOR_SEED) if (!s.seeded.includes(d.id)) {
     s.director.push(newGoal(d, Date.now())); s.seeded.push(d.id); dirty = true;
@@ -183,12 +186,13 @@ async function loadState(env) {
 }
 async function saveState(env, s) { await env.ISHAI.put("state", JSON.stringify(s)); memo = s; memoAt = Date.now(); }
 
-function publicState(s) {
+function publicState(s, dev) {
   const last = s.events[s.events.length - 1];
   return {
     day: Math.floor((Date.now() - s.startedAt) / 86400000) + 1,
-    build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: s.notes,
-    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, text: e.text, with: e.with || null, lines: e.lines || [], unlocks: e.unlocks || null })),
+    build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
+    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, text: dev ? e.text : "", with: e.with || null, lines: e.lines || [], unlocks: e.unlocks || null })),
+    talk: (s.talk || []).slice(-80), dev: !!dev,
     unlocked: s.unlocked,
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
@@ -258,6 +262,9 @@ async function tick(env, force) {
     text: ev.text, with: ev.with || null, lines: ev.lines || [], unlocks: ev.unlocks || null });
   if (ev.notes) s.notes = ev.notes;
   s.events = s.events.slice(-KEEP_EVENTS);
+  const evId = s.nextId - 1;
+  (ev.lines || []).forEach((l, i) => s.talk.push({ id: evId + ":" + i, t: storyMs, who: l.who, say: l.say, loc: ev.location }));
+  if (s.talk.length > 120) s.talk = s.talk.slice(-120);
   // full-day log for the daily planner
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(storyMs));
   if (!s.log || s.log.date !== day) { if (s.log) s.prevLog = s.log; s.log = { date: day, lines: [] }; }

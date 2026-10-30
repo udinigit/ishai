@@ -31,6 +31,7 @@
 <body>
 <div class="wrap">
   <h1>&gt; DIRECTOR // ISHAI</h1>
+  <div class="muted" style="font-size:17px">After you log in here, the <a href="/" style="color:var(--phos)">live page</a> on this device also shows the NARRATION (DEV) tab.</div>
 
   <div class="box" id="login">
     <label for="key">Password (the ADMIN_KEY you set in Cloudflare)</label>
@@ -78,7 +79,7 @@
 <script>
 (() => {
   const $ = id => document.getElementById(id);
-  let KEY = sessionStorage.getItem('ishaiKey') || '';
+  let KEY = localStorage.getItem('ishaiKey') || '';
   const fmt = ms => ms ? new Date(ms).toLocaleString('en-GB',{timeZone:'Asia/Jerusalem',weekday:'short',hour:'2-digit',minute:'2-digit'}) : '—';
   async function api(body){
     const r = await fetch('/api/director', {method: body ? 'POST' : 'GET', headers:{'x-admin-key':KEY,'content-type':'application/json'}, body: body ? JSON.stringify(body) : undefined});
@@ -136,7 +137,7 @@
     });
   }
   async function open(){
-    try { const v = await api(); sessionStorage.setItem('ishaiKey', KEY); $('login').hidden = true; $('main').hidden = false; render(v); }
+    try { const v = await api(); localStorage.setItem('ishaiKey', KEY); $('login').hidden = true; $('main').hidden = false; render(v); }
     catch(e){ $('loginMsg').textContent = e.message; }
   }
   $('go').onclick = () => { KEY = $('key').value.trim(); open(); };

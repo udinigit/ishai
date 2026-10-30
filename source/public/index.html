@@ -50,6 +50,14 @@
   .warn{color:var(--amber)}
   .foot{font-size:15px;color:var(--phos-dim);padding:0 4px;opacity:.8}
   .line.say{margin:-4px 0 9px 1.2em}
+  .talk{display:flex;flex-direction:column;gap:10px}
+  .talk .empty{color:var(--phos-dim);font-size:.85em}
+  .msg{display:grid;grid-template-columns:40px 1fr;gap:10px;align-items:start}
+  .msg canvas{width:40px;height:40px;image-rendering:pixelated;animation:none;background:#0b120b;border:1px solid var(--phos-faint);border-radius:6px}
+  .msg .who{font-size:.85em;letter-spacing:1px}
+  .msg .who small{color:var(--phos-dim);font-size:.8em;margin-left:6px}
+  .msg .said{color:#eaffea;text-shadow:none;display:inline}
+  .scene{color:var(--phos-dim);font-size:.8em;text-align:center;letter-spacing:2px;margin-top:4px}
   .tabs{display:flex;gap:8px;margin-bottom:-4px}
   .tabs button{font:inherit;font-size:clamp(17px,4.2vw,21px);background:transparent;color:var(--phos-dim);
     border:2px solid var(--phos-faint);border-bottom:none;border-radius:8px 8px 0 0;padding:2px 14px;cursor:pointer}
@@ -88,10 +96,12 @@
   </div>
 
   <div class="tabs" role="tablist">
-    <button id="tabFeed" class="on" role="tab" aria-selected="true">FEED</button>
+    <button id="tabTalk" class="on" role="tab" aria-selected="true">CONVERSATIONS</button>
     <button id="tabCast" role="tab" aria-selected="false">CAST</button>
+    <button id="tabFeed" role="tab" aria-selected="false" hidden>NARRATION (DEV)</button>
   </div>
-  <div class="term" id="term" aria-live="polite"></div>
+  <div class="term talk" id="talk" aria-live="polite"><div class="empty" id="talkEmpty">No conversations yet. When someone speaks on camera, it appears here.</div></div>
+  <div class="term" id="term" hidden></div>
   <div class="term cast" id="castPanel" hidden></div>
   <div class="foot">Story written by AI. Ishai is fictional.</div>
 </div>
@@ -964,7 +974,12 @@
   }
   async function pump(){
     if (typing) return; typing = true;
-    while (queue.length){ const ev = queue.shift(); if (ev.unlocks) UNLOCKED.add(ev.unlocks); if (!forceLoc) setState(ev.location||'apartment', ev.action, false, ev.with||null); await addLine(ev,true); }
+    while (queue.length){
+      const ev = queue.shift(); if (ev.unlocks) UNLOCKED.add(ev.unlocks);
+      if (!forceLoc) setState(ev.location||'apartment', ev.action, false, ev.with||null);
+      if (DEV){ addTalk(ev, false); await addLine(ev,true); }
+      else { shown.add(ev.id); await addTalk(ev, true); }
+    }
     typing = false;
   }
   // events with a future timestamp (broadcast delay) are held until their time comes
@@ -982,12 +997,64 @@
     due.forEach(e=>{ if (e.unlocks && firstLoad) UNLOCKED.add(e.unlocks); });
     if (firstLoad && due.length){
       const newest = due.pop();
-      due.forEach(e=>addLine(e,false));
+      // conversation history (older lines than the moment we tune into)
+      const nk = newest.id + ':';
+      (TALK_HISTORY||[]).filter(m => m.t <= now && !String(m.id).startsWith(nk)).forEach(m => addMsg(m, false));
+      due.forEach(e=>{ if (DEV) addLine(e,false); else shown.add(e.id); addTalk(e,false); });
       if (!forceLoc) setState(newest.location||'apartment', newest.action, true, newest.with||null);
       // tune in live: join the newest moment as far into it as real time says
       newest._late = Math.max(0, Date.now() - newest.t);
       queue.push(newest); pump();
     } else { due.forEach(e=>queue.push(e)); pump(); }
+  }
+
+  // ================= conversations =================
+  let DEV = false, TALK_HISTORY = [];
+  const talkEl = $('talk'), talkShown = new Set();
+  let lastScene = '';
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', offscreen:'OFF CAMERA'};
+  function faceCanvas(who){
+    const c = document.createElement('canvas'); c.width = 12; c.height = 12;
+    const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
+    if (who === 'ishai'){ head(1,2,{}); torso(1,2); }
+    else if (CAST[who] && CAST[who].look) person(CAST[who].look, 1, 2, 0, {face:0, seed:999, legs:false});
+    else { R(4,4,4,4,'#555'); }
+    g = prev; return c;
+  }
+  function addMsg(m, animate, budget){
+    if (talkShown.has(m.id)) return Promise.resolve(); talkShown.add(m.id);
+    $('talkEmpty').hidden = true;
+    const scene = (m.loc||'') + '|' + fmtHM.format(new Date(m.t)).slice(0,2);
+    if (m.loc && m.loc !== lastScene.split('|')[0]){ const d = document.createElement('div'); d.className = 'scene'; d.textContent = `— ${PLACE_NAME[m.loc]||m.loc.toUpperCase()} · ${fmtHM.format(new Date(m.t))} —`; talkEl.appendChild(d); }
+    lastScene = scene;
+    const sp = speaker(m.who);
+    const row = document.createElement('div'); row.className = 'msg';
+    const body = document.createElement('div');
+    const who = document.createElement('div'); who.className = 'who'; who.style.color = sp.color; who.textContent = sp.name;
+    const tm = document.createElement('small'); tm.textContent = fmtHM.format(new Date(m.t)); who.appendChild(tm);
+    const said = document.createElement('div'); said.className = 'said'; const cur = document.createElement('span'); cur.className = 'cursor';
+    body.append(who, said); row.append(faceCanvas(m.who), body);
+    talkEl.querySelectorAll('.cursor').forEach(x=>x.remove()); said.after(cur);
+    talkEl.appendChild(row);
+    while (talkEl.querySelectorAll('.msg').length > 120) talkEl.removeChild(talkEl.querySelector('.msg'));
+    const scroll = () => { talkEl.scrollTop = talkEl.scrollHeight; };
+    if (!animate){ said.textContent = '"' + m.say + '"'; cur.remove(); scroll(); return Promise.resolve(); }
+    const full = '"' + m.say + '"'; let i = 0;
+    while (budget && budget.ms > 0 && i < full.length){ budget.ms -= charDelay(full[i]); i++; }
+    const speak = i === 0 ? Sound.say(m.who, m.say) : null;
+    return Promise.all([speak, new Promise(res => {
+      if (i >= full.length){ said.textContent = full; scroll(); return res(); }
+      const step = () => { i++; said.textContent = full.slice(0,i); scroll(); Sound.blip(m.who, full[i-1]);
+        if (i < full.length) setTimeout(step, charDelay(full[i-1])); else res(); };
+      step();
+    })]);
+  }
+  async function addTalk(ev, animate){
+    const budget = {ms: ev._late || 0};
+    for (let i = 0; i < (ev.lines||[]).length; i++){
+      const l = ev.lines[i];
+      await addMsg({id: ev.id + ':' + i, t: ev.t, who: l.who, say: l.say, loc: ev.location}, animate, budget);
+    }
   }
 
   // ================= cast tab =================
@@ -1044,13 +1111,14 @@
   let castSig = '';
   setInterval(()=>{ if ($('castPanel').hidden) return; const sig = [...settledOnCamera()].join(','); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
-    const cast = which==='cast';
-    $('term').hidden = cast; $('castPanel').hidden = !cast;
-    $('tabFeed').classList.toggle('on',!cast); $('tabCast').classList.toggle('on',cast);
-    $('tabFeed').setAttribute('aria-selected',String(!cast)); $('tabCast').setAttribute('aria-selected',String(cast));
-    if (cast) renderCast(); else term.scrollTop = term.scrollHeight;
+    const tabs = {talk:['tabTalk','talk'], cast:['tabCast','castPanel'], feed:['tabFeed','term']};
+    Object.entries(tabs).forEach(([k,[b,p]]) => { const on = k===which; $(p).hidden = !on; $(b).classList.toggle('on',on); $(b).setAttribute('aria-selected',String(on)); });
+    if (which==='cast') renderCast();
+    if (which==='feed') term.scrollTop = term.scrollHeight;
+    if (which==='talk') talkEl.scrollTop = talkEl.scrollHeight;
   }
-  $('tabFeed').onclick = ()=>showTab('feed'); $('tabCast').onclick = ()=>showTab('cast');
+  $('tabTalk').onclick = ()=>showTab('talk'); $('tabFeed').onclick = ()=>showTab('feed'); $('tabCast').onclick = ()=>showTab('cast');
+  function enableDev(){ if (DEV) return; DEV = true; $('tabFeed').hidden = false; }
 
   // ================= data: live Worker or demo =================
   const DEMO_CAST = [
@@ -1107,7 +1175,8 @@
   async function poll(){
     let s;
     try{
-      const r = await fetch(API, {cache:'no-store'});
+      let key = ''; try { key = localStorage.getItem('ishaiKey') || ''; } catch(e){}
+      const r = await fetch(API, {cache:'no-store', headers: key ? {'x-admin-key': key} : {}});
       if (!r.ok) throw new Error('server ' + r.status);
       s = await r.json();
       if (!s || !Array.isArray(s.events)) throw new Error(s && s.error ? s.error : 'bad data');
@@ -1122,6 +1191,8 @@
       $('stLink').textContent = s.delayMin ? `LIVE (${s.delayMin} MIN DELAY)` : 'LIVE';
       $('day').textContent = 'DAY ' + (s.day || 1);
       if (s.build && !BUILD.startsWith('__') && s.build !== BUILD) offerUpdate();
+      if (s.dev) enableDev();
+      if (!loaded) TALK_HISTORY = s.talk || [];
       NOTES = s.notes || ''; setCast(s.cast);
       if (s.world) { WORLD = s.world; $('stNext').textContent = weatherLabel(); }
       // items appear when the moment that brings them is shown, not before (broadcast delay)
@@ -1138,7 +1209,7 @@
   else setState('apartment','sleeping',true);
   requestAnimationFrame(loop);
   if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }
-  else if (location.protocol === 'file:' || params.has('demo')) startDemo();
+  else if (location.protocol === 'file:' || params.has('demo')) { if (params.has('dev')) enableDev(); startDemo(); }
   else { poll(); setInterval(()=>{ if (!demoMode) poll(); }, POLL_MS); }
 })();
 </script>
