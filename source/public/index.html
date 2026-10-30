@@ -641,7 +641,7 @@
     if (w && comp.id === w.id && comp.mode === 'out') comp.mode = 'in';               // changed their mind: come back, don't re-enter
     if (w) comp.tx = w.x;
     if (!comp.id) return;
-    const target = comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x + (w.kind==='floor' && actor.action!=='walking' && !actor.travelling ? wander(comp.id) : 0) : (comp.tx ?? comp.x));
+    const target = comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x + (w.kind==='floor' && (actor.action!=='walking' || actor.pacePause) && !actor.travelling ? wander(comp.id) : 0) : (comp.tx ?? comp.x));
     if (comp.mode==='here' && Math.abs(target - comp.x) > 6) comp.mode = 'in';     // a real move (table -> counter): walk there
     else if (comp.mode==='here' && Math.abs(target - comp.x) > .5){ const st = 30 * dts; comp.x += Math.abs(target - comp.x) <= st ? target - comp.x : Math.sign(target - comp.x) * st; }     // their spot moved (table -> counter): walk there
     if (comp.mode==='here'){
@@ -1315,7 +1315,7 @@
       // pacing back and forth, position taken from the real clock
       const lo = actor.loc==='street'?50:actor.loc==='park'?40:52, hi = actor.loc==='street'?140:actor.loc==='cafe'?110:124;
       // walk one way, stop for a few seconds, walk back, stop again (like a real person, not a pendulum)
-      const span = hi - lo, wt = span / 14, P = 5, e = (Date.now()/1000) % (2*wt + 2*P);
+      const span = hi - lo, wt = span / 14, P = 110, e = (Date.now()/1000) % (2*wt + 2*P);
       if (e < wt){ actor.paceDir = 1; actor.pacePause = false; actor.x = lo + e*14; }
       else if (e < wt + P){ actor.paceDir = 1; actor.pacePause = true; actor.x = hi; }
       else if (e < 2*wt + P){ actor.paceDir = -1; actor.pacePause = false; actor.x = hi - (e - wt - P)*14; }

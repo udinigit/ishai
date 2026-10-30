@@ -456,6 +456,7 @@ RULES
 - Ishai does not know he is being filmed. He never talks to or about the camera, the show or the hosts.
 - Real-world logic: things take time and follow physics and logistics. He must physically get places (walk, bus or taxi), wait, carry what he buys, pay, clean up. Other people have their own jobs, schedules and moods and are not always available. Weather and time of day change plans.
 - Continue the story and its ongoing threads.
+- "walking" means walking somewhere or a stroll outside; for chatting use "talking", for hanging around use "idle".
 - The camera shows only "action": pick the action that matches what happens (a drink = drinking, a snack = eating); the hosts describe only what the picture can show.
 - Respect the clock: he sleeps at night (roughly 00:00-07:30), eats at mealtimes, works on weekdays (Sunday-Thursday in Israel).
 - He is a real person: he drinks, eats, uses the bathroom and showers. Bathroom and shower happen behind the closed bathroom door; keep them brief and tasteful.
@@ -591,6 +592,8 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (/\b(drink|drinks|drinking|sip|sips|coffee|tea|water|glass of|cooola|juice|beer|wine)\b/.test(all) && LOCATIONS[ev.location].includes("drinking")) ev.action = "drinking";
     else if (/\b(eat|eats|eating|snack|sandwich|bite|meal|breakfast|lunch|dinner)\b/.test(all) && LOCATIONS[ev.location].includes("eating")) ev.action = "eating";
   }
+  // "walking" indoors is not a way to hang out: with someone it is talking, alone it is idle (the page adds errands)
+  if (ev.action === "walking" && (ev.location === "apartment" || ev.location === "cafe")) ev.action = ev.with ? "talking" : "idle";
   if (!LOCATIONS[ev.location]) return { ev, problem: `"${ev.location}" is not a known location` };
   if (!LOCATIONS[ev.location].includes(ev.action))
     return { ev, problem: `"${ev.action}" is not possible in ${ev.location} (allowed: ${allowed(ev.location, s.unlocked).join(", ")})` };
