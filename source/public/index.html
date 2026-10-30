@@ -730,10 +730,11 @@
         else if (BATH.has(actor.action)) actor.hidden = true;
       }
     } else if (actor.action==='walking' && !actor.pending){
-      if (actor.paceDir===undefined) actor.paceDir = 1;
-      actor.x += actor.paceDir*14*dt;
+      // pacing back and forth, position taken from the real clock
       const lo = actor.loc==='street'?50:actor.loc==='park'?40:52, hi = actor.loc==='street'?140:actor.loc==='cafe'?110:124;
-      if (actor.x>hi){actor.x=hi;actor.paceDir=-1;} if (actor.x<lo){actor.x=lo;actor.paceDir=1;}
+      const span = hi - lo, d = (Date.now()/1000*14) % (2*span);
+      actor.paceDir = d < span ? 1 : -1; actor.x = lo + (d < span ? d : 2*span - d);
+
     }
   }
 
@@ -754,7 +755,9 @@
   }
 
   let last = performance.now();
-  function loop(now){ const dt = Math.min(.1,(now-last)/1000); last = now; update(dt,now); render(now); Sound.setAmbience(ambienceKey()); requestAnimationFrame(loop); }
+  // animations run on the real clock, so every viewer (and every refresh) sees the same frame
+  const wall = () => Date.now() % 86400000;
+  function loop(now){ const dt = Math.min(.1,(now-last)/1000); last = now; update(dt,now); render(wall()); Sound.setAmbience(ambienceKey()); requestAnimationFrame(loop); }
   setInterval(()=>{ $('clock').textContent = fmtClock.format(new Date()); }, 500);
   $('clock').textContent = fmtClock.format(new Date());
 
@@ -923,11 +926,16 @@
     if (id==='ishai') return {name:'ISHAI', color:tint(CLOTH.teal,.45)};
     const c = CAST[id]; return {name:(c?c.name:id).toUpperCase(), color: tint(CLOTH[c?.look?.shirt]||CLOTH.gray,.45)};
   }
-  function typeInto(el, full, animate, onChar){
+  const charDelay = ch => 28 + (ch===','?120:ch==='.'?220:0);
+  // budget.ms = how far into this moment we already are (a viewer tuning in late joins mid-sentence)
+  function typeInto(el, full, animate, onChar, budget){
     if (!animate){ el.textContent = full; term.scrollTop = term.scrollHeight; return Promise.resolve(); }
-    return new Promise(res=>{ let i=0;
+    let i = 0;
+    while (budget && budget.ms > 0 && i < full.length){ budget.ms -= charDelay(full[i]); i++; }
+    if (i >= full.length){ el.textContent = full; term.scrollTop = term.scrollHeight; return Promise.resolve(); }
+    return new Promise(res=>{
       const step=()=>{ i++; el.textContent = full.slice(0,i); term.scrollTop = term.scrollHeight; if (onChar) onChar(full[i-1]);
-        if (i<full.length) setTimeout(step, 28 + (full[i-1]===','?120:full[i-1]==='.'?220:0)); else res(); };
+        if (i<full.length) setTimeout(step, charDelay(full[i-1])); else res(); };
       step(); });
   }
   function newLine(cls){
@@ -943,13 +951,15 @@
     const ts = document.createElement('span'); ts.className='ts'; ts.textContent = `[${fmtHM.format(new Date(ev.t))}] `;
     const tx = document.createElement('span'); const cur = document.createElement('span'); cur.className='cursor';
     p.append(ts, tx, cur);
-    await Promise.all([typeInto(tx, '> ' + ev.text, animate, ch=>Sound.key(ch)), animate ? Sound.say('narrator', ev.text) : null]);
+    const budget = {ms: ev._late || 0};
+    const fresh = () => budget.ms <= 0; // only speak lines the viewer gets from the start
+    await Promise.all([animate && fresh() ? Sound.say('narrator', ev.text) : null, typeInto(tx, '> ' + ev.text, animate, ch=>Sound.key(ch), budget)]);
     for (const l of (ev.lines||[])){
       const sp = speaker(l.who), q = newLine('say');
       const nm = document.createElement('span'); nm.style.color = sp.color; nm.textContent = sp.name + ': ';
       const tx2 = document.createElement('span'); tx2.style.color = sp.color; const cur2 = document.createElement('span'); cur2.className='cursor';
       q.append(nm, tx2, cur2);
-      await Promise.all([typeInto(tx2, '"' + l.say + '"', animate, ch=>Sound.blip(l.who, ch)), animate ? Sound.say(l.who, l.say) : null]);
+      await Promise.all([animate && fresh() ? Sound.say(l.who, l.say) : null, typeInto(tx2, '"' + l.say + '"', animate, ch=>Sound.blip(l.who, ch), budget)]);
     }
   }
   async function pump(){
@@ -974,6 +984,8 @@
       const newest = due.pop();
       due.forEach(e=>addLine(e,false));
       if (!forceLoc) setState(newest.location||'apartment', newest.action, true, newest.with||null);
+      // tune in live: join the newest moment as far into it as real time says
+      newest._late = Math.max(0, Date.now() - newest.t);
       queue.push(newest); pump();
     } else { due.forEach(e=>queue.push(e)); pump(); }
   }
