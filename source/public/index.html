@@ -1314,12 +1314,12 @@
     } else if (actor.action==='walking' && !actor.pending){
       // pacing back and forth, position taken from the real clock
       const lo = actor.loc==='street'?50:actor.loc==='park'?40:52, hi = actor.loc==='street'?140:actor.loc==='cafe'?110:124;
-      // walk one way, stop for a few seconds, walk back, stop again (like a real person, not a pendulum)
-      const span = hi - lo, wt = span / 14, P = 110, e = (Date.now()/1000) % (2*wt + 2*P);
-      if (e < wt){ actor.paceDir = 1; actor.pacePause = false; actor.x = lo + e*14; }
-      else if (e < wt + P){ actor.paceDir = 1; actor.pacePause = true; actor.x = hi; }
-      else if (e < 2*wt + P){ actor.paceDir = -1; actor.pacePause = false; actor.x = hi - (e - wt - P)*14; }
-      else { actor.paceDir = -1; actor.pacePause = true; actor.x = lo; }
+      // every ~2 minutes he walks to a new spot somewhere in the room, then stands there (clock-driven, same for everyone)
+      const span = hi - lo, D = 120, now = Date.now()/1000, k = Math.floor(now / D), e = now % D;
+      const spot = n => { const a = lo + hash(n*7 + 3) * span, b = lo + hash((n-1)*7 + 3) * span; return Math.abs(a - b) < 18 ? (a + span/2 - lo) % span + lo : a; };
+      const from = spot(k - 1), to = spot(k), wt = Math.abs(to - from) / 14;
+      actor.paceDir = Math.sign(to - from) || 1;
+      if (e < wt){ actor.pacePause = false; actor.x = from + (to - from) * (e / wt); } else { actor.pacePause = true; actor.x = to; }
 
     }
   }
