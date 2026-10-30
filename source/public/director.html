@@ -62,10 +62,18 @@
       </div>
       <label for="art">Needs new graphics first? Describe them (optional). The goal waits until you press Release.</label>
       <input id="art" placeholder="Example: a puppy that can sit, walk and sleep in Ishai's apartment">
+      <div class="row" style="grid-template-columns:1fr 2fr">
+        <div><label for="with">With (name, optional)</label><input id="with" placeholder="Dana"></div>
+        <div><label for="blines">Conversation length (lines, optional)</label><input id="blines" type="number" min="0" max="80" placeholder="40"></div>
+      </div>
+      <label for="brief">Scene brief (optional): why they talk, what each one wants, the beats, how it ends</label>
+      <textarea id="brief" placeholder="Dana wants to sell basil in tiny cups and needs a logo. Ishai wants to help without sounding too eager. Dana tries to get free design work; Ishai negotiates coffee for life. Ends with a handshake."></textarea>
       <label for="force">If the deadline passes, this happens (optional)</label>
       <input id="force" placeholder="Example: The cat walks back in on its own, looking smug.">
       <div class="bar" style="margin-top:10px"><button id="add">Add goal</button><span id="addMsg"></span></div>
     </div>
+
+    <div class="box"><div style="font-size:24px">Current scene</div><div id="scene" class="muted" style="white-space:pre-line"></div></div>
 
     <div class="box"><div style="font-size:24px">Goals</div><div id="goals"></div></div>
 
@@ -99,6 +107,8 @@
       const b = document.createElement('button'); b.className = 'ghost'; b.textContent = 'Dismiss'; b.style.marginTop = '4px';
       b.onclick = async () => render(await api({action:'forget', item:w.item}));
       d.append(t, ex, b); wl.appendChild(d); });
+    const S = v.scene; $('scene').textContent = !S ? 'Ishai is not in a conversation right now.' :
+      `With ${S.name} (${S.type}) at ${S.loc} · ${S.lines} of ~${S.target} lines\nWhy: ${S.why}\nIshai wants: ${S.ishaiWants}\n${S.name} wants: ${S.theyWant}\nBeats: ${S.beats}\nEnding: ${S.ending}`;
     const wd = $('world'), W = v.world;
     wd.textContent = !W ? 'Not fetched yet (happens on the next moment).' :
       [W.weather ? `Weather: ${W.weather.temp}°C, ${W.weather.desc}` : 'Weather: —',
@@ -123,6 +133,7 @@
         : g.status === 'active' ? `started ${fmt(g.activatedAt)} · deadline ${fmt(g.activatedAt + g.deadlineH*3600000)}`
         : `finished ${fmt(g.doneAt)}`;
       d.append(head, txt, meta);
+      if (g.brief){ const b = document.createElement('div'); b.style.fontSize = '17px'; b.textContent = 'Scene brief' + (g.with ? ' with ' + g.with : '') + (g.briefLines ? ` (~${g.briefLines} lines)` : '') + ': ' + g.brief; d.appendChild(b); }
       if (g.art){ const a = document.createElement('div'); a.style.color = '#e0a0ff'; a.style.fontSize = '17px'; a.textContent = 'Art needed: ' + g.art; d.appendChild(a); }
       if (g.status === 'needs-art'){
         const r = document.createElement('button'); r.textContent = 'Release (art is ready)'; r.style.margin = '6px 8px 0 0';
@@ -146,8 +157,8 @@
   $('add').onclick = async () => {
     $('addMsg').textContent = '';
     try {
-      render(await api({action:'add', goal:$('goal').value, startAfterH:+$('start').value, deadlineH:+$('deadline').value, unlock:$('unlock').value||null, forceText:$('force').value, art:$('art').value}));
-      $('goal').value = ''; $('force').value = ''; $('art').value = ''; $('addMsg').className='ok'; $('addMsg').textContent = 'Added.';
+      render(await api({action:'add', goal:$('goal').value, startAfterH:+$('start').value, deadlineH:+$('deadline').value, unlock:$('unlock').value||null, forceText:$('force').value, art:$('art').value, with:$('with').value, brief:$('brief').value, briefLines:+$('blines').value||0}));
+      $('goal').value = ''; $('force').value = ''; $('art').value = ''; $('with').value = ''; $('brief').value = ''; $('blines').value = ''; $('addMsg').className='ok'; $('addMsg').textContent = 'Added.';
     } catch(e){ $('addMsg').className='err'; $('addMsg').textContent = e.message; }
   };
   $('tick').onclick = async () => {

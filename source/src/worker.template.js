@@ -302,6 +302,10 @@ async function tick(env, force) {
       (ev.with || ev.complete || ev.unlocks || (prevEv && prevEv.location !== ev.location && !["corridor", "street"].includes(ev.location)));
     if (notable && !(lastHl && lastHl.loc === ev.location && lastHl.w === (ev.with || null)))
       { hl.push({ t: storyMs, loc: ev.location, a: ev.action, w: ev.with || null }); s.hl = hl.slice(-20); } }
+  if (!ev.with) s.scene = null;
+  else if (s.scene && s.scene.w === ev.with) s.scene.lines += (ev.lines || []).length;
+  else s.scene = { w: ev.with, loc: ev.location, startedAt: storyMs, lines: (ev.lines || []).length,
+    ...(ev.scene || { type: "small talk", why: "they ran into each other", ishaiWants: "a pleasant chat", theyWant: "a pleasant chat", beats: "greet, catch up, part", ending: "a natural goodbye", target: 14 }) };
   if (ev.notes) s.notes = ev.notes;
   s.events = s.events.slice(-KEEP_EVENTS);
   const evId = s.nextId - 1;
@@ -352,6 +356,7 @@ function buildMessages(s, clock, now, goal) {
   const direction = goal
     ? `\nSECRET STORY DIRECTION (viewers must not notice it is directed): ${goal.goal}\n` +
       `Work towards it naturally, step by step; it does not have to happen in this moment. ${timeLeft(deadlineOf(goal) - now)} left. ` + (goal.where ? `It happens at: ${goal.where}. ` : "") + (goal.with ? `Involves: ${goal.with}. ` : "") +
+      (goal.brief ? `SCENE BRIEF from the director for this conversation: ${goal.brief}${goal.briefLines ? ` (about ${goal.briefLines} lines in total, over several moments)` : ""}. When it starts, turn this brief into "scene". ` : "") +
       `In the moment it is fully done, set "complete":"${goal.id}".` + (goal.unlock && ITEMS[goal.unlock] ? ` Until then Ishai does NOT have ${ITEMS[goal.unlock]}.` : "")
     : "";
   const name = id => s.cast[id]?.name || id;
@@ -364,6 +369,10 @@ function buildMessages(s, clock, now, goal) {
     return ls.length ? `\nCONVERSATION SO FAR with ${name(w)} (still going unless someone has a reason to leave; do NOT greet again or repeat; react to the last line, add something new):\n` +
       ls.map(m => `${m.who === "ishai" ? "Ishai" : name(m.who)}: "${m.say}"`).join("\n") + "\n" : "";
   })() : "";
+  const sc = s.scene && last.with && s.scene.w === last.with ? s.scene : null;
+  const sceneBrief = sc ? `\nSCENE BRIEF (this conversation with ${name(sc.w)}): type: ${sc.type}. Why they are talking: ${sc.why}. Ishai wants: ${sc.ishaiWants}. ${name(sc.w)} wants: ${sc.theyWant}. ` +
+    `Beats: ${sc.beats}. Planned ending: ${sc.ending}. Progress: ${sc.lines} of about ${sc.target} lines.` +
+    (sc.lines >= sc.target ? ` It is time to reach the planned ending now, naturally (a reason to leave, hang up, or move on).` : ` Keep both people pursuing what they want; move to the next beat when the current one is done.`) + "\n" : "";
   const allowNew = canAddPerson(s, now);
   // now and then, ask the hosts for an obvious "secret" sponsor plug
   const sponsor = now - (s.lastAd || 0) > AD_EVERY_MIN * 60000 && Math.random() < 0.35
@@ -423,6 +432,10 @@ RULES
 - "with" is the id of ONE person with him in this moment (a visitor at home counts), or the person on the other end when the action is "phoning"; otherwise null.
 - He is social: about one in four moments should involve another person, in person or by phone. People visit him, call him, text him to meet up.
 - "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of 8 to 14 lines (each max 25 words) that fills these 4 minutes: small talk, questions and follow-up questions, stories, teasing, short answers ("yeah", "wait, what?"), interruptions, a topic that drifts to another, a pause filled by someone. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
+- EVERY CONVERSATION IS A SCENE WITH A PURPOSE. When a conversation with someone STARTS (their "with" differs from the last moment), fill "scene":
+  {"type":"small talk"|"practical"|"plot","why":"the real reason they are talking now (who started it and why)","ishaiWants":"...","theyWant":"...","beats":"3-5 short steps the conversation goes through","ending":"how it ends","lines":12-60 total lines across moments}
+  Ground it in the place, the time of day, both characters' personalities, memories and relationship, and ongoing plot threads. Small talk is fine but still has a reason (bored, lonely, being polite, avoiding work). Plot scenes move an arc forward. Otherwise "scene": null.
+  While a scene runs, every line serves it: people pursue what they want, dodge, change the subject, give in or push back, like real people.
 - When "with" is set, "update" holds that person's updated memory of Ishai (max 25 words, keep old facts that still matter) and "mood": -1, 0 or 1 for how this moment changed their feelings.
 - ${allowNew
   ? `You MAY introduce one new person, only if the story really needs someone new. Describe them in "newCharacter" and use their name as "with". Look options: hair ${LOOK.hair.join("/")}; hairColor ${LOOK.hairColor.join("/")}; skin ${LOOK.skin.join("/")}; shirt and pants ${LOOK.cloth.join("/")}; extras any of ${LOOK.extras.join("/")}.`
@@ -437,7 +450,7 @@ ${(() => { const r = recentHostLines(s, 12); return r.length ? `- The hosts ALRE
 - THIS MOMENT: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
 
 Reply with ONLY this JSON, nothing else:
-{"location":"...","action":"...","text":"...","with":null,"lines":[],"commentary":[],"update":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
+{"location":"...","action":"...","text":"...","with":null,"lines":[],"commentary":[],"scene":null,"update":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
 "missing": if this moment features an object, animal or place the camera cannot show (not listed above), name it in 1-3 words (e.g. "bicycle", "puppy"); otherwise null.
 newCharacter format: {"name":"...","role":"...","personality":"...","speech":"...","hangouts":["..."],"look":{"hair":"...","hairColor":"...","skin":"...","shirt":"...","pants":"...","extras":[]}}`;
   const user =
@@ -447,7 +460,7 @@ Plot notes: ${s.notes || "none"}
 ${body}
 ${real}${media}${pacing ? "\nPACING: " + pacing : ""}
 Recent events:
-${recent}${gap}${convo}
+${recent}${gap}${convo}${sceneBrief}
 
 What happens next?`;
   return [{ role: "system", content: system }, { role: "user", content: user }];
@@ -531,6 +544,9 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   ev.commentary = (Array.isArray(o.commentary) ? o.commentary : [])
     .map(c => ({ who: str(c?.who, 10).toLowerCase(), say: str(c?.say, 160).replace(/^["']|["']$/g, "") }))
     .filter(c => (c.who === "zohar" || c.who === "oren") && c.say).slice(0, 2);
+  if (o.scene && typeof o.scene === "object" && ev.with) ev.scene = {
+    type: str(o.scene.type, 20) || "small talk", why: str(o.scene.why, 200), ishaiWants: str(o.scene.ishaiWants, 150), theyWant: str(o.scene.theyWant, 150),
+    beats: str(o.scene.beats, 300), ending: str(o.scene.ending, 150), target: clamp(Math.round(Number(o.scene.lines) || 16), 8, 80) };
   if (ev.with && o.update && typeof o.update === "object")
     ev.update = { memory: str(o.update.memory, 180), mood: Number(o.update.mood) || 0 };
 
@@ -553,6 +569,8 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (h < 6 && last.action === "sleeping" && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts)
       return { ev, problem: `he is asleep and it is the middle of the night: keep him "sleeping" (a short bathroom or water trip is the only exception)` }; }
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
+  if (ev.with && ev.with !== last.with && !(ev.scene && ev.scene.why) && ev.action !== "sleeping" && !allowNoHosts)
+    return { ev, problem: `a conversation with ${s.cast[ev.with]?.name || ev.with} starts here, so fill "scene" (type, why, ishaiWants, theyWant, beats, ending, lines) and write its first lines` };
   if (ev.with && ev.lines.length < 6 && !allowNoHosts)
     return { ev, problem: `he is ${ev.action === "phoning" ? "on the phone" : "together"} with ${s.cast[ev.with]?.name || ev.with}, so "lines" must contain their actual conversation: 8 to 14 lines alternating between "ishai" and "${ev.with}"` };
   { const prev = recentHostLines(s);
@@ -690,6 +708,7 @@ function newGoal(d, now) {
     startAfter: d.startAt ? Date.parse(d.startAt) : now + Math.max(0, Number(d.startAfterH) || 0) * 3600000,
     deadlineH: clamp(Number(d.deadlineH) || 24, .1, 24 * 14), deadlineAt: d.deadlineAt ? Date.parse(d.deadlineAt) : null,
     where: str(d.location, 20) || null, with: str(d.with, 60) || null, forceWith: str(d.forceWith, 20) || null,
+    brief: str(d.brief, 800) || null, briefLines: clamp(Number(d.briefLines) || 0, 0, 80) || null,
     forceAction: str(d.forceAction, 20) || null, forceLines: Array.isArray(d.forceLines) ? d.forceLines.slice(0, 14) : [],
     forceCommentary: Array.isArray(d.forceCommentary) ? d.forceCommentary.slice(0, 2) : [],
     status: str(d.art, 300) ? "needs-art" : "waiting", art: str(d.art, 300) || null,
@@ -770,7 +789,7 @@ async function directorApi(req, env) {
 }
 function directorView(s) {
   const last = s.events[s.events.length - 1];
-  return { world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
+  return { scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse(), lastError: s.lastError || null,
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t } };
