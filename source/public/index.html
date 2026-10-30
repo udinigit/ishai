@@ -888,13 +888,22 @@
     }
 
     const btn = $('snd');
-    btn.onclick = () => {
+    function setMode(m){
       if (!init()){ btn.textContent = 'NO AUDIO'; return; }
       if (ac.state === 'suspended') ac.resume();
-      mode = MODES[(MODES.indexOf(mode)+1) % MODES.length]; btn.textContent = LABELS[mode];
+      mode = m; btn.textContent = LABELS[mode];
+      try { sessionStorage.setItem('ishaiSound', mode); } catch(e){}
       if (mode !== 'voices' && 'speechSynthesis' in window) speechSynthesis.cancel();
       ambKey = ''; setAmbience(wanted);
-    };
+    }
+    btn.onclick = (e) => { e.stopPropagation(); setMode(MODES[(MODES.indexOf(mode)+1) % MODES.length]); };
+    // after an automatic update the browser mutes the page; the first tap anywhere brings the sound back
+    let saved = 'off'; try { saved = sessionStorage.getItem('ishaiSound') || 'off'; } catch(e){}
+    if (saved !== 'off'){
+      btn.textContent = 'SOUND: TAP ANYWHERE';
+      const resume = () => { document.removeEventListener('pointerdown', resume, true); document.removeEventListener('keydown', resume, true); if (mode === 'off') setMode(saved); };
+      document.addEventListener('pointerdown', resume, true); document.addEventListener('keydown', resume, true);
+    }
     return { blip, key, say, setAmbience };
   })();
   function ambienceKey(){
@@ -1078,15 +1087,9 @@
     if (updating) return; updating = true;
     // never reload more than once every 2 minutes (in case old and new versions overlap briefly)
     try { const last = +sessionStorage.getItem('ishaiReload') || 0; if (Date.now() - last < 120000) return; sessionStorage.setItem('ishaiReload', Date.now()); } catch(e){}
-    const soundOn = $('snd').textContent !== 'SOUND: OFF';
-    if (!soundOn){
-      // reload quietly once the current line has finished typing
-      const go = () => { if (typing || queue.length) return setTimeout(go, 1500); location.reload(); };
-      setTimeout(go, 1500);
-    } else {
-      const b = document.createElement('button'); b.className = 'snd'; b.textContent = 'UPDATE — TAP';
-      b.onclick = () => location.reload(); $('snd').after(b);
-    }
+    // reload once the current line has finished typing (sound resumes on the next tap)
+    const go = () => { if (typing || queue.length) return setTimeout(go, 1500); location.reload(); };
+    setTimeout(go, 1500);
   }
   let loaded = false, fails = 0;
   async function poll(){
