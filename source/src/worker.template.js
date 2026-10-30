@@ -332,8 +332,8 @@ async function tick(env, force) {
       (ev.with || ev.complete || ev.unlocks || (prevEv && prevEv.location !== ev.location && !["corridor", "street"].includes(ev.location)));
     if (notable && !(lastHl && lastHl.loc === ev.location && lastHl.w === (ev.with || null)))
       { hl.push({ t: storyMs, loc: ev.location, a: ev.action, w: ev.with || null }); s.hl = hl.slice(-20); } }
-  if (!ev.with && !BATH_ACTIONS.includes(ev.action)) s.scene = null;
-  else if (s.scene && s.scene.w === ev.with){ s.scene.lines += (ev.lines || []).length; if (sceneOverdue(s.scene, storyMs)) s.scene.leaving = true; }
+  if (!ev.with && !BATH_ACTIONS.includes(ev.action)){ if (s.scene && s.scene.w) s.gone = { w: s.scene.w, until: storyMs + 90 * 60000 }; s.scene = null; }
+  else if (s.scene && s.scene.w === ev.with){ s.scene.lines += (ev.lines || []).length; if ((ev.lines || []).some(l => FAREWELL.test(l.say))) s.scene.leaving = true; }
   else s.scene = { w: ev.with, loc: ev.location, startedAt: storyMs, lines: (ev.lines || []).length,
     ...(ev.scene || { type: "small talk", why: "they ran into each other", ishaiWants: "a pleasant chat", theyWant: "a pleasant chat", beats: "greet, catch up, part", ending: "a natural goodbye", target: 14 }) };
   if (ev.notes) s.notes = ev.notes;
@@ -380,6 +380,7 @@ function castSection(s, last) {
 }
 
 const BATH_ACTIONS = ["bathroom", "showering"];
+const FAREWELL = /\b(bye|goodbye|good ?night|see (you|ya)|laila tov|lehitraot|take care|i should go|i('ll| will) go|gotta go|i'm off|heading (out|home)|talk tomorrow|hang(ing)? up)\b/i;
 // a scene must end: well past its length, too long, or bedtime
 function sceneOverdue(sc, storyMs) {
   if (!sc) return false;
@@ -425,7 +426,8 @@ function buildMessages(s, clock, now, goal) {
   const hrs = k => (now + DELAY_MIN * 60000 - (s.done[k] || now)) / 3600000;
   const need = Object.entries(NEED_H).filter(([k, h]) => hrs(k) > h).map(([k]) => ({ eat: "hungry", drink: "thirsty", bathroom: "needs the bathroom", shower: "needs a shower" })[k]);
   const body = `Body: last ate ${hrs("eat").toFixed(1)}h ago, last drink ${hrs("drink").toFixed(1)}h ago, bathroom ${hrs("bathroom").toFixed(1)}h ago, shower ${hrs("shower").toFixed(0)}h ago.` +
-    (need.length ? (last.with ? ` He is ${need.join(" and ")}; with ${name(last.with)} here he either waits or excuses himself for a minute ("one sec") and comes back; the guest waits. Do not make a scene of it.`
+    (need.length ? (last.with
+      ? (hrs("bathroom") > NEED_H.bathroom * 1.5 && need.includes("needs the bathroom") ? ` In this moment he says "one sec" and goes to the bathroom (action "bathroom"); ${name(last.with)} waits. No jokes about it.` : "")
       : ` He is ${need.join(" and ")} — let that show soon, naturally.`) : "");
   // pacing: keep the show moving
   const evs = s.events, hourNow = clock.hour;
@@ -620,10 +622,24 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (h < 6 && last.action === "sleeping" && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts)
       return { ev, problem: `he is asleep and it is the middle of the night: keep him "sleeping" (a short bathroom or water trip is the only exception)` }; }
   if (ev.with && BATH_ACTIONS.includes(ev.action)) ev.with = null; // the guest waits outside
-  if (ev.with && s.scene && s.scene.leaving && s.scene.w === ev.with) {
+  const vNow = Date.now() + DELAY_MIN * 60000;
+  // an overdue scene must end with a real goodbye in this moment
+  const saidBye = (last.lines || []).some(l => FAREWELL.test(l.say));
+  if (ev.with && s.scene && s.scene.w === ev.with && !saidBye && sceneOverdue(s.scene, vNow) && !ev.lines.some(l => FAREWELL.test(l.say))) {
+    const nmW = s.cast[ev.with]?.name || ev.with;
+    if (!allowNoHosts) return { ev, problem: `this moment ends the scene: finish the conversation with their goodbye (e.g. "Good night", "See you"), ${nmW} leaves` };
+    ev.lines = [...ev.lines.slice(0, 10), { who: ev.with, say: "Okay, it's late. I should go. Good night, Ishai." }, { who: "ishai", say: "Good night. Thanks for coming." }];
+  }
+  // whoever left tonight does not walk back in (unless the director wants them)
+  if (ev.with && s.gone && s.gone.w === ev.with && vNow < s.gone.until && !(goal && goal.with && String(goal.with).toLowerCase().includes(String(s.cast[ev.with]?.name || ev.with).toLowerCase()))) {
+    if (!allowNoHosts) return { ev, problem: `${s.cast[ev.with]?.name || ev.with} already left a little while ago and is not coming back now; Ishai is alone ("with": null)` };
+    ev.with = null; ev.lines = ev.lines.filter(l => l.who === "ishai").slice(0, 1);
+  }
+  if (ev.with && s.scene && s.scene.leaving && s.scene.w === ev.with && (last.lines || []).some(l => FAREWELL.test(l.say))) {
     if (!allowNoHosts) return { ev, problem: `${s.cast[ev.with]?.name || ev.with} already said goodbye and left; "with" must be null now and Ishai is alone (no lines from them)` };
     ev.with = null; ev.lines = ev.lines.filter(l => l.who === "ishai").slice(0, 1); if (ev.action === "talking") ev.action = "idle";
   }
+  if (!ev.with && ev.action === "talking") ev.action = "idle"; // nobody to talk to
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
   if (ev.with && ev.with !== last.with && !(BATH_ACTIONS.includes(last.action) && s.scene && s.scene.w === ev.with) && !(ev.scene && ev.scene.why) && ev.action !== "sleeping" && !allowNoHosts)
     return { ev, problem: `a conversation with ${s.cast[ev.with]?.name || ev.with} starts here, so fill "scene" (type, why, ishaiWants, theyWant, beats, ending, lines) and write its first lines` };
