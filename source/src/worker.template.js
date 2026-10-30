@@ -394,7 +394,7 @@ RULES
 COMMENTATORS (they talk to the viewers, who do NOT see your "text", only the picture and the spoken lines):
 - ${HOSTS.zohar}
 - ${HOSTS.oren}
-"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: tell viewers what is happening and any detail they cannot see, make them care about the characters, tease what might come, and make them laugh. Comment on most moments; always when something notable happens. They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them. Never mention or advertise real brands or companies.${sponsor ? `
+"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: tell viewers what is happening and any detail they cannot see, make them care about the characters, tease what might come, and make them laugh. Comment on most moments. REQUIRED: whenever another character is present or anyone speaks, include 1-2 commentary lines reacting to it (write the dialogue first, then the hosts react). They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them. Never mention or advertise real brands or companies.${sponsor ? `
 - THIS MOMENT: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
 
 Reply with ONLY this JSON, nothing else:
@@ -420,7 +420,7 @@ async function askAI(env, s, clock, now, goal) {
   const allowNew = canAddPerson(s, now);
   for (let attempt = 0; attempt < 2; attempt++) {
     const raw = await runModel(env, messages);
-    const { ev, problem } = validate(raw, s, last, allowNew, goal);
+    const { ev, problem } = validate(raw, s, last, allowNew, goal, attempt === 1);
     if (ev && !problem) return ev;
     if (attempt === 1) return ev ? repair(ev, s, last) : null;
     // ask the story to correct itself once
@@ -451,7 +451,7 @@ async function runModel(env, messages) {
   throw lastErr;
 }
 
-function validate(raw, s, last, allowNew, goal) {
+function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   let o;
   try { o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch { return { problem: "the reply was not valid JSON" }; }
   const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -497,6 +497,8 @@ function validate(raw, s, last, allowNew, goal) {
   if (ev.location !== last.location && !NEXT[last.location].includes(ev.location))
     return { ev, problem: `he cannot go directly from ${last.location} to ${ev.location}; next place must be one of ${NEXT[last.location].join(", ")}` };
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
+  if ((ev.with || ev.lines.length >= 2) && !ev.commentary.length && !allowNoHosts)
+    return { ev, problem: 'the hosts are missing: add "commentary" with 1-2 lines from zohar and/or oren reacting to this scene' };
   return { ev, problem: null };
 }
 
@@ -651,6 +653,9 @@ function applyPlan(s, now) {
     if (o.startAt) { g.startAfter = Date.parse(o.startAt); g.status = "waiting"; g.activatedAt = null; }
     if (o.deadlineAt) g.deadlineAt = Date.parse(o.deadlineAt);
     if (o.deadlineH) g.deadlineH = o.deadlineH;
+    if (Array.isArray(o.forceCommentary)) g.forceCommentary = o.forceCommentary.slice(0, 2);
+    if (Array.isArray(o.forceLines)) g.forceLines = o.forceLines.slice(0, 6);
+    if (o.forceText) g.forceText = String(o.forceText).slice(0, 260);
   }
   s.planVersion = PLAN.version;
   return true;
