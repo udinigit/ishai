@@ -436,9 +436,36 @@
   // soft fade at both ends of a time window, so still bystanders never blink in or out
   const fadeWin = (t, len) => Math.max(0, Math.min(1, (t % len) / 1500, (len - t % len) / 1500));
   // companions who join Ishai fade in at tables/benches, and walk in from a door or the edge when standing
-  const seatComp = { key:null, since:0 };
-  function seatFade(key){ const n = performance.now(); if (seatComp.key !== key){ seatComp.key = key; seatComp.since = n; } return Math.min(1, (n - seatComp.since) / 700); }
-  const walkComp = { id:null, loc:null, x:0, last:0, look:null };
+  // ---- companion controller: every friend walks in from an exit point, and walks out the same way ----
+  const comp = { id:null, look:null, x:0, mode:null, loc:null, last:0 };
+  let compWant = null; // what the scene wants this frame: {id, look, x, kind:'seat'|'floor'}
+  function exitX(loc, id, nearX){
+    if (loc==='apartment') return 135;                      // front door
+    if (loc==='corridor') return id==='levi' ? 106 : 180;   // Mrs. Levi's door, otherwise the stairs
+    if (loc==='cafe') return -14;                           // café entrance (left)
+    return nearX > W/2 ? W+8 : -18;                         // street and park: nearest edge
+  }
+  function wantComp(w){ compWant = w; return comp.mode==='here' && comp.id===w.id; } // true = draw them in place now
+  function compUpdate(t, scene){
+    const n = performance.now(), dts = Math.min(.1, (n - (comp.last||n))/1000); comp.last = n;
+    if (comp.loc !== actor.loc || actor.switching){ comp.id = null; comp.mode = null; comp.loc = actor.loc; }
+    const w = compWant; compWant = null;
+    if (w && comp.id !== w.id){
+      if (comp.id && comp.mode !== 'out'){ comp.mode = 'out'; }                       // current friend leaves first
+      else if (!comp.id){ Object.assign(comp, {id:w.id, look:w.look, mode:'in', x: exitX(actor.loc, w.id, w.x)}); }
+    }
+    if (!w && comp.id && comp.mode !== 'out') comp.mode = 'out';
+    if (!comp.id) return;
+    const target = comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x : comp.x);
+    if (comp.mode==='here'){ comp.x = target; return; }
+    const d = target - comp.x, step = 30 * dts;
+    comp.x += Math.abs(d) <= step ? d : Math.sign(d)*step;
+    if (Math.abs(target - comp.x) < .5){
+      if (comp.mode==='in') comp.mode = 'here'; else { comp.id = null; comp.mode = null; }
+      return;
+    }
+    person(comp.look, comp.x, scene.walkY, t+300, {walk:true, face: Math.sign(d)||1});
+  }
   // a walker crossing between x0 and x1 every `period` ms; returns x or null when off screen
   function walkerX(t, period, offset, x0, x1, dir){
     const ph = ((t + offset) % period) / period; const x = x0 + (x1 - x0) * ph;
@@ -550,7 +577,7 @@
       if (S('drinking')) drawIshai('drinking',158,70,t);
       // a guest at the kitchen island (Shabbat dinner, coffee with a friend)
       const guest = settled && ['eating','drinking','cooking'].includes(a) ? companionLook(a) : null;
-      if (guest) alpha(seatFade('island'+actor.with), () => person(guest, 172, 70, t + 400, {legs:false, face:-1, talkPhase:true}));
+      if (guest && wantComp({id: actor.with || 'stranger', look: guest, x: 172, kind:'seat'})) person(guest, 172, 70, t + 400, {legs:false, face:-1, talkPhase:true});
       if (S('cooking')) drawIshai('cooking',159,70,t);
       R(148,84,42,2,C.top); R(148,86,42,10,C.island); R(150,88,38,1,'#52616e');
       if (isShabbatEve()){
@@ -688,7 +715,7 @@
       const sit = settled && (a==='reading'||a==='eating');
       if (settled && a==='reading') drawIshai('reading',122,62,t,{legs:'sit'});
       if (settled && a==='eating') drawIshai('eating',122,62,t,{legs:'sit',food:'#e0c060'});
-      const pl = sit && companionLook(a); if (pl) alpha(seatFade('bench'+actor.with), () => person(pl,134,62,t,{legs:'sit',face:-1}));
+      const pl = sit && companionLook(a); if (pl && wantComp({id: actor.with || 'stranger', look: pl, x: 134, kind:'seat'})) person(pl,134,62,t,{legs:'sit',face:-1});
       R(108,77,38,3,'#9a7048'); R(110,80,2,6,'#333'); R(142,80,2,6,'#333');
       if (!sit) drawFloor(t,a,settled,actor,this);
       if (night) alpha(.38,()=>R(0,0,W,H,'#050a1e'));
@@ -727,7 +754,7 @@
       // table (Ishai sits behind it)
       R(66,60,22,14,'#3a3a46'); // chair back
       const atTable = settled && ['eating','drinking','working','reading','talking'].includes(a) && !withIsPost();
-      const cl = atTable && companionLook(a); if (cl) alpha(seatFade('table'+actor.with), () => person(cl,90,68,t,{legs:false,face:-1,talkPhase:a==='talking'}));
+      const cl = atTable && companionLook(a); if (cl && wantComp({id: actor.with || 'stranger', look: cl, x: 90, kind:'seat'})) person(cl,90,68,t,{legs:false,face:-1,talkPhase:a==='talking'});
       if (atTable){
         if (a==='talking') drawIshai('talking',72,68,t,{face:1});
         else drawIshai(a,72,68,t,{food:'#e0b04a'});
@@ -759,25 +786,13 @@
     let face = 0;
     const atIsland = actor.loc==='apartment' && ['eating','drinking','cooking'].includes(a);
     const cl = settled && !withIsPost() && !atIsland && a!=='sleeping' && a!=='waking' ? companionLook(a) : null;
-    const nowP = performance.now(), dts = Math.min(.1, (nowP - (walkComp.last || nowP)) / 1000); walkComp.last = nowP;
-    if (walkComp.loc !== actor.loc){ walkComp.id = null; walkComp.loc = actor.loc; }
-    const doorX = {apartment:135, corridor:106, cafe:-12}[actor.loc];
     if (cl){
-      const id = actor.with || 'stranger';
       const dir = actor.paceDir||1;
       const gx = a==='walking' ? actor.x - 12*dir : (actor.x > W-40 ? actor.x-13 : actor.x+13);
-      if (walkComp.id !== id){ walkComp.id = id; walkComp.look = cl; walkComp.x = doorX ?? (gx > W/2 ? W+6 : -16); }
-      const d = gx - walkComp.x, step = (a==='walking' ? 40 : 28) * dts;
-      walkComp.x += Math.abs(d) <= step ? d : Math.sign(d) * step;
-      const arrived = Math.abs(gx - walkComp.x) < 1;
-      if (a==='walking' || !arrived) person(cl, walkComp.x, y, t+300, {walk:true, face: a==='walking' ? dir : Math.sign(d)||1});
-      else { face = gx > actor.x ? 1 : -1; person(cl, walkComp.x, y, t, {face:-face, talkPhase:a==='talking'}); }
-    } else if (walkComp.id && !withIsPost()){
-      // the companion leaves: walk back out through the door / off the edge
-      const out = doorX ?? (walkComp.x > W/2 ? W+16 : -26), d = out - walkComp.x, step = 28 * dts;
-      walkComp.x += Math.abs(d) <= step ? d : Math.sign(d) * step;
-      if (Math.abs(out - walkComp.x) < 1) walkComp.id = null;
-      else person(walkComp.look, walkComp.x, y, t+300, {walk:true, face: Math.sign(d)||1});
+      if (wantComp({id: actor.with || 'stranger', look: cl, x: gx, kind:'floor'})){
+        if (a==='walking') person(cl, gx, y, t+300, {walk:true, face:dir});
+        else { face = gx > actor.x ? 1 : -1; person(cl, gx, y, t, {face:-face, talkPhase:a==='talking'}); }
+      }
     }
     if (withIsPost() && settled) face = actor.loc==='street' ? 0 : 1;
     if (actor.travelling || a==='walking') drawIshai('walk', actor.x, y, t);
@@ -882,6 +897,7 @@
     }
     const settled = !actor.travelling && !actor.hidden;
     SCENES[actor.loc].draw(t, hf, actor.action, settled, actor);
+    if (actor.loc !== 'offscreen') compUpdate(t, SCENES[actor.loc]);
     if (rainy() && (actor.loc==='street' || actor.loc==='park')) drawRain(0,0,W,H,t,90);
     const off = actor.loc==='offscreen';
     $('nosig').style.display = off ? 'flex' : 'none';
