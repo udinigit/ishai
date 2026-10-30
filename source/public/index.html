@@ -704,7 +704,10 @@
       R(0,78,W,30,'#3a2a20'); for (let x=0;x<W;x+=10) R(x,78,1,30,'#33251c');
       // window to the street
       R(6,14,50,40,'#d9d4c7'); drawSky(8,16,46,36,hf,t); R(8,40,46,12,'#6f7f8f'); R(30,16,2,36,'#d9d4c7'); R(4,54,54,3,'#5e4027');
-      if (Math.floor(t/2500)%7) cooolaSign(16,30,30,9,true); // neon, flickers now and then
+      // neon sign hanging in the window on two thin wires; a gentle neon flicker, never vanishing
+      R(20,16,1,14,'#3a3a3a'); R(41,16,1,14,'#3a3a3a');
+      const fl = (t % 9000) < 260 ? ((Math.floor(t/60)%2) ? .55 : .85) : 1;
+      alpha(fl, () => cooolaSign(16,30,30,9,true));
       // menu board
       R(128,10,46,22,'#1e1e1e'); R(127,9,48,1,'#5e4027');
       for (let i=0;i<4;i++){ R(132,14+i*4,20+((i*7)%10),1,'#e8e8e8'); R(164,14+i*4,6,1,'#f0d070'); }
