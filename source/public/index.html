@@ -1931,6 +1931,7 @@
     const st = STUDIO; if (!st || studioOn || studioDone.has(st.id) || DEV_ONLY_NARRATION_SKIP()) return;
     const age = Date.now() - st.t;
     const quiet = !actor.with && !SPEAKING && !actor.switching && !actor.ride && actor.action !== 'phoning' && actor.action !== 'sleeping'; // only when things get quiet
+    const h = hourNow(); if (h < 8) { if (age >= 0) studioDone.add(st.id); return; }   // the studio is closed from midnight to 08:00
     if (age >= 0 && age < 15 * 60000 && quiet) playStudio(st); else if (age >= 15 * 60000) studioDone.add(st.id);
   }, 1000);
   function DEV_ONLY_NARRATION_SKIP(){ return !!forceLoc; }   // previews stay clean
