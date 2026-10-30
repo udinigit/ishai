@@ -135,6 +135,8 @@
   let UNLOCKED = new Set(); // items the story has brought in (tv, radio)
   const BATH = new Set(['bathroom','showering']); // he disappears behind the bathroom door
   let WORLD = null; // real weather / Shabbat from the Worker
+  let SPEAKING = null; // who is talking right now (drives the speech bubbles on camera)
+  function setSpeaking(w){ SPEAKING = w; }
   const LABEL = {phoning:'ON THE PHONE',drinking:'DRINKING',bathroom:'BATHROOM',showering:'SHOWER',watching:'WATCHING TV',listening:'RADIO ON',sleeping:'SLEEPING',waking:'WAKING UP',idle:'IDLE',walking:'WALKING',working:'WORKING',gaming:'GAMING',
     eating:'EATING',cooking:'COOKING',reading:'READING',exercising:'EXERCISING',talking:'TALKING',away:'UNKNOWN'};
 
@@ -277,7 +279,7 @@
         const fw = Math.floor(t/220)%4, bob = (fw%2)?-1:0, lm = fw===1?1:fw===3?2:0;
         head(x,y+bob,{closed:blinkOn(t)}); torso(x,y+bob); armsDown(x,y+bob,fw===1?1:fw===3?-1:0); legs(x,y+bob,lm); break; }
       case 'phoning': {
-        const speak = Math.floor(t/1700)%2===0;
+        const speak = SPEAKING ? SPEAKING==='ishai' : Math.floor(t/1700)%2===0;
         head(x,y,{closed:blinkOn(t), look:(Math.floor(t/3000)%2)?1:0, talk: speak && Math.floor(t/160)%2}); torso(x,y);
         R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin);
         R(x+8,y+9,1,2,C.shirt); R(x+8,y+5,1,4,C.skin); R(x+7,y+3,2,4,'#2a2a2a'); R(x+7,y+4,1,1,'#7fd0ff');
@@ -286,7 +288,7 @@
       case 'idle': {
         head(x,y,{closed:blinkOn(t), look:(Math.floor(t/4000)%3)-1}); torso(x,y); armsDown(x,y); legs(x,y,0); break; }
       case 'talking': {
-        const mine = Math.floor(t/1800)%2===0;
+        const mine = SPEAKING ? SPEAKING==='ishai' : Math.floor(t/1800)%2===0;
         head(x,y,{closed:blinkOn(t), look:o.face||1, talk: mine && Math.floor(t/160)%2}); torso(x,y);
         if (mine && f2){ R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10,1,2,C.skin); }
         else armsDown(x,y);
@@ -371,7 +373,7 @@
     const pal = lookPal(L), ex = L.extras||[];
     const keep = {hair:C.hair,skin:C.skin,skinShade:C.skinShade,shirt:C.shirt,shirtShade:C.shirtShade,pants:C.pants};
     Object.assign(C, pal);
-    const theirs = o.talkPhase && Math.floor(t/1800)%2===1;
+    const theirs = o.talkPhase && (SPEAKING ? (SPEAKING!=='ishai' && !(SPEAKING in {zohar:1,oren:1})) : Math.floor(t/1800)%2===1);
     const fw = o.walk ? Math.floor(t/220)%4 : 0, bob = o.walk && fw%2 ? -1 : 0;
     y += bob;
     head(x,y,{closed:blinkOn(t,o.seed??1700), look:o.face??-1, talk: theirs && Math.floor(t/170)%2});
@@ -1100,14 +1102,26 @@
       step();
     })]);
   }
+  // natural pause between lines; also counted when a viewer tunes in mid-conversation
+  const linePause = say => 900 + Math.min(1600, say.length * 12);
+  async function pauseFor(ms, budget, animate){
+    if (!animate) return;
+    if (budget && budget.ms > 0){ const skip = Math.min(budget.ms, ms); budget.ms -= skip; ms -= skip; }
+    if (ms > 0) await new Promise(r => setTimeout(r, ms));
+  }
   async function addTalk(ev, animate){
     const budget = {ms: ev._late || 0};
     for (let i = 0; i < (ev.lines||[]).length; i++){
       const l = ev.lines[i];
+      if (i > 0) await pauseFor(linePause(ev.lines[i-1].say), budget, animate);
+      if (!(budget.ms > 0) && animate) setSpeaking(l.who);
       await addMsg({id: ev.id + ':' + i, t: ev.t, who: l.who, say: l.say, loc: ev.location}, animate, budget);
     }
+    if (animate) setSpeaking(null);
+    if ((ev.lines||[]).length && (ev.commentary||[]).length) await pauseFor(1200, budget, animate);
     for (let i = 0; i < (ev.commentary||[]).length; i++){
       const c = ev.commentary[i];
+      if (i > 0) await pauseFor(linePause(ev.commentary[i-1].say), budget, animate);
       await addMsg({id: ev.id + ':c' + i, t: ev.t, who: c.who, say: c.say, loc: ev.location, host: true}, animate, budget);
     }
   }

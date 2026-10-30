@@ -384,7 +384,7 @@ RULES
 - Things he owns at home: laptop, books, game console${owned.length ? ", " + owned.join(", ") : ""}. Do not invent other big objects. When he watches TV or listens to the radio, mention what is on (make up shows and stations). ${TV_SHOW}
 - "with" is the id of ONE person with him in this moment (a visitor at home counts), or the person on the other end when the action is "phoning"; otherwise null.
 - He is social: about one in four moments should involve another person, in person or by phone. People visit him, call him, text him to meet up.
-- "lines": up to 2 short spoken lines (max 15 words each) by "ishai" or the "with" person. Use [] when nobody talks.
+- "lines": the spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real back-and-forth exchange of 3 to 6 lines (each max 25 words): questions, answers, jokes, reactions, in each character's own voice. A conversation may continue over several moments; pick up where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
 - When "with" is set, "update" holds that person's updated memory of Ishai (max 25 words, keep old facts that still matter) and "mood": -1, 0 or 1 for how this moment changed their feelings.
 - ${allowNew
   ? `You MAY introduce one new person, only if the story really needs someone new. Describe them in "newCharacter" and use their name as "with". Look options: hair ${LOOK.hair.join("/")}; hairColor ${LOOK.hairColor.join("/")}; skin ${LOOK.skin.join("/")}; shirt and pants ${LOOK.cloth.join("/")}; extras any of ${LOOK.extras.join("/")}.`
@@ -435,7 +435,7 @@ async function runModel(env, messages) {
   let lastErr;
   for (let i = modelIdx; i < MODELS.length; i++) {
     try {
-      const out = await env.AI.run(MODELS[i], { messages, max_tokens: 520, temperature: 0.9 });
+      const out = await env.AI.run(MODELS[i], { messages, max_tokens: 700, temperature: 0.9 });
       modelIdx = i;
       if (typeof out?.response === "string") return out.response;
       const c = out?.choices?.[0]?.message?.content;
@@ -481,8 +481,8 @@ function validate(raw, s, last, allowNew, goal) {
   // dialogue
   const who = x => { const k = str(x, 40).toLowerCase(); if (k === "ishai") return "ishai";
     const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || "").toLowerCase() === k); return c ? ev.with : null; };
-  ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: who(l?.who), say: str(l?.say, 120).replace(/^["']|["']$/g, "") }))
-    .filter(l => l.who && l.say).slice(0, 2);
+  ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: who(l?.who), say: str(l?.say, 200).replace(/^["']|["']$/g, "") }))
+    .filter(l => l.who && l.say).slice(0, 6);
   ev.commentary = (Array.isArray(o.commentary) ? o.commentary : [])
     .map(c => ({ who: str(c?.who, 10).toLowerCase(), say: str(c?.say, 160).replace(/^["']|["']$/g, "") }))
     .filter(c => HOSTS[c.who] && c.say).slice(0, 2);
@@ -606,7 +606,7 @@ function newGoal(d, now) {
     startAfter: d.startAt ? Date.parse(d.startAt) : now + Math.max(0, Number(d.startAfterH) || 0) * 3600000,
     deadlineH: clamp(Number(d.deadlineH) || 24, .1, 24 * 14), deadlineAt: d.deadlineAt ? Date.parse(d.deadlineAt) : null,
     where: str(d.location, 20) || null, with: str(d.with, 60) || null, forceWith: str(d.forceWith, 20) || null,
-    forceAction: str(d.forceAction, 20) || null, forceLines: Array.isArray(d.forceLines) ? d.forceLines.slice(0, 2) : [],
+    forceAction: str(d.forceAction, 20) || null, forceLines: Array.isArray(d.forceLines) ? d.forceLines.slice(0, 6) : [],
     forceCommentary: Array.isArray(d.forceCommentary) ? d.forceCommentary.slice(0, 2) : [],
     status: str(d.art, 300) ? "needs-art" : "waiting", art: str(d.art, 300) || null,
     activatedAt: null, doneAt: null, how: null, createdAt: now
@@ -633,7 +633,7 @@ function forcedEvent(g, last, s) {
   const act = g.forceAction && LOCATIONS[loc].includes(g.forceAction) ? g.forceAction
     : loc === "offscreen" ? "away" : (last.action === "sleeping" ? "waking" : "idle");
   const w = g.forceWith && s.cast[g.forceWith] ? g.forceWith : null;
-  return { location: loc, action: act, text, with: w, lines: w ? g.forceLines.filter(l => l && (l.who === "ishai" || l.who === w) && l.say) : [],
+  return { location: loc, action: act, text, with: w, lines: w ? g.forceLines.filter(l => l && (l.who === "ishai" || l.who === w) && l.say).slice(0, 6) : [],
     commentary: Array.isArray(g.forceCommentary) ? g.forceCommentary.filter(c => c && HOSTS[c.who] && c.say).slice(0, 2) : [] };
 }
 // Merge the bundled plan into the goals once per plan version: new beats are added,
