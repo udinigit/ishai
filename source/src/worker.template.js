@@ -366,6 +366,9 @@ function buildMessages(s, clock, now, goal) {
   const awake = hourNow >= 8 && hourNow < 23 && last.action !== "sleeping";
   const pacing = [
     awake && sinceMove > 100 && last.location !== "offscreen" ? `He has been at the ${last.location} for about ${(sinceMove / 60).toFixed(1)} hours. Time for a change soon: he goes out (step by step through the neighbors rule) or someone comes over.` : "",
+    (hourNow >= 23 || hourNow < 6) && last.action !== "sleeping" ? (last.location === "apartment"
+      ? `It is late (${clock.label.slice(-5)}). He is tired: guests say goodnight and leave, he winds down (bathroom, glass of water) and goes to bed — "sleeping" in this or the next moment.`
+      : `It is late (${clock.label.slice(-5)}). He heads home now, place by place, to go to bed.`) : "",
     awake && sinceTalk > 80 ? `Nobody has interacted with him for about ${(sinceTalk / 60).toFixed(1)} hours. In this or the next moment someone should call, visit, or he should meet someone.` : ""
   ].filter(Boolean).join(" ");
   const wr = s.world || {};
@@ -520,6 +523,11 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     return { ev, problem: `he does not own ${ITEMS[NEEDS[ev.action]]} yet, so he cannot be ${ev.action}` };
   if (ev.location !== last.location && !NEXT[last.location].includes(ev.location))
     return { ev, problem: `he cannot go directly from ${last.location} to ${ev.location}; next place must be one of ${NEXT[last.location].join(", ")}` };
+  { const h = storyClock(Date.now() + DELAY_MIN * 60000).hour, LATE_OK = ["sleeping", "bathroom", "drinking"];
+    if (h >= 1 && h < 6 && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts)
+      return { ev, problem: `it is after 01:00 and he is home: he goes to bed now ("sleeping"), or at most a quick bathroom or water break` };
+    if (h < 6 && last.action === "sleeping" && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts)
+      return { ev, problem: `he is asleep and it is the middle of the night: keep him "sleeping" (a short bathroom or water trip is the only exception)` }; }
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
   if (ev.with && (ev.action === "phoning" || ev.action === "talking") && ev.lines.length < 2 && !allowNoHosts)
     return { ev, problem: `he is ${ev.action === "phoning" ? "on the phone" : "talking"} with ${s.cast[ev.with]?.name || ev.with}, so "lines" must contain their actual conversation: 3 to 6 lines alternating between "ishai" and "${ev.with}"` };
