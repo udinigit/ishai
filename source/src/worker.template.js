@@ -119,6 +119,8 @@ const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => !NEEDS[a] || unloc
 
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
+// The story plan (story/plan.json in the repository), written ahead by the daily planner.
+const PLAN = __PLAN__;
 
 // ============================================================
 export default {
@@ -131,6 +133,11 @@ export default {
       } catch (e) { return json({ error: "state: " + String(e && e.message || e).slice(0, 120) }, {}, 500); }
     }
     // Director page: add a secret ADMIN_KEY variable in Cloudflare, then open /director
+    if (url.pathname === "/api/log") {
+      const s = await loadState(env);
+      return json({ today: s.log || null, yesterday: s.prevLog || null, notes: s.notes, plan: { version: PLAN.version || null, arcs: PLAN.arcs || [] },
+        goals: (s.director || []).map(g => ({ id: g.id, status: g.status, how: g.how, startAfter: g.startAfter, deadlineAt: deadlineOf(g), goal: g.goal })) });
+    }
     if (url.pathname === "/director")
       return new Response(DIRECTOR_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
     if (url.pathname === "/api/director") {
@@ -168,6 +175,7 @@ async function loadState(env) {
   for (const d of DIRECTOR_SEED) if (!s.seeded.includes(d.id)) {
     s.director.push(newGoal(d, Date.now())); s.seeded.push(d.id); dirty = true;
   }
+  if (applyPlan(s, Date.now())) dirty = true;
   if (dirty) await env.ISHAI.put("state", JSON.stringify(s));
   memo = s; memoAt = Date.now();
   return s;
@@ -215,8 +223,8 @@ async function tick(env, force) {
   // director: activate the next goal, or force it if its deadline passed
   let goal = activeGoal(s, now);
   let ev = null;
-  if (goal && now > goal.activatedAt + goal.deadlineH * 3600000) {
-    ev = forcedEvent(goal, last);
+  if (goal && now > deadlineOf(goal)) {
+    ev = forcedEvent(goal, last, s);
     finishGoal(s, goal, "forced", now); ev.unlocks = goal.unlock || null;
     goal = null;
   }
@@ -249,6 +257,13 @@ async function tick(env, force) {
     text: ev.text, with: ev.with || null, lines: ev.lines || [], unlocks: ev.unlocks || null });
   if (ev.notes) s.notes = ev.notes;
   s.events = s.events.slice(-KEEP_EVENTS);
+  // full-day log for the daily planner
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(storyMs));
+  if (!s.log || s.log.date !== day) { if (s.log) s.prevLog = s.log; s.log = { date: day, lines: [] }; }
+  const nm = id => s.cast[id]?.name || id;
+  s.log.lines.push(`${storyClock(storyMs).label.slice(-5)} ${ev.location}/${ev.action}${ev.with ? " +" + nm(ev.with) : ""}: ${ev.text}` +
+    (ev.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : nm(l.who)}: "${l.say}"`).join(""));
+  if (s.log.lines.length > 450) s.log.lines = s.log.lines.slice(-450);
   await saveState(env, s);
   return s;
 }
@@ -281,7 +296,7 @@ function buildMessages(s, clock, now, goal) {
   const gap = gapMin > 45 ? `\nNote: about ${gapMin >= 120 ? Math.round(gapMin / 60) + " hours" : gapMin + " minutes"} passed since the last moment; account for that.` : "";
   const direction = goal
     ? `\nSECRET STORY DIRECTION (viewers must not notice it is directed): ${goal.goal}\n` +
-      `Work towards it naturally, step by step; it does not have to happen in this moment. About ${Math.max(1, Math.round((goal.activatedAt + goal.deadlineH * 3600000 - now) / 3600000))} hours are left. ` +
+      `Work towards it naturally, step by step; it does not have to happen in this moment. ${timeLeft(deadlineOf(goal) - now)} left. ` + (goal.where ? `It happens at: ${goal.where}. ` : "") + (goal.with ? `Involves: ${goal.with}. ` : "") +
       `In the moment it is fully done, set "complete":"${goal.id}".` + (goal.unlock ? ` Until then Ishai does NOT have ${ITEMS[goal.unlock]}.` : "")
     : "";
   const name = id => s.cast[id]?.name || id;
@@ -542,8 +557,10 @@ function newGoal(d, now) {
   return {
     id: str(d.id, 30) || "g" + now.toString(36), goal: str(d.goal, 600), forceText: str(d.forceText, 260),
     unlock: ITEMS[d.unlock] ? d.unlock : null,
-    startAfter: now + Math.max(0, Number(d.startAfterH) || 0) * 3600000,
-    deadlineH: clamp(Number(d.deadlineH) || 24, 1, 24 * 14),
+    startAfter: d.startAt ? Date.parse(d.startAt) : now + Math.max(0, Number(d.startAfterH) || 0) * 3600000,
+    deadlineH: clamp(Number(d.deadlineH) || 24, .1, 24 * 14), deadlineAt: d.deadlineAt ? Date.parse(d.deadlineAt) : null,
+    where: str(d.location, 20) || null, with: str(d.with, 60) || null, forceWith: str(d.forceWith, 20) || null,
+    forceAction: str(d.forceAction, 20) || null, forceLines: Array.isArray(d.forceLines) ? d.forceLines.slice(0, 2) : [],
     status: str(d.art, 300) ? "needs-art" : "waiting", art: str(d.art, 300) || null,
     activatedAt: null, doneAt: null, how: null, createdAt: now
   };
@@ -560,11 +577,35 @@ function finishGoal(s, g, how, now) {
   g.status = "done"; g.how = how; g.doneAt = now;
   if (g.unlock && !s.unlocked.includes(g.unlock)) s.unlocked.push(g.unlock);
 }
-function forcedEvent(g, last) {
+const deadlineOf = g => g.deadlineAt || (g.activatedAt || g.startAfter) + g.deadlineH * 3600000;
+const timeLeft = ms => ms < 90 * 60000 ? `About ${Math.max(1, Math.round(ms / 60000))} minutes are` : `About ${Math.round(ms / 3600000)} hours are`;
+function forcedEvent(g, last, s) {
   const text = g.forceText || "Something quietly changes in Ishai's life.";
-  const loc = last.location === "offscreen" ? "offscreen" : last.location;
-  return { location: loc, action: loc === "offscreen" ? "away" : (last.action === "sleeping" ? "waking" : "idle"),
-    text, with: null, lines: [] };
+  // a planned beat may say where it happens; the camera simply cuts there
+  const loc = LOCATIONS[g.where] ? g.where : last.location;
+  const act = g.forceAction && LOCATIONS[loc].includes(g.forceAction) ? g.forceAction
+    : loc === "offscreen" ? "away" : (last.action === "sleeping" ? "waking" : "idle");
+  const w = g.forceWith && s.cast[g.forceWith] ? g.forceWith : null;
+  return { location: loc, action: act, text, with: w, lines: w ? g.forceLines.filter(l => l && (l.who === "ishai" || l.who === w) && l.say) : [] };
+}
+// Merge the bundled plan into the goals once per plan version: new beats are added,
+// "overrides" reschedule existing goals (e.g. move the TV delivery out of Shabbat).
+function applyPlan(s, now) {
+  if (!PLAN || !PLAN.version || s.planVersion === PLAN.version) return false;
+  for (const b of PLAN.beats || []) {
+    if (s.director.some(g => g.id === b.id)) continue;
+    const g = newGoal(b, now); g.id = b.id; g.fromPlan = PLAN.version; s.director.push(g);
+  }
+  for (const o of PLAN.overrides || []) {
+    const g = s.director.find(x => x.id === o.id && x.status !== "done");
+    if (!g) continue;
+    if (o.cancel) { g.status = "done"; g.how = "cancelled"; g.doneAt = now; continue; }
+    if (o.startAt) { g.startAfter = Date.parse(o.startAt); g.status = "waiting"; g.activatedAt = null; }
+    if (o.deadlineAt) g.deadlineAt = Date.parse(o.deadlineAt);
+    if (o.deadlineH) g.deadlineH = o.deadlineH;
+  }
+  s.planVersion = PLAN.version;
+  return true;
 }
 async function directorApi(req, env) {
   const s = await loadState(env);

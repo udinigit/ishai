@@ -1,0 +1,56 @@
+{
+  "version": "2026-10-30a",
+  "written": "2026-10-30T14:30+02:00",
+  "arcs": [
+    { "id": "dana-basil", "title": "Dana and the basil cups", "stage": "1/5 — Ishai finally notices the basil leaves Dana draws on his cups." },
+    { "id": "moshe", "title": "Saving Moshe", "stage": "1/3 — Moshe the basil is wilting; Ishai is worried and clueless." },
+    { "id": "big-client", "title": "The big client", "stage": "1/4 — A client keeps asking for the logo 'bigger but smaller'. Paid work, but painful." },
+    { "id": "tv", "title": "Getting a TV", "stage": "Moved to Sunday so it does not land on Shabbat." },
+    { "id": "levi-radio", "title": "Mrs. Levi's old radio", "stage": "Waiting; starts Monday." }
+  ],
+  "beats": [
+    {
+      "id": "fri-cafe-dana", "startAt": "2026-10-30T14:35:00+02:00", "deadlineAt": "2026-10-30T15:40:00+02:00",
+      "location": "cafe", "with": "Dana (dana)",
+      "goal": "Friday afternoon errand-and-coffee: Ishai walks from the apartment to Cafe Nahat (apartment -> corridor -> street -> cafe). Dana serves his usual and there is a tiny basil leaf drawn on the cup. For the first time, he notices it. Keep it light and a little awkward.",
+      "forceAction": "talking", "forceWith": "dana",
+      "forceText": "At Cafe Nahat, Dana slides a cup across the counter. There is a tiny basil leaf drawn on it, and this time Ishai notices.",
+      "forceLines": [ { "who": "ishai", "say": "Wait... is that a basil leaf?" }, { "who": "dana", "say": "It's a leaf. Drink your coffee." } ]
+    },
+    {
+      "id": "fri-invite-noa", "startAt": "2026-10-30T15:35:00+02:00", "deadlineAt": "2026-10-30T16:10:00+02:00",
+      "with": "Noa (noa)",
+      "goal": "Ishai invites Noa to Shabbat dinner at his apartment tonight, in person if she drops by the cafe or by phone. She teases him, says yes, and warns she will be late (she always is).",
+      "forceAction": "phoning", "forceWith": "noa",
+      "forceText": "Ishai calls Noa and invites her for Shabbat dinner tonight. She laughs, says yes, and promises to be only a little late.",
+      "forceLines": [ { "who": "noa", "say": "You? Hosting Shabbat? I'm coming just to see this." } ]
+    },
+    {
+      "id": "fri-levi-challah", "startAt": "2026-10-30T16:05:00+02:00", "deadlineAt": "2026-10-30T16:30:00+02:00",
+      "location": "corridor", "with": "Mrs. Levi (levi)",
+      "goal": "Ishai heads home to get ready for Shabbat. In the building hallway Mrs. Levi stops him with a warm homemade challah and a lot of advice; she insists he cannot do Shabbat without one.",
+      "forceAction": "talking", "forceWith": "levi",
+      "forceText": "In the hallway, Mrs. Levi blocks Ishai's way holding a warm challah wrapped in a towel. She will not take no for an answer.",
+      "forceLines": [ { "who": "levi", "say": "Motek, Shabbat without challah is just Friday." } ]
+    },
+    {
+      "id": "fri-candles", "startAt": "2026-10-30T16:25:00+02:00", "deadlineAt": "2026-10-30T16:55:00+02:00",
+      "location": "apartment",
+      "goal": "Back in his apartment, Ishai tidies up and lights the Shabbat candles on the kitchen counter at candle-lighting time. A quiet, sincere moment, a little clumsy.",
+      "forceAction": "idle",
+      "forceText": "Ishai lights the Shabbat candles on the kitchen counter, a little clumsily, then stands still for a moment watching the flames."
+    },
+    {
+      "id": "fri-shabbat-dinner", "startAt": "2026-10-30T17:30:00+02:00", "deadlineAt": "2026-10-30T21:00:00+02:00",
+      "location": "apartment", "with": "Noa (noa)",
+      "goal": "Shabbat dinner at Ishai's apartment, warm and traditional-but-relaxed. Noa arrives late with wine, Ishai makes Kiddush, they share Mrs. Levi's challah and his food, talk and laugh at the kitchen counter. Spread it over several moments; it can end with Noa going home late.",
+      "forceAction": "eating", "forceWith": "noa",
+      "forceText": "Noa finally arrives, late, with a bottle of wine. Ishai makes Kiddush, they tear into Mrs. Levi's challah, and the little apartment fills with laughter.",
+      "forceLines": [ { "who": "noa", "say": "Shabbat shalom, Ishush. Your challah is better than you." } ]
+    }
+  ],
+  "overrides": [
+    { "id": "tv", "startAt": "2026-11-01T10:00:00+02:00", "deadlineAt": "2026-11-01T20:00:00+02:00" },
+    { "id": "radio", "startAt": "2026-11-02T15:00:00+02:00", "deadlineH": 24 }
+  ]
+}

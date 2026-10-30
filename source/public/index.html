@@ -462,9 +462,17 @@
       // kitchen island
       if (S('eating')) drawIshai('eating',158,70,t);
       if (S('drinking')) drawIshai('drinking',158,70,t);
+      // a guest at the kitchen island (Shabbat dinner, coffee with a friend)
+      const guest = settled && ['eating','drinking','cooking'].includes(a) ? companionLook(a) : null;
+      if (guest) person(guest, 172, 70, t + 400, {legs:false, face:-1, talkPhase:true});
       if (S('cooking')) drawIshai('cooking',159,70,t);
       R(148,84,42,2,C.top); R(148,86,42,10,C.island); R(150,88,38,1,'#52616e');
-      if (isShabbatEve()){ [150,154].forEach((cx,i)=>{ R(cx,78,2,6,'#f2efe0'); R(cx-1,83,4,1,'#c9b37a');
+      if (isShabbatEve()){
+        // challah under a cloth, and a kiddush cup
+        R(178,81,10,3,'#d9a35a'); R(179,80,8,1,'#e8b86e'); R(180,82,1,1,'#b9813f'); R(183,82,1,1,'#b9813f'); R(186,82,1,1,'#b9813f');
+        R(177,82,12,2,'#f2efe0'); R(177,82,12,1,'#3b7bc2');
+        R(170,78,4,3,'#c9ced4'); R(171,79,2,1,'#8a1c2c'); R(171,81,2,2,'#c9ced4'); R(170,83,4,1,'#c9ced4');
+        [150,154].forEach((cx,i)=>{ R(cx,78,2,6,'#f2efe0'); R(cx-1,83,4,1,'#c9b37a');
         const f = Math.floor(t/180+i)%3; R(cx+(f===2?1:0),76,1,2,'#ffd36a'); R(cx,75+(f===1?1:0),1,1,'#fff3b0');
         alpha(.12,()=>R(cx-4,70,10,10,'#ffd36a')); }); }
       if (S('cooking')){ R(170,79,9,5,C.pot); R(169,79,11,1,'#5a5a5a');
@@ -639,7 +647,8 @@
     const y = scene.walkY;
     // companion standing / walking next to Ishai
     let face = 0;
-    const cl = settled && !withIsPost() && a!=='sleeping' && a!=='waking' ? companionLook(a) : null;
+    const atIsland = actor.loc==='apartment' && ['eating','drinking','cooking'].includes(a);
+    const cl = settled && !withIsPost() && !atIsland && a!=='sleeping' && a!=='waking' ? companionLook(a) : null;
     if (cl){
       if (a==='walking'){ const dir = actor.paceDir||1; person(cl, actor.x - 12*dir, y, t+300, {walk:true, face:dir}); }
       else { const gx = actor.x > W-40 ? actor.x-13 : actor.x+13; face = gx > actor.x ? 1 : -1;
@@ -650,7 +659,7 @@
     else if (!settled) return;
     else if (a==='exercising') drawIshai('exercising', actor.x, y+2, t);
     else if (a==='talking') drawIshai('talking', actor.x, y, t, {face: face||1});
-    else if (a==='eating') drawIshai('eating', actor.x, y, t, {legs:'stand', food:'#e0c060'});
+    else if (a==='eating' && actor.loc!=='apartment') drawIshai('eating', actor.x, y, t, {legs:'stand', food:'#e0c060'});
     else if (a==='drinking' && actor.loc!=='apartment') drawIshai('drinking', actor.x, y, t, {legs:'stand'});
     else if (a==='idle') drawIshai('idle', actor.x, y, t);
     else if (a==='phoning') drawIshai('phoning', actor.x, y, t);
