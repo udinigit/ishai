@@ -568,12 +568,20 @@
     const w = compWant; compWant = null;
     if (w && comp.id !== w.id){
       if (comp.id && comp.mode !== 'out'){ comp.mode = 'out'; }                       // current friend leaves first
-      else if (!comp.id){ Object.assign(comp, {id:w.id, look:w.look, mode:'in', x: exitX(actor.loc, w.id, w.x)}); }
+      else if (!comp.id){ const already = performance.now() < (comp.settleUntil || 0);   // tuned in mid-scene (or the page just updated): they are already here
+        Object.assign(comp, {id:w.id, look:w.look, mode: already ? 'here' : 'in', x: already ? w.x : exitX(actor.loc, w.id, w.x), tx: w.x}); }
     }
-    if (!w && comp.id && comp.mode !== 'out') comp.mode = 'out';
+    // the story still has them together (Ishai is just walking to the counter, the fridge...): they stay, standing
+    const together = !w && comp.id && comp.mode !== 'out' && actor.with === comp.id;
+    if (!w && comp.id && comp.mode !== 'out' && !together) comp.mode = 'out';
+    if (w && comp.id === w.id && comp.mode === 'out') comp.mode = 'in';               // changed their mind: come back, don't re-enter
+    if (w) comp.tx = w.x;
     if (!comp.id) return;
-    const target = comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x : comp.x);
-    if (comp.mode==='here'){ comp.x = target; return; }
+    const target = comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x : (comp.tx ?? comp.x));
+    if (comp.mode==='here' && Math.abs(target - comp.x) > 2) comp.mode = 'in';     // their spot moved (table -> counter): walk there
+    if (comp.mode==='here'){ comp.x = target;
+      if (together){ markHead(comp.id, comp.x, scene.walkY); person(comp.look, comp.x, scene.walkY, t+300, {face: actor.x > comp.x ? 1 : -1}); }
+      return; }
     const d = target - comp.x, step = 30 * dts;
     comp.x += Math.abs(d) <= step ? d : Math.sign(d)*step;
     if (Math.abs(target - comp.x) < .5){
@@ -1141,7 +1149,7 @@
     a = fixAction(loc, a);
     if (instant){
       Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null});
-      actor.x = standX(loc,a,w); actor.settledAt = Date.now(); updateLabels(); return;
+      actor.x = standX(loc,a,w); actor.settledAt = Date.now(); comp.settleUntil = performance.now() + 2500; updateLabels(); return;
     }
     if (loc !== actor.loc || (actor.pending && actor.pending.route.length)){
       const r = route(actor.loc, loc);
