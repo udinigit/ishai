@@ -1,0 +1,596 @@
+// ============================================================
+//  WATCHING ISHAI — Cloudflare Worker (single file)
+//  - Serves the page at "/"
+//  - Serves the story at "/api/state"
+//  - Every few minutes (Cron Trigger) asks Workers AI what Ishai does next
+//  Needs two bindings:  AI (Workers AI)  and  ISHAI (KV namespace)
+// ============================================================
+
+// ---------- things you can change ----------
+// Tried in order; if Cloudflare retires one, the next is used automatically.
+const MODELS = ["@cf/meta/llama-3.1-8b-instruct-fast", "@cf/zai-org/glm-4.7-flash", "@cf/meta/llama-3.2-3b-instruct"];
+const TZ = "Asia/Jerusalem";
+const DELAY_MIN = 5;          // broadcast delay: viewers see events 5 minutes after they are written
+const INTERVAL_MIN = 4;       // keep equal to your Cron Trigger (*/4 * * * *)
+const KEEP_EVENTS = 40;
+const MAX_CAST = 12;          // the AI can add people until the cast reaches this size
+const NEW_PERSON_EVERY_H = 20; // at most one new person per this many hours
+// Secret story goals ("director"). Added once, the first time this version runs.
+// startAfterH: hours after deploy before the goal becomes active. deadlineH: hours the AI gets to make it happen.
+// unlock: an item that appears on camera once the goal is complete ("tv", "radio" or null).
+const DIRECTOR_SEED = [
+  { id: "tv", unlock: "tv", startAfterH: 0, deadlineH: 24,
+    goal: "Ishai decides he needs a TV (Noa teases him for watching movies on his laptop). Let it develop over a few hours: " +
+          "he might buy one at a store, order one by phone, or someone like Avi's cousin offers an old one. It gets carried up and set up in his apartment.",
+    forceText: "A sweaty delivery guy carries a TV up the stairs to apartment 4. Ishai finally owns a television." },
+  { id: "radio", unlock: "radio", startAfterH: 30, deadlineH: 24,
+    goal: "Mrs. Levi gives Ishai her late husband's old radio, insisting it 'needs a young man'. He pretends he doesn't need it, then secretly starts loving it.",
+    forceText: "Mrs. Levi leaves her old radio at Ishai's door with a note: 'For you, motek. Don't argue.'" }
+];
+const ITEMS = { tv: "a TV", radio: "an old radio" };
+
+// ---------- real world (all free, no keys); refreshed about once an hour ----------
+const WEATHER_URL = "https://api.open-meteo.com/v1/forecast?latitude=32.08&longitude=34.78&current=temperature_2m,weather_code,is_day,wind_speed_10m&timezone=Asia%2FJerusalem";
+const CALENDAR_URL = "https://www.hebcal.com/shabbat?cfg=json&geonameid=293397&M=on&leyning=off"; // Tel Aviv
+// light news only; headlines are filtered again below
+const NEWS_FEEDS = [
+  ["BBC Technology", "https://feeds.bbci.co.uk/news/technology/rss.xml"],
+  ["BBC Science", "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"],
+  ["BBC Entertainment", "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml"],
+  ["BBC Sport", "https://feeds.bbci.co.uk/sport/rss.xml"],
+  ["ISRAEL21c", "https://www.israel21c.org/feed/"]
+];
+const HEAVY_NEWS = /\b(kill|killed|killing|dead|death|deaths|die[sd]?|dying|war|wars|attack|attacks|terror\w*|hostage\w*|missile\w*|rocket\w*|strike[sd]?|bomb\w*|shoot\w*|shot|gun\w*|murder\w*|rape\w*|abuse\w*|assault\w*|crash\w*|injur\w*|victim\w*|suicide|funeral|disaster\w*|earthquake|flood\w*|wildfire\w*|gaza|hamas|hezbollah|houthi\w*|iran\w*|idf|army|military|soldier\w*|troops|sanction\w*|election\w*|minister\w*|government|parliament|knesset|president|prime|coalition|protest\w*|riot\w*|arrest\w*|police|court|trial|jail|prison|cancer|dementia|disease|outbreak|abortion|refugee\w*|migrant\w*|genocide|ukraine|russia\w*|israeli strike)\b/i;
+const WMO = { 0: "clear sky", 1: "mostly clear", 2: "partly cloudy", 3: "overcast", 45: "fog", 48: "fog", 51: "light drizzle", 53: "drizzle", 55: "heavy drizzle",
+  61: "light rain", 63: "rain", 65: "heavy rain", 66: "freezing rain", 67: "freezing rain", 71: "snow", 73: "snow", 75: "heavy snow", 80: "rain showers",
+  81: "rain showers", 82: "violent rain showers", 95: "thunderstorm", 96: "thunderstorm with hail", 99: "thunderstorm with hail" };
+// how long until a need starts nagging (hours)
+const NEED_H = { eat: 5, drink: 3, bathroom: 4, shower: 26 };
+const NEEDS = { watching: "tv", listening: "radio" }; // actions that need an item
+
+const PERSONA =
+  "Ishai is 31, a freelance graphic designer living alone in apartment 4 of an old building in Tel Aviv. " +
+  "He is kind, a bit lazy, overthinks small things, loves falafel and old video games, " +
+  "and owns a stubborn basil plant named Moshe that sits on his windowsill.";
+
+// The starting cast. Each card is saved and the AI keeps updating "memory" and "relationship".
+const SEED_CAST = [
+  { id: "levi", name: "Mrs. Levi", role: "nosy 72-year-old neighbor from apartment 5",
+    personality: "gossipy, dramatic, secretly very kind, feeds the street cats",
+    speech: "calls everyone 'motek', asks too many questions",
+    hangouts: ["corridor", "street"],
+    look: { hair: "bun", hairColor: "gray", skin: "fair", shirt: "purple", pants: "brown", extras: ["glasses"] },
+    memory: "Thinks Ishai's music is too loud. Brings him soup when he looks thin.", relationship: 1 },
+  { id: "noa", name: "Noa", role: "Ishai's best friend since the army, a tattoo artist",
+    personality: "blunt, loyal, always late, teases him constantly",
+    speech: "short sarcastic sentences, calls him 'Ishush'",
+    hangouts: ["cafe", "park", "street"],
+    look: { hair: "long", hairColor: "auburn", skin: "tan", shirt: "yellow", pants: "black", extras: ["earring"] },
+    memory: "Keeps telling Ishai to raise his prices and get a life.", relationship: 4 },
+  { id: "avi", name: "Avi", role: "owner of the falafel kiosk on Herzl Street",
+    personality: "warm, philosophical, gives life advice with every pita",
+    speech: "proverbs and big statements, calls Ishai 'champion'",
+    hangouts: ["street"],
+    look: { hair: "bald", hairColor: "black", skin: "brown", shirt: "white", pants: "navy", extras: ["mustache", "apron"] },
+    memory: "Knows Ishai always orders extra amba.", relationship: 2 },
+  { id: "dana", name: "Dana", role: "barista at Cafe Nahat",
+    personality: "quiet, dry humor, remembers every order, doodles on cups",
+    speech: "few words, deadpan",
+    hangouts: ["cafe"],
+    look: { hair: "short", hairColor: "black", skin: "light", shirt: "black", pants: "black", extras: ["apron"] },
+    memory: "Has started drawing tiny basil leaves on Ishai's cups. He hasn't noticed yet.", relationship: 1 }
+];
+
+// ---------- world (must match the page) ----------
+const LOCATIONS = {
+  apartment: ["sleeping","waking","idle","walking","working","gaming","eating","drinking","cooking","reading","exercising","watching","listening","bathroom","showering"],
+  corridor:  ["walking","idle","talking"],
+  street:    ["walking","idle","talking","eating","drinking"],
+  park:      ["walking","idle","talking","reading","eating","drinking","exercising"],
+  cafe:      ["idle","eating","drinking","working","reading","talking"],
+  offscreen: ["away"]
+};
+const PLACES = {
+  apartment: "his one-room flat: bed, desk with laptop, armchair, small kitchen, a bathroom door (the camera never sees inside; use bathroom/showering), window with Moshe the basil",
+  corridor:  "the building hallway outside his door",
+  street:    "Herzl Street outside the building: Avi's falafel kiosk, a bus stop bench, traffic",
+  park:      "a small park nearby: a bench, a pond with one duck, a big tree",
+  cafe:      "Cafe Nahat, a corner cafe",
+  offscreen: "anywhere without a camera: the supermarket, a client's office, a friend's home, the bus"
+};
+const NEXT = {
+  apartment: ["corridor"],
+  corridor:  ["apartment","street"],
+  street:    ["corridor","park","cafe","offscreen"],
+  park:      ["street","cafe","offscreen"],
+  cafe:      ["street","park","offscreen"],
+  offscreen: ["street","park","cafe"]
+};
+// drawing menu for characters (must match the page)
+const LOOK = {
+  hair: ["short","long","bald","bun","curly","cap"],
+  hairColor: ["black","brown","auburn","blonde","gray","white","red"],
+  skin: ["light","fair","tan","brown","dark"],
+  cloth: ["red","orange","yellow","green","teal","blue","navy","purple","pink","black","white","gray","brown"],
+  extras: ["glasses","beard","mustache","earring","apron","scarf"]
+};
+
+const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => !NEEDS[a] || unlocked.includes(NEEDS[a]));
+
+const HTML = "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>Watching Ishai</title>\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n<link href=\"https://fonts.googleapis.com/css2?family=VT323&display=swap\" rel=\"stylesheet\">\n<style>\n  :root{\n    --bg:#050705; --phos:#4dff7a; --phos-dim:#2a9a4c; --phos-faint:#123d20;\n    --amber:#ffb84d; --red:#ff3b3b;\n  }\n  *{box-sizing:border-box}\n  html,body{margin:0;background:var(--bg);color:var(--phos);font-family:'VT323',ui-monospace,Menlo,monospace}\n  body{min-height:100vh;display:flex;justify-content:center;padding:16px}\n  .wrap{width:100%;max-width:760px;display:flex;flex-direction:column;gap:10px}\n  .title{display:flex;justify-content:space-between;align-items:baseline;padding:0 4px;\n    font-size:clamp(22px,5.5vw,32px);letter-spacing:1px;text-shadow:0 0 8px rgba(77,255,122,.45)}\n  .title small{font-size:.55em;color:var(--phos-dim)}\n  .cam{position:relative;border:2px solid var(--phos-faint);border-radius:10px;overflow:hidden;background:#000;\n    box-shadow:0 0 34px rgba(77,255,122,.08)}\n  canvas{display:block;width:100%;height:auto;image-rendering:pixelated;image-rendering:crisp-edges;animation:flicker 6s infinite}\n  @keyframes flicker{0%,100%{filter:brightness(1)}48%{filter:brightness(1)}49%{filter:brightness(.92)}50%{filter:brightness(1.04)}51%{filter:brightness(1)}}\n  .cam::after{content:\"\";position:absolute;inset:0;pointer-events:none;\n    background:\n      repeating-linear-gradient(to bottom,rgba(0,0,0,.20) 0,rgba(0,0,0,.20) 1px,transparent 1px,transparent 3px),\n      radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.6) 100%)}\n  .hud{position:absolute;left:0;right:0;padding:6px 12px;display:flex;justify-content:space-between;z-index:2;\n    font-size:clamp(14px,3.8vw,22px);color:#eaffea;pointer-events:none;\n    text-shadow:0 0 3px #000,0 0 6px rgba(0,0,0,.9)}\n  .hud.top{top:0}.hud.bot{bottom:0}\n  .rec{color:#ffdede}\n  .dot{display:inline-block;width:.55em;height:.55em;border-radius:50%;background:var(--red);margin-right:.35em;\n    box-shadow:0 0 6px var(--red);animation:blink 1.2s steps(1) infinite}\n  @keyframes blink{50%{opacity:0}}\n  .nosig{position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:2;pointer-events:none;\n    font-size:clamp(18px,5vw,30px);color:#eaffea;text-shadow:0 0 4px #000}\n  .nosig span{background:rgba(0,0,0,.55);padding:2px 10px}\n  .status{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:clamp(15px,3.8vw,20px);color:var(--phos-dim);padding:0 4px}\n  .status b{color:var(--phos);font-weight:normal}\n  .term{border:2px solid var(--phos-faint);border-radius:10px;background:#020502;padding:12px 14px;\n    height:min(42vh,360px);overflow-y:auto;font-size:clamp(18px,4.6vw,23px);line-height:1.15;\n    text-shadow:0 0 6px rgba(77,255,122,.45);scrollbar-color:var(--phos-faint) transparent}\n  .line{margin:0 0 9px}\n  .line .ts{color:var(--phos-dim)}\n  .line.old{opacity:.75}\n  .cursor{display:inline-block;width:.55em;height:1em;background:var(--phos);vertical-align:-.15em;animation:blink 1s steps(1) infinite}\n  .warn{color:var(--amber)}\n  .foot{font-size:15px;color:var(--phos-dim);padding:0 4px;opacity:.8}\n  .line.say{margin:-4px 0 9px 1.2em}\n  .tabs{display:flex;gap:8px;margin-bottom:-4px}\n  .tabs button{font:inherit;font-size:clamp(17px,4.2vw,21px);background:transparent;color:var(--phos-dim);\n    border:2px solid var(--phos-faint);border-bottom:none;border-radius:8px 8px 0 0;padding:2px 14px;cursor:pointer}\n  .tabs button.on{color:var(--phos);background:#020502;text-shadow:0 0 6px rgba(77,255,122,.45)}\n  .tabs button:focus-visible{outline:2px solid var(--phos);outline-offset:2px}\n  .cast{display:flex;flex-direction:column;gap:12px}\n  .card{display:grid;grid-template-columns:56px 1fr;gap:12px;align-items:start;padding-bottom:12px;border-bottom:1px dashed var(--phos-faint)}\n  .card:last-child{border-bottom:none}\n  .card canvas{width:56px;height:auto;image-rendering:pixelated;animation:none;background:#0b120b;border:1px solid var(--phos-faint);border-radius:4px}\n  .card .nm{font-size:1.15em}\n  .card .meta{color:var(--phos-dim);font-size:.85em;line-height:1.1}\n  .card .mem{font-size:.9em;margin-top:3px}\n  .card .rel{font-size:.85em;letter-spacing:1px}\n  [hidden]{display:none !important}\n  .snd{font:inherit;font-size:clamp(15px,3.8vw,20px);background:transparent;color:var(--phos);border:1px solid var(--phos-faint);\n    border-radius:6px;padding:0 10px;cursor:pointer;margin-left:auto}\n  .snd:focus-visible{outline:2px solid var(--phos);outline-offset:2px}\n</style>\n</head>\n<body>\n<div class=\"wrap\">\n  <div class=\"title\"><span>&gt; WATCHING_ISHAI</span><small id=\"day\">DAY --</small></div>\n\n  <div class=\"cam\">\n    <div class=\"hud top\"><span class=\"rec\"><span class=\"dot\"></span>REC <span id=\"cam\">CAM-01</span></span><span id=\"clock\">--:--:--</span></div>\n    <canvas id=\"scene\" width=\"192\" height=\"108\"></canvas>\n    <div class=\"nosig\" id=\"nosig\"><span id=\"nosigText\">[ SUBJECT NOT IN FRAME ]</span></div>\n    <div class=\"hud bot\"><span id=\"place\">ISHAI // APARTMENT</span><span id=\"hudAction\">--</span></div>\n  </div>\n\n  <div class=\"status\">\n    <span>STATUS: <b id=\"stAction\">--</b></span>\n    <span>FEED: <b id=\"stLink\">CONNECTING…</b></span>\n    <span id=\"stNext\"></span>\n    <button id=\"snd\" class=\"snd\" title=\"Tap to change sound\">SOUND: OFF</button>\n  </div>\n\n  <div class=\"tabs\" role=\"tablist\">\n    <button id=\"tabFeed\" class=\"on\" role=\"tab\" aria-selected=\"true\">FEED</button>\n    <button id=\"tabCast\" role=\"tab\" aria-selected=\"false\">CAST</button>\n  </div>\n  <div class=\"term\" id=\"term\" aria-live=\"polite\"></div>\n  <div class=\"term cast\" id=\"castPanel\" hidden></div>\n  <div class=\"foot\">Story written by AI. Ishai is fictional.</div>\n</div>\n\n<script>\n(() => {\n  // ================= config =================\n  const API = '/api/state';\n  const POLL_MS = 45000;\n  const TZ = 'Asia/Jerusalem';\n  const W = 192, H = 108;\n\n  // Must match the Worker\n  const LOCATIONS = {\n    apartment: ['sleeping','waking','idle','walking','working','gaming','eating','drinking','cooking','reading','exercising','watching','listening','bathroom','showering'],\n    corridor:  ['walking','idle','talking'],\n    street:    ['walking','idle','talking','eating','drinking'],\n    park:      ['walking','idle','talking','reading','eating','drinking','exercising'],\n    cafe:      ['idle','eating','drinking','working','reading','talking'],\n    offscreen: ['away']\n  };\n  let UNLOCKED = new Set(); // items the story has brought in (tv, radio)\n  const BATH = new Set(['bathroom','showering']); // he disappears behind the bathroom door\n  let WORLD = null; // real weather / Shabbat from the Worker\n  const LABEL = {drinking:'DRINKING',bathroom:'BATHROOM',showering:'SHOWER',watching:'WATCHING TV',listening:'RADIO ON',sleeping:'SLEEPING',waking:'WAKING UP',idle:'IDLE',walking:'WALKING',working:'WORKING',gaming:'GAMING',\n    eating:'EATING',cooking:'COOKING',reading:'READING',exercising:'EXERCISING',talking:'TALKING',away:'UNKNOWN'};\n\n  const params = new URLSearchParams(location.search);\n  const forceHour = params.has('hour') ? parseFloat(params.get('hour')) : null;\n  const forceLoc = LOCATIONS[params.get('loc')] ? params.get('loc') : null;\n  const forcePose = params.get('pose');\n\n  const cv = document.getElementById('scene');\n  const ctx = cv.getContext('2d');\n  const $ = id => document.getElementById(id);\n\n  // ================= time =================\n  const fmtClock = new Intl.DateTimeFormat('en-GB',{timeZone:TZ,hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});\n  const fmtHM = new Intl.DateTimeFormat('en-GB',{timeZone:TZ,hour:'2-digit',minute:'2-digit',hour12:false});\n  function hourNow(){\n    if (forceHour !== null) return forceHour;\n    const [h,m] = fmtHM.format(new Date()).split(':').map(Number);\n    return (h % 24) + m/60;\n  }\n  const isNight = hf => hf < 6 || hf >= 19.5;\n\n  // ================= palette & primitives =================\n  const C = {\n    wall:'#2c3a4d', wallDark:'#253244', trim:'#1d2736', floor:'#5a3f2b', floorLine:'#4a3322',\n    wood:'#7a5534', woodDark:'#5e4027', woodLight:'#9a7048',\n    blanket:'#b84a4a', blanketDark:'#943a3a', pillow:'#ece6d6', sheet:'#d8d2c0',\n    hair:'#2b1d14', skin:'#e0ac7e', skinShade:'#c18657', eye:'#161616', mouth:'#7a3a32',\n    shirt:'#2f8f83', shirtShade:'#24706a', pants:'#34405a', shoe:'#161616',\n    chair:'#3a3a46', arm:'#4f6b3a', armDark:'#41592f', armLight:'#5d7a46',\n    metal:'#aab2bc', metalDark:'#7d858f', counter:'#8c7b6a', top:'#d6d0c4', island:'#5f7180',\n    fridge:'#dfe4e8', door:'#5c4330', doorFrame:'#44311f', gold:'#d4af37', rug:'#7a3b52', rugLight:'#8f4a63',\n    frame:'#d9d4c7', pot:'#3e3e3e', leaf:'#3fa34d', leafDark:'#2f7d3a', terracotta:'#a0522d'\n  };\n  let g = ctx; // current drawing target (scene or a cast portrait)\n  const R = (x,y,w,h,c) => { g.fillStyle = c; g.fillRect(Math.round(x),Math.round(y),w,h); };\n  function alpha(a, fn){ g.globalAlpha = a; fn(); g.globalAlpha = 1; }\n  function line(x0,y0,x1,y1,c){\n    const dx=Math.abs(x1-x0), dy=-Math.abs(y1-y0), sx=x0<x1?1:-1, sy=y0<y1?1:-1; let e=dx+dy;\n    for(;;){ R(x0,y0,1,1,c); if(x0===x1&&y0===y1)break; const e2=2*e; if(e2>=dy){e+=dy;x0+=sx;} if(e2<=dx){e+=dx;y0+=sy;} }\n  }\n  function skyColor(hf){\n    if (hf < 5 || hf >= 20) return {c:'#0b1530', night:true};\n    if (hf < 6.5) return {c:'#c9777a', dawn:true};\n    if (hf < 17.5) return {c:'#7ec8f0'};\n    return {c:'#b35f78', dawn:true};\n  }\n  function isShabbatEve(){\n    if (params.has('shabbat')) return true;\n    const sh = WORLD && WORLD.shabbat; if (!sh || !sh.start) return false;\n    const n = Date.now(); return n > sh.start - 20*60000 && n < sh.start + 5*3600000;\n  }\n  function weatherLabel(){\n    const w = WORLD && WORLD.weather; if (!w) return '';\n    return `TLV ${w.temp}°C ${String(w.desc).toUpperCase()}` + (isShabbatEve() ? ' · SHABBAT SHALOM' : '');\n  }\n  const rainy = () => !!(WORLD && WORLD.weather && WORLD.weather.rain);\n  const cloudy = () => !!(WORLD && WORLD.weather && WORLD.weather.cloudy);\n  function drawRain(x,y,w,h,t,n=40){\n    for (let i=0;i<n;i++){ const rx = x + ((i*37 + Math.floor(t/30)) % w), ry = y + ((i*53 + Math.floor(t/12)) % h);\n      R(rx,ry,1,2,'#cfe0ff'); }\n  }\n  function drawSky(x,y,w,h,hf,t){\n    const s = skyColor(hf);\n    if (cloudy() && !s.night){ s.c = s.dawn ? '#8f7a86' : '#9fb0bf'; s.dawn = false; s.overcast = true; }\n    R(x,y,w,h,s.c);\n    g.save(); g.beginPath(); g.rect(x,y,w,h); g.clip();\n    if (s.overcast){ for (let i=0;i<4;i++){ const cx = x + ((i*41 + Math.floor(t/400)) % (w+20)) - 10; R(cx, y+2+i*5%Math.max(1,h-6), 14, 3, '#c8d2db'); } }\n    if (rainy()) { drawRain(x,y,w,h,t, Math.max(6, Math.floor(w*h/60))); if (!s.night) s.dawn = false; s.noSun = true; }\n    g.restore();\n    if (s.night && !cloudy()){\n      for (let i=0;i<14;i++){ const sx=x+((i*37)%w), sy=y+((i*23)%Math.max(1,h-2));\n        if ((Math.floor(t/900)+i)%5) R(sx,sy,1,1,'#ffffff'); }\n    } else if (s.dawn){ R(x,y+h-5,w,5,'#e8a56a'); }\n    return s;\n  }\n  function drawClock(x,y){\n    R(x+2,y,5,1,'#e8e4d8'); R(x+1,y+1,7,7,'#e8e4d8'); R(x,y+2,9,5,'#e8e4d8'); R(x+2,y+8,5,1,'#e8e4d8');\n    const hf = hourNow(); const hA=((hf%12)/12)*Math.PI*2, mA=(hf%1)*Math.PI*2;\n    line(x+4,y+4, x+4+Math.round(Math.sin(hA)*2), y+4-Math.round(Math.cos(hA)*2), '#222');\n    line(x+4,y+4, x+4+Math.round(Math.sin(mA)*3), y+4-Math.round(Math.cos(mA)*3), '#c23b3b');\n  }\n  function zee(x,y,c){ R(x,y,3,1,c); R(x+1,y+1,1,1,c); R(x,y+2,3,1,c); }\n  function bubble(x,y,t){ R(x,y,9,5,'#f4f4f4'); R(x+1,y+5,2,1,'#f4f4f4'); const n=Math.floor(t/350)%4;\n    for (let i=0;i<3;i++) if (i<n) R(x+2+i*2,y+2,1,1,'#333'); }\n\n  // ================= Ishai (and NPCs) =================\n  // figure box: 10 wide x 22 tall, (x,y) = top-left\n  function head(x,y,o={}){\n    R(x+2,y,6,2,C.hair); R(x+1,y+1,8,2,C.hair);\n    R(x+2,y+2,6,6,C.skin); R(x+2,y+2,6,1,C.hair);\n    R(x+1,y+3,1,2,C.hair); R(x+8,y+3,1,2,C.hair);\n    R(x+1,y+5,1,1,C.skinShade); R(x+8,y+5,1,1,C.skinShade);\n    const lx = o.look||0;\n    if (o.closed){ R(x+3+lx,y+4,2,1,C.skinShade); R(x+5+lx,y+4,2,1,C.skinShade); }\n    else { R(x+3+lx,y+4,1,1,C.eye); R(x+6+lx,y+4,1,1,C.eye); }\n    if (o.yawn) R(x+4,y+6,2,2,C.mouth);\n    else if (o.talk) R(x+4,y+6,2,1,C.mouth);\n    else R(x+4,y+6,2,1,C.skinShade);\n    R(x+4,y+8,2,1,C.skinShade);\n  }\n  function torso(x,y){ R(x+2,y+9,6,7,C.shirt); R(x+2,y+15,6,1,C.shirtShade); R(x+4,y+9,2,1,C.shirtShade); }\n  function armsDown(x,y,sw=0){\n    R(x+1,y+9+sw,1,4,C.shirt); R(x+1,y+13+sw,1,2,C.skin);\n    R(x+8,y+9-sw,1,4,C.shirt); R(x+8,y+13-sw,1,2,C.skin);\n  }\n  function armsUp(x,y){\n    R(x+1,y+9,1,1,C.shirt); R(x+8,y+9,1,1,C.shirt);\n    R(x,y+5,1,4,C.shirt); R(x+9,y+5,1,4,C.shirt); R(x,y+2,1,3,C.skin); R(x+9,y+2,1,3,C.skin);\n  }\n  function armsFront(x,y){ R(x+1,y+9,1,3,C.shirt); R(x+8,y+9,1,3,C.shirt); }\n  function legs(x,y,mode=0){\n    R(x+2,y+16,6,2,C.pants);\n    if (mode==='apart'){ R(x+1,y+18,2,3,C.pants); R(x+7,y+18,2,3,C.pants); R(x,y+21,3,1,C.shoe); R(x+7,y+21,3,1,C.shoe); }\n    else if (mode===1){ R(x+2,y+18,2,2,C.pants); R(x+6,y+18,2,3,C.pants); R(x+1,y+20,3,1,C.shoe); R(x+6,y+21,3,1,C.shoe); }\n    else if (mode===2){ R(x+2,y+18,2,3,C.pants); R(x+6,y+18,2,2,C.pants); R(x+1,y+21,3,1,C.shoe); R(x+6,y+20,3,1,C.shoe); }\n    else { R(x+2,y+18,2,3,C.pants); R(x+6,y+18,2,3,C.pants); R(x+1,y+21,3,1,C.shoe); R(x+6,y+21,3,1,C.shoe); }\n  }\n  function sitLegs(x,y){ R(x+2,y+16,6,2,C.pants); R(x+2,y+18,2,4,C.pants); R(x+6,y+18,2,4,C.pants); R(x+1,y+22,3,1,C.shoe); R(x+6,y+22,3,1,C.shoe); }\n  const blinkOn = (t, seed=0) => ((t+seed) % 3600) < 160;\n\n  // pose renderers. o.legs: 'stand' | 'sit' | false\n  function drawIshai(pose, x, y, t, o={}){\n    const f2 = Math.floor(t/450)%2;\n    const lower = () => { if (o.legs==='stand') legs(x,y,0); else if (o.legs==='sit') sitLegs(x,y); };\n    switch(pose){\n      case 'walk': {\n        const fw = Math.floor(t/220)%4, bob = (fw%2)?-1:0, lm = fw===1?1:fw===3?2:0;\n        head(x,y+bob,{closed:blinkOn(t)}); torso(x,y+bob); armsDown(x,y+bob,fw===1?1:fw===3?-1:0); legs(x,y+bob,lm); break; }\n      case 'idle': {\n        head(x,y,{closed:blinkOn(t), look:(Math.floor(t/4000)%3)-1}); torso(x,y); armsDown(x,y); legs(x,y,0); break; }\n      case 'talking': {\n        const mine = Math.floor(t/1800)%2===0;\n        head(x,y,{closed:blinkOn(t), look:o.face||1, talk: mine && Math.floor(t/160)%2}); torso(x,y);\n        if (mine && f2){ R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10,1,2,C.skin); }\n        else armsDown(x,y);\n        legs(x,y,0);\n        if (mine) bubble(x+8,y-7,t);\n        break; }\n      case 'exercising': {\n        if (Math.floor(t/380)%2){ head(x,y-2,{}); torso(x,y-2); armsUp(x,y-2); legs(x,y-2,'apart'); }\n        else { head(x,y,{}); torso(x,y); armsDown(x,y); legs(x,y,0); }\n        if (Math.floor(t/1500)%2) R(x+9,y+2,1,1,'#9fd3f0'); break; }\n      case 'sleeping': {\n        R(11,69,2,5,C.hair); R(13,69,5,5,C.skin); R(13,69,5,1,C.hair); R(14,71,2,1,C.skinShade); R(16,73,1,1,C.skinShade);\n        for (let i=0;i<3;i++){ const ph=(t/2200+i/3)%1;\n          alpha(ph<.85?1:(1-ph)/.15, ()=>zee(20+Math.floor(ph*10)+i, 66-Math.floor(ph*16), ph>.5?'#ffffff':'#cfe8ff')); }\n        break; }\n      case 'listening': {\n        const bob = Math.floor(t/430)%2;\n        R(11,69+bob,2,5,C.hair); R(13,69+bob,5,5,C.skin); R(13,69+bob,5,1,C.hair); R(15,70+bob,1,1,C.eye); R(15,72+bob,1,1,C.eye); R(17,71+bob,1,2,C.skinShade);\n        R(18,70,13,5,C.shirt); R(18,74,13,1,C.shirtShade); R(20,69,4,1,C.skin);\n        R(31,71,11,4,C.pants); R(42,70-bob,2,2,C.shoe); R(42,72,2,3,C.shoe);\n        break; }\n      case 'watching': {\n        const snack = Math.floor(t/2600)%3===0;\n        head(x,y,{closed:blinkOn(t,500), talk: snack && Math.floor(t/150)%2}); torso(x,y); armsFront(x,y);\n        R(x+3,y+12,4,2,'#e8e4d8'); R(x+3,y+11,1,1,'#ffe27a'); R(x+5,y+11,1,1,'#ffe27a'); R(x+4,y+11,1,1,'#fff6c8');\n        if (snack){ R(x+8,y+9,1,1,C.shirt); R(x+7,y+7,1,3,C.skin); R(x+6,y+6,1,1,'#ffe27a'); } else { R(x+8,y+12,1,1,C.skin); }\n        R(x+1,y+12,1,1,C.skin);\n        break; }\n      case 'waking': {\n        const f = Math.floor(t/900)%3;\n        if (f===1){ head(x,y,{closed:true,yawn:true}); torso(x,y); armsUp(x,y); }\n        else { head(x,y,{closed:f===2}); torso(x,y); armsDown(x,y); }\n        R(x+2,y+16,6,2,C.pants); break; }\n      case 'working': {\n        head(x,y,{closed:blinkOn(t,700)}); torso(x,y); armsFront(x,y);\n        R(x+1,y+12-(f2?1:0),1,1,C.skin); R(x+8,y+12-(f2?0:1),1,1,C.skin); lower(); break; }\n      case 'gaming': {\n        head(x,y,{closed:blinkOn(t,300), look:(Math.floor(t/1700)%2)?1:0}); torso(x,y); armsFront(x,y);\n        R(x+2,y+12,1,1,C.skin); R(x+7,y+12,1,1,C.skin);\n        R(x+3,y+12,4,2,'#222'); R(x+4,y+12,1,1,f2?'#e0605a':'#3b7bc2'); R(x+6,y+12,1,1,'#7fbf6a'); lower(); break; }\n      case 'reading': {\n        head(x,y,{closed:blinkOn(t,1200)}); torso(x,y); armsFront(x,y);\n        R(x+2,y+11,6,4,'#f0ead8'); R(x+5,y+11,1,4,'#bfb69c');\n        R(x+3,y+12,2,1,'#9a9a9a'); R(x+6,y+12,1,1,'#9a9a9a'); R(x+3,y+13,2,1,'#9a9a9a');\n        R(x+1,y+12,1,2,C.skin); R(x+8,y+12,1,2,C.skin);\n        if ((t%5000)<450 && Math.floor(t/5000)%2) R(x+5,y+10,3,4,'#ffffff');\n        lower(); break; }\n      case 'drinking':\n        o = Object.assign({}, o, {drink:true, food: o.food || '#9fd3f0'});\n        // falls through: same arm movement as eating, with a glass\n      case 'eating': {\n        const bite = Math.floor(t/900)%2;\n        head(x,y,{closed:blinkOn(t,200), talk: !o.drink && !bite && Math.floor(t/150)%2}); torso(x,y);\n        R(x+1,y+9,1,3,C.shirt); R(x+1,y+12,1,1,C.skin);\n        const food = o.food || '#cfcfcf';\n        if (bite){ R(x+8,y+9,1,1,C.shirt); R(x+7,y+7,1,3,C.skin); R(x+6,y+6,1,2,food); }\n        else { R(x+8,y+9,1,3,C.shirt); R(x+8,y+12,1,1,C.skin); R(x+8,y+13,1,2,food); }\n        lower(); break; }\n      case 'cooking': {\n        const st = Math.floor(t/300)%2;\n        head(x,y,{closed:blinkOn(t,900), look:1}); torso(x,y);\n        R(x+1,y+9,1,3,C.shirt); R(x+1,y+12,1,1,C.skin);\n        R(x+8,y+9,2,1,C.shirt); R(x+10,y+10+st,1,2,C.skin); R(x+11+st,y+8,1,4,'#b8875a'); break; }\n    }\n  }\n  // ================= other people (drawn from a saved \"look\") =================\n  // Menus must match the Worker's LOOK lists\n  const HAIRC = {black:'#141414',brown:'#3b2617',auburn:'#7a3b1c',blonde:'#d9b24a',gray:'#9a9a9a',white:'#e6e6e6',red:'#a8432a'};\n  const SKINC = {light:['#f3d0b0','#d8ac88'],fair:['#e0ac7e','#c18657'],tan:['#c98b5e','#a96f45'],brown:['#a8714a','#8a5a38'],dark:['#6e4429','#573420']};\n  const CLOTH = {red:'#c23b3b',orange:'#d9822b',yellow:'#d8b43a',green:'#4f9a3f',teal:'#2f8f83',blue:'#3b7bc2',navy:'#2c3a66',\n    purple:'#8a4fa3',pink:'#d97aa0',black:'#2a2a2a',white:'#e8e4d8',gray:'#7d7d85',brown:'#6b4a2f'};\n  function shade(hex, f=.78){ const n=parseInt(hex.slice(1),16); const c=[n>>16,(n>>8)&255,n&255].map(v=>Math.round(v*f));\n    return '#'+c.map(v=>v.toString(16).padStart(2,'0')).join(''); }\n  function tint(hex, f=.45){ const n=parseInt(hex.slice(1),16); const c=[n>>16,(n>>8)&255,n&255].map(v=>Math.round(v+(255-v)*f));\n    return '#'+c.map(v=>v.toString(16).padStart(2,'0')).join(''); }\n  function lookPal(L){\n    const s = SKINC[L.skin]||SKINC.fair, sh = CLOTH[L.shirt]||CLOTH.gray;\n    return {hair:HAIRC[L.hairColor]||HAIRC.black, skin:s[0], skinShade:s[1], shirt:sh, shirtShade:shade(sh), pants:CLOTH[L.pants]||CLOTH.navy};\n  }\n  // o: face (-1/0/1), legs ('stand'|'sit'|false), talkPhase, walk\n  function person(L, x, y, t, o={}){\n    const pal = lookPal(L), ex = L.extras||[];\n    const keep = {hair:C.hair,skin:C.skin,skinShade:C.skinShade,shirt:C.shirt,shirtShade:C.shirtShade,pants:C.pants};\n    Object.assign(C, pal);\n    const theirs = o.talkPhase && Math.floor(t/1800)%2===1;\n    const fw = o.walk ? Math.floor(t/220)%4 : 0, bob = o.walk && fw%2 ? -1 : 0;\n    y += bob;\n    head(x,y,{closed:blinkOn(t,o.seed??1700), look:o.face??-1, talk: theirs && Math.floor(t/170)%2});\n    // hair styles\n    const h = pal.hair;\n    if (L.hair==='bald'){ R(x+2,y,6,3,pal.skin); R(x+3,y,2,1,tint(pal.skin,.3)); }\n    else if (L.hair==='long'){ R(x+1,y+3,1,7,h); R(x+8,y+3,1,7,h); }\n    else if (L.hair==='bun'){ R(x+3,y-2,4,2,h); R(x+4,y-3,2,1,h); }\n    else if (L.hair==='curly'){ R(x+1,y-1,8,2,h); R(x,y+1,1,5,h); R(x+9,y+1,1,5,h);\n      R(x+2,y,1,1,shade(h,.7)); R(x+5,y-1,1,1,shade(h,.7)); R(x+7,y+1,1,1,shade(h,.7)); R(x,y+3,1,1,shade(h,.7)); }\n    else if (L.hair==='cap'){ const cc = CLOTH[L.pants]||CLOTH.red; R(x+1,y,8,2,cc); R(x+2,y-1,6,1,cc); R(x+1,y+2,8,1,shade(cc)); }\n    // face extras\n    if (ex.includes('glasses')){ R(x+2,y+3,3,1,'#1a1a1a'); R(x+5,y+3,3,1,'#1a1a1a'); R(x+2,y+4,1,1,'#1a1a1a'); R(x+7,y+4,1,1,'#1a1a1a'); }\n    if (ex.includes('mustache')) R(x+3,y+5,4,1,h);\n    if (ex.includes('beard')){ R(x+2,y+6,1,2,h); R(x+7,y+6,1,2,h); R(x+3,y+7,4,1,h); }\n    if (ex.includes('earring')) R(x+1,y+6,1,1,'#d4af37');\n    torso(x,y);\n    if (o.walk) armsDown(x,y, fw===1?1:fw===3?-1:0); else if (o.arms!==false) armsDown(x,y);\n    if (ex.includes('apron')){ R(x+3,y+10,4,6,'#f0ead8'); R(x+3,y+9,1,1,'#f0ead8'); R(x+6,y+9,1,1,'#f0ead8'); }\n    if (ex.includes('scarf')){ R(x+2,y+8,6,2,'#c23b3b'); R(x+6,y+10,1,3,'#c23b3b'); }\n    if (o.legs==='sit') sitLegs(x,y); else if (o.legs!==false) legs(x,y, o.walk ? (fw===1?1:fw===3?2:0) : 0);\n    Object.assign(C, keep);\n    if (theirs) bubble(x-7,y-7,t);\n  }\n  const ISHAI_LOOK = {hair:'short',hairColor:'brown',skin:'fair',shirt:'teal',pants:'navy',extras:[]};\n  // fallback looks for unnamed passers-by / staff\n  const EXTRA = {\n    stranger:{hair:'short',hairColor:'blonde',skin:'light',shirt:'red',pants:'blue',extras:[]},\n    neighbor:{hair:'curly',hairColor:'gray',skin:'tan',shirt:'green',pants:'brown',extras:[]},\n    barista:{hair:'short',hairColor:'black',skin:'light',shirt:'black',pants:'black',extras:['apron']},\n    kiosk:{hair:'bald',hairColor:'black',skin:'brown',shirt:'white',pants:'navy',extras:['mustache','apron']}\n  };\n  let CAST = {}; // id -> card, from the Worker\n  const lookOf = id => (CAST[id] && CAST[id].look) || null;\n  // the person currently with Ishai (or a generic stranger when he talks to someone unnamed)\n  function companionLook(a){\n    if (actor.with && lookOf(actor.with)) return lookOf(actor.with);\n    if (a==='talking') return actor.loc==='corridor' ? EXTRA.neighbor : EXTRA.stranger;\n    return null;\n  }\n  // people who are always at their post in a scene\n  const POST = { cafe:'dana', street:'avi' };\n  function postLook(loc, fallback){ return lookOf(POST[loc]) || fallback; }\n  const withIsPost = () => actor.with && POST[actor.loc] === actor.with;\n\n  // ================= scenes =================\n  // Each scene: cam, place, stand{action:x}, walkY, entry, exit, draw(t,hf,a,settled,actor)\n  const SCENES = {};\n\n  // ---------- apartment ----------\n  SCENES.apartment = {\n    cam:'CAM-01', place:'ISHAI // APARTMENT 4', walkY:74, entry:135, exit:135,\n    stand:{bathroom:48, showering:48, drinking:158, idle:58, walking:58, working:75, gaming:75, reading:111, watching:111, exercising:52, eating:158, cooking:159, waking:30, sleeping:30, listening:30},\n    draw(t,hf,a,settled,actor){\n      R(0,0,W,80,C.wall); for (let x=0;x<W;x+=16) R(x,0,1,78,C.wallDark);\n      R(0,78,W,2,C.trim); R(0,80,W,28,C.floor);\n      for (let y=84;y<H;y+=6) R(0,y,W,1,C.floorLine);\n      for (let y=80,i=0;y<H;y+=6,i++) for (let x=(i%2)*24;x<W;x+=48) R(x,y,1,6,C.floorLine);\n      // window\n      R(13,11,32,30,C.frame); const s = drawSky(15,13,28,26,hf,t);\n      if (s.night){ if (!cloudy()) { R(35,27,4,4,'#f2efd0'); R(36,27,3,1,s.c); } } else if (!s.dawn && !s.overcast && !s.noSun){ R(34,16,5,5,'#ffe27a'); R(18,26,8,2,'#fff'); R(20,25,4,1,'#fff'); }\n      R(28,13,2,26,C.frame); R(15,25,28,2,C.frame); R(11,40,36,2,C.frame);\n      if (UNLOCKED.has('radio')){\n        R(14,34,11,6,'#8a4a2a'); R(14,34,11,1,'#a65d36'); R(15,35,4,4,'#5a2f1a'); R(16,36,1,1,'#3a1e10'); R(18,37,1,1,'#3a1e10'); R(16,38,1,1,'#3a1e10');\n        R(20,35,4,2,'#e0c060'); R(21,38,2,1,'#2a2a2a'); line(23,33,27,27,'#bbbbbb');\n        if (settled && a==='listening') for (let i=0;i<3;i++){ const ph=(t/1600+i/3)%1; const nx=22+Math.floor(ph*14)+(i%2)*3, ny=31-Math.floor(ph*18);\n          alpha(1-ph,()=>{ R(nx,ny,2,2,'#ffd36a'); R(nx+1,ny-3,1,3,'#ffd36a'); if (i%2) R(nx+2,ny-3,1,1,'#ffd36a'); }); }\n      }\n      R(37,36,5,4,C.terracotta); R(38,33,1,3,C.leaf); R(40,32,1,4,C.leaf); R(37,32,2,2,C.leafDark); R(40,31,2,2,C.leaf); R(39,34,1,1,C.leafDark);\n      drawClock(56,12);\n      // bathroom door (the camera never looks inside)\n      const inBath = actor.hidden && BATH.has(a) && actor.loc==='apartment';\n      R(46,50,15,30,C.doorFrame); R(47,52,13,28,'#7d6a58'); R(49,55,9,8,'#8a7663'); R(49,66,9,10,'#8a7663'); R(57,66,1,2,C.gold);\n      R(50,47,7,3, inBath ? '#c23b3b' : '#3a3a3a'); R(51,48,5,1, inBath ? '#ffb0b0' : '#555');\n      if (inBath){ alpha(.7,()=>R(47,79,13,1,'#ffe8a0'));\n        if (a==='showering') for (let i=0;i<4;i++){ const ph=(t/1400+i/4)%1; alpha((1-ph)*.8,()=>R(48+i*3+(Math.floor(ph*6)%2),78-Math.floor(ph*14),2,1,'#f2f2f2')); } }\n      R(64,44,30,2,C.woodDark);\n      ['#c23b3b','#e0b04a','#3b7bc2','#7fbf6a','#d0d0d0','#9a5bc2','#c27a3b'].forEach((c,i)=>{ const h=6+(i%3); R(65+i*4,44-h,3,h,c); });\n      R(102,22,18,24,'#1b2230'); R(104,24,14,20,'#f0d070'); R(106,30,10,10,'#e0605a'); R(108,26,6,2,'#1b2230');\n      R(131,46,18,34,C.doorFrame); R(133,48,14,32,C.door); R(135,51,10,10,'#6a4e38'); R(135,64,10,12,'#6a4e38'); R(144,64,2,2,C.gold);\n      R(151,64,25,2,C.top); R(151,66,25,14,C.counter); R(153,68,9,10,'#7a6b5c'); R(164,68,9,10,'#7a6b5c');\n      R(161,72,1,2,C.metal); R(165,72,1,2,C.metal); R(154,63,4,1,'#333'); R(166,63,4,1,'#333');\n      R(160,48,12,6,'#e8e2d6'); R(160,54,12,1,'#bdb6a8');\n      R(177,38,14,42,C.fridge); R(177,52,14,1,'#b8bec4'); R(179,44,1,5,'#9aa3ad'); R(179,55,1,7,'#9aa3ad'); R(182,40,3,3,'#e0605a');\n      R(96,95,44,10,C.rug); R(98,97,40,6,C.rugLight); R(100,99,36,2,C.rug);\n      // bed back\n      R(3,60,6,32,C.woodDark); R(4,58,4,2,C.woodDark); R(9,76,40,8,C.sheet); R(10,72,9,5,C.pillow); R(10,76,9,1,'#cfc8b6');\n      // desk chair back, armchair back\n      R(73,63,14,13,C.chair); R(74,64,12,1,'#4a4a58');\n      R(104,64,24,17,C.arm); R(106,66,20,1,C.armLight);\n\n      const S = (p)=>settled && a===p;\n      if (S('sleeping')) drawIshai('sleeping',0,0,t);\n      if (S('listening')) drawIshai('listening',0,0,t);\n      if (S('waking')) drawIshai('waking',27,60,t);\n      // bed front\n      if (S('sleeping')){ const b=Math.floor(t/1400)%2; R(18,71+b,30,6-b,C.blanket); R(18,77,30,7,C.blanket); R(18,74,30,1,C.blanketDark); R(18,71+b,1,13-b,C.blanketDark); }\n      else if (S('waking')){ R(20,76,29,8,C.blanket); R(20,76,29,1,C.blanketDark); }\n      else { R(19,75,30,9,C.blanket); R(19,75,30,1,C.blanketDark); R(19,79,30,1,C.blanketDark); }\n      R(8,84,42,8,C.wood); R(8,84,42,1,C.woodLight); R(9,92,2,4,C.woodDark); R(47,92,2,4,C.woodDark);\n      // desk\n      if (S('working')||S('gaming')) drawIshai(a,75,70,t);\n      R(60,84,40,2,C.woodLight); R(60,86,40,10,C.wood); R(61,96,2,6,C.woodDark); R(97,96,2,6,C.woodDark); R(64,88,10,1,C.woodDark);\n      const lx = a==='gaming' ? 88 : 77;\n      R(lx,78,7,6,C.metal); R(lx,78,7,1,'#c4cbd3'); R(lx-1,83,9,1,C.metalDark); R(lx+3,80,1,1,'#d0d6dc');\n      R(64,80,3,4,'#e8e4d8'); R(67,81,1,2,'#e8e4d8');\n      // armchair\n      if (S('reading')) drawIshai('reading',111,62,t);\n      if (S('watching')) drawIshai('watching',111,62,t);\n      R(104,80,24,8,C.armDark); R(102,72,4,17,C.armLight); R(126,72,4,17,C.armLight);\n      R(102,72,4,1,'#6d8c55'); R(126,72,4,1,'#6d8c55'); R(104,88,2,4,C.woodDark); R(126,88,2,4,C.woodDark);\n      if (UNLOCKED.has('tv')){ // TV on a low stand, seen from behind (screen faces the armchair)\n        R(105,93,26,2,C.woodDark); R(107,95,2,5,C.woodDark); R(127,95,2,5,C.woodDark);\n        R(108,82,20,11,'#2b2b31'); R(109,83,18,1,'#3a3a42'); R(112,86,12,1,'#232328'); R(112,88,12,1,'#232328'); R(117,93,2,1,'#3a3a42');\n        if (S('watching')){ const c = ['#9fd0ff','#ffd36a','#ff9a9a','#a0ffb0'][Math.floor(t/1500)%4];\n          alpha(.5,()=>{ R(107,82,1,11,c); R(128,82,1,11,c); R(108,81,20,1,c); }); }\n      }\n      // kitchen island\n      if (S('eating')) drawIshai('eating',158,70,t);\n      if (S('drinking')) drawIshai('drinking',158,70,t);\n      if (S('cooking')) drawIshai('cooking',159,70,t);\n      R(148,84,42,2,C.top); R(148,86,42,10,C.island); R(150,88,38,1,'#52616e');\n      if (isShabbatEve()){ [150,154].forEach((cx,i)=>{ R(cx,78,2,6,'#f2efe0'); R(cx-1,83,4,1,'#c9b37a');\n        const f = Math.floor(t/180+i)%3; R(cx+(f===2?1:0),76,1,2,'#ffd36a'); R(cx,75+(f===1?1:0),1,1,'#fff3b0');\n        alpha(.12,()=>R(cx-4,70,10,10,'#ffd36a')); }); }\n      if (S('cooking')){ R(170,79,9,5,C.pot); R(169,79,11,1,'#5a5a5a');\n        for (let i=0;i<3;i++){ const ph=(t/600+i*.33)%1; alpha(1-ph,()=>R(172+i*2+(Math.floor(ph*4)%2),78-Math.floor(ph*9),1,1,'#f2f2f2')); } }\n      if (S('eating')){ R(158,83,10,1,'#f2f2f2'); R(160,82,6,1,'#d98c4a'); R(162,81,2,1,'#7fbf6a'); R(170,81,2,3,'#9fd3f0'); }\n      // floor\n      drawFloor(t,a,settled,actor,this);\n      // light\n      let dark = 0; if (isNight(hf)) dark = S('sleeping') ? .62 : .28; else if (hf<7||hf>=18) dark=.12;\n      if (dark) alpha(dark,()=>R(0,0,W,H,'#050a1e'));\n      if (S('watching')){ const c = ['#9fd0ff','#ffd36a','#ff9a9a','#a0ffb0'][Math.floor(t/1500)%4];\n        alpha(isNight(hf)?.4:.2,()=>R(112,63,8,15,c)); }\n      if (S('working')||S('gaming')){\n        const cols = a==='gaming' ? ['#5ab0ff','#ff6a6a','#7dff8a','#ffd36a'] : ['#9fd0ff','#bfe0ff'];\n        const c = cols[Math.floor(t/(a==='gaming'?260:2000))%cols.length];\n        alpha(isNight(hf)?.35:.18,()=>R(76,71,8,14,c));\n      }\n    }\n  };\n\n  // ---------- corridor ----------\n  SCENES.corridor = {\n    cam:'CAM-02', place:'BUILDING // 2ND FLOOR HALL', walkY:74, entry:40, exit:178,\n    entryFrom:{apartment:40}, exitTo:{apartment:40},\n    stand:{idle:70, walking:70, talking:84},\n    draw(t,hf,a,settled,actor){\n      R(0,0,W,56,'#7a6a58'); R(0,56,W,24,'#5a4c3f'); R(0,55,W,1,'#9a8a74'); R(0,78,W,2,'#3a3129');\n      for (let x=0;x<W;x+=12) R(x,56,1,22,'#4f4236');\n      for (let y=80,i=0;y<H;y+=7,i++) for (let x=(i%2)*7-7;x<W;x+=14) { R(x,y,7,7,'#3f3f46'); R(x+7,y,7,7,'#4a4a52'); }\n      // ceiling lights\n      [24,92,160].forEach((x,i)=>{ const on = !(i===2 && (t%7000)<300 && (t%400)<200);\n        R(x,0,14,2,on?'#fff6c8':'#777'); if (on) alpha(.10,()=>R(x-10,2,34,40,'#fff6c8')); });\n      // doors: 3, 4 (Ishai), 5\n      const door=(x,c,n)=>{ R(x,34,18,44,'#3e2f22'); R(x+2,36,14,42,c); R(x+13,56,2,2,C.gold); R(x+6,40,6,4,'#c9b37a'); digit(n,x+8,40); };\n      door(10,'#6a4e38',3); door(34,'#8a3a32',4); door(104,'#6a4e38',5);\n      R(32,96,22,3,'#9a3a3a'); // doormat\n      // elevator\n      R(132,30,30,48,'#6d737a'); R(134,34,13,44,'#a9b0b8'); R(147,34,13,44,'#9aa1a9'); R(146,34,1,44,'#5c6168');\n      R(164,50,3,6,'#2a2a2a'); R(165,51,1,1,'#ff6a6a'); R(165,54,1,1,'#7dff8a');\n      R(140,26,14,3,'#1a1a1a'); R(146,27,2,1, Math.floor(t/2000)%2?'#ff9a3a':'#ffd36a');\n      // stairs / exit\n      R(172,34,20,44,'#1c1c1c'); R(174,38,16,4,'#2a2a2a'); R(176,44,14,4,'#2f2f2f'); R(178,50,12,4,'#333'); R(180,56,10,4,'#383838');\n      R(174,24,14,6,'#1f7a3a'); R(176,26,10,2,'#d8ffd8');\n      // plant\n      R(68,70,6,8,C.terracotta); R(69,62,1,8,C.leaf); R(71,60,1,10,C.leafDark); R(73,63,1,7,C.leaf); R(67,64,2,2,C.leaf); R(73,61,2,2,C.leafDark);\n      drawFloor(t,a,settled,actor,this);\n      if (isNight(hf)) alpha(.15,()=>R(0,0,W,H,'#050a1e'));\n    }\n  };\n\n  // ---------- street ----------\n  let carPhase = 0;\n  SCENES.street = {\n    cam:'CAM-03', place:'HERZL ST. // OUTSIDE BLDG', walkY:66, entry:26, exit:26,\n    stand:{idle:96, walking:96, talking:100, eating:160}, postSpot:160,\n    draw(t,hf,a,settled,actor){\n      const s = drawSky(0,0,W,52,hf,t); const night = isNight(hf);\n      if (!s.night && !s.dawn){ R(160,8,6,6,'#ffe27a'); }\n      // buildings\n      const bld = [[0,8,58,'#8a7a6a'],[58,18,40,'#6f7f8f'],[98,4,44,'#9a8070'],[142,22,50,'#7a6f88']];\n      bld.forEach(([x,y,w,c],bi)=>{ R(x,y,w,72-y,c); R(x,y,w,2,'#00000033');\n        for (let wy=y+6; wy<62; wy+=9) for (let wx=x+4; wx<x+w-5; wx+=8){\n          const lit = night ? ((wx*7+wy*3+bi)%5<3) : false;\n          R(wx,wy,4,5, lit ? '#ffd36a' : (night?'#1a2238':'#a9c8dc')); } });\n      // Ishai's building entrance\n      R(18,50,22,22,'#5a4c3f'); R(21,53,16,19,'#3a2d22'); R(28,53,2,19,'#2a2018'); R(22,46,14,4,'#c9b37a'); digit(4,28,47,'#3a2d22');\n      // kiosk (falafel)\n      R(150,48,36,24,'#d8d0c0'); for (let i=0;i<9;i++) R(148+i*4.5,44,4,5, i%2?'#e0605a':'#f4f4f4');\n      R(154,52,28,12,'#2a2a2a');\n      person(postLook('street',EXTRA.kiosk),163,51,t,{legs:false,face:-1,talkPhase: settled && a==='talking' && withIsPost()});\n      R(150,62,36,2,'#bdb6a8'); R(150,64,36,8,'#d8d0c0'); R(155,60,6,2,'#d98c4a'); R(170,60,6,2,'#7fbf6a'); R(177,60,4,2,'#e0c060');\n      // sidewalk, curb, road\n      R(0,72,W,20,'#8d8d8d'); for (let x=0;x<W;x+=16) R(x,72,1,20,'#7a7a7a'); R(0,82,W,1,'#7a7a7a');\n      R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=(t/40)%0; x<W; x+=20) R(x+4,101,10,1,'#e8e8a0');\n      // bench + streetlight\n      R(116,60,26,2,'#5e4027'); R(116,64,26,2,'#7a5534'); R(118,66,2,6,'#333'); R(138,66,2,6,'#333');\n      R(84,30,2,42,'#3a3a3a'); R(80,28,10,3,'#3a3a3a'); R(81,31,8,1, night?'#fff3b0':'#777');\n      if (night) alpha(.18,()=>{ ctx.beginPath(); ctx.moveTo(80,32); ctx.lineTo(90,32); ctx.lineTo(104,92); ctx.lineTo(66,92); ctx.fill(); });\n      // passer-by\n      const pw = ((t/90) % 260) - 30; if (Math.floor(t/23400)%2) person(EXTRA.stranger,W-pw,66,t,{walk:true,face:-1,seed:400});\n      drawFloor(t,a,settled,actor,this);\n      // car\n      const cx = ((t/12) % 520) - 60;\n      if (cx < W+10){ const col = ['#c23b3b','#3b7bc2','#e0b04a','#dcdcdc'][Math.floor(t/6240)%4];\n        R(cx,96,26,6,col); R(cx+5,92,14,4,col); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0');\n        R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111'); if (night) R(cx+25,97,2,2,'#fff3b0'); }\n      if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));\n    }\n  };\n\n  // ---------- park ----------\n  SCENES.park = {\n    cam:'CAM-04', place:'GAN HA-IR // PARK', walkY:66, entry:4, exit:4,\n    stand:{idle:70, walking:70, talking:70, reading:122, eating:122, exercising:76},\n    draw(t,hf,a,settled,actor){\n      const s = drawSky(0,0,W,46,hf,t); const night = isNight(hf);\n      if (!s.night && !s.dawn){ R(150,8,6,6,'#ffe27a'); R(30,10,12,3,'#fff'); R(33,8,6,2,'#fff'); }\n      if (s.night){ R(160,8,5,5,'#f2efd0'); }\n      for (let x=0;x<W;x+=14){ R(x,34+((x*7)%6),14,14,'#2f6b3a'); }\n      R(0,44,W,64,'#4f8f3f'); for (let i=0;i<40;i++) R((i*53)%W, 50+((i*29)%56), 1,2,'#3f7f33');\n      R(0,80,W,12,'#c8b48a'); R(0,80,W,1,'#b09c74'); R(0,91,W,1,'#b09c74');\n      // pond + duck\n      R(150,58,40,14,'#3f7fbf'); R(152,57,36,1,'#3f7fbf'); R(154,60,10,1,'#7fb4e0');\n      const dx = 156 + Math.round((Math.sin(t/3000)+1)*12); R(dx,62,4,2,'#f4f4f4'); R(dx+3,60,2,2,'#2f8f3f'); R(dx+5,61,1,1,'#e0a030');\n      // big tree\n      R(26,30,6,40,'#5e4027'); R(10,8,38,26,'#2f7d3a'); R(14,4,30,6,'#3f9a48'); R(16,14,10,6,'#3f9a48'); R(34,20,10,6,'#256b30');\n      // lamp\n      R(96,40,2,40,'#333'); R(93,37,8,4,'#333'); R(94,41,6,1, night?'#fff3b0':'#777');\n      if (night) alpha(.18,()=>R(86,42,22,40,'#fff3b0'));\n      // bench back\n      R(110,64,34,2,'#7a5534'); R(110,68,34,2,'#7a5534'); R(112,70,2,12,'#333'); R(140,70,2,12,'#333');\n      const sit = settled && (a==='reading'||a==='eating');\n      if (settled && a==='reading') drawIshai('reading',122,62,t,{legs:'sit'});\n      if (settled && a==='eating') drawIshai('eating',122,62,t,{legs:'sit',food:'#e0c060'});\n      const pl = sit && companionLook(a); if (pl) person(pl,134,62,t,{legs:'sit',face:-1});\n      R(108,77,38,3,'#9a7048'); R(110,80,2,6,'#333'); R(142,80,2,6,'#333');\n      if (!sit) drawFloor(t,a,settled,actor,this);\n      if (night) alpha(.38,()=>R(0,0,W,H,'#050a1e'));\n    }\n  };\n\n  // ---------- cafe ----------\n  SCENES.cafe = {\n    cam:'CAM-05', place:'CAFE NAHAT // CORNER TABLE', walkY:74, entry:4, exit:4,\n    stand:{idle:112, walking:60, talking:72, eating:72, drinking:72, working:72, reading:72}, postSpot:112,\n    draw(t,hf,a,settled,actor){\n      R(0,0,W,80,'#7a4a32'); for (let y=0,i=0;y<78;y+=5,i++) { R(0,y,W,1,'#6a3e2a'); for (let x=(i%2)*6;x<W;x+=12) R(x,y,1,5,'#6a3e2a'); }\n      R(0,78,W,30,'#3a2a20'); for (let x=0;x<W;x+=10) R(x,78,1,30,'#33251c');\n      // window to the street\n      R(6,14,50,40,'#d9d4c7'); drawSky(8,16,46,36,hf,t); R(8,40,46,12,'#6f7f8f'); R(30,16,2,36,'#d9d4c7'); R(4,54,54,3,'#5e4027');\n      // menu board\n      R(128,10,46,22,'#1e1e1e'); R(127,9,48,1,'#5e4027');\n      for (let i=0;i<4;i++){ R(132,14+i*4,20+((i*7)%10),1,'#e8e8e8'); R(164,14+i*4,6,1,'#f0d070'); }\n      // counter + barista + machine\n      person(postLook('cafe',EXTRA.barista),150,50,t,{legs:false,face:-1,talkPhase: settled && a==='talking' && withIsPost()});\n      R(120,66,72,4,'#d6d0c4'); R(120,70,72,16,'#5e4027'); R(124,74,64,1,'#4a3220');\n      R(170,56,14,10,'#aab2bc'); R(172,58,10,3,'#2a2a2a'); R(176,64,2,2,'#e8e4d8');\n      for (let i=0;i<3;i++){ const ph=(t/700+i*.33)%1; alpha(1-ph,()=>R(176+i,54-Math.floor(ph*8),1,1,'#f2f2f2')); }\n      R(126,62,6,4,'#e0b04a'); R(134,62,6,4,'#c27a3b'); // pastries\n      // plant & lamp\n      R(100,8,1,14,'#222'); R(96,22,9,4,'#e0b04a'); alpha(.12,()=>R(86,26,30,50,'#ffe8a0'));\n      // table (Ishai sits behind it)\n      R(66,60,22,14,'#3a3a46'); // chair back\n      const atTable = settled && ['eating','drinking','working','reading','talking'].includes(a) && !withIsPost();\n      const cl = atTable && companionLook(a); if (cl) person(cl,90,68,t,{legs:false,face:-1,talkPhase:a==='talking'});\n      if (atTable){\n        if (a==='talking') drawIshai('talking',72,68,t,{face:1});\n        else drawIshai(a,72,68,t,{food:'#e0b04a'});\n      }\n      R(58,82,44,2,'#9a7048'); R(78,84,4,18,'#5e4027'); R(70,102,20,2,'#5e4027');\n      R(66,78,4,4,'#e8e4d8'); R(70,79,1,2,'#e8e4d8'); // cup\n      if (settled && a==='working'){ R(74,76,8,6,C.metal); R(73,81,10,1,C.metalDark); }\n      if (!atTable) drawFloor(t,a,settled,actor,this);\n      if (isNight(hf)) alpha(.15,()=>R(0,0,W,H,'#050a1e'));\n    }\n  };\n\n  // ---------- out of coverage ----------\n  const noise = ctx.createImageData(W,H);\n  function drawStatic(strength=1){\n    const d = noise.data;\n    for (let i=0;i<d.length;i+=4){ const v = Math.random()*170*strength; d[i]=v*.7; d[i+1]=v; d[i+2]=v*.75; d[i+3]=255; }\n    ctx.putImageData(noise,0,0);\n    const y = Math.floor(Math.random()*H); alpha(.25,()=>R(0,y,W,3,'#ffffff'));\n  }\n  SCENES.offscreen = { cam:'CAM-??', place:'LOCATION UNKNOWN', walkY:74, entry:0, exit:0, stand:{away:0},\n    draw(){ drawStatic(.55); } };\n\n  // floor-level figure for a scene (walking / idle / talking / exercising / travelling)\n  function drawFloor(t,a,settled,actor,scene){\n    if (actor.hidden) return;\n    const y = scene.walkY;\n    // companion standing / walking next to Ishai\n    let face = 0;\n    const cl = settled && !withIsPost() && a!=='sleeping' && a!=='waking' ? companionLook(a) : null;\n    if (cl){\n      if (a==='walking'){ const dir = actor.paceDir||1; person(cl, actor.x - 12*dir, y, t+300, {walk:true, face:dir}); }\n      else { const gx = actor.x > W-40 ? actor.x-13 : actor.x+13; face = gx > actor.x ? 1 : -1;\n        person(cl, gx, y, t, {face:-face, talkPhase:a==='talking'}); }\n    }\n    if (withIsPost() && settled) face = actor.loc==='street' ? 0 : 1;\n    if (actor.travelling || a==='walking') drawIshai('walk', actor.x, y, t);\n    else if (!settled) return;\n    else if (a==='exercising') drawIshai('exercising', actor.x, y+2, t);\n    else if (a==='talking') drawIshai('talking', actor.x, y, t, {face: face||1});\n    else if (a==='eating') drawIshai('eating', actor.x, y, t, {legs:'stand', food:'#e0c060'});\n    else if (a==='drinking' && actor.loc!=='apartment') drawIshai('drinking', actor.x, y, t, {legs:'stand'});\n    else if (a==='idle') drawIshai('idle', actor.x, y, t);\n  }\n  function digit(n,x,y,c='#2a2018'){\n    const gl = {3:['111','001','111','001','111'],4:['101','101','111','001','001'],5:['111','100','111','001','111']}[n];\n    if (!gl) return; gl.forEach((row,j)=>[...row].forEach((b,i)=>{ if(b==='1') R(x+i-1,y+j,1,1,c); }));\n  }\n\n  // ================= actor & transitions =================\n  // Ishai walks to the exit, the feed switches camera, he enters the new scene and walks to his spot.\n  const actor = { loc:'apartment', action:'sleeping', x:30, targetX:30, travelling:false, hidden:false, pending:null, switching:0, with:null };\n\n  function standX(loc, a, w){ const s = SCENES[loc];\n    if (w && POST[loc]===w && s.postSpot!==undefined && ['talking','idle','eating'].includes(a)) return s.postSpot;\n    return (s.stand[a] ?? s.stand.idle ?? s.entry); }\n  function fixAction(loc, a){ return LOCATIONS[loc]?.includes(a) ? a : LOCATIONS[loc][0]==='away' ? 'away' : (LOCATIONS[loc].includes('idle') ? 'idle' : LOCATIONS[loc][0]); }\n  function updateLabels(){\n    const sc = SCENES[actor.loc];\n    $('cam').textContent = sc.cam; $('place').textContent = sc.place;\n    const w = actor.with && CAST[actor.with] ? ' WITH ' + CAST[actor.with].name.toUpperCase() : '';\n    $('stAction').textContent = LABEL[actor.action] + ' @ ' + actor.loc.toUpperCase() + w;\n    $('hudAction').textContent = LABEL[actor.action];\n  }\n  function setState(loc, a, instant, w=null){\n    if (!SCENES[loc]) loc = 'offscreen';\n    a = fixAction(loc, a);\n    if (instant){\n      Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, hidden: loc==='offscreen' || BATH.has(a), with:w});\n      actor.x = standX(loc,a,w); updateLabels(); return;\n    }\n    if (loc !== actor.loc){\n      actor.pending = {loc, a, w}; actor.with = null;\n      if (actor.hidden && BATH.has(actor.action)){ actor.hidden = false; actor.x = 48; }\n      if (actor.loc === 'offscreen' || actor.hidden){ beginSwitch(); return; }\n      const sc = SCENES[actor.loc];\n      actor.action = 'walking';\n      actor.targetX = (sc.exitTo && sc.exitTo[loc] !== undefined) ? sc.exitTo[loc] : sc.exit;\n      actor.travelling = true; updateLabels(); return;\n    }\n    const prev = actor.action; actor.action = a; actor.pending = null; actor.with = w;\n    if (BATH.has(prev) && actor.hidden){ if (BATH.has(a)){ updateLabels(); return; } actor.hidden = false; actor.x = 48; }\n    const bed = new Set(['sleeping','waking']);\n    if (bed.has(prev) && bed.has(a)) { actor.x = standX(loc,a,w); }\n    else { actor.targetX = standX(loc,a,w); actor.travelling = Math.abs(actor.x-actor.targetX) > 1; }\n    updateLabels();\n  }\n  function beginSwitch(){ actor.switching = performance.now() + 900; actor.hidden = true; }\n  function finishSwitch(){\n    const {loc, a, w} = actor.pending; const from = actor.loc; actor.pending = null; actor.switching = 0;\n    const sc = SCENES[loc];\n    actor.loc = loc; actor.action = a; actor.with = w;\n    if (loc === 'offscreen'){ actor.hidden = true; updateLabels(); return; }\n    actor.hidden = false;\n    actor.x = (sc.entryFrom && sc.entryFrom[from] !== undefined) ? sc.entryFrom[from] : sc.entry;\n    actor.targetX = standX(loc,a,w); actor.travelling = Math.abs(actor.x-actor.targetX) > 1;\n    updateLabels();\n  }\n\n  function update(dt, now){\n    if (actor.switching){ if (now >= actor.switching) finishSwitch(); return; }\n    if (actor.travelling){\n      const dir = Math.sign(actor.targetX-actor.x); actor.x += dir*24*dt;\n      if (Math.sign(actor.targetX-actor.x)!==dir){\n        actor.x = actor.targetX; actor.travelling = false;\n        if (actor.pending) beginSwitch();\n        else if (BATH.has(actor.action)) actor.hidden = true;\n      }\n    } else if (actor.action==='walking' && !actor.pending){\n      if (actor.paceDir===undefined) actor.paceDir = 1;\n      actor.x += actor.paceDir*14*dt;\n      const lo = actor.loc==='street'?50:actor.loc==='park'?40:52, hi = actor.loc==='street'?140:actor.loc==='cafe'?110:124;\n      if (actor.x>hi){actor.x=hi;actor.paceDir=-1;} if (actor.x<lo){actor.x=lo;actor.paceDir=1;}\n    }\n  }\n\n  function render(t){\n    const hf = hourNow();\n    if (actor.switching){\n      drawStatic(1);\n      const next = actor.pending ? SCENES[actor.pending.loc] : null;\n      $('nosig').style.display='flex'; $('nosigText').textContent = next ? `[ SWITCHING TO ${next.cam} ]` : '[ ... ]';\n      return;\n    }\n    const settled = !actor.travelling && !actor.hidden;\n    SCENES[actor.loc].draw(t, hf, actor.action, settled, actor);\n    if (rainy() && (actor.loc==='street' || actor.loc==='park')) drawRain(0,0,W,H,t,90);\n    const off = actor.loc==='offscreen';\n    $('nosig').style.display = off ? 'flex' : 'none';\n    if (off) $('nosigText').textContent = '[ SUBJECT OUT OF CAMERA COVERAGE ]';\n  }\n\n  let last = performance.now();\n  function loop(now){ const dt = Math.min(.1,(now-last)/1000); last = now; update(dt,now); render(now); Sound.setAmbience(ambienceKey()); requestAnimationFrame(loop); }\n  setInterval(()=>{ $('clock').textContent = fmtClock.format(new Date()); }, 500);\n  $('clock').textContent = fmtClock.format(new Date());\n\n  // ================= sound (Web Audio, generated in code, no files) =================\n  const Sound = (() => {\n    let ac = null, out = null, mode = 'off', amb = null, ambKey = '', wanted = '', brown = null, white = null;\n    const MODES = ['off','blips','voices'];\n    const LABELS = {off:'SOUND: OFF', blips:'SOUND: BLIPS', voices:'SOUND: VOICES'};\n    function init(){\n      if (ac) return true;\n      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;\n      ac = new AC(); out = ac.createGain(); out.gain.value = .6; out.connect(ac.destination);\n      const n = ac.sampleRate * 2; brown = ac.createBuffer(1,n,ac.sampleRate); white = ac.createBuffer(1,n,ac.sampleRate);\n      const d = brown.getChannelData(0), w = white.getChannelData(0); let last = 0;\n      for (let i=0;i<n;i++){ const r = Math.random()*2-1; w[i] = r; last = (last + .02*r)/1.02; d[i] = last*3.5; }\n      return true;\n    }\n    const on = () => !!ac && mode !== 'off';\n    function env(gn, t0, a, peak, dur){ gn.gain.setValueAtTime(.0001,t0); gn.gain.exponentialRampToValueAtTime(peak,t0+a); gn.gain.exponentialRampToValueAtTime(.0001,t0+dur); }\n    function tone(freq, dur, type='square', vol=.05, when=0, dest=out, slide=0){\n      const t0 = ac.currentTime + Math.max(0,when), o = ac.createOscillator(), gn = ac.createGain();\n      o.type = type; o.frequency.setValueAtTime(freq, t0);\n      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq*slide), t0+dur);\n      env(gn, t0, .005, vol, dur); o.connect(gn).connect(dest); o.start(t0); o.stop(t0+dur+.03);\n    }\n    function noise(dur, o={}){\n      const {vol=.05, type='bandpass', freq=1000, q=1, when=0, buf=white, sweep=null, dest=out} = o;\n      const t0 = ac.currentTime + Math.max(0,when), src = ac.createBufferSource(), f = ac.createBiquadFilter(), gn = ac.createGain();\n      src.buffer = buf; f.type = type; f.frequency.setValueAtTime(freq,t0); f.Q.value = q;\n      if (sweep){ f.frequency.exponentialRampToValueAtTime(sweep[0], t0+dur*.5); f.frequency.exponentialRampToValueAtTime(sweep[1], t0+dur); }\n      env(gn, t0, Math.min(.4, dur*.35), vol, dur); src.connect(f).connect(gn).connect(dest);\n      src.start(t0, Math.random()); src.stop(t0+dur+.05);\n    }\n\n    // ---- character voices ----\n    const VOICE = {\n      ishai:{f:200,type:'square',pitch:1,rate:1}, levi:{f:520,type:'triangle',pitch:1.6,rate:1.15},\n      noa:{f:330,type:'square',pitch:1.25,rate:1.1}, avi:{f:120,type:'sawtooth',pitch:.6,rate:.85},\n      dana:{f:280,type:'triangle',pitch:1,rate:.8}, narrator:{f:160,type:'triangle',pitch:.9,rate:1.05}\n    };\n    const hash = id => { let h = 0; for (const ch of String(id)) h = (h*31 + ch.charCodeAt(0)) >>> 0; return h; };\n    function voiceOf(id){ if (VOICE[id]) return VOICE[id]; const h = hash(id);\n      return {f:140+h%380, type:['square','triangle','sawtooth'][h%3], pitch:.6+(h%100)/100, rate:.85+(h%30)/100}; }\n    let n = 0;\n    function blip(id, ch){\n      if (!on() || mode !== 'blips' || !/[a-z0-9]/i.test(ch) || (n++ % 2)) return;\n      const v = voiceOf(id); tone(v.f*(.9+Math.random()*.25), .05, v.type, v.type==='sawtooth' ? .025 : .04);\n    }\n    function key(ch){ if (on() && mode==='blips' && ch!==' ' && Math.random()<.45) noise(.012,{vol:.02,type:'highpass',freq:3000}); }\n    let voices = [];\n    const loadVoices = () => { try { voices = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); } catch(e){} };\n    if ('speechSynthesis' in window){ loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }\n    function say(id, text){\n      if (!on() || mode !== 'voices' || !('speechSynthesis' in window)) return Promise.resolve();\n      return new Promise(res => {\n        const u = new SpeechSynthesisUtterance(text), v = voiceOf(id);\n        if (voices.length) u.voice = voices[hash(id) % voices.length];\n        u.pitch = Math.min(2, Math.max(0, v.pitch)); u.rate = v.rate; u.volume = .9;\n        const to = setTimeout(res, 4000 + text.length*120); const done = () => { clearTimeout(to); res(); };\n        u.onend = done; u.onerror = done; speechSynthesis.speak(u);\n      });\n    }\n\n    // ---- room sounds ----\n    function stopAmb(){\n      if (!amb) return; const a = amb; amb = null; a.alive = false;\n      a.gain.gain.setTargetAtTime(.0001, ac.currentTime, .3);\n      setTimeout(() => a.nodes.forEach(x => { try { x.stop(); } catch(e){} try { x.disconnect(); } catch(e){} }), 1600);\n    }\n    function setAmbience(k){\n      wanted = k;\n      if (!ac || k === ambKey) return;\n      ambKey = k; stopAmb(); if (mode === 'off') return;\n      const [loc, extra, tod, wx] = k.split('|');\n      const a = {nodes:[], alive:true, gain: ac.createGain()}; amb = a;\n      a.gain.gain.value = .0001; a.gain.connect(out); a.gain.gain.setTargetAtTime(tod==='night' ? .6 : 1, ac.currentTime, .5);\n      const dest = a.gain;\n      const bed = (buf, type, freq, vol) => { const src = ac.createBufferSource(), f = ac.createBiquadFilter(), gn = ac.createGain();\n        src.buffer = buf; src.loop = true; f.type = type; f.frequency.value = freq; gn.gain.value = vol;\n        src.connect(f).connect(gn).connect(dest); src.start(); a.nodes.push(src); };\n      const loop = (ms, jit, fn) => { const step = () => { if (!a.alive) return; fn(); setTimeout(step, ms + Math.random()*jit); };\n        setTimeout(step, 300 + Math.random()*ms); };\n      const hum = (f, vol) => { const o = ac.createOscillator(), gn = ac.createGain(); o.frequency.value = f; gn.gain.value = vol; o.connect(gn).connect(dest); o.start(); a.nodes.push(o); };\n\n      if (loc === 'static' || loc === 'offscreen') bed(white, 'highpass', 2500, loc==='static' ? .07 : .035);\n      else if (loc === 'apartment'){\n        bed(brown, 'lowpass', 220, .05);\n        if (tod === 'night') loop(1000, 0, () => noise(.012,{vol:.04,type:'bandpass',freq:4200,q:6,dest}));\n      } else if (loc === 'corridor'){ bed(brown,'lowpass',300,.07); hum(100,.008); }\n      else if (loc === 'street'){\n        bed(brown,'lowpass',700,.14);\n        loop(5000, 6000, () => noise(2.6,{vol:.16,type:'lowpass',freq:250,sweep:[1500,250],buf:brown,dest}));\n        loop(25000, 30000, () => { tone(420,.22,'square',.02,0,dest); tone(530,.22,'square',.02,.03,dest); });\n      } else if (loc === 'park'){\n        bed(brown,'lowpass',420,.07);\n        loop(1800, 3500, () => { const f = 2400 + Math.random()*1400, k2 = 2 + Math.floor(Math.random()*3);\n          for (let i=0;i<k2;i++) tone(f*(1+i*.06), .07, 'sine', .035, i*.11, dest, 1.3); });\n        loop(15000, 20000, () => { tone(330,.12,'sawtooth',.025,0,dest,.7); tone(330,.12,'sawtooth',.025,.2,dest,.7); });\n      } else if (loc === 'cafe'){\n        bed(brown,'bandpass',500,.25);\n        loop(2500, 5000, () => tone(2300 + Math.random()*900, .3, 'sine', .02, 0, dest));\n        loop(20000, 20000, () => noise(2,{vol:.04,type:'highpass',freq:3000,dest}));\n      }\n      if (wx === 'rain' && loc !== 'static' && loc !== 'offscreen') bed(white, 'bandpass', 2600, (loc==='street'||loc==='park') ? .09 : .025);\n      if (extra === 'shower') bed(white, 'bandpass', 3200, .05);\n      if (extra === 'toilet') setTimeout(() => { if (a.alive){ noise(2.4,{vol:.12,type:'lowpass',freq:500,sweep:[1800,300],dest}); noise(1.2,{vol:.05,type:'highpass',freq:2500,when:1.4,dest}); } }, 6000 + Math.random()*8000);\n      if (extra === 'tv') loop(110, 130, () => { if (Math.random()<.7) noise(.09,{vol:.07,type:'bandpass',freq:500+Math.random()*900,q:4,dest}); });\n      if (extra === 'radio') music(a);\n    }\n    // an endless little chiptune for the radio, a new tune each time it turns on\n    function music(a){\n      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(a.gain);\n      const scale = [0,2,4,7,9,12,14,16], root = 220 * Math.pow(2, Math.floor(Math.random()*6)/12);\n      const pick = () => Math.random() < .75 ? scale[Math.floor(Math.random()*scale.length)] : null;\n      const melody = Array.from({length:16}, pick), bass = [0,0,-5,-3];\n      const dt = 60/(96 + Math.random()*30)/2; let step = 0, next = ac.currentTime + .1;\n      const tick = () => {\n        if (!a.alive) return;\n        if (next < ac.currentTime) next = ac.currentTime + .05;\n        while (next < ac.currentTime + .3){\n          const st = step % 16, w = next - ac.currentTime;\n          if (melody[st] !== null) tone(root*Math.pow(2, melody[st]/12), dt*.9, 'square', .022, w, lp);\n          if (st % 4 === 0) tone(root/2*Math.pow(2, bass[Math.floor(step/16)%4]/12), dt*1.8, 'triangle', .05, w, lp);\n          if (st % 2 === 1) noise(.03,{vol:.012,type:'highpass',freq:6000,when:w,dest:lp});\n          step++; next += dt;\n          if (step % 64 === 0) melody.forEach((v,i) => { if (Math.random() < .3) melody[i] = pick(); });\n        }\n        setTimeout(tick, 100);\n      };\n      tick();\n    }\n\n    const btn = $('snd');\n    btn.onclick = () => {\n      if (!init()){ btn.textContent = 'NO AUDIO'; return; }\n      if (ac.state === 'suspended') ac.resume();\n      mode = MODES[(MODES.indexOf(mode)+1) % MODES.length]; btn.textContent = LABELS[mode];\n      if (mode !== 'voices' && 'speechSynthesis' in window) speechSynthesis.cancel();\n      ambKey = ''; setAmbience(wanted);\n    };\n    return { blip, key, say, setAmbience };\n  })();\n  function ambienceKey(){\n    if (actor.switching) return 'static||';\n    const settled = !actor.travelling && !actor.hidden;\n    let extra = settled && actor.loc==='apartment' ? (actor.action==='watching' ? 'tv' : actor.action==='listening' ? 'radio' : '') : '';\n    if (actor.loc==='apartment' && actor.hidden && BATH.has(actor.action)) extra = actor.action==='showering' ? 'shower' : 'toilet';\n    return `${actor.loc}|${extra}|${isNight(hourNow()) ? 'night' : 'day'}|${rainy() ? 'rain' : ''}`;\n  }\n\n  // ================= terminal =================\n  const term = $('term');\n  const shown = new Set(), held = new Map();\n  const queue = []; let typing = false;\n\n  function speaker(id){\n    if (id==='ishai') return {name:'ISHAI', color:tint(CLOTH.teal,.45)};\n    const c = CAST[id]; return {name:(c?c.name:id).toUpperCase(), color: tint(CLOTH[c?.look?.shirt]||CLOTH.gray,.45)};\n  }\n  function typeInto(el, full, animate, onChar){\n    if (!animate){ el.textContent = full; term.scrollTop = term.scrollHeight; return Promise.resolve(); }\n    return new Promise(res=>{ let i=0;\n      const step=()=>{ i++; el.textContent = full.slice(0,i); term.scrollTop = term.scrollHeight; if (onChar) onChar(full[i-1]);\n        if (i<full.length) setTimeout(step, 28 + (full[i-1]===','?120:full[i-1]==='.'?220:0)); else res(); };\n      step(); });\n  }\n  function newLine(cls){\n    term.querySelectorAll('.cursor').forEach(c=>c.remove());\n    term.querySelectorAll('.line').forEach(l=>l.classList.add('old'));\n    const p = document.createElement('p'); p.className = 'line ' + (cls||''); term.appendChild(p);\n    while (term.querySelectorAll('.line').length > 80) term.removeChild(term.querySelector('.line'));\n    return p;\n  }\n  async function addLine(ev, animate){\n    shown.add(ev.id);\n    const p = newLine();\n    const ts = document.createElement('span'); ts.className='ts'; ts.textContent = `[${fmtHM.format(new Date(ev.t))}] `;\n    const tx = document.createElement('span'); const cur = document.createElement('span'); cur.className='cursor';\n    p.append(ts, tx, cur);\n    await Promise.all([typeInto(tx, '> ' + ev.text, animate, ch=>Sound.key(ch)), animate ? Sound.say('narrator', ev.text) : null]);\n    for (const l of (ev.lines||[])){\n      const sp = speaker(l.who), q = newLine('say');\n      const nm = document.createElement('span'); nm.style.color = sp.color; nm.textContent = sp.name + ': ';\n      const tx2 = document.createElement('span'); tx2.style.color = sp.color; const cur2 = document.createElement('span'); cur2.className='cursor';\n      q.append(nm, tx2, cur2);\n      await Promise.all([typeInto(tx2, '\"' + l.say + '\"', animate, ch=>Sound.blip(l.who, ch)), animate ? Sound.say(l.who, l.say) : null]);\n    }\n  }\n  async function pump(){\n    if (typing) return; typing = true;\n    while (queue.length){ const ev = queue.shift(); if (ev.unlocks) UNLOCKED.add(ev.unlocks); if (!forceLoc) setState(ev.location||'apartment', ev.action, false, ev.with||null); await addLine(ev,true); }\n    typing = false;\n  }\n  // events with a future timestamp (broadcast delay) are held until their time comes\n  function release(){\n    const now = Date.now();\n    [...held.values()].filter(e=>e.t<=now).sort((a,b)=>a.t-b.t).forEach(e=>{ held.delete(e.id); queue.push(e); });\n    pump();\n  }\n  setInterval(release, 2000);\n  function ingest(events, firstLoad){\n    const now = Date.now();\n    const fresh = events.filter(e=>!shown.has(e.id) && !held.has(e.id)).sort((a,b)=>a.t-b.t);\n    const due = fresh.filter(e=>e.t<=now);\n    fresh.filter(e=>e.t>now).forEach(e=>held.set(e.id,e));\n    due.forEach(e=>{ if (e.unlocks && firstLoad) UNLOCKED.add(e.unlocks); });\n    if (firstLoad && due.length){\n      const newest = due.pop();\n      due.forEach(e=>addLine(e,false));\n      if (!forceLoc) setState(newest.location||'apartment', newest.action, true, newest.with||null);\n      queue.push(newest); pump();\n    } else { due.forEach(e=>queue.push(e)); pump(); }\n  }\n\n  // ================= cast tab =================\n  let NOTES = '';\n  function setCast(list){\n    const next = {}; (list||[]).forEach(c=>{ next[c.id]=c; });\n    const changed = JSON.stringify(next) !== JSON.stringify(CAST);\n    CAST = next; if (changed && !$('castPanel').hidden) renderCast();\n    updateLabels();\n  }\n  function portrait(look, isIshai){\n    const c = document.createElement('canvas'); c.width = 14; c.height = 27;\n    const pc = c.getContext('2d'); const prev = g; g = pc;\n    R(0,0,14,27,'#0b120b');\n    if (isIshai){ head(2,4,{}); torso(2,4); armsDown(2,4); legs(2,4,0); }\n    else person(look, 2, 4, 0, {face:0, seed:999});\n    g = prev; return c;\n  }\n  const relWord = r => r<=-3?'HOSTILE':r<0?'ANNOYED':r===0?'NEUTRAL':r<3?'FRIENDLY':'CLOSE';\n  function relBar(r){ const n = Math.max(0,Math.min(10,(r||0)+5)); return '■'.repeat(n) + '□'.repeat(10-n); }\n  function card(look, name, color, meta, rel, mem, isIshai){\n    const d = document.createElement('div'); d.className='card';\n    d.appendChild(portrait(look, isIshai));\n    const b = document.createElement('div');\n    const nm = document.createElement('div'); nm.className='nm'; nm.style.color = color; nm.textContent = name;\n    const mt = document.createElement('div'); mt.className='meta'; mt.textContent = meta;\n    b.append(nm, mt);\n    if (rel!==null){ const rl = document.createElement('div'); rl.className='rel'; rl.textContent = `${relBar(rel)} ${relWord(rel)}`; b.appendChild(rl); }\n    const me = document.createElement('div'); me.className='mem'; me.textContent = mem; b.appendChild(me);\n    d.appendChild(b); return d;\n  }\n  function renderCast(){\n    const el = $('castPanel'); el.textContent = '';\n    el.appendChild(card(ISHAI_LOOK,'ISHAI',tint(CLOTH.teal,.45),'The subject. 31, freelance designer, apartment 4.',null,'STORY SO FAR: ' + (NOTES||'—'), true));\n    // only people who are on camera right now, or have already appeared in the story\n    const visible = settledOnCamera();\n    const people = Object.values(CAST).filter(c => visible.has(c.id) || c.lastSeen || c.scenes)\n      .sort((a,b)=>(visible.has(b.id)-visible.has(a.id)) || (b.lastSeen||0)-(a.lastSeen||0));\n    if (!people.length){ const p = document.createElement('div'); p.className='meta'; p.textContent = 'Nobody else has appeared on camera yet.'; el.appendChild(p); }\n    people.forEach(c=>{\n      const seen = visible.has(c.id) ? '● ON CAMERA NOW' : 'last seen ' + fmtHM.format(new Date(c.lastSeen)) + (c.scenes ? ` · ${c.scenes} scene${c.scenes>1?'s':''}` : '');\n      el.appendChild(card(c.look, c.name.toUpperCase(), tint(CLOTH[c.look?.shirt]||CLOTH.gray,.45),\n        `${c.role.charAt(0).toUpperCase()+c.role.slice(1)}. ${c.personality ? c.personality.charAt(0).toUpperCase()+c.personality.slice(1)+'.' : ''} (${seen})`,\n        c.relationship||0, 'MEMORY: ' + (c.memory||'—')));\n    });\n  }\n  function settledOnCamera(){\n    const v = new Set();\n    if (actor.switching || actor.loc==='offscreen') return v;\n    if (actor.with && !actor.travelling) v.add(actor.with);\n    if (POST[actor.loc] && CAST[POST[actor.loc]]) v.add(POST[actor.loc]); // Avi at his kiosk, Dana behind the counter\n    return v;\n  }\n  let castSig = '';\n  setInterval(()=>{ if ($('castPanel').hidden) return; const sig = [...settledOnCamera()].join(','); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);\n  function showTab(which){\n    const cast = which==='cast';\n    $('term').hidden = cast; $('castPanel').hidden = !cast;\n    $('tabFeed').classList.toggle('on',!cast); $('tabCast').classList.toggle('on',cast);\n    $('tabFeed').setAttribute('aria-selected',String(!cast)); $('tabCast').setAttribute('aria-selected',String(cast));\n    if (cast) renderCast(); else term.scrollTop = term.scrollHeight;\n  }\n  $('tabFeed').onclick = ()=>showTab('feed'); $('tabCast').onclick = ()=>showTab('cast');\n\n  // ================= data: live Worker or demo =================\n  const DEMO_CAST = [\n    {id:'levi',name:'Mrs. Levi',role:'nosy 72-year-old neighbor from apartment 5',personality:'gossipy, dramatic, secretly very kind',\n      look:{hair:'bun',hairColor:'gray',skin:'fair',shirt:'purple',pants:'brown',extras:['glasses']},memory:'Thinks Ishai\\'s music is too loud. Brings him soup when he looks thin.',relationship:1},\n    {id:'noa',name:'Noa',role:'Ishai\\'s best friend since the army, a tattoo artist',personality:'blunt, loyal, always late',\n      look:{hair:'long',hairColor:'auburn',skin:'tan',shirt:'yellow',pants:'black',extras:['earring']},memory:'Keeps telling Ishai to raise his prices and get a life.',relationship:4},\n    {id:'avi',name:'Avi',role:'owner of the falafel kiosk on Herzl Street',personality:'warm, philosophical, advice with every pita',\n      look:{hair:'bald',hairColor:'black',skin:'brown',shirt:'white',pants:'navy',extras:['mustache','apron']},memory:'Knows Ishai always orders extra amba.',relationship:2},\n    {id:'dana',name:'Dana',role:'barista at Cafe Nahat',personality:'quiet, dry humor, doodles on cups',\n      look:{hair:'short',hairColor:'black',skin:'light',shirt:'black',pants:'black',extras:['apron']},memory:'Has started drawing tiny basil leaves on Ishai\\'s cups.',relationship:1}\n  ];\n  const DEMO = [\n    ['apartment','waking',null,'The alarm goes off for the third time. Ishai sits up and negotiates with himself for five more minutes.',[]],\n    ['apartment','showering',null,'Ishai disappears into the bathroom. The old water heater groans like it has opinions.',[]],\n    ['apartment','cooking',null,'Coffee is brewing and two eggs hit the pan.',[['ishai','Today I answer every email. Every single one.']]],\n    ['corridor','talking','levi','Mrs. Levi is waiting at her door like a customs officer.',[['levi','Motek, again the music at midnight?'],['ishai','It was a podcast, Mrs. Levi.']]],\n    ['street','eating','avi','He gives in to the falafel kiosk. Avi adds extra amba without asking.',[['avi','A man without amba is a man without a plan, champion.']]],\n    ['park','reading','noa','Noa finds him on the bench and steals half his book.',[['noa','Ishush. You read the same page for ten minutes.']]],\n    ['park','exercising',null,'Inspired by a jogger, Ishai does fourteen jumping jacks and calls it a workout.',[]],\n    ['park','drinking',null,'He finishes a whole bottle of water in one go and looks proud of it.',[]],\n    ['cafe','talking','dana','At the counter, Dana hands him a cup with a tiny basil leaf drawn on it.',[['dana','Same as always.'],['ishai','Is that... Moshe?']]],\n    ['corridor','talking','avi','Avi carries his cousin\\'s old TV up the stairs while Mrs. Levi supervises from her door.',[['avi','A home without a TV is a box, champion.']],'tv'],\n    ['apartment','watching',null,'First night with a TV. Ishai watches a cooking show about pickles and burns his own dinner.',[]],\n    ['offscreen','away',null,'He leaves toward the bus station. Destination unknown. No camera there.',[]],\n    ['apartment','listening',null,'Mrs. Levi\\'s old radio crackles to life. Some station plays 8-bit love songs. He pretends not to enjoy it.',[],'radio'],\n    ['apartment','sleeping',null,'Lights out. Ishai falls asleep mid-thought about the basil leaf.',[]]\n  ];\n  let demoMode = false, demoIdx = 0;\n  function demoTick(){\n    if (demoIdx % DEMO.length === 0) UNLOCKED = new Set();\n    const [loc,a,w,text,lines,unlocks] = DEMO[demoIdx % DEMO.length];\n    if (w){ const c = DEMO_CAST.find(x=>x.id===w); if (c){ c.lastSeen = Date.now(); c.scenes = (c.scenes||0)+1; } setCast(DEMO_CAST.map(c=>({...c}))); }\n    ingest([{id:'demo-'+demoIdx, t:Date.now(), location:loc, action:a, with:w, text, unlocks: unlocks||null, lines:lines.map(([who,say])=>({who,say}))}], demoIdx===0); demoIdx++;\n  }\n  function startDemo(){\n    if (demoMode) return; demoMode = true;\n    $('stLink').innerHTML = '<span class=\"warn\">DEMO (no Worker connected)</span>';\n    NOTES = 'Dana keeps drawing basil leaves on his cups. Mrs. Levi suspects a midnight party.';\n    setCast(DEMO_CAST);\n    $('day').textContent = 'DAY 1'; demoTick(); setInterval(demoTick, 18000);\n  }\n\n  let loaded = false, fails = 0;\n  async function poll(){\n    let s;\n    try{\n      const r = await fetch(API, {cache:'no-store'});\n      if (!r.ok) throw new Error('server ' + r.status);\n      s = await r.json();\n      if (!s || !Array.isArray(s.events)) throw new Error(s && s.error ? s.error : 'bad data');\n      fails = 0;\n    } catch(e){\n      fails++;\n      if (!loaded) startDemo();\n      else if (fails >= 2) $('stLink').innerHTML = '<span class=\"warn\">SIGNAL LOST (' + String(e.message).slice(0,40).replace(/[<>&]/g,'') + '), RETRYING…</span>';\n      return;\n    }\n    try{\n      $('stLink').textContent = s.delayMin ? `LIVE (${s.delayMin} MIN DELAY)` : 'LIVE';\n      $('day').textContent = 'DAY ' + (s.day || 1);\n      NOTES = s.notes || ''; setCast(s.cast);\n      if (s.world) { WORLD = s.world; $('stNext').textContent = weatherLabel(); }\n      // items appear when the moment that brings them is shown, not before (broadcast delay)\n      const future = new Set(s.events.filter(e=>e.unlocks && !shown.has(e.id) && e.t > Date.now()).map(e=>e.unlocks));\n      (s.unlocked||[]).forEach(u=>{ if (!future.has(u)) UNLOCKED.add(u); });\n      ingest(s.events, !loaded); loaded = true;\n    } catch(e){ console.error('feed render error', e); loaded = true; }\n  }\n\n  if (params.has('rain') || params.has('cloudy')) WORLD = {weather:{temp:19, desc: params.has('rain') ? 'light rain' : 'overcast', rain: params.has('rain'), cloudy: true}};\n  if (WORLD) $('stNext').textContent = weatherLabel();\n  if (params.get('unlock')) params.get('unlock').split(',').forEach(u=>UNLOCKED.add(u));\n  if (forceLoc){ setCast(DEMO_CAST); setState(forceLoc, forcePose || 'idle', true, params.get('with')); }\n  else setState('apartment','sleeping',true);\n  requestAnimationFrame(loop);\n  if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }\n  else if (location.protocol === 'file:' || params.has('demo')) startDemo();\n  else { poll(); setInterval(()=>{ if (!demoMode) poll(); }, POLL_MS); }\n})();\n</script>\n</body>\n</html>\n";
+const DIRECTOR_HTML = "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<meta name=\"robots\" content=\"noindex\">\n<title>Ishai Director</title>\n<link href=\"https://fonts.googleapis.com/css2?family=VT323&display=swap\" rel=\"stylesheet\">\n<style>\n  :root{--bg:#050705;--phos:#4dff7a;--dim:#2a9a4c;--faint:#123d20;--amber:#ffb84d;--red:#ff6b6b}\n  *{box-sizing:border-box}\n  body{margin:0;background:var(--bg);color:var(--phos);font-family:'VT323',ui-monospace,monospace;font-size:20px;padding:16px;display:flex;justify-content:center}\n  .wrap{width:100%;max-width:640px;display:flex;flex-direction:column;gap:14px}\n  h1{font-size:30px;margin:0;font-weight:normal;text-shadow:0 0 8px rgba(77,255,122,.45)}\n  .box{border:2px solid var(--faint);border-radius:10px;padding:12px 14px;background:#020502}\n  label{display:block;color:var(--dim);margin:8px 0 2px}\n  input,textarea,select{width:100%;font:inherit;background:#071007;color:var(--phos);border:1px solid var(--faint);border-radius:6px;padding:6px 8px}\n  textarea{min-height:96px;resize:vertical}\n  .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}\n  button{font:inherit;background:var(--faint);color:var(--phos);border:1px solid var(--dim);border-radius:6px;padding:6px 14px;cursor:pointer}\n  button:hover{background:#1b5a2f} button:disabled{opacity:.5}\n  button.ghost{background:transparent}\n  .goal{border-top:1px dashed var(--faint);padding:10px 0}\n  .goal:first-child{border-top:none}\n  .st{display:inline-block;padding:0 8px;border-radius:4px;margin-right:6px}\n  .waiting{background:#2a2a10;color:var(--amber)} .needs-art{background:#2a1530;color:#e0a0ff} .active{background:#10301a;color:var(--phos)} .done{background:#1a1a1a;color:#9a9a9a}\n  .muted{color:var(--dim)} .err{color:var(--red)} .ok{color:var(--phos)}\n  .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}\n</style>\n</head>\n<body>\n<div class=\"wrap\">\n  <h1>&gt; DIRECTOR // ISHAI</h1>\n\n  <div class=\"box\" id=\"login\">\n    <label for=\"key\">Password (the ADMIN_KEY you set in Cloudflare)</label>\n    <div class=\"bar\"><input id=\"key\" type=\"password\" style=\"flex:1\"><button id=\"go\">Open</button></div>\n    <div id=\"loginMsg\" class=\"err\"></div>\n  </div>\n\n  <div id=\"main\" hidden>\n    <div class=\"box\">\n      <div class=\"bar\" style=\"justify-content:space-between\">\n        <span>Unlocked items: <b id=\"unlocked\">—</b></span>\n        <button id=\"tick\">Run next moment now</button>\n      </div>\n      <div class=\"muted\" style=\"margin-top:6px\">Latest moment written: <span id=\"last\">—</span></div>\n      <div class=\"muted\" style=\"font-size:16px\">New moments appear on the page after the 5-minute delay. \"Run now\" uses AI budget.</div>\n      <div id=\"aiErr\" class=\"err\"></div>\n      <div id=\"tickMsg\"></div>\n    </div>\n\n    <div class=\"box\">\n      <div style=\"font-size:24px\">New story goal</div>\n      <label for=\"goal\">What should happen (the AI works it in naturally)</label>\n      <textarea id=\"goal\" placeholder=\"Example: Mrs. Levi's cat goes missing. Ishai helps search the building and the park. They find it in the café.\"></textarea>\n      <div class=\"row\">\n        <div><label for=\"start\">Start in (hours)</label><input id=\"start\" type=\"number\" min=\"0\" value=\"0\"></div>\n        <div><label for=\"deadline\">Deadline (hours)</label><input id=\"deadline\" type=\"number\" min=\"1\" value=\"12\"></div>\n        <div><label for=\"unlock\">Unlocks item</label><select id=\"unlock\"><option value=\"\">nothing</option><option value=\"tv\">TV</option><option value=\"radio\">radio</option></select></div>\n      </div>\n      <label for=\"art\">Needs new graphics first? Describe them (optional). The goal waits until you press Release.</label>\n      <input id=\"art\" placeholder=\"Example: a puppy that can sit, walk and sleep in Ishai's apartment\">\n      <label for=\"force\">If the deadline passes, this happens (optional)</label>\n      <input id=\"force\" placeholder=\"Example: The cat walks back in on its own, looking smug.\">\n      <div class=\"bar\" style=\"margin-top:10px\"><button id=\"add\">Add goal</button><span id=\"addMsg\"></span></div>\n    </div>\n\n    <div class=\"box\"><div style=\"font-size:24px\">Goals</div><div id=\"goals\"></div></div>\n\n    <div class=\"box\"><div style=\"font-size:24px\">Missing graphics</div>\n      <div class=\"muted\" style=\"font-size:16px\">Things the story mentioned that the camera can't show yet. Ask Claude to draw the ones you like.</div>\n      <div id=\"wish\"></div></div>\n\n    <div class=\"box\"><div style=\"font-size:24px\">Real world</div><div id=\"world\" class=\"muted\"></div></div>\n  </div>\n</div>\n<script>\n(() => {\n  const $ = id => document.getElementById(id);\n  let KEY = sessionStorage.getItem('ishaiKey') || '';\n  const fmt = ms => ms ? new Date(ms).toLocaleString('en-GB',{timeZone:'Asia/Jerusalem',weekday:'short',hour:'2-digit',minute:'2-digit'}) : '—';\n  async function api(body){\n    const r = await fetch('/api/director', {method: body ? 'POST' : 'GET', headers:{'x-admin-key':KEY,'content-type':'application/json'}, body: body ? JSON.stringify(body) : undefined});\n    const j = await r.json().catch(()=>({error:'bad response ('+r.status+')'}));\n    if (!r.ok) throw new Error(j.error || ('error '+r.status));\n    return j;\n  }\n  function render(v){\n    $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';\n    $('last').textContent = v.last ? `${fmt(v.last.created)} (${v.last.location}/${v.last.action}) ${v.last.text}` : '—';\n    $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';\n    const wl = $('wish'); wl.textContent = '';\n    if (!(v.wishlist||[]).length) wl.textContent = 'Nothing yet.';\n    (v.wishlist||[]).forEach(w => { const d = document.createElement('div'); d.className = 'goal';\n      const t = document.createElement('div'); t.textContent = `${w.item} — mentioned ${w.count}×`;\n      const ex = document.createElement('div'); ex.className = 'muted'; ex.style.fontSize = '16px'; ex.textContent = w.example;\n      const b = document.createElement('button'); b.className = 'ghost'; b.textContent = 'Dismiss'; b.style.marginTop = '4px';\n      b.onclick = async () => render(await api({action:'forget', item:w.item}));\n      d.append(t, ex, b); wl.appendChild(d); });\n    const wd = $('world'), W = v.world;\n    wd.textContent = !W ? 'Not fetched yet (happens on the next moment).' :\n      [W.weather ? `Weather: ${W.weather.temp}°C, ${W.weather.desc}` : 'Weather: —',\n       W.shabbat ? `Shabbat: ${W.shabbat.startLabel} → ${W.shabbat.endLabel}${W.shabbat.parasha ? ' · ' + W.shabbat.parasha : ''}` : 'Shabbat: —',\n       (W.holidays||[]).length ? 'Holidays: ' + W.holidays.map(h=>h.title+' '+h.date).join(', ') : '',\n       'Headlines: ' + ((W.headlines||[]).map(h=>h.title).slice(0,6).join(' | ') || '—'),\n       (W.errors||[]).length ? 'Fetch problems: ' + W.errors.join('; ') : '',\n       `Updated ${fmt(W.at)}`].filter(Boolean).join('\\n');\n    wd.style.whiteSpace = 'pre-line';\n    const el = $('goals'); el.textContent = '';\n    if (!v.goals.length) el.textContent = 'No goals yet.';\n    v.goals.forEach(g => {\n      const d = document.createElement('div'); d.className = 'goal';\n      const head = document.createElement('div');\n      const st = document.createElement('span'); st.className = 'st ' + g.status;\n      st.textContent = g.status === 'needs-art' ? 'NEEDS ART' : g.status === 'done' ? (g.how === 'story' ? 'DONE (in story)' : g.how === 'forced' ? 'DONE (forced)' : 'CANCELLED') : g.status.toUpperCase();\n      head.append(st, document.createTextNode(g.unlock ? ' unlocks ' + g.unlock : ''));\n      const txt = document.createElement('div'); txt.textContent = g.goal;\n      const meta = document.createElement('div'); meta.className = 'muted'; meta.style.fontSize = '16px';\n      meta.textContent = g.status === 'needs-art' ? `waiting for graphics · then ${g.deadlineH}h to happen` : g.status === 'waiting' ? `starts ${fmt(g.startAfter)} · ${g.deadlineH}h to happen`\n        : g.status === 'active' ? `started ${fmt(g.activatedAt)} · deadline ${fmt(g.activatedAt + g.deadlineH*3600000)}`\n        : `finished ${fmt(g.doneAt)}`;\n      d.append(head, txt, meta);\n      if (g.art){ const a = document.createElement('div'); a.style.color = '#e0a0ff'; a.style.fontSize = '17px'; a.textContent = 'Art needed: ' + g.art; d.appendChild(a); }\n      if (g.status === 'needs-art'){\n        const r = document.createElement('button'); r.textContent = 'Release (art is ready)'; r.style.margin = '6px 8px 0 0';\n        r.onclick = async () => render(await api({action:'release', id:g.id}));\n        d.appendChild(r);\n      }\n      if (g.status !== 'done'){\n        const b = document.createElement('button'); b.className='ghost'; b.textContent='Cancel'; b.style.marginTop='6px';\n        b.onclick = async () => { if (!confirm('Cancel this goal?')) return; render(await api({action:'cancel', id:g.id})); };\n        d.appendChild(b);\n      }\n      el.appendChild(d);\n    });\n  }\n  async function open(){\n    try { const v = await api(); sessionStorage.setItem('ishaiKey', KEY); $('login').hidden = true; $('main').hidden = false; render(v); }\n    catch(e){ $('loginMsg').textContent = e.message; }\n  }\n  $('go').onclick = () => { KEY = $('key').value.trim(); open(); };\n  $('key').addEventListener('keydown', e => { if (e.key==='Enter') $('go').click(); });\n  $('add').onclick = async () => {\n    $('addMsg').textContent = '';\n    try {\n      render(await api({action:'add', goal:$('goal').value, startAfterH:+$('start').value, deadlineH:+$('deadline').value, unlock:$('unlock').value||null, forceText:$('force').value, art:$('art').value}));\n      $('goal').value = ''; $('force').value = ''; $('art').value = ''; $('addMsg').className='ok'; $('addMsg').textContent = 'Added.';\n    } catch(e){ $('addMsg').className='err'; $('addMsg').textContent = e.message; }\n  };\n  $('tick').onclick = async () => {\n    $('tick').disabled = true; $('tickMsg').className='muted'; $('tickMsg').textContent = 'Writing…';\n    try { render(await api({action:'tick'})); $('tickMsg').className='ok'; $('tickMsg').textContent = 'Done. It will appear on the page in about 5 minutes.'; }\n    catch(e){ $('tickMsg').className='err'; $('tickMsg').textContent = 'Error: ' + e.message; }\n    $('tick').disabled = false;\n  };\n  if (KEY) open();\n})();\n</script>\n</body>\n</html>\n";
+
+// ============================================================
+export default {
+  async fetch(req, env, ctx) {
+    const url = new URL(req.url);
+    if (url.pathname === "/api/state") {
+      try {
+        const state = await loadState(env);
+        return json(publicState(state), { "cache-control": "public, max-age=15" });
+      } catch (e) { return json({ error: "state: " + String(e && e.message || e).slice(0, 120) }, {}, 500); }
+    }
+    // Director page: add a secret ADMIN_KEY variable in Cloudflare, then open /director
+    if (url.pathname === "/director")
+      return new Response(DIRECTOR_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
+    if (url.pathname === "/api/director") {
+      const key = env.ADMIN_KEY || env.TICK_SECRET;
+      if (!key || req.headers.get("x-admin-key") !== key) return json({ error: "wrong password (or ADMIN_KEY is not set)" }, {}, 403);
+      return directorApi(req, env);
+    }
+    if (url.pathname === "/" || url.pathname === "/index.html")
+      return new Response(HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
+    return new Response("not found", { status: 404 });
+  },
+  async scheduled(event, env, ctx) { ctx.waitUntil(tick(env, false)); }
+};
+
+// ---------- state ----------
+let memo = null, memoAt = 0;
+
+async function loadState(env) {
+  if (memo && Date.now() - memoAt < 20000) return memo;
+  let s = await env.ISHAI.get("state", { type: "json" });
+  let dirty = false;
+  if (!s) {
+    const now = Date.now();
+    s = { startedAt: now, nextId: 2, notes: "Day one of the broadcast.",
+      events: [{ id: 1, t: now, created: now, location: "apartment", action: "waking", with: null, lines: [],
+        text: "The camera flickers on. Ishai stirs under the blanket and blinks at the ceiling like it owes him money." }] };
+    dirty = true;
+  }
+  if (!s.cast) { s.cast = Object.fromEntries(SEED_CAST.map(c => [c.id, { ...c, lastSeen: null, scenes: 0 }])); dirty = true; }
+  if (!s.unlocked) { s.unlocked = []; dirty = true; }
+  if (!s.director) { s.director = []; dirty = true; }
+  if (!s.done) { const n = Date.now(); s.done = { eat: n - 2 * 3600000, drink: n - 3600000, bathroom: n - 2 * 3600000, shower: n - 12 * 3600000 }; dirty = true; }
+  if (!s.wishlist) { s.wishlist = {}; dirty = true; }
+  s.seeded = s.seeded || [];
+  for (const d of DIRECTOR_SEED) if (!s.seeded.includes(d.id)) {
+    s.director.push(newGoal(d, Date.now())); s.seeded.push(d.id); dirty = true;
+  }
+  if (dirty) await env.ISHAI.put("state", JSON.stringify(s));
+  memo = s; memoAt = Date.now();
+  return s;
+}
+async function saveState(env, s) { await env.ISHAI.put("state", JSON.stringify(s)); memo = s; memoAt = Date.now(); }
+
+function publicState(s) {
+  const last = s.events[s.events.length - 1];
+  return {
+    day: Math.floor((Date.now() - s.startedAt) / 86400000) + 1,
+    delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: s.notes,
+    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, text: e.text, with: e.with || null, lines: e.lines || [], unlocks: e.unlocks || null })),
+    unlocked: s.unlocked,
+    world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays } : null,
+    wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
+      .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
+    artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, goal: g.goal, art: g.art, createdAt: g.createdAt })),
+    cast: Object.values(s.cast).map(c => ({ id: c.id, name: c.name, role: c.role, personality: c.personality,
+      look: c.look, memory: c.memory, relationship: c.relationship, lastSeen: c.lastSeen, scenes: c.scenes || 0 })),
+    location: last?.location, action: last?.action
+  };
+}
+
+// ---------- story engine ----------
+function storyClock(ms) {
+  const f = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "long", hour: "2-digit", minute: "2-digit", hour12: false });
+  const p = Object.fromEntries(f.formatToParts(new Date(ms)).map(x => [x.type, x.value]));
+  const hour = Number(p.hour) % 24;
+  return { label: `${p.weekday} ${String(hour).padStart(2, "0")}:${p.minute}`, hour };
+}
+
+async function tick(env, force) {
+  const s = await loadState(env);
+  const now = Date.now();
+  const storyMs = now + DELAY_MIN * 60000;
+  const clock = storyClock(storyMs);
+  const last = s.events[s.events.length - 1];
+
+  // save budget at night while he sleeps
+  if (!force && last.action === "sleeping" && (clock.hour < 6 || clock.hour >= 23) && now - (last.created || last.t) < 15 * 60000)
+    return s;
+
+  if (!s.world || now - s.world.at > 55 * 60000) await refreshWorld(s, now);
+
+  // director: activate the next goal, or force it if its deadline passed
+  let goal = activeGoal(s, now);
+  let ev = null;
+  if (goal && now > goal.activatedAt + goal.deadlineH * 3600000) {
+    ev = forcedEvent(goal, last);
+    finishGoal(s, goal, "forced", now); ev.unlocks = goal.unlock || null;
+    goal = null;
+  }
+  if (!ev) {
+    try { ev = await askAI(env, s, clock, now, goal); s.lastError = null; }
+    catch (e) {
+      const msg = !env.AI ? "Workers AI binding missing: add a Workers AI binding named AI" : String(e && e.message || e);
+      console.log("AI error", msg); s.lastError = { at: now, msg };
+    }
+    if (!ev) ev = fallback(last, clock.hour);
+    if (goal && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
+  }
+
+  if (ev.newCard) { s.cast[ev.newCard.id] = ev.newCard; s.lastNewAt = now; }
+  const did = { eating: ["eat"], cooking: [], drinking: ["drink"], bathroom: ["bathroom"], showering: ["shower", "bathroom"] }[ev.action] || [];
+  if (ev.action === "eating" && ev.location === "cafe") did.push("drink");
+  did.forEach(k => { s.done[k] = storyMs; });
+  if (ev.missing) {
+    const w = s.wishlist[ev.missing] || (s.wishlist[ev.missing] = { count: 0, example: "" });
+    w.count++; w.example = ev.text.slice(0, 140); w.lastAt = now; if (w.count === 3) w.reachedAt = now;
+    const keys = Object.keys(s.wishlist); if (keys.length > 30) delete s.wishlist[keys.sort((a, b) => s.wishlist[a].lastAt - s.wishlist[b].lastAt)[0]];
+  }
+  if (ev.with && s.cast[ev.with]) {
+    const c = s.cast[ev.with];
+    if (ev.update?.memory) c.memory = ev.update.memory;
+    c.relationship = clamp((c.relationship || 0) + clamp(Math.round(Number(ev.update?.mood) || 0), -1, 1), -5, 5);
+    c.lastSeen = storyMs; c.scenes = (c.scenes || 0) + 1;
+  }
+  s.events.push({ id: s.nextId++, t: storyMs, created: now, location: ev.location, action: ev.action,
+    text: ev.text, with: ev.with || null, lines: ev.lines || [], unlocks: ev.unlocks || null });
+  if (ev.notes) s.notes = ev.notes;
+  s.events = s.events.slice(-KEEP_EVENTS);
+  await saveState(env, s);
+  return s;
+}
+
+function canAddPerson(s, now) {
+  return Object.keys(s.cast).length < MAX_CAST && now - (s.lastNewAt || 0) > NEW_PERSON_EVERY_H * 3600000;
+}
+const feel = r => r <= -3 ? "dislikes him" : r < 0 ? "is annoyed with him" : r === 0 ? "is neutral" : r < 3 ? "likes him" : "is very close to him";
+
+function castSection(s, last) {
+  const near = new Set([last.location, ...NEXT[last.location]]);
+  const recent = new Set(s.events.slice(-8).map(e => e.with).filter(Boolean));
+  const all = Object.values(s.cast);
+  const score = c => (recent.has(c.id) ? 2 : 0) + (c.hangouts || []).some(h => near.has(h)) + (c.lastSeen || 0) / 1e15;
+  const full = all.filter(c => recent.has(c.id) || (c.hangouts || []).some(h => near.has(h))).sort((a, b) => score(b) - score(a)).slice(0, 4);
+  const fullIds = new Set(full.map(c => c.id));
+  const cards = full.map(c =>
+    `- id "${c.id}": ${c.name}, ${c.role}. Personality: ${c.personality}. Speech: ${c.speech}. ` +
+    `Usually at: ${(c.hangouts || []).join(", ")}. Currently ${feel(c.relationship || 0)} (${c.relationship}/5). Memory: ${c.memory}`).join("\n");
+  const others = all.filter(c => !fullIds.has(c.id)).map(c => `"${c.id}" (${c.name}, ${c.role})`).join("; ");
+  return `PEOPLE IN ISHAI'S LIFE (stay true to their personality and memory):\n${cards || "- (nobody nearby)"}` +
+    (others ? `\nOther known people: ${others}` : "");
+}
+
+function buildMessages(s, clock, now, goal) {
+  const last = s.events[s.events.length - 1];
+  const owned = s.unlocked.map(u => ITEMS[u]).filter(Boolean);
+  const world = Object.entries(PLACES).map(([k, v]) => `- ${k}: ${v}. Allowed actions: ${allowed(k, s.unlocked).join(", ")}`).join("\n");
+  const gapMin = Math.round((now - (last.created || last.t)) / 60000);
+  const gap = gapMin > 45 ? `\nNote: about ${gapMin >= 120 ? Math.round(gapMin / 60) + " hours" : gapMin + " minutes"} passed since the last moment; account for that.` : "";
+  const direction = goal
+    ? `\nSECRET STORY DIRECTION (viewers must not notice it is directed): ${goal.goal}\n` +
+      `Work towards it naturally, step by step; it does not have to happen in this moment. About ${Math.max(1, Math.round((goal.activatedAt + goal.deadlineH * 3600000 - now) / 3600000))} hours are left. ` +
+      `In the moment it is fully done, set "complete":"${goal.id}".` + (goal.unlock ? ` Until then Ishai does NOT have ${ITEMS[goal.unlock]}.` : "")
+    : "";
+  const name = id => s.cast[id]?.name || id;
+  const recent = s.events.slice(-8).map(e =>
+    `[${storyClock(e.t).label}] (${e.location}/${e.action}${e.with ? " with " + name(e.with) : ""}) ${e.text}` +
+    (e.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : name(l.who)}: "${l.say}"`).join("")).join("\n");
+  const allowNew = canAddPerson(s, now);
+  const hrs = k => (now + DELAY_MIN * 60000 - (s.done[k] || now)) / 3600000;
+  const need = Object.entries(NEED_H).filter(([k, h]) => hrs(k) > h).map(([k]) => ({ eat: "hungry", drink: "thirsty", bathroom: "needs the bathroom", shower: "needs a shower" })[k]);
+  const body = `Body: last ate ${hrs("eat").toFixed(1)}h ago, last drink ${hrs("drink").toFixed(1)}h ago, bathroom ${hrs("bathroom").toFixed(1)}h ago, shower ${hrs("shower").toFixed(0)}h ago.` +
+    (need.length ? ` He is ${need.join(" and ")} — let that show soon, naturally.` : "");
+  const wr = s.world || {};
+  const real = [
+    wr.weather ? `Weather in Tel Aviv right now: ${wr.weather.temp}°C, ${wr.weather.desc}${wr.weather.wind > 30 ? ", windy" : ""}.` : "",
+    wr.shabbat ? `Shabbat: candle lighting ${wr.shabbat.startLabel}, ends ${wr.shabbat.endLabel}${wr.shabbat.parasha ? " (" + wr.shabbat.parasha + ")" : ""}.` : "",
+    wr.holidays && wr.holidays.length ? `Jewish holidays this week: ${wr.holidays.map(h => h.title + " (" + h.date + ")").join(", ")}.` : ""
+  ].filter(Boolean).join(" ");
+  const media = (s.unlocked.length || last.location === "cafe") && wr.headlines && wr.headlines.length
+    ? `\nREAL NEWS he could hear on TV/radio${last.location === "cafe" ? " or read at the cafe" : ""} (use at most one, only if it fits; say plainly what it is about and where he sees it, e.g. "On the radio: a startup in Haifa turns seaweed into packaging. Ishai is impressed."): ` +
+      wr.headlines.slice(0, 5).map(h => `"${h.title}" (${h.source})`).join("; ") + "." : "";
+  const system =
+`You write a live surveillance-style reality feed about Ishai. ${PERSONA}
+
+WORLD (locations with cameras, plus "offscreen"):
+${world}
+
+${castSection(s, last)}
+
+RULES
+- Write the NEXT moment only: 1-2 short sentences, max 35 words, present tense, third person.
+- Be concrete: viewers only see this one line, so name things plainly (which show, which game, what the news says). Never write vague lines like "an article" or "a new character" without saying what it is.
+- Everyday, warm, sometimes funny. Continue the story and its ongoing threads.
+- Respect the clock: he sleeps at night (roughly 00:00-07:30), eats at mealtimes, works on weekdays (Sunday-Thursday in Israel).
+- He is a real person: he drinks, eats, uses the bathroom and showers. Bathroom and shower happen behind the closed bathroom door; keep them brief and tasteful.
+- THE REAL WORLD is real: use the real weather and the Jewish calendar (e.g. Friday-night Shabbat dinner) naturally. If any real news sounds sad or serious, he reacts briefly and respectfully, never jokes about it, or changes the channel.
+- Location must be one of: ${Object.keys(LOCATIONS).join(", ")}. Action must be allowed in that location.
+- He can only move to a neighboring location: ${Object.entries(NEXT).map(([k, v]) => `${k} -> ${v.join("/")}`).join("; ")}.
+- If he goes somewhere without a camera, use location "offscreen" with action "away".
+- Things he owns at home: laptop, books, game console${owned.length ? ", " + owned.join(", ") : ""}. Do not invent other big objects. When he watches TV or listens to the radio, mention what is on (make up shows and stations).
+- "with" is the id of ONE person physically with him in this moment, or null. Most moments he is alone.
+- "lines": up to 2 short spoken lines (max 15 words each) by "ishai" or the "with" person. Use [] when nobody talks.
+- When "with" is set, "update" holds that person's updated memory of Ishai (max 25 words, keep old facts that still matter) and "mood": -1, 0 or 1 for how this moment changed their feelings.
+- ${allowNew
+  ? `You MAY introduce one new person, only if the story really needs someone new. Describe them in "newCharacter" and use their name as "with". Look options: hair ${LOOK.hair.join("/")}; hairColor ${LOOK.hairColor.join("/")}; skin ${LOOK.skin.join("/")}; shirt and pants ${LOOK.cloth.join("/")}; extras any of ${LOOK.extras.join("/")}.`
+  : `Do NOT introduce new people right now; "newCharacter" must be null.`}
+- Do not repeat the previous event.${direction}
+
+Reply with ONLY this JSON, nothing else:
+{"location":"...","action":"...","text":"...","with":null,"lines":[],"update":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
+"missing": if this moment features an object, animal or place the camera cannot show (not listed above), name it in 1-3 words (e.g. "bicycle", "puppy"); otherwise null.
+newCharacter format: {"name":"...","role":"...","personality":"...","speech":"...","hangouts":["..."],"look":{"hair":"...","hairColor":"...","skin":"...","shirt":"...","pants":"...","extras":[]}}`;
+  const user =
+`Story time now: ${clock.label} (${TZ}).
+He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
+Plot notes: ${s.notes || "none"}
+${body}
+${real}${media}
+Recent events:
+${recent}${gap}
+
+What happens next?`;
+  return [{ role: "system", content: system }, { role: "user", content: user }];
+}
+
+async function askAI(env, s, clock, now, goal) {
+  const last = s.events[s.events.length - 1];
+  const messages = buildMessages(s, clock, now, goal);
+  const allowNew = canAddPerson(s, now);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const raw = await runModel(env, messages);
+    const { ev, problem } = validate(raw, s, last, allowNew, goal);
+    if (ev && !problem) return ev;
+    if (attempt === 1) return ev ? repair(ev, s, last) : null;
+    // ask the story to correct itself once
+    messages.push({ role: "assistant", content: raw });
+    messages.push({ role: "user", content: `That breaks a rule: ${problem}. Write the moment again so it fits the rules. JSON only.` });
+  }
+  return null;
+}
+
+let modelIdx = 0; // remembers the first model that works in this isolate
+async function runModel(env, messages) {
+  let lastErr;
+  for (let i = modelIdx; i < MODELS.length; i++) {
+    try {
+      const out = await env.AI.run(MODELS[i], { messages, max_tokens: 400, temperature: 0.9 });
+      modelIdx = i;
+      if (typeof out?.response === "string") return out.response;
+      const c = out?.choices?.[0]?.message?.content;
+      if (typeof c === "string") return c;
+      return JSON.stringify(out?.response ?? out);
+    } catch (e) {
+      lastErr = e;
+      const msg = String(e && e.message || e);
+      // only move on to the next model if this one is gone; budget/other errors stop here
+      if (!/deprecat|not found|no such model|unknown model|5028|5007/i.test(msg)) throw e;
+    }
+  }
+  throw lastErr;
+}
+
+function validate(raw, s, last, allowNew, goal) {
+  let o;
+  try { o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch { return { problem: "the reply was not valid JSON" }; }
+  const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+  const ev = {
+    location: str(o.location, 20).toLowerCase(), action: str(o.action, 20).toLowerCase(),
+    text: str(o.text, 260), notes: str(o.notes, 200), with: null, lines: [], update: null, newCard: null,
+    complete: goal && str(o.complete, 40).toLowerCase() === goal.id ? goal.id : null,
+    missing: (() => { const m = str(o.missing, 30).toLowerCase().replace(/[^a-z0-9 '-]/g, "").trim(); return m && m !== "null" && m !== "none" ? m : null; })()
+  };
+  if (ev.text.length < 8) return { ev: null, problem: "the text is missing" };
+
+  // new person
+  if (o.newCharacter && typeof o.newCharacter === "object") {
+    if (!allowNew) return { ev, problem: "new people are not allowed right now; newCharacter must be null" };
+    ev.newCard = cleanCard(o.newCharacter, s, ev.location);
+    if (!ev.newCard) return { ev, problem: "newCharacter is missing a name or role" };
+  }
+  // who is with him
+  const w = str(o.with, 40).toLowerCase();
+  if (w && w !== "null" && w !== "none") {
+    const hit = Object.values(s.cast).find(c => c.id === w || c.name.toLowerCase() === w)
+      || (ev.newCard && (ev.newCard.id === w || ev.newCard.name.toLowerCase() === w) ? ev.newCard : null);
+    if (!hit) return { ev, problem: `"${o.with}" is not a known person; "with" must be one of ${Object.keys(s.cast).map(k => `"${k}"`).join(", ")} or null` };
+    ev.with = hit.id;
+  }
+  if (ev.newCard && ev.with !== ev.newCard.id) ev.with = ev.newCard.id;
+  // dialogue
+  const who = x => { const k = str(x, 40).toLowerCase(); if (k === "ishai") return "ishai";
+    const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || "").toLowerCase() === k); return c ? ev.with : null; };
+  ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: who(l?.who), say: str(l?.say, 120).replace(/^["']|["']$/g, "") }))
+    .filter(l => l.who && l.say).slice(0, 2);
+  if (ev.with && o.update && typeof o.update === "object")
+    ev.update = { memory: str(o.update.memory, 180), mood: Number(o.update.mood) || 0 };
+
+  if (!LOCATIONS[ev.location]) return { ev, problem: `"${ev.location}" is not a known location` };
+  if (!LOCATIONS[ev.location].includes(ev.action))
+    return { ev, problem: `"${ev.action}" is not possible in ${ev.location} (allowed: ${allowed(ev.location, s.unlocked).join(", ")})` };
+  if (NEEDS[ev.action] && !s.unlocked.includes(NEEDS[ev.action]) && !(goal && goal.unlock === NEEDS[ev.action] && ev.complete))
+    return { ev, problem: `he does not own ${ITEMS[NEEDS[ev.action]]} yet, so he cannot be ${ev.action}` };
+  if (ev.location !== last.location && !NEXT[last.location].includes(ev.location))
+    return { ev, problem: `he cannot go directly from ${last.location} to ${ev.location}; next place must be one of ${NEXT[last.location].join(", ")}` };
+  if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
+  return { ev, problem: null };
+}
+
+function cleanCard(c, s, loc) {
+  const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+  const name = str(c.name, 24), role = str(c.role, 90);
+  if (name.length < 2 || role.length < 3) return null;
+  let id = name.toLowerCase().replace(/^(mr|mrs|ms|dr)\.?\s+/, "").replace(/[^a-z0-9]+/g, "").slice(0, 12) || "person";
+  if (id === "ishai") id = "ishai2";
+  let base = id, n = 2; while (s.cast[id]) id = base + n++;
+  const pick = (v, list, d) => list.includes(String(v).toLowerCase()) ? String(v).toLowerCase() : d;
+  const L = c.look || {};
+  const any = list => list[Math.floor(Math.random() * list.length)];
+  return {
+    id, name, role,
+    personality: str(c.personality, 140) || "ordinary, friendly",
+    speech: str(c.speech, 90) || "normal",
+    hangouts: (Array.isArray(c.hangouts) ? c.hangouts : []).map(h => String(h).toLowerCase()).filter(h => LOCATIONS[h] && h !== "offscreen").slice(0, 3)
+      .concat(LOCATIONS[loc] && loc !== "offscreen" ? [loc] : []).filter((v, i, a) => a.indexOf(v) === i).slice(0, 3),
+    look: {
+      hair: pick(L.hair, LOOK.hair, any(LOOK.hair)), hairColor: pick(L.hairColor, LOOK.hairColor, any(LOOK.hairColor)),
+      skin: pick(L.skin, LOOK.skin, any(LOOK.skin)), shirt: pick(L.shirt, LOOK.cloth, any(LOOK.cloth)),
+      pants: pick(L.pants, LOOK.cloth, "navy"),
+      extras: (Array.isArray(L.extras) ? L.extras : []).map(x => String(x).toLowerCase()).filter(x => LOOK.extras.includes(x)).slice(0, 2)
+    },
+    memory: "Just met Ishai.", relationship: 0, lastSeen: null, scenes: 0
+  };
+}
+
+// last resort: keep the text but force legal values
+function repair(ev, s, last) {
+  let loc = LOCATIONS[ev.location] ? ev.location : last.location;
+  if (loc !== last.location && !NEXT[last.location].includes(loc)) loc = last.location;
+  const legal = allowed(loc, s.unlocked);
+  const act = legal.includes(ev.action) ? ev.action : (legal.includes("idle") ? "idle" : legal[0]);
+  const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with) && act !== "sleeping";
+  return { ...ev, location: loc, action: act, with: ok ? ev.with : null,
+    lines: ok ? ev.lines : ev.lines.filter(l => l.who === "ishai"), update: ok ? ev.update : null, newCard: ok ? ev.newCard : null };
+}
+
+function fallback(last, hour) {
+  const pool = {
+    apartment: hour < 7 || hour >= 23
+      ? [["sleeping", "Ishai is asleep. Somewhere a cat argues with another cat."], ["sleeping", "He turns over and mumbles something about kerning."]]
+      : [["idle", "Ishai stares out the window, thinking about nothing in particular."], ["working", "He opens the laptop and pretends to answer emails."], ["reading", "He picks up a book, reads two pages, and checks his phone."]],
+    corridor: [["walking", "Ishai walks down the hallway, keys jingling."]],
+    street: [["walking", "He walks along Herzl Street, dodging a scooter."]],
+    park: [["idle", "Ishai watches the duck. The duck watches back."]],
+    cafe: [["eating", "He sips his coffee slowly, making it last."]],
+    offscreen: [["away", "No sign of Ishai on any camera."]]
+  }[last.location];
+  const [action, text] = pool[Math.floor(Math.random() * pool.length)];
+  return { location: last.location, action, text, with: null, lines: [] };
+}
+
+// ---------- real world ----------
+async function getText(url) {
+  const r = await fetch(url, { headers: { "user-agent": "WatchingIshai/1.0 (story website)" }, cf: { cacheTtl: 900 } });
+  if (!r.ok) throw new Error(url.split("/")[2] + " " + r.status);
+  return r.text();
+}
+function rssTitles(xml) {
+  const out = [];
+  xml = xml.slice(0, 40000); // keep CPU time small (free plan)
+  for (const m of xml.matchAll(/<item[\s>][\s\S]*?<\/item>/g)) {
+    const t = (m[0].match(/<title>([\s\S]*?)<\/title>/) || [])[1];
+    if (!t) continue;
+    const clean = t.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/&amp;/g, "&").replace(/&#039;|&#8217;|&rsquo;/g, "'")
+      .replace(/&quot;|&#8220;|&#8221;/g, '"').replace(/&[a-z#0-9]+;/gi, " ").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+    if (clean) out.push(clean);
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+async function refreshWorld(s, now) {
+  const w = { at: now, errors: [], weather: s.world?.weather || null, shabbat: s.world?.shabbat || null, holidays: s.world?.holidays || [], headlines: s.world?.headlines || [] };
+  const hm = iso => new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+  await Promise.all([
+    getText(WEATHER_URL).then(t => { const c = JSON.parse(t).current;
+      w.weather = { temp: Math.round(c.temperature_2m), code: c.weather_code, desc: WMO[c.weather_code] || "unclear", wind: Math.round(c.wind_speed_10m), isDay: !!c.is_day,
+        rain: [51,53,55,61,63,65,66,67,80,81,82,95,96,99].includes(c.weather_code), cloudy: c.weather_code >= 3 }; })
+      .catch(e => w.errors.push("weather: " + e.message)),
+    getText(CALENDAR_URL).then(t => { const items = JSON.parse(t).items || [];
+      const c = items.find(i => i.category === "candles"), h = items.find(i => i.category === "havdalah"), p = items.find(i => i.category === "parashat");
+      w.shabbat = c ? { start: Date.parse(c.date), end: h ? Date.parse(h.date) : null, startLabel: hm(c.date), endLabel: h ? hm(h.date) : "?", parasha: p ? p.title : null } : null;
+      w.holidays = items.filter(i => i.category === "holiday").slice(0, 3).map(i => ({ title: i.title, date: i.date.slice(0, 10) })); })
+      .catch(e => w.errors.push("calendar: " + e.message)),
+    Promise.all(NEWS_FEEDS.map(([src, url]) => getText(url).then(x => rssTitles(x).map(title => ({ title, source: src })))
+      .catch(e => { w.errors.push(src + ": " + e.message); return []; })))
+      .then(lists => {
+        const seen = new Set();
+        const fresh = lists.flat().filter(h => !HEAVY_NEWS.test(h.title) && h.title.length < 140 && !seen.has(h.title) && seen.add(h.title));
+        // mix sources, newest first per source
+        const mixed = []; for (let i = 0; i < 6; i++) lists.forEach((_, j) => { const it = fresh.filter(h => h.source === NEWS_FEEDS[j][0])[i]; if (it) mixed.push(it); });
+        if (mixed.length) w.headlines = mixed.slice(0, 12);
+      })
+  ]);
+  s.world = w;
+}
+
+// ---------- director ----------
+function newGoal(d, now) {
+  const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+  return {
+    id: str(d.id, 30) || "g" + now.toString(36), goal: str(d.goal, 600), forceText: str(d.forceText, 260),
+    unlock: ITEMS[d.unlock] ? d.unlock : null,
+    startAfter: now + Math.max(0, Number(d.startAfterH) || 0) * 3600000,
+    deadlineH: clamp(Number(d.deadlineH) || 24, 1, 24 * 14),
+    status: str(d.art, 300) ? "needs-art" : "waiting", art: str(d.art, 300) || null,
+    activatedAt: null, doneAt: null, how: null, createdAt: now
+  };
+}
+function activeGoal(s, now) {
+  let g = s.director.find(d => d.status === "active");
+  if (!g) {
+    g = s.director.filter(d => d.status === "waiting" && d.startAfter <= now).sort((a, b) => a.startAfter - b.startAfter)[0];
+    if (g) { g.status = "active"; g.activatedAt = now; }
+  }
+  return g || null;
+}
+function finishGoal(s, g, how, now) {
+  g.status = "done"; g.how = how; g.doneAt = now;
+  if (g.unlock && !s.unlocked.includes(g.unlock)) s.unlocked.push(g.unlock);
+}
+function forcedEvent(g, last) {
+  const text = g.forceText || "Something quietly changes in Ishai's life.";
+  const loc = last.location === "offscreen" ? "offscreen" : last.location;
+  return { location: loc, action: loc === "offscreen" ? "away" : (last.action === "sleeping" ? "waking" : "idle"),
+    text, with: null, lines: [] };
+}
+async function directorApi(req, env) {
+  const s = await loadState(env);
+  const now = Date.now();
+  if (req.method === "POST") {
+    let b = {}; try { b = await req.json(); } catch {}
+    if (b.action === "add") {
+      if (!String(b.goal || "").trim()) return json({ error: "write a goal first" }, {}, 400);
+      let id = String(b.goal).toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 24).replace(/-+$/, "") || "goal";
+      let base = id, n = 2; while (s.director.some(d => d.id === id)) id = base + "-" + n++;
+      s.director.push(newGoal({ ...b, id }, now));
+    } else if (b.action === "release") {
+      const g = s.director.find(d => d.id === b.id && d.status === "needs-art");
+      if (g) { g.status = "waiting"; g.startAfter = Math.max(g.startAfter, now); }
+    } else if (b.action === "forget") {
+      delete s.wishlist[b.item];
+    } else if (b.action === "cancel") {
+      const g = s.director.find(d => d.id === b.id && d.status !== "done");
+      if (g) { g.status = "done"; g.how = "cancelled"; g.doneAt = now; }
+    } else if (b.action === "tick") {
+      await saveState(env, s); await tick(env, true);
+      return json(directorView(await loadState(env)));
+    }
+    await saveState(env, s);
+  }
+  return json(directorView(s));
+}
+function directorView(s) {
+  const last = s.events[s.events.length - 1];
+  return { world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors } : null,
+    wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
+    done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse(), lastError: s.lastError || null,
+    last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t } };
+}
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function json(data, headers = {}, status = 200) {
+  return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "access-control-allow-origin": "*", ...headers } });
+}

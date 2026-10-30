@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Ishai Director</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#050705;--phos:#4dff7a;--dim:#2a9a4c;--faint:#123d20;--amber:#ffb84d;--red:#ff6b6b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--phos);font-family:'VT323',ui-monospace,monospace;font-size:20px;padding:16px;display:flex;justify-content:center}
+  .wrap{width:100%;max-width:640px;display:flex;flex-direction:column;gap:14px}
+  h1{font-size:30px;margin:0;font-weight:normal;text-shadow:0 0 8px rgba(77,255,122,.45)}
+  .box{border:2px solid var(--faint);border-radius:10px;padding:12px 14px;background:#020502}
+  label{display:block;color:var(--dim);margin:8px 0 2px}
+  input,textarea,select{width:100%;font:inherit;background:#071007;color:var(--phos);border:1px solid var(--faint);border-radius:6px;padding:6px 8px}
+  textarea{min-height:96px;resize:vertical}
+  .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  button{font:inherit;background:var(--faint);color:var(--phos);border:1px solid var(--dim);border-radius:6px;padding:6px 14px;cursor:pointer}
+  button:hover{background:#1b5a2f} button:disabled{opacity:.5}
+  button.ghost{background:transparent}
+  .goal{border-top:1px dashed var(--faint);padding:10px 0}
+  .goal:first-child{border-top:none}
+  .st{display:inline-block;padding:0 8px;border-radius:4px;margin-right:6px}
+  .waiting{background:#2a2a10;color:var(--amber)} .needs-art{background:#2a1530;color:#e0a0ff} .active{background:#10301a;color:var(--phos)} .done{background:#1a1a1a;color:#9a9a9a}
+  .muted{color:var(--dim)} .err{color:var(--red)} .ok{color:var(--phos)}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>&gt; DIRECTOR // ISHAI</h1>
+
+  <div class="box" id="login">
+    <label for="key">Password (the ADMIN_KEY you set in Cloudflare)</label>
+    <div class="bar"><input id="key" type="password" style="flex:1"><button id="go">Open</button></div>
+    <div id="loginMsg" class="err"></div>
+  </div>
+
+  <div id="main" hidden>
+    <div class="box">
+      <div class="bar" style="justify-content:space-between">
+        <span>Unlocked items: <b id="unlocked">—</b></span>
+        <button id="tick">Run next moment now</button>
+      </div>
+      <div class="muted" style="margin-top:6px">Latest moment written: <span id="last">—</span></div>
+      <div class="muted" style="font-size:16px">New moments appear on the page after the 5-minute delay. "Run now" uses AI budget.</div>
+      <div id="aiErr" class="err"></div>
+      <div id="tickMsg"></div>
+    </div>
+
+    <div class="box">
+      <div style="font-size:24px">New story goal</div>
+      <label for="goal">What should happen (the AI works it in naturally)</label>
+      <textarea id="goal" placeholder="Example: Mrs. Levi's cat goes missing. Ishai helps search the building and the park. They find it in the café."></textarea>
+      <div class="row">
+        <div><label for="start">Start in (hours)</label><input id="start" type="number" min="0" value="0"></div>
+        <div><label for="deadline">Deadline (hours)</label><input id="deadline" type="number" min="1" value="12"></div>
+        <div><label for="unlock">Unlocks item</label><select id="unlock"><option value="">nothing</option><option value="tv">TV</option><option value="radio">radio</option></select></div>
+      </div>
+      <label for="art">Needs new graphics first? Describe them (optional). The goal waits until you press Release.</label>
+      <input id="art" placeholder="Example: a puppy that can sit, walk and sleep in Ishai's apartment">
+      <label for="force">If the deadline passes, this happens (optional)</label>
+      <input id="force" placeholder="Example: The cat walks back in on its own, looking smug.">
+      <div class="bar" style="margin-top:10px"><button id="add">Add goal</button><span id="addMsg"></span></div>
+    </div>
+
+    <div class="box"><div style="font-size:24px">Goals</div><div id="goals"></div></div>
+
+    <div class="box"><div style="font-size:24px">Missing graphics</div>
+      <div class="muted" style="font-size:16px">Things the story mentioned that the camera can't show yet. Ask Claude to draw the ones you like.</div>
+      <div id="wish"></div></div>
+
+    <div class="box"><div style="font-size:24px">Real world</div><div id="world" class="muted"></div></div>
+  </div>
+</div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  let KEY = sessionStorage.getItem('ishaiKey') || '';
+  const fmt = ms => ms ? new Date(ms).toLocaleString('en-GB',{timeZone:'Asia/Jerusalem',weekday:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+  async function api(body){
+    const r = await fetch('/api/director', {method: body ? 'POST' : 'GET', headers:{'x-admin-key':KEY,'content-type':'application/json'}, body: body ? JSON.stringify(body) : undefined});
+    const j = await r.json().catch(()=>({error:'bad response ('+r.status+')'}));
+    if (!r.ok) throw new Error(j.error || ('error '+r.status));
+    return j;
+  }
+  function render(v){
+    $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
+    $('last').textContent = v.last ? `${fmt(v.last.created)} (${v.last.location}/${v.last.action}) ${v.last.text}` : '—';
+    $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';
+    const wl = $('wish'); wl.textContent = '';
+    if (!(v.wishlist||[]).length) wl.textContent = 'Nothing yet.';
+    (v.wishlist||[]).forEach(w => { const d = document.createElement('div'); d.className = 'goal';
+      const t = document.createElement('div'); t.textContent = `${w.item} — mentioned ${w.count}×`;
+      const ex = document.createElement('div'); ex.className = 'muted'; ex.style.fontSize = '16px'; ex.textContent = w.example;
+      const b = document.createElement('button'); b.className = 'ghost'; b.textContent = 'Dismiss'; b.style.marginTop = '4px';
+      b.onclick = async () => render(await api({action:'forget', item:w.item}));
+      d.append(t, ex, b); wl.appendChild(d); });
+    const wd = $('world'), W = v.world;
+    wd.textContent = !W ? 'Not fetched yet (happens on the next moment).' :
+      [W.weather ? `Weather: ${W.weather.temp}°C, ${W.weather.desc}` : 'Weather: —',
+       W.shabbat ? `Shabbat: ${W.shabbat.startLabel} → ${W.shabbat.endLabel}${W.shabbat.parasha ? ' · ' + W.shabbat.parasha : ''}` : 'Shabbat: —',
+       (W.holidays||[]).length ? 'Holidays: ' + W.holidays.map(h=>h.title+' '+h.date).join(', ') : '',
+       'Headlines: ' + ((W.headlines||[]).map(h=>h.title).slice(0,6).join(' | ') || '—'),
+       (W.errors||[]).length ? 'Fetch problems: ' + W.errors.join('; ') : '',
+       `Updated ${fmt(W.at)}`].filter(Boolean).join('\n');
+    wd.style.whiteSpace = 'pre-line';
+    const el = $('goals'); el.textContent = '';
+    if (!v.goals.length) el.textContent = 'No goals yet.';
+    v.goals.forEach(g => {
+      const d = document.createElement('div'); d.className = 'goal';
+      const head = document.createElement('div');
+      const st = document.createElement('span'); st.className = 'st ' + g.status;
+      st.textContent = g.status === 'needs-art' ? 'NEEDS ART' : g.status === 'done' ? (g.how === 'story' ? 'DONE (in story)' : g.how === 'forced' ? 'DONE (forced)' : 'CANCELLED') : g.status.toUpperCase();
+      head.append(st, document.createTextNode(g.unlock ? ' unlocks ' + g.unlock : ''));
+      const txt = document.createElement('div'); txt.textContent = g.goal;
+      const meta = document.createElement('div'); meta.className = 'muted'; meta.style.fontSize = '16px';
+      meta.textContent = g.status === 'needs-art' ? `waiting for graphics · then ${g.deadlineH}h to happen` : g.status === 'waiting' ? `starts ${fmt(g.startAfter)} · ${g.deadlineH}h to happen`
+        : g.status === 'active' ? `started ${fmt(g.activatedAt)} · deadline ${fmt(g.activatedAt + g.deadlineH*3600000)}`
+        : `finished ${fmt(g.doneAt)}`;
+      d.append(head, txt, meta);
+      if (g.art){ const a = document.createElement('div'); a.style.color = '#e0a0ff'; a.style.fontSize = '17px'; a.textContent = 'Art needed: ' + g.art; d.appendChild(a); }
+      if (g.status === 'needs-art'){
+        const r = document.createElement('button'); r.textContent = 'Release (art is ready)'; r.style.margin = '6px 8px 0 0';
+        r.onclick = async () => render(await api({action:'release', id:g.id}));
+        d.appendChild(r);
+      }
+      if (g.status !== 'done'){
+        const b = document.createElement('button'); b.className='ghost'; b.textContent='Cancel'; b.style.marginTop='6px';
+        b.onclick = async () => { if (!confirm('Cancel this goal?')) return; render(await api({action:'cancel', id:g.id})); };
+        d.appendChild(b);
+      }
+      el.appendChild(d);
+    });
+  }
+  async function open(){
+    try { const v = await api(); sessionStorage.setItem('ishaiKey', KEY); $('login').hidden = true; $('main').hidden = false; render(v); }
+    catch(e){ $('loginMsg').textContent = e.message; }
+  }
+  $('go').onclick = () => { KEY = $('key').value.trim(); open(); };
+  $('key').addEventListener('keydown', e => { if (e.key==='Enter') $('go').click(); });
+  $('add').onclick = async () => {
+    $('addMsg').textContent = '';
+    try {
+      render(await api({action:'add', goal:$('goal').value, startAfterH:+$('start').value, deadlineH:+$('deadline').value, unlock:$('unlock').value||null, forceText:$('force').value, art:$('art').value}));
+      $('goal').value = ''; $('force').value = ''; $('art').value = ''; $('addMsg').className='ok'; $('addMsg').textContent = 'Added.';
+    } catch(e){ $('addMsg').className='err'; $('addMsg').textContent = e.message; }
+  };
+  $('tick').onclick = async () => {
+    $('tick').disabled = true; $('tickMsg').className='muted'; $('tickMsg').textContent = 'Writing…';
+    try { render(await api({action:'tick'})); $('tickMsg').className='ok'; $('tickMsg').textContent = 'Done. It will appear on the page in about 5 minutes.'; }
+    catch(e){ $('tickMsg').className='err'; $('tickMsg').textContent = 'Error: ' + e.message; }
+    $('tick').disabled = false;
+  };
+  if (KEY) open();
+})();
+</script>
+</body>
+</html>
