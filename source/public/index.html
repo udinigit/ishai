@@ -60,6 +60,15 @@
   .caption{position:absolute;left:8px;right:8px;bottom:34px;z-index:3;pointer-events:none;text-align:center;
     font-size:clamp(15px,4vw,22px);line-height:1.15;color:#fff;text-shadow:0 0 3px #000,0 0 6px #000}
   .caption span{background:rgba(0,0,0,.6);padding:1px 8px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+  .booth{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .host{display:grid;grid-template-columns:34px 1fr;gap:8px;align-items:start;border:1px dashed var(--phos-faint);border-radius:8px;padding:6px 8px;background:#020502;min-height:64px}
+  .host canvas{width:34px;height:34px;image-rendering:pixelated;animation:none;background:#0b120b;border:1px solid var(--phos-faint);border-radius:6px}
+  .host .hn{font-size:clamp(14px,3.6vw,18px);letter-spacing:1px}
+  .host .hn span{color:var(--red);font-size:.8em}
+  .host .hl{color:#eaffea;text-shadow:none;font-size:clamp(15px,3.9vw,19px);line-height:1.1}
+  .host.live{border-style:solid;border-color:var(--phos-dim)}
+  .host.ad{border-color:#6b5a1a;background:rgba(255,211,106,.06)}
+  .host.ad .hn span::after{content:" · TOTALLY NOT AN AD";color:#ffd36a}
   .msg.host{background:rgba(77,255,122,.05);border:1px dashed var(--phos-faint);border-radius:8px;padding:6px}
   .msg.host .who::after{content:" · ON AIR";color:var(--red);font-size:.8em}
   .msg.host.ad .who::after{content:" · ON AIR · TOTALLY NOT AN AD";color:#ffd36a}
@@ -110,6 +119,10 @@
     <button id="snd" class="snd" title="Tap to change sound">SOUND: OFF</button>
   </div>
 
+  <div class="booth" id="booth">
+    <div class="host" id="host-zohar"><canvas width="12" height="12"></canvas><div><div class="hn">ZOHAR <span>· ON AIR</span></div><div class="hl">…</div></div></div>
+    <div class="host" id="host-oren"><canvas width="12" height="12"></canvas><div><div class="hn">OREN <span>· ON AIR</span></div><div class="hl">…</div></div></div>
+  </div>
   <div class="tabs" role="tablist">
     <button id="tabTalk" class="on" role="tab" aria-selected="true">CONVERSATIONS</button>
     <button id="tabCast" role="tab" aria-selected="false">CAST</button>
@@ -1365,7 +1378,30 @@
     else { R(4,4,4,4,'#555'); }
     g = prev; return c;
   }
+  // the hosts' booth: each host keeps only their latest line
+  function boothInit(){
+    ['zohar','oren'].forEach(h => { const card = $('host-'+h); const fc = faceCanvas(h); card.replaceChild(fc, card.querySelector('canvas'));
+      card.querySelector('.hn').style.color = HOSTS[h].color; });
+  }
+  function hostLine(m, animate, budget){
+    if (talkShown.has(m.id)) return Promise.resolve(); talkShown.add(m.id);
+    const card = $('host-'+m.who); if (!card) return Promise.resolve();
+    const line = card.querySelector('.hl');
+    card.classList.toggle('ad', /cooola|hummusprime|napmaster|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch/i.test(m.say));
+    if (!animate){ line.textContent = m.say; return Promise.resolve(); }
+    const full = m.say, sp = speaker(m.who); let i = 0;
+    while (budget && budget.ms > 0 && i < full.length){ budget.ms -= charDelay(full[i]); i++; }
+    const speak = i === 0 ? Sound.say(m.who, m.say) : null;
+    card.classList.add('live');
+    return Promise.all([speak, new Promise(res => {
+      if (i >= full.length){ line.textContent = full; card.classList.remove('live'); return res(); }
+      const step = () => { i++; line.textContent = full.slice(0,i); Sound.blip(m.who, full[i-1]); caption(sp, full.slice(0,i));
+        if (i < full.length) setTimeout(step, charDelay(full[i-1])); else { setTimeout(()=>card.classList.remove('live'), 1500); res(); } };
+      step();
+    })]);
+  }
   function addMsg(m, animate, budget){
+    if (m.host) return hostLine(m, animate, budget);
     if (talkShown.has(m.id)) return Promise.resolve(); talkShown.add(m.id);
     $('talkEmpty').hidden = true;
     const scene = (m.loc||'') + '|' + fmtHM.format(new Date(m.t)).slice(0,2);
@@ -1584,6 +1620,7 @@
 
   if (params.has('rain') || params.has('cloudy')) WORLD = {weather:{temp:19, desc: params.has('rain') ? 'light rain' : 'overcast', rain: params.has('rain'), cloudy: true}};
   if (WORLD) $('stNext').textContent = weatherLabel();
+  boothInit();
   if (params.get('unlock')) params.get('unlock').split(',').forEach(u=>UNLOCKED.add(u));
   if (forceLoc){ setCast(DEMO_CAST); setState(forceLoc, forcePose || 'idle', true, params.get('with')); }
   else setState('apartment','sleeping',true);
