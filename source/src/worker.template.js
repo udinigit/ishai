@@ -48,6 +48,12 @@ const WMO = { 0: "clear sky", 1: "mostly clear", 2: "partly cloudy", 3: "overcas
 const NEED_H = { eat: 5, drink: 3, bathroom: 4, shower: 26 };
 const NEEDS = { watching: "tv", listening: "radio" }; // actions that need an item
 
+// The two hosts who comment on the show for viewers (they replace the narration on the public page)
+const HOSTS = {
+  zohar: "Zohar: sassy, sharp-tongued, a little edgy. Roasts Ishai's choices but is secretly rooting for him. Lives for romance drama and ships Ishai with Dana.",
+  oren: "Oren: cynical and deadpan, pretends to be bored. Dry one-liners and made-up statistics. Secretly, deeply invested in Moshe the basil."
+};
+
 const PERSONA =
   "Ishai is 31, a freelance graphic designer living alone in apartment 4 of an old building in Tel Aviv. " +
   "He is kind, a bit lazy, overthinks small things, loves falafel and old video games, " +
@@ -191,7 +197,7 @@ function publicState(s, dev) {
   return {
     day: Math.floor((Date.now() - s.startedAt) / 86400000) + 1,
     build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
-    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, text: dev ? e.text : "", with: e.with || null, lines: e.lines || [], unlocks: e.unlocks || null })),
+    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, text: dev ? e.text : "", with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null })),
     talk: (s.talk || []).slice(-80), dev: !!dev,
     unlocked: s.unlocked,
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays } : null,
@@ -259,18 +265,20 @@ async function tick(env, force) {
     c.lastSeen = storyMs; c.scenes = (c.scenes || 0) + 1;
   }
   s.events.push({ id: s.nextId++, t: storyMs, created: now, location: ev.location, action: ev.action,
-    text: ev.text, with: ev.with || null, lines: ev.lines || [], unlocks: ev.unlocks || null });
+    text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null });
   if (ev.notes) s.notes = ev.notes;
   s.events = s.events.slice(-KEEP_EVENTS);
   const evId = s.nextId - 1;
   (ev.lines || []).forEach((l, i) => s.talk.push({ id: evId + ":" + i, t: storyMs, who: l.who, say: l.say, loc: ev.location }));
+  (ev.commentary || []).forEach((c, i) => s.talk.push({ id: evId + ":c" + i, t: storyMs, who: c.who, say: c.say, loc: ev.location, host: true }));
   if (s.talk.length > 120) s.talk = s.talk.slice(-120);
   // full-day log for the daily planner
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(storyMs));
   if (!s.log || s.log.date !== day) { if (s.log) s.prevLog = s.log; s.log = { date: day, lines: [] }; }
   const nm = id => s.cast[id]?.name || id;
   s.log.lines.push(`${storyClock(storyMs).label.slice(-5)} ${ev.location}/${ev.action}${ev.with ? " +" + nm(ev.with) : ""}: ${ev.text}` +
-    (ev.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : nm(l.who)}: "${l.say}"`).join(""));
+    (ev.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : nm(l.who)}: "${l.say}"`).join("") +
+    (ev.commentary || []).map(c => ` [${c.who}] ${c.say}`).join(""));
   if (s.log.lines.length > 450) s.log.lines = s.log.lines.slice(-450);
   await saveState(env, s);
   return s;
@@ -310,7 +318,8 @@ function buildMessages(s, clock, now, goal) {
   const name = id => s.cast[id]?.name || id;
   const recent = s.events.slice(-8).map(e =>
     `[${storyClock(e.t).label}] (${e.location}/${e.action}${e.with ? " with " + name(e.with) : ""}) ${e.text}` +
-    (e.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : name(l.who)}: "${l.say}"`).join("")).join("\n");
+    (e.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : name(l.who)}: "${l.say}"`).join("") +
+    (e.commentary || []).map(c => ` [${c.who === "zohar" ? "Zohar" : "Oren"}: ${c.say}]`).join("")).join("\n");
   const allowNew = canAddPerson(s, now);
   const hrs = k => (now + DELAY_MIN * 60000 - (s.done[k] || now)) / 3600000;
   const need = Object.entries(NEED_H).filter(([k, h]) => hrs(k) > h).map(([k]) => ({ eat: "hungry", drink: "thirsty", bathroom: "needs the bathroom", shower: "needs a shower" })[k]);
@@ -362,8 +371,13 @@ RULES
   : `Do NOT introduce new people right now; "newCharacter" must be null.`}
 - Do not repeat the previous event.${direction}
 
+COMMENTATORS (they talk to the viewers, who do NOT see your "text", only the picture and the spoken lines):
+- ${HOSTS.zohar}
+- ${HOSTS.oren}
+"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: tell viewers what is happening and any detail they cannot see, make them care about the characters, tease what might come, and make them laugh. Comment on most moments; always when something notable happens. They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them.
+
 Reply with ONLY this JSON, nothing else:
-{"location":"...","action":"...","text":"...","with":null,"lines":[],"update":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
+{"location":"...","action":"...","text":"...","with":null,"lines":[],"commentary":[],"update":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
 "missing": if this moment features an object, animal or place the camera cannot show (not listed above), name it in 1-3 words (e.g. "bicycle", "puppy"); otherwise null.
 newCharacter format: {"name":"...","role":"...","personality":"...","speech":"...","hangouts":["..."],"look":{"hair":"...","hairColor":"...","skin":"...","shirt":"...","pants":"...","extras":[]}}`;
   const user =
@@ -400,7 +414,7 @@ async function runModel(env, messages) {
   let lastErr;
   for (let i = modelIdx; i < MODELS.length; i++) {
     try {
-      const out = await env.AI.run(MODELS[i], { messages, max_tokens: 400, temperature: 0.9 });
+      const out = await env.AI.run(MODELS[i], { messages, max_tokens: 520, temperature: 0.9 });
       modelIdx = i;
       if (typeof out?.response === "string") return out.response;
       const c = out?.choices?.[0]?.message?.content;
@@ -448,6 +462,9 @@ function validate(raw, s, last, allowNew, goal) {
     const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || "").toLowerCase() === k); return c ? ev.with : null; };
   ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: who(l?.who), say: str(l?.say, 120).replace(/^["']|["']$/g, "") }))
     .filter(l => l.who && l.say).slice(0, 2);
+  ev.commentary = (Array.isArray(o.commentary) ? o.commentary : [])
+    .map(c => ({ who: str(c?.who, 10).toLowerCase(), say: str(c?.say, 160).replace(/^["']|["']$/g, "") }))
+    .filter(c => HOSTS[c.who] && c.say).slice(0, 2);
   if (ev.with && o.update && typeof o.update === "object")
     ev.update = { memory: str(o.update.memory, 180), mood: Number(o.update.mood) || 0 };
 
@@ -569,6 +586,7 @@ function newGoal(d, now) {
     deadlineH: clamp(Number(d.deadlineH) || 24, .1, 24 * 14), deadlineAt: d.deadlineAt ? Date.parse(d.deadlineAt) : null,
     where: str(d.location, 20) || null, with: str(d.with, 60) || null, forceWith: str(d.forceWith, 20) || null,
     forceAction: str(d.forceAction, 20) || null, forceLines: Array.isArray(d.forceLines) ? d.forceLines.slice(0, 2) : [],
+    forceCommentary: Array.isArray(d.forceCommentary) ? d.forceCommentary.slice(0, 2) : [],
     status: str(d.art, 300) ? "needs-art" : "waiting", art: str(d.art, 300) || null,
     activatedAt: null, doneAt: null, how: null, createdAt: now
   };
@@ -594,7 +612,8 @@ function forcedEvent(g, last, s) {
   const act = g.forceAction && LOCATIONS[loc].includes(g.forceAction) ? g.forceAction
     : loc === "offscreen" ? "away" : (last.action === "sleeping" ? "waking" : "idle");
   const w = g.forceWith && s.cast[g.forceWith] ? g.forceWith : null;
-  return { location: loc, action: act, text, with: w, lines: w ? g.forceLines.filter(l => l && (l.who === "ishai" || l.who === w) && l.say) : [] };
+  return { location: loc, action: act, text, with: w, lines: w ? g.forceLines.filter(l => l && (l.who === "ishai" || l.who === w) && l.say) : [],
+    commentary: Array.isArray(g.forceCommentary) ? g.forceCommentary.filter(c => c && HOSTS[c.who] && c.say).slice(0, 2) : [] };
 }
 // Merge the bundled plan into the goals once per plan version: new beats are added,
 // "overrides" reschedule existing goals (e.g. move the TV delivery out of Shabbat).
