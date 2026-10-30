@@ -1045,7 +1045,7 @@
     if (m.loc && m.loc !== lastScene.split('|')[0]){ const d = document.createElement('div'); d.className = 'scene'; d.textContent = `— ${PLACE_NAME[m.loc]||m.loc.toUpperCase()} · ${fmtHM.format(new Date(m.t))} —`; talkEl.appendChild(d); }
     lastScene = scene;
     const sp = speaker(m.who);
-    const isAd = m.host && /cooola|hummusprime|napmaster|leaflove|sockwise|zenbrick/i.test(m.say);
+    const isAd = m.host && /cooola|hummusprime|napmaster|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch/i.test(m.say);
     const row = document.createElement('div'); row.className = 'msg' + (m.host ? ' host' : '') + (isAd ? ' ad' : '');
     const body = document.createElement('div');
     const who = document.createElement('div'); who.className = 'who'; who.style.color = sp.color; who.textContent = sp.name;

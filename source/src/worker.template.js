@@ -61,8 +61,13 @@ const SPONSORS = [
   { name: "NapMaster 3000", pitch: "a pillow with 'military-grade softness'" },
   { name: "LeafLove", pitch: "plant food that 'makes basil believe in itself again'" },
   { name: "SockWise", pitch: "socks that 'know where their partner is'" },
-  { name: "ZenBrick", pitch: "a meditation app that just shows a brick for ten minutes" }
+  { name: "ZenBrick", pitch: "a meditation app that just shows a brick for ten minutes" },
+  { name: "A Butcher Is Born", pitch: "the hottest new reality competition on Channel 9, where amateur butchers compete for the Golden Cleaver; " +
+      "contestants: Rami 'The Cleaver' (cries every episode), Shuli Two-Knives (trash-talks the meat), and 78-year-old Grandpa Moti (somehow undefeated). Tonight at 21:00; keep it funny, never gory" },
+  { name: "Wee Laddie Virgin Scotch", pitch: "a 0% alcohol 'scotch' for kids, smoky apple juice in a fancy bottle: 'you wouldn't believe it's not alcohol'" }
 ];
+// fictional show that also airs on Ishai's TV once he has one
+const TV_SHOW = "On Channel 9 the hit fictional reality show 'A Butcher Is Born' airs at 21:00 (contestants Rami 'The Cleaver', Shuli Two-Knives, Grandpa Moti); the hosts are obsessed with it.";
 const AD_EVERY_MIN = 75; // at most one plug per this many minutes
 
 const PERSONA =
@@ -376,7 +381,7 @@ RULES
 - Location must be one of: ${Object.keys(LOCATIONS).join(", ")}. Action must be allowed in that location.
 - He can only move to a neighboring location: ${Object.entries(NEXT).map(([k, v]) => `${k} -> ${v.join("/")}`).join("; ")}.
 - If he goes somewhere without a camera, use location "offscreen" with action "away".
-- Things he owns at home: laptop, books, game console${owned.length ? ", " + owned.join(", ") : ""}. Do not invent other big objects. When he watches TV or listens to the radio, mention what is on (make up shows and stations).
+- Things he owns at home: laptop, books, game console${owned.length ? ", " + owned.join(", ") : ""}. Do not invent other big objects. When he watches TV or listens to the radio, mention what is on (make up shows and stations). ${TV_SHOW}
 - "with" is the id of ONE person with him in this moment (a visitor at home counts), or the person on the other end when the action is "phoning"; otherwise null.
 - He is social: about one in four moments should involve another person, in person or by phone. People visit him, call him, text him to meet up.
 - "lines": up to 2 short spoken lines (max 15 words each) by "ishai" or the "with" person. Use [] when nobody talks.
