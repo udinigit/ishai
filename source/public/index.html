@@ -100,6 +100,7 @@
 (() => {
   // ================= config =================
   const API = '/api/state';
+  const BUILD = '__BUILD__'; // replaced at build time; compared with the server's to auto-update
   const POLL_MS = 45000;
   const TZ = 'Asia/Jerusalem';
   const W = 192, H = 108;
@@ -1072,6 +1073,21 @@
     $('day').textContent = 'DAY 1'; demoTick(); setInterval(demoTick, 18000);
   }
 
+  let updating = false;
+  function offerUpdate(){
+    if (updating) return; updating = true;
+    // never reload more than once every 2 minutes (in case old and new versions overlap briefly)
+    try { const last = +sessionStorage.getItem('ishaiReload') || 0; if (Date.now() - last < 120000) return; sessionStorage.setItem('ishaiReload', Date.now()); } catch(e){}
+    const soundOn = $('snd').textContent !== 'SOUND: OFF';
+    if (!soundOn){
+      // reload quietly once the current line has finished typing
+      const go = () => { if (typing || queue.length) return setTimeout(go, 1500); location.reload(); };
+      setTimeout(go, 1500);
+    } else {
+      const b = document.createElement('button'); b.className = 'snd'; b.textContent = 'UPDATE — TAP';
+      b.onclick = () => location.reload(); $('snd').after(b);
+    }
+  }
   let loaded = false, fails = 0;
   async function poll(){
     let s;
@@ -1090,6 +1106,7 @@
     try{
       $('stLink').textContent = s.delayMin ? `LIVE (${s.delayMin} MIN DELAY)` : 'LIVE';
       $('day').textContent = 'DAY ' + (s.day || 1);
+      if (s.build && !BUILD.startsWith('__') && s.build !== BUILD) offerUpdate();
       NOTES = s.notes || ''; setCast(s.cast);
       if (s.world) { WORLD = s.world; $('stNext').textContent = weatherLabel(); }
       // items appear when the moment that brings them is shown, not before (broadcast delay)

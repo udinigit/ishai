@@ -119,6 +119,7 @@ const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => !NEEDS[a] || unloc
 
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
+const BUILD = "__BUILD__";
 // The story plan (story/plan.json in the repository), written ahead by the daily planner.
 const PLAN = __PLAN__;
 
@@ -186,7 +187,7 @@ function publicState(s) {
   const last = s.events[s.events.length - 1];
   return {
     day: Math.floor((Date.now() - s.startedAt) / 86400000) + 1,
-    delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: s.notes,
+    build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: s.notes,
     events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, text: e.text, with: e.with || null, lines: e.lines || [], unlocks: e.unlocks || null })),
     unlocked: s.unlocked,
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays } : null,
