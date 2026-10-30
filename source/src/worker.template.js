@@ -50,13 +50,17 @@ const NEEDS = { watching: "tv", listening: "radio" }; // actions that need an it
 
 // The two hosts who comment on the show for viewers (they replace the narration on the public page)
 // --- keep the hosts from repeating themselves ---
-const words = t => String(t || "").toLowerCase().replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(w => w.length > 2);
+// content words only: names and filler words are shared by almost every line about the same scene
+const STOP = new Set("the and but for with that this his her him she he's she's they them their you your was are is it's its not just like what when then than from have has had into out about over again still very really more some been will would could there here who how why all one get got going gonna yeah okay ishai noa dana moshe levi avi zohar oren falafel".split(" "));
+const words = t => String(t || "").toLowerCase().replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(w => w.length > 3 && !STOP.has(w));
 function similar(a, b) {
-  const A = new Set(words(a)), B = new Set(words(b)); if (!A.size || !B.size) return 0;
+  const A = new Set(words(a)), B = new Set(words(b));
+  if (Math.min(A.size, B.size) < 3) return A.size >= 2 && A.size === B.size && [...A].every(w => B.has(w)) ? 1 : 0; // short lines: same words = same joke
   let n = 0; A.forEach(w => B.has(w) && n++); return n / Math.min(A.size, B.size);
 }
 const recentHostLines = (s, n = 24) => s.events.slice(-30).flatMap(e => (e.commentary || []).map(c => c.say)).slice(-n);
-const isRepeat = (say, prev) => prev.some(p => similar(say, p) >= 0.6 || words(say).slice(0, 4).join(" ") === words(p).slice(0, 4).join(" "));
+const opening = t => String(t || "").toLowerCase().replace(/[^a-z' ]/g, " ").split(/\s+/).filter(Boolean).slice(0, 5).join(" ");
+const isRepeat = (say, prev) => prev.some(p => similar(say, p) >= 0.75 || (opening(say).split(" ").length >= 5 && opening(say) === opening(p)));
 
 const HOSTS = {
   zohar: "Zohar: sassy, sharp-tongued, a little edgy. Roasts Ishai's choices but is secretly rooting for him. Lives for romance drama and ships Ishai with Dana.",
