@@ -178,6 +178,19 @@ export default {
       return json({ today: s.log || null, yesterday: s.prevLog || null, notes: s.notes, plan: { version: PLAN.version || null, arcs: PLAN.arcs || [] },
         goals: (s.director || []).map(g => ({ id: g.id, status: g.status, how: g.how, startAfter: g.startAfter, deadlineAt: deadlineOf(g), goal: g.goal })) });
     }
+    // compact health summary for the scheduled health check (no secrets, no narration of the future)
+    if (url.pathname === "/api/health") {
+      const s = await loadState(env), now = Date.now(), d = s.diag || [];
+      const moments = d.filter(x => x.attempt === 0).length, retried = d.filter(x => x.attempt === 0 && x.problem).length;
+      const nm = id => id ? (s.cast[id]?.name || id) : null;
+      return json({ now, build: BUILD, planVersion: PLAN.version || null,
+        recent: s.events.slice(-10).map(e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " +" + nm(e.with) : ""} (${(e.lines || []).length} lines, ${(e.commentary || []).length} host): ${e.text.slice(0, 110)}`),
+        lastMomentAgoMin: Math.round((now - (s.events[s.events.length - 1].created || 0)) / 60000),
+        retryRate: moments ? +(retried / moments).toFixed(2) : null, problems: d.filter(x => x.problem).slice(-6).map(x => x.problem.slice(0, 120)),
+        stuck: s.stuck || 0, scene: s.scene ? { with: nm(s.scene.w), lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null,
+        lastError: s.lastError || null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
+        artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })) }, { "cache-control": "no-store" });
+    }
     if (url.pathname === "/director")
       return new Response(DIRECTOR_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
     if (url.pathname === "/api/director") {
@@ -509,7 +522,7 @@ newCharacter format: {"name":"...","role":"...","personality":"...","speech":"..
 He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
 Plot notes: ${s.notes || "none"}
 ${body}
-${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.stuck ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
+${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${s.stuck ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
 ${recent}${gap}${convo}${sceneBrief}
 
@@ -840,6 +853,13 @@ function applyPlan(s, now) {
     if (Array.isArray(o.forceCommentary)) g.forceCommentary = o.forceCommentary.slice(0, 2);
     if (Array.isArray(o.forceLines)) g.forceLines = o.forceLines.slice(0, 14);
     if (o.forceText) g.forceText = String(o.forceText).slice(0, 260);
+  }
+  s.fixesDone = s.fixesDone || [];
+  for (const f of PLAN.fixes || []) {
+    if (!f || !f.id || s.fixesDone.includes(f.id)) continue;
+    s.fixesDone = [...s.fixesDone, f.id].slice(-30);
+    if (f.endScene) s.stuck = Math.max(s.stuck || 0, 2);                                   // wraps up the running scene with a goodbye
+    if (f.note) s.fixNote = { text: String(f.note).slice(0, 300), until: now + (Number(f.minutes) || 60) * 60000 };
   }
   s.planVersion = PLAN.version;
   return true;

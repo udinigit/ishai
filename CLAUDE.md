@@ -17,3 +17,7 @@ Owner (the director): udinigit. Read `docs/SCENE_GUIDELINES.md` before adding or
 - Fictional brands only (Cooola, HummusPrime, Wee Laddie Virgin Scotch, A Butcher Is Born, Tahini Tower Savings Bank, Yalla Yoga, FluffNap, Herzl Hardware, Kfar Kofi, Radio Herzl 88.2, …). Never real brands or their look-alike trade dress.
 - Narration (`text`) is dev-only; viewers see the picture, spoken lines and the hosts (Zohar, Oren).
 - Keep the free tiers in mind: Workers AI ~10k neurons/day, KV 1k writes/day.
+
+## Health check and quick fixes
+- `GET /api/health` (public): recent moments, retry rate, recent rule problems, stuck counter, current scene, last AI error, art requests.
+- Quick fixes without touching code: add to `story/plan.json` a `"fixes": [{"id": "fix-<date>-<hhmm>", "endScene": true, "note": "...", "minutes": 60}]` and bump `"version"`. `endScene` wraps up the running scene with a goodbye; `note` is a director note the story follows for `minutes`. Each fix id runs once.
