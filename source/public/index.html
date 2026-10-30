@@ -604,15 +604,19 @@
   function wantComp(w){ compWant = w; return comp.mode==='here' && comp.id===w.id; } // true = draw them in place now
   function compUpdate(t, scene){
     const n = performance.now(), dts = Math.min(.1, (n - (comp.last||n))/1000); comp.last = n;
-    if (comp.loc !== actor.loc || actor.switching){ comp.id = null; comp.mode = null; comp.loc = actor.loc; }
+    if (comp.loc !== actor.loc || actor.switching){
+      if (comp.id && comp.loc === 'apartment' && comp.mode !== 'out') comp.parked = {id: comp.id, look: comp.look, x: comp.x, until: Date.now() + 20 * 60000}; // waits while he is in the bathroom
+      if (actor.loc !== 'bathroom' && actor.loc !== 'apartment' && !actor.switching) comp.parked = null;
+      comp.id = null; comp.mode = null; comp.loc = actor.loc; }
     const w = compWant; compWant = null;
     if (w && comp.id !== w.id){
       if (comp.id && comp.mode !== 'out'){ comp.mode = 'out'; }                       // current friend leaves first
-      else if (!comp.id){ const already = performance.now() < (comp.settleUntil || 0);   // tuned in mid-scene (or the page just updated): they are already here
-        Object.assign(comp, {id:w.id, look:w.look, mode: already ? 'here' : 'in', x: already ? w.x : exitX(actor.loc, w.id, w.x), tx: w.x}); }
+      else if (!comp.id){ const pk = comp.parked && comp.parked.id === w.id && actor.loc === 'apartment' && Date.now() < comp.parked.until ? comp.parked : null; comp.parked = null;
+        const already = pk || performance.now() < (comp.settleUntil || 0);   // tuned in mid-scene (or the page just updated): they are already here
+        Object.assign(comp, {id:w.id, look:w.look, mode: already ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: pk ? pk.x : already ? w.x : exitX(actor.loc, w.id, w.x), tx: w.x}); }
     }
     // the story still has them together (Ishai is just walking to the counter, the fridge...): they stay, standing
-    const together = !w && comp.id && comp.mode !== 'out' && actor.with === comp.id;
+    const together = !w && comp.id && comp.mode !== 'out' && (actor.with === comp.id || actor.guestWaits === comp.id);
     if (!w && comp.id && comp.mode !== 'out' && !together) comp.mode = 'out';
     if (w && comp.id === w.id && comp.mode === 'out') comp.mode = 'in';               // changed their mind: come back, don't re-enter
     if (w) comp.tx = w.x;
@@ -727,7 +731,7 @@
       // bathroom door (the camera never looks inside)
       const inBath = actor.hidden && BATH.has(a) && actor.loc==='apartment';
       R(46,50,15,30,C.doorFrame); R(47,52,13,28,'#7d6a58'); R(49,55,9,8,'#8a7663'); R(49,66,9,10,'#8a7663'); R(57,66,1,2,C.gold);
-      if (doorBusy(53) && ((actor.pending && actor.pending.route[0]==='bathroom') || actor.fromLoc==='bathroom')) openDoor(47,52,13,28);
+      if (!actor.hidden && Math.abs(actor.x + 5 - 53) < 9 && ((actor.pending && actor.pending.route[0]==='bathroom') || (actor.fromLoc==='bathroom' && actor.travelling))) openDoor(47,52,13,28);
       R(50,47,7,3, inBath ? '#c23b3b' : '#3a3a3a'); R(51,48,5,1, inBath ? '#ffb0b0' : '#555');
       if (inBath){ alpha(.7,()=>R(47,79,13,1,'#ffe8a0'));
         if (a==='showering') for (let i=0;i<4;i++){ const ph=(t/1400+i/4)%1; alpha((1-ph)*.8,()=>R(48+i*3+(Math.floor(ph*6)%2),78-Math.floor(ph*14),2,1,'#f2f2f2')); } }
@@ -1186,7 +1190,8 @@
   }
   function setState(loc, a, instant, w=null){
     if (!SCENES[loc]) loc = 'offscreen';
-    if (loc==='apartment' && BATH.has(a)) loc = 'bathroom';
+    if (loc==='apartment' && BATH.has(a)){ loc = 'bathroom'; if (actor.with) actor.guestWaits = actor.with; }
+    else if (!instant) actor.guestWaits = (w && w === actor.guestWaits) ? w : null;
     a = fixAction(loc, a);
     if (instant){
       Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null});

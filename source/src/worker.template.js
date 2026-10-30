@@ -302,7 +302,7 @@ async function tick(env, force) {
       (ev.with || ev.complete || ev.unlocks || (prevEv && prevEv.location !== ev.location && !["corridor", "street"].includes(ev.location)));
     if (notable && !(lastHl && lastHl.loc === ev.location && lastHl.w === (ev.with || null)))
       { hl.push({ t: storyMs, loc: ev.location, a: ev.action, w: ev.with || null }); s.hl = hl.slice(-20); } }
-  if (!ev.with) s.scene = null;
+  if (!ev.with && !BATH_ACTIONS.includes(ev.action)) s.scene = null;
   else if (s.scene && s.scene.w === ev.with) s.scene.lines += (ev.lines || []).length;
   else s.scene = { w: ev.with, loc: ev.location, startedAt: storyMs, lines: (ev.lines || []).length,
     ...(ev.scene || { type: "small talk", why: "they ran into each other", ishaiWants: "a pleasant chat", theyWant: "a pleasant chat", beats: "greet, catch up, part", ending: "a natural goodbye", target: 14 }) };
@@ -344,8 +344,10 @@ function castSection(s, last) {
     (others ? `\nOther known people: ${others}` : "");
 }
 
+const BATH_ACTIONS = ["bathroom", "showering"];
 function buildMessages(s, clock, now, goal) {
   const last = s.events[s.events.length - 1];
+  const cw = last.with || (BATH_ACTIONS.includes(last.action) && s.scene ? s.scene.w : null); // a guest waits while he is in the bathroom
   const owned = s.unlocked.map(u => ITEMS[u]).filter(Boolean);
   const dogLine = s.unlocked.includes("dog")
     ? "\n- Falafel, Ishai's scruffy sandy dog (adopted from Avi's kiosk), goes everywhere with him: he walks him, feeds him, Falafel begs at the counter, naps in his own bed, steals socks. Mention Falafel now and then; the hosts adore him."
@@ -364,14 +366,15 @@ function buildMessages(s, clock, now, goal) {
     `[${storyClock(e.t).label}] (${e.location}/${e.action}${e.with ? " with " + name(e.with) : ""}) ${e.text}` +
     (e.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : name(l.who)}: "${l.say}"`).join("") +
     (e.commentary || []).map(c => ` [${c.who === "zohar" ? "Zohar" : "Oren"}: ${c.say}]`).join("")).join("\n");
-  const convo = last.with && s.cast[last.with] ? (() => {
-    const w = last.with, ls = (s.talk || []).filter(m => !m.host && (m.w === w || m.who === w) && now + DELAY_MIN * 60000 - m.t < 40 * 60000).slice(-12);
+  const convo = cw && s.cast[cw] ? (() => {
+    const w = cw, ls = (s.talk || []).filter(m => !m.host && (m.w === w || m.who === w) && now + DELAY_MIN * 60000 - m.t < 40 * 60000).slice(-12);
     return ls.length ? `\nCONVERSATION SO FAR with ${name(w)} (still going unless someone has a reason to leave; do NOT greet again or repeat; react to the last line, add something new):\n` +
       ls.map(m => `${m.who === "ishai" ? "Ishai" : name(m.who)}: "${m.say}"`).join("\n") + "\n" : "";
   })() : "";
-  const sc = s.scene && last.with && s.scene.w === last.with ? s.scene : null;
+  const sc = s.scene && cw && s.scene.w === cw ? s.scene : null;
   const sceneBrief = sc ? `\nSCENE BRIEF (this conversation with ${name(sc.w)}): type: ${sc.type}. Why they are talking: ${sc.why}. Ishai wants: ${sc.ishaiWants}. ${name(sc.w)} wants: ${sc.theyWant}. ` +
     `Beats: ${sc.beats}. Planned ending: ${sc.ending}. Progress: ${sc.lines} of about ${sc.target} lines.` +
+    (!last.with ? ` Ishai just came back from the bathroom; ${name(sc.w)} waited in the apartment and is still there.` : "") +
     (sc.lines >= sc.target ? ` It is time to reach the planned ending now, naturally (a reason to leave, hang up, or move on).` : ` Keep both people pursuing what they want; move to the next beat when the current one is done.`) + "\n" : "";
   const allowNew = canAddPerson(s, now);
   // now and then, ask the hosts for an obvious "secret" sponsor plug
@@ -380,7 +383,8 @@ function buildMessages(s, clock, now, goal) {
   const hrs = k => (now + DELAY_MIN * 60000 - (s.done[k] || now)) / 3600000;
   const need = Object.entries(NEED_H).filter(([k, h]) => hrs(k) > h).map(([k]) => ({ eat: "hungry", drink: "thirsty", bathroom: "needs the bathroom", shower: "needs a shower" })[k]);
   const body = `Body: last ate ${hrs("eat").toFixed(1)}h ago, last drink ${hrs("drink").toFixed(1)}h ago, bathroom ${hrs("bathroom").toFixed(1)}h ago, shower ${hrs("shower").toFixed(0)}h ago.` +
-    (need.length ? ` He is ${need.join(" and ")} — let that show soon, naturally.` : "");
+    (need.length ? (last.with ? ` He is ${need.join(" and ")}; with ${name(last.with)} here he either waits or excuses himself for a minute ("one sec") and comes back; the guest waits. Do not make a scene of it.`
+      : ` He is ${need.join(" and ")} — let that show soon, naturally.`) : "");
   // pacing: keep the show moving
   const evs = s.events, hourNow = clock.hour;
   let sinceMove = 0; for (let i = evs.length - 1; i >= 0 && evs[i].location === last.location; i--) sinceMove = (now - (evs[i].created || evs[i].t)) / 60000;
@@ -568,8 +572,9 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
       return { ev, problem: `it is after 01:00 and he is home: he goes to bed now ("sleeping"), or at most a quick bathroom or water break` };
     if (h < 6 && last.action === "sleeping" && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts)
       return { ev, problem: `he is asleep and it is the middle of the night: keep him "sleeping" (a short bathroom or water trip is the only exception)` }; }
+  if (ev.with && BATH_ACTIONS.includes(ev.action)) ev.with = null; // the guest waits outside
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
-  if (ev.with && ev.with !== last.with && !(ev.scene && ev.scene.why) && ev.action !== "sleeping" && !allowNoHosts)
+  if (ev.with && ev.with !== last.with && !(BATH_ACTIONS.includes(last.action) && s.scene && s.scene.w === ev.with) && !(ev.scene && ev.scene.why) && ev.action !== "sleeping" && !allowNoHosts)
     return { ev, problem: `a conversation with ${s.cast[ev.with]?.name || ev.with} starts here, so fill "scene" (type, why, ishaiWants, theyWant, beats, ending, lines) and write its first lines` };
   if (ev.with && ev.lines.length < 6 && !allowNoHosts)
     return { ev, problem: `he is ${ev.action === "phoning" ? "on the phone" : "together"} with ${s.cast[ev.with]?.name || ev.with}, so "lines" must contain their actual conversation: 8 to 14 lines alternating between "ishai" and "${ev.with}"` };
