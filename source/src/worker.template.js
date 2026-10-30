@@ -83,11 +83,11 @@ const SEED_CAST = [
 
 // ---------- world (must match the page) ----------
 const LOCATIONS = {
-  apartment: ["sleeping","waking","idle","walking","working","gaming","eating","drinking","cooking","reading","exercising","watching","listening","bathroom","showering"],
-  corridor:  ["walking","idle","talking"],
-  street:    ["walking","idle","talking","eating","drinking"],
-  park:      ["walking","idle","talking","reading","eating","drinking","exercising"],
-  cafe:      ["idle","eating","drinking","working","reading","talking"],
+  apartment: ["sleeping","waking","idle","walking","working","gaming","eating","drinking","cooking","reading","exercising","watching","listening","bathroom","showering","talking","phoning"],
+  corridor:  ["walking","idle","talking","phoning"],
+  street:    ["walking","idle","talking","eating","drinking","phoning"],
+  park:      ["walking","idle","talking","reading","eating","drinking","exercising","phoning"],
+  cafe:      ["idle","eating","drinking","working","reading","talking","phoning"],
   offscreen: ["away"]
 };
 const PLACES = {
@@ -263,7 +263,7 @@ function castSection(s, last) {
   const recent = new Set(s.events.slice(-8).map(e => e.with).filter(Boolean));
   const all = Object.values(s.cast);
   const score = c => (recent.has(c.id) ? 2 : 0) + (c.hangouts || []).some(h => near.has(h)) + (c.lastSeen || 0) / 1e15;
-  const full = all.filter(c => recent.has(c.id) || (c.hangouts || []).some(h => near.has(h))).sort((a, b) => score(b) - score(a)).slice(0, 4);
+  const full = all.filter(c => recent.has(c.id) || (c.relationship || 0) >= 3 || (c.hangouts || []).some(h => near.has(h))).sort((a, b) => score(b) + (b.relationship || 0) / 10 - score(a) - (a.relationship || 0) / 10).slice(0, 4);
   const fullIds = new Set(full.map(c => c.id));
   const cards = full.map(c =>
     `- id "${c.id}": ${c.name}, ${c.role}. Personality: ${c.personality}. Speech: ${c.speech}. ` +
@@ -293,6 +293,15 @@ function buildMessages(s, clock, now, goal) {
   const need = Object.entries(NEED_H).filter(([k, h]) => hrs(k) > h).map(([k]) => ({ eat: "hungry", drink: "thirsty", bathroom: "needs the bathroom", shower: "needs a shower" })[k]);
   const body = `Body: last ate ${hrs("eat").toFixed(1)}h ago, last drink ${hrs("drink").toFixed(1)}h ago, bathroom ${hrs("bathroom").toFixed(1)}h ago, shower ${hrs("shower").toFixed(0)}h ago.` +
     (need.length ? ` He is ${need.join(" and ")} — let that show soon, naturally.` : "");
+  // pacing: keep the show moving
+  const evs = s.events, hourNow = clock.hour;
+  let sinceMove = 0; for (let i = evs.length - 1; i >= 0 && evs[i].location === last.location; i--) sinceMove = (now - (evs[i].created || evs[i].t)) / 60000;
+  let sinceTalk = 0; for (let i = evs.length - 1; i >= 0 && !evs[i].with; i--) sinceTalk = (now - (evs[i].created || evs[i].t)) / 60000;
+  const awake = hourNow >= 8 && hourNow < 23 && last.action !== "sleeping";
+  const pacing = [
+    awake && sinceMove > 100 && last.location !== "offscreen" ? `He has been at the ${last.location} for about ${(sinceMove / 60).toFixed(1)} hours. Time for a change soon: he goes out (step by step through the neighbors rule) or someone comes over.` : "",
+    awake && sinceTalk > 80 ? `Nobody has interacted with him for about ${(sinceTalk / 60).toFixed(1)} hours. In this or the next moment someone should call, visit, or he should meet someone.` : ""
+  ].filter(Boolean).join(" ");
   const wr = s.world || {};
   const real = [
     wr.weather ? `Weather in Tel Aviv right now: ${wr.weather.temp}°C, ${wr.weather.desc}${wr.weather.wind > 30 ? ", windy" : ""}.` : "",
@@ -321,7 +330,8 @@ RULES
 - He can only move to a neighboring location: ${Object.entries(NEXT).map(([k, v]) => `${k} -> ${v.join("/")}`).join("; ")}.
 - If he goes somewhere without a camera, use location "offscreen" with action "away".
 - Things he owns at home: laptop, books, game console${owned.length ? ", " + owned.join(", ") : ""}. Do not invent other big objects. When he watches TV or listens to the radio, mention what is on (make up shows and stations).
-- "with" is the id of ONE person physically with him in this moment, or null. Most moments he is alone.
+- "with" is the id of ONE person with him in this moment (a visitor at home counts), or the person on the other end when the action is "phoning"; otherwise null.
+- He is social: about one in four moments should involve another person, in person or by phone. People visit him, call him, text him to meet up.
 - "lines": up to 2 short spoken lines (max 15 words each) by "ishai" or the "with" person. Use [] when nobody talks.
 - When "with" is set, "update" holds that person's updated memory of Ishai (max 25 words, keep old facts that still matter) and "mood": -1, 0 or 1 for how this moment changed their feelings.
 - ${allowNew
@@ -338,7 +348,7 @@ newCharacter format: {"name":"...","role":"...","personality":"...","speech":"..
 He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
 Plot notes: ${s.notes || "none"}
 ${body}
-${real}${media}
+${real}${media}${pacing ? "\nPACING: " + pacing : ""}
 Recent events:
 ${recent}${gap}
 

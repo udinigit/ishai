@@ -106,17 +106,17 @@
 
   // Must match the Worker
   const LOCATIONS = {
-    apartment: ['sleeping','waking','idle','walking','working','gaming','eating','drinking','cooking','reading','exercising','watching','listening','bathroom','showering'],
-    corridor:  ['walking','idle','talking'],
-    street:    ['walking','idle','talking','eating','drinking'],
-    park:      ['walking','idle','talking','reading','eating','drinking','exercising'],
-    cafe:      ['idle','eating','drinking','working','reading','talking'],
+    apartment: ['sleeping','waking','idle','walking','working','gaming','eating','drinking','cooking','reading','exercising','watching','listening','bathroom','showering','talking','phoning'],
+    corridor:  ['walking','idle','talking','phoning'],
+    street:    ['walking','idle','talking','eating','drinking','phoning'],
+    park:      ['walking','idle','talking','reading','eating','drinking','exercising','phoning'],
+    cafe:      ['idle','eating','drinking','working','reading','talking','phoning'],
     offscreen: ['away']
   };
   let UNLOCKED = new Set(); // items the story has brought in (tv, radio)
   const BATH = new Set(['bathroom','showering']); // he disappears behind the bathroom door
   let WORLD = null; // real weather / Shabbat from the Worker
-  const LABEL = {drinking:'DRINKING',bathroom:'BATHROOM',showering:'SHOWER',watching:'WATCHING TV',listening:'RADIO ON',sleeping:'SLEEPING',waking:'WAKING UP',idle:'IDLE',walking:'WALKING',working:'WORKING',gaming:'GAMING',
+  const LABEL = {phoning:'ON THE PHONE',drinking:'DRINKING',bathroom:'BATHROOM',showering:'SHOWER',watching:'WATCHING TV',listening:'RADIO ON',sleeping:'SLEEPING',waking:'WAKING UP',idle:'IDLE',walking:'WALKING',working:'WORKING',gaming:'GAMING',
     eating:'EATING',cooking:'COOKING',reading:'READING',exercising:'EXERCISING',talking:'TALKING',away:'UNKNOWN'};
 
   const params = new URLSearchParams(location.search);
@@ -245,6 +245,13 @@
       case 'walk': {
         const fw = Math.floor(t/220)%4, bob = (fw%2)?-1:0, lm = fw===1?1:fw===3?2:0;
         head(x,y+bob,{closed:blinkOn(t)}); torso(x,y+bob); armsDown(x,y+bob,fw===1?1:fw===3?-1:0); legs(x,y+bob,lm); break; }
+      case 'phoning': {
+        const speak = Math.floor(t/1700)%2===0;
+        head(x,y,{closed:blinkOn(t), look:(Math.floor(t/3000)%2)?1:0, talk: speak && Math.floor(t/160)%2}); torso(x,y);
+        R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin);
+        R(x+8,y+9,1,2,C.shirt); R(x+8,y+5,1,4,C.skin); R(x+7,y+3,2,4,'#2a2a2a'); R(x+7,y+4,1,1,'#7fd0ff');
+        legs(x,y,0); if (speak) bubble(x+9,y-7,t);
+        break; }
       case 'idle': {
         head(x,y,{closed:blinkOn(t), look:(Math.floor(t/4000)%3)-1}); torso(x,y); armsDown(x,y); legs(x,y,0); break; }
       case 'talking': {
@@ -370,6 +377,7 @@
   const lookOf = id => (CAST[id] && CAST[id].look) || null;
   // the person currently with Ishai (or a generic stranger when he talks to someone unnamed)
   function companionLook(a){
+    if (a==='phoning') return null; // the other person is on the phone, not in the room
     if (actor.with && lookOf(actor.with)) return lookOf(actor.with);
     if (a==='talking') return actor.loc==='corridor' ? EXTRA.neighbor : EXTRA.stranger;
     return null;
@@ -645,6 +653,7 @@
     else if (a==='eating') drawIshai('eating', actor.x, y, t, {legs:'stand', food:'#e0c060'});
     else if (a==='drinking' && actor.loc!=='apartment') drawIshai('drinking', actor.x, y, t, {legs:'stand'});
     else if (a==='idle') drawIshai('idle', actor.x, y, t);
+    else if (a==='phoning') drawIshai('phoning', actor.x, y, t);
   }
   function digit(n,x,y,c='#2a2018'){
     const gl = {3:['111','001','111','001','111'],4:['101','101','111','001','001'],5:['111','100','111','001','111']}[n];
@@ -997,7 +1006,7 @@
   function settledOnCamera(){
     const v = new Set();
     if (actor.switching || actor.loc==='offscreen') return v;
-    if (actor.with && !actor.travelling) v.add(actor.with);
+    if (actor.with && !actor.travelling && actor.action!=='phoning') v.add(actor.with);
     if (POST[actor.loc] && CAST[POST[actor.loc]]) v.add(POST[actor.loc]); // Avi at his kiosk, Dana behind the counter
     return v;
   }
