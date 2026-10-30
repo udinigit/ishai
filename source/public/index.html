@@ -536,7 +536,7 @@
     if (actor.loc==='bathroom'){ dog.x = 62; return; }                  // waits outside the bathroom door
     const floor = scene.walkY + 22, a = actor.action, settled = !actor.travelling && !actor.hidden;
     const ew = actor.err && actor.err.walking;
-    const moving = actor.travelling || a==='walking' || ew;
+    const moving = actor.travelling || (a==='walking' && !actor.pacePause) || ew;
     const mdir = actor.travelling ? Math.sign(actor.targetX - actor.x) || 1 : ew ? actor.err.dir : (actor.paceDir || 1);
     if (dog.loc !== actor.loc){ dog.loc = actor.loc; dog.x = actor.x - 12*mdir; }
     let target = actor.x + (actor.x > W-40 ? -12 : 12), pose = 'sit', fy = floor;
@@ -641,9 +641,10 @@
     if (w && comp.id === w.id && comp.mode === 'out') comp.mode = 'in';               // changed their mind: come back, don't re-enter
     if (w) comp.tx = w.x;
     if (!comp.id) return;
-    const target = comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x + (w.kind==='floor' && actor.action!=='walking' ? wander(comp.id) : 0) : (comp.tx ?? comp.x));
-    if (comp.mode==='here' && Math.abs(target - comp.x) > 2) comp.mode = 'in';     // their spot moved (table -> counter): walk there
-    if (comp.mode==='here'){ comp.x = target;
+    const target = comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x + (w.kind==='floor' && actor.action!=='walking' && !actor.travelling ? wander(comp.id) : 0) : (comp.tx ?? comp.x));
+    if (comp.mode==='here' && Math.abs(target - comp.x) > 6) comp.mode = 'in';     // a real move (table -> counter): walk there
+    else if (comp.mode==='here' && Math.abs(target - comp.x) > .5){ const st = 30 * dts; comp.x += Math.abs(target - comp.x) <= st ? target - comp.x : Math.sign(target - comp.x) * st; }     // their spot moved (table -> counter): walk there
+    if (comp.mode==='here'){
       if (together){ markHead(comp.id, comp.x, scene.walkY); person(comp.look, comp.x, scene.walkY, t+300, {face: actor.x > comp.x ? 1 : -1}); }
       return; }
     const d = target - comp.x, step = 30 * dts;
@@ -1109,16 +1110,17 @@
     const cl = settled && !withIsPost() && !atIsland && a!=='sleeping' && a!=='waking' ? companionLook(a) : null;
     if (cl){
       const dir = actor.paceDir||1;
-      const gx = a==='walking' ? actor.x - 12*dir : (actor.x > W-40 ? actor.x-13 : actor.x+13);
+      const gx = a==='walking' ? actor.x + 12 : (actor.x > W-40 ? actor.x-13 : actor.x+13);   // walking: side by side, always on his right (no jump when turning)
       if (wantComp({id: actor.with || 'stranger', look: cl, x: gx, kind:'floor'})){
         const cx = a==='walking' ? gx : comp.x;   // standing friends may wander a step or two (see compUpdate)
         markHead(actor.with, cx, y);
-        if (a==='walking') person(cl, gx, y, t+300, {walk:true, face:dir});
+        if (a==='walking') person(cl, gx, y, t+300, actor.pacePause ? {face:-1} : {walk:true, face:dir});
         else { face = cx > actor.x ? 1 : -1; person(cl, cx, y, t, {face:-face, talkPhase:a==='talking'}); }
       }
     }
     if (withIsPost() && settled) face = actor.loc==='street' ? 0 : 1;
-    if (actor.travelling || a==='walking') drawIshai('walk', actor.x, y, t);
+    if (a==='walking' && actor.pacePause && !actor.travelling && !actor.pending) drawIshai('idle', actor.x, y, t);
+    else if (actor.travelling || a==='walking') drawIshai('walk', actor.x, y, t);
     else if (!settled) return;
     else if (a==='exercising') drawIshai('exercising', actor.x, y+2, t);
     else if (a==='talking') drawIshai('talking', actor.x, y, t, {face: face||1});
@@ -1312,8 +1314,12 @@
     } else if (actor.action==='walking' && !actor.pending){
       // pacing back and forth, position taken from the real clock
       const lo = actor.loc==='street'?50:actor.loc==='park'?40:52, hi = actor.loc==='street'?140:actor.loc==='cafe'?110:124;
-      const span = hi - lo, d = (Date.now()/1000*14) % (2*span);
-      actor.paceDir = d < span ? 1 : -1; actor.x = lo + (d < span ? d : 2*span - d);
+      // walk one way, stop for a few seconds, walk back, stop again (like a real person, not a pendulum)
+      const span = hi - lo, wt = span / 14, P = 5, e = (Date.now()/1000) % (2*wt + 2*P);
+      if (e < wt){ actor.paceDir = 1; actor.pacePause = false; actor.x = lo + e*14; }
+      else if (e < wt + P){ actor.paceDir = 1; actor.pacePause = true; actor.x = hi; }
+      else if (e < 2*wt + P){ actor.paceDir = -1; actor.pacePause = false; actor.x = hi - (e - wt - P)*14; }
+      else { actor.paceDir = -1; actor.pacePause = true; actor.x = lo; }
 
     }
   }
