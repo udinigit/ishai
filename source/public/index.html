@@ -56,6 +56,8 @@
   .caption span{background:rgba(0,0,0,.6);padding:1px 8px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
   .msg.host{background:rgba(77,255,122,.05);border:1px dashed var(--phos-faint);border-radius:8px;padding:6px}
   .msg.host .who::after{content:" · ON AIR";color:var(--red);font-size:.8em}
+  .msg.host.ad .who::after{content:" · ON AIR · TOTALLY NOT AN AD";color:#ffd36a}
+  .msg.host.ad{border-color:#6b5a1a;background:rgba(255,211,106,.06)}
   .talk .empty{color:var(--phos-dim);font-size:.85em}
   .msg{display:grid;grid-template-columns:40px 1fr;gap:10px;align-items:start}
   .msg canvas{width:40px;height:40px;image-rendering:pixelated;animation:none;background:#0b120b;border:1px solid var(--phos-faint);border-radius:6px}
@@ -1043,7 +1045,8 @@
     if (m.loc && m.loc !== lastScene.split('|')[0]){ const d = document.createElement('div'); d.className = 'scene'; d.textContent = `— ${PLACE_NAME[m.loc]||m.loc.toUpperCase()} · ${fmtHM.format(new Date(m.t))} —`; talkEl.appendChild(d); }
     lastScene = scene;
     const sp = speaker(m.who);
-    const row = document.createElement('div'); row.className = 'msg' + (m.host ? ' host' : '');
+    const isAd = m.host && /cooola|hummusprime|napmaster|leaflove|sockwise|zenbrick/i.test(m.say);
+    const row = document.createElement('div'); row.className = 'msg' + (m.host ? ' host' : '') + (isAd ? ' ad' : '');
     const body = document.createElement('div');
     const who = document.createElement('div'); who.className = 'who'; who.style.color = sp.color; who.textContent = sp.name;
     const tm = document.createElement('small'); tm.textContent = fmtHM.format(new Date(m.t)); who.appendChild(tm);

@@ -54,6 +54,17 @@ const HOSTS = {
   oren: "Oren: cynical and deadpan, pretends to be bored. Dry one-liners and made-up statistics. Secretly, deeply invested in Moshe the basil."
 };
 
+// Fictional "sponsors" the hosts plug shamelessly now and then (never real brands)
+const SPONSORS = [
+  { name: "Cooola", pitch: "an absurdly strong cola; 'if you really want to wake up'" },
+  { name: "HummusPrime", pitch: "a hummus subscription delivered by drone, 'because chickpeas deserve wings'" },
+  { name: "NapMaster 3000", pitch: "a pillow with 'military-grade softness'" },
+  { name: "LeafLove", pitch: "plant food that 'makes basil believe in itself again'" },
+  { name: "SockWise", pitch: "socks that 'know where their partner is'" },
+  { name: "ZenBrick", pitch: "a meditation app that just shows a brick for ten minutes" }
+];
+const AD_EVERY_MIN = 75; // at most one plug per this many minutes
+
 const PERSONA =
   "Ishai is 31, a freelance graphic designer living alone in apartment 4 of an old building in Tel Aviv. " +
   "He is kind, a bit lazy, overthinks small things, loves falafel and old video games, " +
@@ -250,6 +261,7 @@ async function tick(env, force) {
   }
 
   if (ev.newCard) { s.cast[ev.newCard.id] = ev.newCard; s.lastNewAt = now; }
+  if ((ev.commentary || []).some(c => SPONSORS.some(sp => c.say.toLowerCase().includes(sp.name.toLowerCase())))) s.lastAd = now;
   const did = { eating: ["eat"], cooking: [], drinking: ["drink"], bathroom: ["bathroom"], showering: ["shower", "bathroom"] }[ev.action] || [];
   if (ev.action === "eating" && ev.location === "cafe") did.push("drink");
   did.forEach(k => { s.done[k] = storyMs; });
@@ -321,6 +333,9 @@ function buildMessages(s, clock, now, goal) {
     (e.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : name(l.who)}: "${l.say}"`).join("") +
     (e.commentary || []).map(c => ` [${c.who === "zohar" ? "Zohar" : "Oren"}: ${c.say}]`).join("")).join("\n");
   const allowNew = canAddPerson(s, now);
+  // now and then, ask the hosts for an obvious "secret" sponsor plug
+  const sponsor = now - (s.lastAd || 0) > AD_EVERY_MIN * 60000 && Math.random() < 0.35
+    ? SPONSORS[Math.floor(Math.random() * SPONSORS.length)] : null;
   const hrs = k => (now + DELAY_MIN * 60000 - (s.done[k] || now)) / 3600000;
   const need = Object.entries(NEED_H).filter(([k, h]) => hrs(k) > h).map(([k]) => ({ eat: "hungry", drink: "thirsty", bathroom: "needs the bathroom", shower: "needs a shower" })[k]);
   const body = `Body: last ate ${hrs("eat").toFixed(1)}h ago, last drink ${hrs("drink").toFixed(1)}h ago, bathroom ${hrs("bathroom").toFixed(1)}h ago, shower ${hrs("shower").toFixed(0)}h ago.` +
@@ -374,7 +389,8 @@ RULES
 COMMENTATORS (they talk to the viewers, who do NOT see your "text", only the picture and the spoken lines):
 - ${HOSTS.zohar}
 - ${HOSTS.oren}
-"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: tell viewers what is happening and any detail they cannot see, make them care about the characters, tease what might come, and make them laugh. Comment on most moments; always when something notable happens. They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them.
+"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: tell viewers what is happening and any detail they cannot see, make them care about the characters, tease what might come, and make them laugh. Comment on most moments; always when something notable happens. They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them. Never mention or advertise real brands or companies.${sponsor ? `
+- THIS MOMENT: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
 
 Reply with ONLY this JSON, nothing else:
 {"location":"...","action":"...","text":"...","with":null,"lines":[],"commentary":[],"update":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
