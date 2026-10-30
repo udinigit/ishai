@@ -339,7 +339,7 @@
         if (o.water){ R(x-1,y+10,3,2,'#c9ced4'); if (Math.floor(t/300)%2) R(x-2,y+12,1,1,'#9fd3f0'); }
         break; }
       case 'idle': {
-        const k = o.still ? 'none' : fid(11, t, false, false); if (k==='shift') x += Math.floor(t/700)%2;
+        const k = o.still ? 'none' : fid(11, t, false, false); if (k==='shift') x += Math.floor(t/2000)%2;
         head(x,y,{closed:blinkOn(t), look: lookFid(t, k, (Math.floor(t/4000)%3)-1)}); if (k==='turn') backHair(x,y,C.hair);
         torso(x,y); armsFid(x,y,t,k); legs(x,y,legsFid(t,k)); break; }
       case 'talking': {
@@ -465,7 +465,7 @@
       default: armsDown(x,y);
     }
   }
-  const legsFid = (t, kind) => kind==='tap' ? (Math.floor(t/220)%2 ? 1 : 0) : kind==='stomp' ? (Math.floor(t/160)%2 ? 2 : 1) : 0;
+  const legsFid = (t, kind) => kind==='tap' ? (t % 900 < 200 ? 1 : 0) : kind==='stomp' ? (t % 1300 < 180 ? 2 : 0) : 0;
   const lookFid = (t, kind, dflt) => kind==='look' ? (Math.floor(t/900)%2 ? 1 : -1) : kind==='turn' ? 0 : dflt;
   function backHair(x,y,h){ R(x+1,y+1,8,7,h); R(x+2,y,6,1,h); }   // turned away: the back of the head
   // o: face (-1/0/1), legs ('stand'|'sit'|false), talkPhase, walk
@@ -479,7 +479,7 @@
     y += bob;
     const seated = o.legs==='sit' || o.legs===false;
     const kind = (!o.walk && !o.muted && !o.still) ? fid(o.seed ?? strHash(L.hair + L.shirt + L.skin + L.pants), t, theirs || !!o.talkPhase, seated) : 'none';
-    if (kind==='shift') x += Math.floor(t/700)%2;
+    if (kind==='shift') x += Math.floor(t/2000)%2;
     const y0 = y; if (kind==='nod') y += Math.floor(t/260)%2;
     head(x,y,{closed:blinkOn(t,o.seed??1700), look: lookFid(t, kind, o.face??-1), talk: (theirs || o.talking) && Math.floor(t/170)%2});
     // hair styles
@@ -594,8 +594,12 @@
   // ---- doors open when Ishai or a companion walks through them ----
   function doorBusy(cx){
     const near = (x) => Math.abs(x + 5 - cx) < 9;
-    if (!actor.hidden && (actor.travelling || actor.pending) && near(actor.x)) return true;
-    if (comp.id && comp.mode !== 'here' && near(comp.x)) return true;
+    // a door opens only for someone who is going through it, never for someone walking past it
+    const leaving = actor.pending && Math.abs(actor.targetX + 5 - cx) < 9;
+    const arriving = actor.travelling && performance.now() - (actor.arrivedAt || 0) < 2500;
+    if (!actor.hidden && (leaving || arriving) && near(actor.x)) return true;
+    const compDoor = comp.id && Math.abs(exitX(actor.loc, comp.id, comp.x) + 5 - cx) < 9;
+    if (compDoor && (comp.mode === 'out' || (comp.mode === 'in' && comp.fromDoor)) && near(comp.x)) return true;
     if (actor.hidden && BATH.has(actor.action) && cx === 53 && actor.loc==='apartment') return false;
     return false;
   }
@@ -629,7 +633,7 @@
       if (comp.id && comp.mode !== 'out'){ comp.mode = 'out'; }                       // current friend leaves first
       else if (!comp.id){ const pk = comp.parked && comp.parked.id === w.id && actor.loc === 'apartment' && Date.now() < comp.parked.until ? comp.parked : null; comp.parked = null;
         const already = pk || performance.now() < (comp.settleUntil || 0);   // tuned in mid-scene (or the page just updated): they are already here
-        Object.assign(comp, {id:w.id, look:w.look, mode: already ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: pk ? pk.x : already ? w.x : exitX(actor.loc, w.id, w.x), tx: w.x}); }
+        Object.assign(comp, {id:w.id, look:w.look, mode: already ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: pk ? pk.x : already ? w.x : exitX(actor.loc, w.id, w.x), tx: w.x, fromDoor: !already}); }
     }
     // the story still has them together (Ishai is just walking to the counter, the fridge...): they stay, standing
     const together = !w && comp.id && comp.mode !== 'out' && (actor.with === comp.id || actor.guestWaits === comp.id);
@@ -645,7 +649,7 @@
     const d = target - comp.x, step = 30 * dts;
     comp.x += Math.abs(d) <= step ? d : Math.sign(d)*step;
     if (Math.abs(target - comp.x) < .5){
-      if (comp.mode==='in') comp.mode = 'here'; else { comp.id = null; comp.mode = null; }
+      if (comp.mode==='in'){ comp.mode = 'here'; comp.fromDoor = false; } else { comp.id = null; comp.mode = null; }
       return;
     }
     markHead(comp.id, comp.x, scene.walkY);
@@ -856,7 +860,7 @@
       // toilet stall (front panel with a door; a gap at the bottom like real stalls)
       R(34,38,36,54,'#d3d9df'); R(34,38,36,1,'#eef2f5'); R(34,38,1,54,'#b8c0c7'); R(69,38,1,54,'#b8c0c7');
       R(31,36,42,2,'#8d979f'); R(32,92,2,4,'#8d979f'); R(70,92,2,4,'#8d979f');
-      const stallOpen = (doorBusy(50) && actor.targetX===45 && !toilet) || (justMoved && (toilet || actor.leftBath==='bathroom'));
+      const stallOpen = (!actor.hidden && actor.travelling && actor.targetX===45 && Math.abs(actor.x+5-50) < 9 && !toilet) || (justMoved && (toilet || actor.leftBath==='bathroom'));
       if (stallOpen){ R(43,44,14,48,'#3d444b'); R(43,44,3,48,'#c3cad1'); alpha(.5,()=>R(48,74,6,6,'#eef2f5')); }
       else { R(43,44,14,48,'#c3cad1'); R(43,44,14,1,'#e2e7eb'); R(54,66,2,2,'#6b747c'); }
       R(52,58,4,2, toilet ? '#c23b3b' : '#4caf50');                                              // occupied / free
@@ -881,7 +885,7 @@
       if (shower){ alpha(.35,()=>R(125,30,60,22,'#ffffff'));                                     // fogged-up glass
         for (let i=0;i<8;i++){ const ph=(t/350+i/8)%1; alpha(.7,()=>R(164+i, 36+Math.floor(ph*54), 1, 3, '#7fc3ea')); } } alpha(.25,()=>{ line(130,86,140,36,'#ffffff'); line(158,88,168,40,'#ffffff'); });
       R(124,29,62,1,'#a9b2ba'); R(124,30,1,62,'#a9b2ba'); R(185,30,1,62,'#a9b2ba'); R(155,30,1,62,'#a9b2ba'); R(157,58,1,6,'#8d979f');
-      const glassOpen = (doorBusy(155) && actor.targetX===150 && !shower) || (justMoved && (shower || actor.leftBath==='showering'));
+      const glassOpen = (!actor.hidden && actor.travelling && actor.targetX===150 && Math.abs(actor.x+5-155) < 9 && !shower) || (justMoved && (shower || actor.leftBath==='showering'));
       if (glassOpen){ R(156,30,29,62,'#dfe8ec'); for (let y=36;y<92;y+=8) R(156,y,29,1,'#c9d5db'); alpha(.6,()=>R(178,30,8,62,'#eef4f7')); }
       if (shower) for (let i=0;i<5;i++){ const ph=(t/2200+i/5)%1; alpha((1-ph)*.7,()=>R(128+i*12+(Math.floor(ph*8)%3), 28-Math.floor(ph*24), 6, 3, '#ffffff')); } // steam
       // floor figure (walking in / out, washing hands)
@@ -1206,6 +1210,7 @@
   }
   function setState(loc, a, instant, w=null){
     if (!SCENES[loc]) loc = 'offscreen';
+    actor.viaFinal = null; actor.viaUntil = 0; actor.err = null;           // any running detour or errand ends
     if (loc==='apartment' && BATH.has(a)){ loc = 'bathroom'; if (actor.with) actor.guestWaits = actor.with; }
     else if (!instant) actor.guestWaits = (w && w === actor.guestWaits) ? w : null;
     a = fixAction(loc, a);
@@ -1253,7 +1258,7 @@
     const p = actor.pending; actor.switching = 0;
     if (!p || !p.route.length){ actor.pending = null; actor.hidden = actor.loc==='offscreen'; return; }
     const from = actor.loc, hop = p.route.shift(), last = !p.route.length;
-    actor.loc = hop; actor.fromLoc = from;
+    actor.loc = hop; actor.fromLoc = from; actor.arrivedAt = performance.now();
     if (hop === 'offscreen'){ actor.hidden = true; if (last){ actor.action = p.a; actor.with = p.w; actor.pending = null; updateLabels(); } else { updateLabels(); setTimeout(()=>{ if (actor.loc==='offscreen' && actor.pending) beginSwitch(); }, 3000); } return; }
     const link = (MAP[hop]||{})[from] || {entry: SCENES[hop].entry};
     actor.x = link.entry;
