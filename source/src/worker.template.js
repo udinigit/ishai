@@ -228,7 +228,7 @@ function publicState(s, dev) {
     talk: (s.talk || []).slice(-80), dev: !!dev,
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
     unlocked: s.unlocked,
-    world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays } : null,
+    world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title) } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
     artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, goal: g.goal, art: g.art, createdAt: g.createdAt })),

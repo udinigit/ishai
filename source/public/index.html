@@ -667,7 +667,7 @@
       R(13,11,32,30,C.frame); const s = drawSky(15,13,28,26,hf,t);
       if (s.night){ if (!cloudy()) { R(35,27,4,4,'#f2efd0'); R(36,27,3,1,s.c); } } else if (!s.dawn && !s.overcast && !s.noSun){ R(34,16,5,5,'#ffe27a'); R(18,26,8,2,'#fff'); R(20,25,4,1,'#fff'); }
       R(28,13,2,26,C.frame); R(15,25,28,2,C.frame); R(11,40,36,2,C.frame);
-      if (UNLOCKED.has('radio')){
+      if (UNLOCKED.has('radio')){ markHead('radio', 14, 34);
         R(14,34,11,6,'#8a4a2a'); R(14,34,11,1,'#a65d36'); R(15,35,4,4,'#5a2f1a'); R(16,36,1,1,'#3a1e10'); R(18,37,1,1,'#3a1e10'); R(16,38,1,1,'#3a1e10');
         R(20,35,4,2,'#e0c060'); R(21,38,2,1,'#2a2a2a'); line(23,33,27,27,'#bbbbbb');
         if (settled && a==='listening') for (let i=0;i<3;i++){ const ph=(t/1600+i/3)%1; const nx=22+Math.floor(ph*14)+(i%2)*3, ny=31-Math.floor(ph*18);
@@ -1331,7 +1331,8 @@
       zohar:{f:440,type:'square',pitch:1.35,rate:1.15}, oren:{f:150,type:'triangle',pitch:.7,rate:.95},
       ishai:{f:200,type:'square',pitch:1,rate:1}, levi:{f:520,type:'triangle',pitch:1.6,rate:1.15},
       noa:{f:330,type:'square',pitch:1.25,rate:1.1}, avi:{f:120,type:'sawtooth',pitch:.6,rate:.85},
-      dana:{f:280,type:'triangle',pitch:1,rate:.8}, narrator:{f:160,type:'triangle',pitch:.9,rate:1.05}
+      dana:{f:280,type:'triangle',pitch:1,rate:.8}, narrator:{f:160,type:'triangle',pitch:.9,rate:1.05},
+      dj_benny:{f:240,type:'square',pitch:1.1,rate:1.18}, dj_shira:{f:360,type:'triangle',pitch:1.4,rate:1.05}, dj_yoni:{f:130,type:'triangle',pitch:.75,rate:.9}
     };
     const hash = id => { let h = 0; for (const ch of String(id)) h = (h*31 + ch.charCodeAt(0)) >>> 0; return h; };
     function voiceOf(id){ if (VOICE[id]) return VOICE[id]; const h = hash(id);
@@ -1406,11 +1407,14 @@
     }
     // an endless little chiptune for the radio, a new tune each time it turns on
     function music(a){
-      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(a.gain);
-      const scale = [0,2,4,7,9,12,14,16], root = 220 * Math.pow(2, Math.floor(Math.random()*6)/12);
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
+      const duckG = ac.createGain(); lp.connect(duckG).connect(a.gain); a.duck = duckG;   // the DJ talks over the music
+      const scale = [0,2,4,7,9,12,14,16]; let root = 220 * Math.pow(2, Math.floor(Math.random()*6)/12);
       const pick = () => Math.random() < .75 ? scale[Math.floor(Math.random()*scale.length)] : null;
       const melody = Array.from({length:16}, pick), bass = [0,0,-5,-3];
-      const dt = 60/(96 + Math.random()*30)/2; let step = 0, next = ac.currentTime + .1;
+      let dt = 60/(96 + Math.random()*30)/2, step = 0, next = ac.currentTime + .1;
+      a.reseed = () => { root = 196 * Math.pow(2, Math.floor(Math.random()*8)/12); dt = 60/(88 + Math.random()*44)/2; melody.forEach((v,i) => melody[i] = pick()); step = 0;
+        [660, 880, 1320].forEach((f,i) => tone(f, i===2 ? .3 : .12, 'square', .03, i*.13, a.gain)); };   // station jingle
       const tick = () => {
         if (!a.alive) return;
         if (next < ac.currentTime) next = ac.currentTime + .05;
@@ -1449,7 +1453,10 @@
       const resume = () => { document.removeEventListener('pointerdown', resume, true); document.removeEventListener('keydown', resume, true); if (mode === 'off') setMode(saved); };
       document.addEventListener('pointerdown', resume, true); document.addEventListener('keydown', resume, true);
     }
-    return { blip, key, say, setAmbience, bark };
+    function duck(down){ if (amb && amb.duck) amb.duck.gain.setTargetAtTime(down ? .15 : 1, ac.currentTime, .25); }
+    function newSong(){ if (amb && amb.reseed) amb.reseed(); }
+    const speaking = () => mode === 'voices';
+    return { blip, key, say, setAmbience, bark, duck, newSong, speaking };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -1471,6 +1478,7 @@
   };
   function speaker(id){
     if (HOSTS[id]) return {name:HOSTS[id].name, color:HOSTS[id].color};
+    if (id==='radio') return {name:'RADIO HERZL 88.2', color:'#ffd36a'};
     if (id==='ishai') return {name:'ISHAI', color:tint(CLOTH.teal,.45)};
     const c = CAST[id]; return {name:(c?c.name:id).toUpperCase(), color: tint(CLOTH[c?.look?.shirt]||CLOTH.gray,.45)};
   }
@@ -1717,6 +1725,52 @@
     if (POST[actor.loc] && CAST[POST[actor.loc]]) v.add(POST[actor.loc]); // Avi at his kiosk, Dana behind the counter
     return v;
   }
+  // ================= Radio Herzl 88.2: an original station with a DJ =================
+  // Music (the chiptune) with a DJ every 80 s: real weather, real light headlines, Shabbat times, fictional ads and bands.
+  // Timed by the clock, so every viewer hears the same show. The DJ speaks in VOICES mode; the words always show in a bubble.
+  const RADIO_CYCLE = 80000, RADIO = { seg:-1, spoken:-1, on:false };
+  const BANDS = [['The Basil Leaves','Morning on Herzl Street'],['Falafel Kings','Extra Tahini'],['Lady Hummus','Chickpea Heart'],
+    ['The Second Floor','Elevator Out of Order'],['DJ Kettle','Steam'],['Moshe and the Roots','Thirsty'],['Night Bus 5','Last Stop Jaffa'],
+    ['The Sunscreen Boys','Factor Fifty'],["Grandma's Wi-Fi",'Password Is on the Fridge'],['Mediterranean Static','Signal Lost']];
+  const ADS = [
+    'Tired? Cooola. Very tired? Two Cooolas. Cooola: wake up, aggressively.',
+    'HummusPrime: fresh hummus, delivered by drone. Because chickpeas deserve wings.',
+    "Wee Laddie Virgin Scotch. For kids. You won't believe it's not alcohol. Neither will your teachers.",
+    'Tonight at nine, A Butcher Is Born! Can Grandpa Moti stay undefeated? Never gory. Always tender.'];
+  const QUIPS = ['Big if true.','I will read the rest after my coffee.','Good news, for once.','My producer says that is a real story.','Science, everybody.','Wild times.'];
+  function dj(){ const h = hourNow(); return h >= 6 && h < 12 ? {id:'dj_benny', name:'Benny Boom', show:'the Wake-Up Call'}
+    : h >= 12 && h < 19 ? {id:'dj_shira', name:'Shira Gold', show:'the Afternoon Drive'} : {id:'dj_yoni', name:'Night Owl Yoni', show:'Night Owls'}; }
+  function djLine(seg){
+    const d = dj(), r = k => hash(seg * 31 + k), pickOf = (arr, k) => arr[Math.floor(r(k) * arr.length)];
+    const song = BANDS[seg % BANDS.length], nextSong = BANDS[(seg + 1) % BANDS.length];
+    const W8 = WORLD || {}, wx = W8.weather, heads = (W8.headlines || []).filter(Boolean), sh = W8.shabbat;
+    const kinds = ['song','weather','news','ad','song','news','time','ad'];
+    if (sh && /^(Fri|Sat)/.test(sh.startLabel || '') ) kinds.push('shabbat');
+    let kind = kinds[seg % kinds.length];
+    if (kind === 'weather' && !wx) kind = 'time'; if (kind === 'news' && !heads.length) kind = 'song';
+    const hello = r(3) < .4 ? `${d.name} here, on ${d.show}. ` : '';
+    if (kind === 'song') return `${hello}That was ${song[0]} with "${song[1]}". Coming up: ${nextSong[0]}. Radio Herzl, 88.2!`;
+    if (kind === 'weather') return `${hello}${Math.round(wx.temp)} degrees and ${wx.desc} in Tel Aviv. ` + (wx.rain ? 'Umbrellas out, people.' : wx.temp >= 27 ? "Hydrate. That's an order." : wx.temp <= 14 ? 'Find a sweater.' : 'Honestly? Lovely.');
+    if (kind === 'news') return `${hello}In the news: ${pickOf(heads, 5)}. ${pickOf(QUIPS, 7)}`;
+    if (kind === 'ad') return `A word from our sponsors. ${ADS[Math.floor(seg / kinds.length) % ADS.length]}`;
+    if (kind === 'time') return `${hello}It's ${fmtHM.format(new Date())} on Radio Herzl. If you're stuck in traffic on the Ayalon, we're sorry. We are too.`;
+    return `${hello}Shabbat comes in ${sh.startLabel} and goes out ${sh.endLabel}. Shabbat shalom from Radio Herzl!`;
+  }
+  function radioTick(){
+    const playing = UNLOCKED.has('radio') && actor.loc==='apartment' && actor.action==='listening' && !actor.travelling && !actor.hidden && !actor.switching;
+    if (!playing){ if (RADIO.on){ RADIO.on = false; Sound.duck(false); if (SAY.who==='radio') SAY.until = 0; } return; }
+    const now = Date.now(), seg = Math.floor(now / RADIO_CYCLE), into = (now % RADIO_CYCLE) / 1000;
+    if (!RADIO.on){ RADIO.on = true; RADIO.seg = seg; }
+    if (seg !== RADIO.seg){ RADIO.seg = seg; Sound.newSong(); }
+    $('hudAction').textContent = 'RADIO HERZL 88.2';
+    if (into >= 62 && into < 76 && RADIO.spoken !== seg){
+      RADIO.spoken = seg; const d = dj(), text = djLine(seg);
+      Sound.duck(true); showSay('radio', d.name.toUpperCase() + ': ' + text); holdSay(14000);
+      const back = setTimeout(() => Sound.duck(false), 15000);
+      if (Sound.speaking()) Sound.say(d.id, text).then(() => { clearTimeout(back); Sound.duck(false); });
+    }
+  }
+  setInterval(radioTick, 1000);
   let castSig = '';
   setInterval(()=>{ if ($('castPanel').hidden) return; const sig = actor.loc + '|' + [...settledOnCamera()].join(',') + '|' + UNLOCKED.has('dog'); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
