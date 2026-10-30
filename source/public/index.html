@@ -435,6 +435,8 @@
   const sil = document.createElement('canvas'), sctx = sil.getContext('2d');
   function outlined(bx, by, bw, bh, fn){
     if (g !== ctx){ fn(); return; } // portraits, dreams etc.: no outline
+    bx = Math.round(bx); by = Math.round(by);   // whole pixels only: a fractional position blurs the sprite
+    ctx.imageSmoothingEnabled = false;
     layer.width = sil.width = bw + 2; layer.height = sil.height = bh + 2;
     const prev = g; g = lctx; lctx.setTransform(1,0,0,1,-bx+1,-by+1); fn(); lctx.setTransform(1,0,0,1,0,0); g = prev;
     sctx.drawImage(layer,0,0); sctx.globalCompositeOperation = 'source-in'; sctx.fillStyle = '#0b0b10'; sctx.fillRect(0,0,sil.width,sil.height); sctx.globalCompositeOperation = 'source-over';
