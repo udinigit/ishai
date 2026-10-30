@@ -151,7 +151,8 @@
     street:    ['walking','idle','talking','eating','drinking','phoning'],
     park:      ['walking','idle','talking','reading','eating','drinking','exercising','phoning'],
     cafe:      ['idle','eating','drinking','working','reading','talking','phoning'],
-    offscreen: ['away']
+    offscreen: ['away'],
+    bathroom:  ['bathroom','showering'] // page-only room: the story says apartment/bathroom|showering
   };
   let UNLOCKED = new Set(); // items the story has brought in (tv, radio)
   const BATH = new Set(['bathroom','showering']); // he disappears behind the bathroom door
@@ -474,6 +475,7 @@
   function dogUpdate(t, scene){
     if (!UNLOCKED.has('dog') || actor.loc==='offscreen' || actor.switching){ dog.loc = null; return; }
     if (actor.ride && actor.hidden) return; // on the bus with Ishai
+    if (actor.loc==='bathroom'){ dog.x = 62; return; }                  // waits outside the bathroom door
     const floor = scene.walkY + 22, a = actor.action, settled = !actor.travelling && !actor.hidden;
     const moving = actor.travelling || a==='walking';
     const mdir = actor.travelling ? Math.sign(actor.targetX - actor.x) || 1 : (actor.paceDir || 1);
@@ -530,6 +532,7 @@
   let compWant = null; // what the scene wants this frame: {id, look, x, kind:'seat'|'floor'}
   function exitX(loc, id, nearX){
     if (loc==='apartment') return 135;                      // front door
+    if (loc==='bathroom') return 9;                         // bathroom door
     if (loc==='corridor') return id==='levi' ? 106 : 180;   // Mrs. Levi's door, otherwise the stairs
     if (loc==='cafe') return 4;                             // café entrance door (left)
     return nearX > W/2 ? W+8 : -18;                         // street and park: nearest edge
@@ -618,7 +621,7 @@
       // bathroom door (the camera never looks inside)
       const inBath = actor.hidden && BATH.has(a) && actor.loc==='apartment';
       R(46,50,15,30,C.doorFrame); R(47,52,13,28,'#7d6a58'); R(49,55,9,8,'#8a7663'); R(49,66,9,10,'#8a7663'); R(57,66,1,2,C.gold);
-      if (doorBusy(53) && (BATH.has(a) || BATH.has(actor.prevAction||''))) openDoor(47,52,13,28);
+      if (doorBusy(53) && ((actor.pending && actor.pending.route[0]==='bathroom') || actor.fromLoc==='bathroom')) openDoor(47,52,13,28);
       R(50,47,7,3, inBath ? '#c23b3b' : '#3a3a3a'); R(51,48,5,1, inBath ? '#ffb0b0' : '#555');
       if (inBath){ alpha(.7,()=>R(47,79,13,1,'#ffe8a0'));
         if (a==='showering') for (let i=0;i<4;i++){ const ph=(t/1400+i/4)%1; alpha((1-ph)*.8,()=>R(48+i*3+(Math.floor(ph*6)%2),78-Math.floor(ph*14),2,1,'#f2f2f2')); } }
@@ -697,6 +700,62 @@
         const c = cols[Math.floor(t/(a==='gaming'?260:2000))%cols.length];
         alpha(isNight(hf)?.35:.18,()=>R(76,71,8,14,c));
       }
+    }
+  };
+
+  // ---------- bathroom (behind the apartment's bathroom door) ----------
+  // Privacy by design: the toilet is inside a stall, the shower behind frosted glass. Only shoes and a blur show.
+  SCENES.bathroom = {
+    cam:'CAM-06', place:'ISHAI // BATHROOM', walkY:74, entry:9, exit:9,
+    entryFrom:{apartment:9}, exitTo:{apartment:9},
+    stand:{bathroom:45, showering:150},
+    draw(t,hf,a,settled,actor){
+      const inside = actor.hidden && BATH.has(a), justMoved = performance.now() - (actor.hiddenAt||0) < 700;
+      const shower = inside && a==='showering', toilet = inside && a==='bathroom';
+      // tiles
+      R(0,0,W,80,'#dfe8ec'); for (let x=0;x<W;x+=8) R(x,0,1,80,'#c9d5db'); for (let y=4;y<80;y+=8) R(0,y,W,1,'#c9d5db');
+      R(0,58,W,2,'#7fb3c4'); R(0,78,W,2,'#9aa7ae');
+      R(0,80,W,28,'#b9c3c9'); for (let y=80,i=0;y<H;y+=6,i++) for (let x=(i%2)*6;x<W;x+=12) R(x,y,6,6,'#aab5bc');
+      // ceiling lamp + extractor fan
+      R(88,0,16,2,'#9aa3ad'); R(90,2,12,2,'#fff6d8'); alpha(.12,()=>R(70,4,52,30,'#fff6d8'));
+      R(28,8,10,10,'#c9d0d6'); R(29,9,8,8,'#9aa3ad'); const fb=Math.floor(t/90)%2; R(30+fb*3,12,3,1,'#5a636b'); R(33,10+fb*3,1,3,'#5a636b');
+      // door back to the apartment
+      R(6,48,15,32,C.doorFrame); R(7,50,13,30,'#7d6a58'); R(9,53,9,8,'#8a7663'); R(9,64,9,10,'#8a7663'); R(18,64,1,2,C.gold);
+      if (doorBusy(14)) openDoor(7,50,13,30);
+      // toilet stall (front panel with a door; a gap at the bottom like real stalls)
+      R(34,38,36,54,'#d3d9df'); R(34,38,36,1,'#eef2f5'); R(34,38,1,54,'#b8c0c7'); R(69,38,1,54,'#b8c0c7');
+      R(31,36,42,2,'#8d979f'); R(32,92,2,4,'#8d979f'); R(70,92,2,4,'#8d979f');
+      const stallOpen = (doorBusy(50) && actor.targetX===45 && !toilet) || (justMoved && (toilet || actor.leftBath==='bathroom'));
+      if (stallOpen){ R(43,44,14,48,'#3d444b'); R(43,44,3,48,'#c3cad1'); alpha(.5,()=>R(48,74,6,6,'#eef2f5')); }
+      else { R(43,44,14,48,'#c3cad1'); R(43,44,14,1,'#e2e7eb'); R(54,66,2,2,'#6b747c'); }
+      R(52,58,4,2, toilet ? '#c23b3b' : '#4caf50');                                              // occupied / free
+      if (toilet){ R(46,94,3,2,'#2a2a2a'); R(51,94,3,2,'#2a2a2a'); }                              // only his shoes show under the stall
+      // sink, mirror, towel
+      R(81,38,20,26,'#8d979f'); R(82,39,18,24,'#bcd7e2'); line(85,58,96,42,'#e6f3f8'); line(88,60,98,46,'#d4e9f1');
+      if (actor.wash > 1){ R(88,46,6,6,'#c99a74'); R(88,45,6,2,'#3a2a1c'); }                     // his face in the mirror
+      R(82,72,18,5,'#f4f6f8'); R(83,77,16,1,'#c9d0d6'); R(88,78,6,18,'#e8ecef'); R(90,68,2,4,'#a9b2ba'); R(90,68,4,1,'#a9b2ba');
+      R(96,69,3,3,'#3b7bc2'); R(96,67,1,2,'#e0b04a'); R(98,66,1,3,'#7fbf6a');                     // toothbrush cup
+      if (actor.wash > 1){ for (let i=0;i<3;i++) R(93,69+i+(Math.floor(t/120)%2),1,1,'#9fd3f0'); }
+      R(104,50,14,1,'#a9b2ba'); if (!shower){ R(106,51,10,14,'#3b7bc2'); R(106,55,10,1,'#e8ecef'); R(106,61,10,1,'#e8ecef'); }
+      // shower: tray, head, shelf with a (sponsored, of course) Cooola shampoo
+      R(124,92,62,4,'#f4f6f8'); R(124,96,62,1,'#c9d0d6');
+      R(171,24,2,10,'#a9b2ba'); R(166,34,9,2,'#a9b2ba'); R(172,62,12,1,'#a9b2ba'); R(175,56,3,6,COOOLA.bg); R(175,56,3,1,COOOLA.fg); R(179,58,3,4,'#f2efe0');
+      if (shower){
+        const sw = Math.round(Math.sin(t/700)*1.5);                                               // a blur moving behind the glass
+        const blob = (dx, dy, al) => alpha(al,()=>{ const x0 = 163+sw+dx; R(x0+1,68+dy,7,7,'#c99a74'); R(x0,75+dy,9,17,'#c99a74'); R(x0+1,67+dy,7,2,'#3a2a1c'); });
+        blob(0,0,.22); blob(-2,1,.14); blob(2,-1,.14); blob(0,2,.1);                                  // soft, out-of-focus shape
+      }
+      // frosted glass
+      alpha(.5,()=>R(124,30,62,62,'#eef4f7'));
+      if (shower){ alpha(.35,()=>R(125,30,60,22,'#ffffff'));                                     // fogged-up glass
+        for (let i=0;i<8;i++){ const ph=(t/350+i/8)%1; alpha(.7,()=>R(164+i, 36+Math.floor(ph*54), 1, 3, '#7fc3ea')); } } alpha(.25,()=>{ line(130,86,140,36,'#ffffff'); line(158,88,168,40,'#ffffff'); });
+      R(124,29,62,1,'#a9b2ba'); R(124,30,1,62,'#a9b2ba'); R(185,30,1,62,'#a9b2ba'); R(155,30,1,62,'#a9b2ba'); R(157,58,1,6,'#8d979f');
+      const glassOpen = (doorBusy(155) && actor.targetX===150 && !shower) || (justMoved && (shower || actor.leftBath==='showering'));
+      if (glassOpen){ R(156,30,29,62,'#dfe8ec'); for (let y=36;y<92;y+=8) R(156,y,29,1,'#c9d5db'); alpha(.6,()=>R(178,30,8,62,'#eef4f7')); }
+      if (shower) for (let i=0;i<5;i++){ const ph=(t/2200+i/5)%1; alpha((1-ph)*.7,()=>R(128+i*12+(Math.floor(ph*8)%3), 28-Math.floor(ph*24), 6, 3, '#ffffff')); } // steam
+      // floor figure (walking in / out, washing hands)
+      drawFloor(t,a,settled,actor,this);
+      if (isNight(hf)) alpha(.08,()=>R(0,0,W,H,'#050a1e'));
     }
   };
 
@@ -906,6 +965,7 @@
   function drawFloor(t,a,settled,actor,scene){
     if (actor.hidden) return;
     const y = scene.walkY;
+    if (actor.wash > 1){ drawIshai('idle', actor.x, y, t); return; }
     // companion standing / walking next to Ishai
     let face = 0;
     const atIsland = actor.loc==='apartment' && ['eating','drinking','cooking'].includes(a);
@@ -952,7 +1012,8 @@
   // ---- the world map: every exit leads to a specific entry in the next place (no teleporting) ----
   // MAP[here][there] = { exit: x where Ishai leaves "here" towards "there", entry: x where he appears in "here" coming from "there" }
   const MAP = {
-    apartment: { corridor: {exit:135, entry:135} },                                   // front door
+    apartment: { corridor: {exit:135, entry:135}, bathroom: {exit:48, entry:48} },   // front door, bathroom door
+    bathroom:  { apartment: {exit:9, entry:9} },                                      // bathroom door -> apartment
     corridor:  { apartment: {exit:40, entry:40}, street: {exit:178, entry:178} },     // apt 4 door, stairs
     street:    { corridor: {exit:26, entry:26},                                       // building entrance
                  park: {exit:-14, entry:-14},                                         // left edge -> park
@@ -971,6 +1032,7 @@
   }
   function setState(loc, a, instant, w=null){
     if (!SCENES[loc]) loc = 'offscreen';
+    if (loc==='apartment' && BATH.has(a)) loc = 'bathroom';
     a = fixAction(loc, a);
     if (instant){
       Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null});
@@ -986,7 +1048,7 @@
       }
     }
     const prev = actor.action; actor.prevAction = prev; actor.action = a; actor.pending = null; actor.with = w;
-    if (BATH.has(prev) && actor.hidden){ if (BATH.has(a)){ updateLabels(); return; } actor.hidden = false; actor.x = 48; }
+    if (BATH.has(prev) && actor.hidden){ if (prev===a){ updateLabels(); return; } actor.hidden = false; actor.x = standX(loc, prev); }
     const bed = new Set(['sleeping','waking']);
     if (bed.has(prev) && bed.has(a)) { actor.x = standX(loc,a,w); }
     else { actor.targetX = standX(loc,a,w); actor.travelling = Math.abs(actor.x-actor.targetX) > 1; }
@@ -995,9 +1057,11 @@
   // walk to the exit that leads to the next place on the route
   function startLeg(){
     const next = actor.pending.route[0];
-    if (actor.hidden && BATH.has(actor.action)){ actor.hidden = false; actor.x = 48; }
+    const wasToilet = actor.loc==='bathroom' && actor.action==='bathroom';
+    if (actor.hidden && BATH.has(actor.action)){ actor.hidden = false; actor.x = standX(actor.loc, actor.action); actor.hiddenAt = performance.now(); actor.leftBath = actor.action; }
     if (actor.loc === 'offscreen' || actor.hidden){ beginSwitch(); return; }
     const link = (MAP[actor.loc]||{})[next] || {exit: SCENES[actor.loc].exit};
+    if (wasToilet){ actor.action = 'walking'; actor.targetX = 86; actor.travelling = true; actor.wash = 1; actor.washExit = link.exit; actor.pending.ride = false; updateLabels(); return; } // sink first
     actor.action = 'walking'; actor.targetX = link.exit; actor.travelling = true;
     actor.pending.ride = !!link.ride; updateLabels();
   }
@@ -1010,7 +1074,7 @@
     const p = actor.pending; actor.switching = 0;
     if (!p || !p.route.length){ actor.pending = null; actor.hidden = actor.loc==='offscreen'; return; }
     const from = actor.loc, hop = p.route.shift(), last = !p.route.length;
-    actor.loc = hop;
+    actor.loc = hop; actor.fromLoc = from;
     if (hop === 'offscreen'){ actor.hidden = true; if (last){ actor.action = p.a; actor.with = p.w; actor.pending = null; updateLabels(); } else { updateLabels(); setTimeout(()=>{ if (actor.loc==='offscreen' && actor.pending) beginSwitch(); }, 3000); } return; }
     const link = (MAP[hop]||{})[from] || {entry: SCENES[hop].entry};
     actor.x = link.entry;
@@ -1045,13 +1109,16 @@
 
   function update(dt, now){
     if (actor.switching){ if (now >= actor.switching) finishSwitch(); return; }
+    if (actor.wash > 1){ if (now >= actor.wash){ actor.wash = 0; actor.targetX = actor.washExit; actor.travelling = true; } return; } // washing hands
     if (actor.ride) updateRide(now);
     if (actor.travelling && !actor.hidden){
       const dir = Math.sign(actor.targetX-actor.x); actor.x += dir*24*dt;
       if (Math.sign(actor.targetX-actor.x)!==dir){
         actor.x = actor.targetX; actor.travelling = false;
+        if (actor.wash === 1){ actor.wash = now + 3500; $('hudAction').textContent = 'WASHING HANDS'; return; }
+        if (actor.loc !== 'bathroom') actor.fromLoc = null;
         if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && actor.loc==='street') startRide('depart'); else beginSwitch(); }
-        else if (BATH.has(actor.action)) actor.hidden = true;
+        else if (BATH.has(actor.action)){ actor.hidden = true; actor.hiddenAt = now; actor.leftBath = null; }
       }
     } else if (actor.action==='walking' && !actor.pending){
       // pacing back and forth, position taken from the real clock
@@ -1201,6 +1268,8 @@
       else if (loc === 'apartment'){
         bed(brown, 'lowpass', 220, .05);
         if (tod === 'night') loop(1000, 0, () => noise(.012,{vol:.04,type:'bandpass',freq:4200,q:6,dest}));
+      } else if (loc === 'bathroom'){ bed(brown,'lowpass',260,.04); hum(118,.006);   // extractor fan
+        if (extra !== 'shower') loop(2600, 1800, () => tone(1900 + Math.random()*500, .05, 'sine', .03, 0, dest, .5)); // dripping tap
       } else if (loc === 'corridor'){ bed(brown,'lowpass',300,.07); hum(100,.008); }
       else if (loc === 'street'){
         bed(brown,'lowpass',700,.14);
@@ -1273,7 +1342,7 @@
     if (actor.switching) return 'static||';
     const settled = !actor.travelling && !actor.hidden;
     let extra = settled && actor.loc==='apartment' ? (actor.action==='watching' ? 'tv' : actor.action==='listening' ? 'radio' : '') : '';
-    if (actor.loc==='apartment' && actor.hidden && BATH.has(actor.action)) extra = actor.action==='showering' ? 'shower' : 'toilet';
+    if (actor.loc==='bathroom' && actor.hidden && BATH.has(actor.action)) extra = actor.action==='showering' ? 'shower' : 'toilet';
     return `${actor.loc}|${extra}|${isNight(hourNow()) ? 'night' : 'day'}|${rainy() ? 'rain' : ''}`;
   }
 
@@ -1374,7 +1443,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
@@ -1530,7 +1599,7 @@
   }
   function settledOnCamera(){
     const v = new Set();
-    if (actor.switching || actor.loc==='offscreen') return v;
+    if (actor.switching || actor.loc==='offscreen' || actor.loc==='bathroom') return v;
     if (actor.with && !actor.travelling && actor.action!=='phoning') v.add(actor.with);
     if (POST[actor.loc] && CAST[POST[actor.loc]]) v.add(POST[actor.loc]); // Avi at his kiosk, Dana behind the counter
     return v;

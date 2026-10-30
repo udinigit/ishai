@@ -21,6 +21,8 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 | Street | left edge | Park | right edge |
 | Street | right edge | Café | entrance (left) |
 | Street | bus stop (128) | Off camera | — by bus (day) or taxi (night / rain) |
+| Apartment | bathroom door (48) | Bathroom | door (9) |
+| Bathroom | door (9) | Apartment | bathroom door (48) |
 | Park | right edge | Street | left edge |
 | Café | entrance (left) | Street | right edge |
 
@@ -30,7 +32,9 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 
 ## 1. Every scene has clear exit points
 - Each camera location defines where people enter and leave, and they are visible in the art:
-  - Apartment: front door (people), bathroom door (Ishai only, privacy).
+  - Apartment: front door (people), bathroom door (Ishai only).
+  - Bathroom (page-only room, CAM-06): its door. The story still says apartment + bathroom/showering; the page moves him there.
+    Privacy: the toilet is inside a stall (only his shoes show under it, occupied light red), the shower is behind frosted glass (only a soft blur). Never show more.
   - Corridor: Ishai's door (apt 4), Mrs. Levi's door (apt 5), the stairs/exit, the elevator.
   - Street: Ishai's building entrance, left edge, right edge.
   - Park: right edge (path to the street), left edge (further into the park).
