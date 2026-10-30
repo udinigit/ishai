@@ -129,7 +129,7 @@
     <button id="tabCast" role="tab" aria-selected="false">CAST</button>
     <button id="tabFeed" role="tab" aria-selected="false" hidden>NARRATION (DEV)</button>
   </div>
-  <div class="term talk" id="talk" aria-live="polite"><div class="empty" id="talkEmpty">No conversations yet. When someone speaks on camera, it appears here.</div></div>
+  <div class="term talk" id="talk" aria-live="polite"><div class="empty" id="talkEmpty">Quiet right now. When someone talks in this scene, it appears here.</div></div>
   <div class="term" id="term" hidden></div>
   <div class="term cast" id="castPanel" hidden></div>
   <div class="foot">Story written by AI. Ishai is fictional.</div>
@@ -1333,6 +1333,7 @@
     while (queue.length){
       const ev = queue.shift(); if (ev.unlocks) UNLOCKED.add(ev.unlocks);
       if (!forceLoc) setState(ev.location||'apartment', ev.action, false, ev.with||null);
+      enterScene(ev.location, ev.with);
       if (DEV){ addTalk(ev, false); await addLine(ev,true); }
       else { shown.add(ev.id); await addTalk(ev, true); }
     }
@@ -1355,8 +1356,13 @@
       const newest = due.pop();
       // conversation history (older lines than the moment we tune into)
       const nk = newest.id + ':';
-      (TALK_HISTORY||[]).filter(m => m.t <= now && !String(m.id).startsWith(nk)).forEach(m => addMsg(m, false));
-      due.forEach(e=>{ if (DEV) addLine(e,false); else shown.add(e.id); addTalk(e,false); });
+      sceneKey = keyOf(newest.location, newest.with);
+      // the current scene started where the place or the company last changed
+      let start = due.length; while (start > 0 && keyOf(due[start-1].location, due[start-1].with) === sceneKey) start--;
+      const sceneStart = start < due.length ? due[start].t : newest.t;
+      (TALK_HISTORY||[]).filter(m => m.t <= now && m.t >= sceneStart && !m.host && m.loc === newest.location && (m.w === undefined || (m.w||'') === (newest.with||'')) && !String(m.id).startsWith(nk)).forEach(m => addMsg(m, false));
+      (TALK_HISTORY||[]).filter(m => m.host && m.t <= now && !String(m.id).startsWith(nk)).forEach(m => addMsg(m, false)); // the booth keeps the hosts' recent lines
+      due.forEach((e, i)=>{ if (DEV) addLine(e,false); else shown.add(e.id); if (i >= start) addTalk(e,false); else (e.lines||[]).forEach((l,k)=>talkShown.add(e.id+':'+k)); });
       if (!forceLoc) setState(newest.location||'apartment', newest.action, true, newest.with||null);
       // tune in live: join the newest moment as far into it as real time says
       newest._late = Math.max(0, Date.now() - newest.t);
@@ -1446,6 +1452,13 @@
     if (budget && budget.ms > 0){ const skip = Math.min(budget.ms, ms); budget.ms -= skip; ms -= skip; }
     if (ms > 0) await new Promise(r => setTimeout(r, ms));
   }
+  let sceneKey = null;
+  const keyOf = (loc, w) => (loc || '') + '|' + (w || '');
+  function clearTalk(){
+    talkEl.querySelectorAll('.msg, .scene').forEach(n => n.remove());
+    lastScene = ''; $('talkEmpty').hidden = false;
+  }
+  function enterScene(loc, w){ const k = keyOf(loc, w); if (k !== sceneKey){ sceneKey = k; clearTalk(); } }
   async function addTalk(ev, animate){
     const budget = {ms: ev._late || 0};
     for (let i = 0; i < (ev.lines||[]).length; i++){
@@ -1498,24 +1511,22 @@
   }
   function renderCast(){
     const el = $('castPanel'); el.textContent = '';
-    el.appendChild(card(ISHAI_LOOK,'ISHAI',tint(CLOTH.teal,.45),'The subject. 31, freelance designer, apartment 4.',null,'STORY SO FAR: ' + (NOTES||'—'), true));
-    // only people who are on camera right now, or have already appeared in the story
+    // only who is in the scene right now
     const visible = settledOnCamera();
-    const people = Object.values(CAST).filter(c => visible.has(c.id) || c.lastSeen || c.scenes)
-      .sort((a,b)=>(visible.has(b.id)-visible.has(a.id)) || (b.lastSeen||0)-(a.lastSeen||0));
-    if (UNLOCKED.has('dog')){
+    const onCam = actor.loc !== 'offscreen' && !actor.switching;
+    if (onCam) el.appendChild(card(ISHAI_LOOK,'ISHAI',tint(CLOTH.teal,.45),'The subject. 31, freelance designer, apartment 4. ● ON CAMERA NOW',null,'STORY SO FAR: ' + (NOTES||'—'), true));
+    if (onCam && UNLOCKED.has('dog')){
       const c = document.createElement('canvas'); c.width = 14; c.height = 12; const pc = c.getContext('2d'); const prev = g; g = pc;
       R(0,0,14,12,'#0b120b'); dogMap(DOG.sitA, 2, 3, false); g = prev;
-      const d = card(ISHAI_LOOK,'FALAFEL','#e8c48a',"Ishai's dog. Scruffy, sandy, adopted from Avi's kiosk.",null,'Eats everything. Trusts nobody but Ishai and Avi.', false);
+      const d = card(ISHAI_LOOK,'FALAFEL','#e8c48a',"Ishai's dog. Scruffy, sandy, adopted from Avi's kiosk. ● ON CAMERA NOW",null,'Eats everything. Trusts nobody but Ishai and Avi.', false);
       d.replaceChild(c, d.firstChild); el.appendChild(d);
     }
-    if (!people.length && !UNLOCKED.has('dog')){ const p = document.createElement('div'); p.className='meta'; p.textContent = 'Nobody else has appeared on camera yet.'; el.appendChild(p); }
-    people.forEach(c=>{
-      const seen = visible.has(c.id) ? '● ON CAMERA NOW' : 'last seen ' + fmtHM.format(new Date(c.lastSeen)) + (c.scenes ? ` · ${c.scenes} scene${c.scenes>1?'s':''}` : '');
+    Object.values(CAST).filter(c => visible.has(c.id)).forEach(c=>{
       el.appendChild(card(c.look, c.name.toUpperCase(), tint(CLOTH[c.look?.shirt]||CLOTH.gray,.45),
-        `${c.role.charAt(0).toUpperCase()+c.role.slice(1)}. ${c.personality ? c.personality.charAt(0).toUpperCase()+c.personality.slice(1)+'.' : ''} (${seen})`,
+        `${c.role.charAt(0).toUpperCase()+c.role.slice(1)}. ${c.personality ? c.personality.charAt(0).toUpperCase()+c.personality.slice(1)+'.' : ''} ● ON CAMERA NOW`,
         c.relationship||0, 'MEMORY: ' + (c.memory||'—')));
     });
+    if (!onCam){ const p = document.createElement('div'); p.className='meta'; p.textContent = 'Nobody on camera right now.'; el.appendChild(p); }
   }
   function settledOnCamera(){
     const v = new Set();
@@ -1525,7 +1536,7 @@
     return v;
   }
   let castSig = '';
-  setInterval(()=>{ if ($('castPanel').hidden) return; const sig = [...settledOnCamera()].join(','); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
+  setInterval(()=>{ if ($('castPanel').hidden) return; const sig = actor.loc + '|' + [...settledOnCamera()].join(',') + '|' + UNLOCKED.has('dog'); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
     const tabs = {talk:['tabTalk','talk'], cast:['tabCast','castPanel'], feed:['tabFeed','term']};
     Object.entries(tabs).forEach(([k,[b,p]]) => { const on = k===which; $(p).hidden = !on; $(b).classList.toggle('on',on); $(b).setAttribute('aria-selected',String(on)); });
