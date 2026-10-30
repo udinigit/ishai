@@ -1654,6 +1654,12 @@
   }
   // natural pause between lines; also counted when a viewer tunes in mid-conversation
   const linePause = say => 900 + Math.min(1600, say.length * 12);
+  // spread a long conversation over the whole moment (about 3 minutes), like real people talking
+  function convoGap(lines){
+    if (!lines || lines.length < 2) return 0;
+    const typing = lines.reduce((n, l) => n + [...l.say].reduce((m, ch) => m + charDelay(ch), 0) + linePause(l.say), 0);
+    return Math.max(0, Math.min(12000, (180000 - typing) / (lines.length - 1)));
+  }
   async function pauseFor(ms, budget, animate){
     if (!animate) return;
     if (budget && budget.ms > 0){ const skip = Math.min(budget.ms, ms); budget.ms -= skip; ms -= skip; }
@@ -1667,10 +1673,10 @@
   }
   function enterScene(loc, w){ const k = keyOf(loc, w); if (k !== sceneKey){ sceneKey = k; clearTalk(); } }
   async function addTalk(ev, animate){
-    const budget = {ms: ev._late || 0};
+    const budget = {ms: ev._late || 0}, gap = convoGap(ev.lines);
     for (let i = 0; i < (ev.lines||[]).length; i++){
       const l = ev.lines[i];
-      if (i > 0) await pauseFor(linePause(ev.lines[i-1].say), budget, animate);
+      if (i > 0) await pauseFor(linePause(ev.lines[i-1].say) + gap, budget, animate);
       if (!(budget.ms > 0) && animate) setSpeaking(l.who);
       await addMsg({id: ev.id + ':' + i, t: ev.t, who: l.who, say: l.say, loc: ev.location}, animate, budget);
     }

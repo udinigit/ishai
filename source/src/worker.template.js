@@ -359,6 +359,11 @@ function buildMessages(s, clock, now, goal) {
     `[${storyClock(e.t).label}] (${e.location}/${e.action}${e.with ? " with " + name(e.with) : ""}) ${e.text}` +
     (e.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : name(l.who)}: "${l.say}"`).join("") +
     (e.commentary || []).map(c => ` [${c.who === "zohar" ? "Zohar" : "Oren"}: ${c.say}]`).join("")).join("\n");
+  const convo = last.with && s.cast[last.with] ? (() => {
+    const w = last.with, ls = (s.talk || []).filter(m => !m.host && (m.w === w || m.who === w) && now + DELAY_MIN * 60000 - m.t < 40 * 60000).slice(-12);
+    return ls.length ? `\nCONVERSATION SO FAR with ${name(w)} (still going unless someone has a reason to leave; do NOT greet again or repeat; react to the last line, add something new):\n` +
+      ls.map(m => `${m.who === "ishai" ? "Ishai" : name(m.who)}: "${m.say}"`).join("\n") + "\n" : "";
+  })() : "";
   const allowNew = canAddPerson(s, now);
   // now and then, ask the hosts for an obvious "secret" sponsor plug
   const sponsor = now - (s.lastAd || 0) > AD_EVERY_MIN * 60000 && Math.random() < 0.35
@@ -417,7 +422,7 @@ RULES
 - Things he owns at home: laptop, books, game console${owned.length ? ", " + owned.join(", ") : ""}.${dogLine} Do not invent other big objects. When he watches TV or listens to the radio, mention what is on (make up shows and stations). ${TV_SHOW}
 - "with" is the id of ONE person with him in this moment (a visitor at home counts), or the person on the other end when the action is "phoning"; otherwise null.
 - He is social: about one in four moments should involve another person, in person or by phone. People visit him, call him, text him to meet up.
-- "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real back-and-forth exchange of 3 to 6 lines (each max 25 words): questions, answers, jokes, reactions, in each character's own voice. A conversation may continue over several moments; pick up where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
+- "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of 8 to 14 lines (each max 25 words) that fills these 4 minutes: small talk, questions and follow-up questions, stories, teasing, short answers ("yeah", "wait, what?"), interruptions, a topic that drifts to another, a pause filled by someone. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
 - When "with" is set, "update" holds that person's updated memory of Ishai (max 25 words, keep old facts that still matter) and "mood": -1, 0 or 1 for how this moment changed their feelings.
 - ${allowNew
   ? `You MAY introduce one new person, only if the story really needs someone new. Describe them in "newCharacter" and use their name as "with". Look options: hair ${LOOK.hair.join("/")}; hairColor ${LOOK.hairColor.join("/")}; skin ${LOOK.skin.join("/")}; shirt and pants ${LOOK.cloth.join("/")}; extras any of ${LOOK.extras.join("/")}.`
@@ -442,7 +447,7 @@ Plot notes: ${s.notes || "none"}
 ${body}
 ${real}${media}${pacing ? "\nPACING: " + pacing : ""}
 Recent events:
-${recent}${gap}
+${recent}${gap}${convo}
 
 What happens next?`;
   return [{ role: "system", content: system }, { role: "user", content: user }];
@@ -472,7 +477,7 @@ async function runModel(env, messages) {
       const qwen = MODELS[i].includes("qwen3");
       // Qwen3 "thinks" by default; /no_think keeps it cheap (no hidden reasoning tokens)
       const msgs = qwen ? messages.map((m, k) => k === messages.length - 1 && m.role === "user" ? { ...m, content: m.content + " /no_think" } : m) : messages;
-      const out = await env.AI.run(MODELS[i], { messages: msgs, max_tokens: 700, temperature: qwen ? 0.8 : 0.9 });
+      const out = await env.AI.run(MODELS[i], { messages: msgs, max_tokens: 1300, temperature: qwen ? 0.8 : 0.9 });
       const clean = t => t.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
       if (typeof out?.response === "string") return clean(out.response);
       const c = out?.choices?.[0]?.message?.content;
@@ -522,7 +527,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   const who = x => { const k = str(x, 40).toLowerCase(); if (k === "ishai") return "ishai";
     const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || "").toLowerCase() === k); return c ? ev.with : null; };
   ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: who(l?.who), say: str(l?.say, 200).replace(/^["']|["']$/g, "") }))
-    .filter(l => l.who && l.say).slice(0, 6);
+    .filter(l => l.who && l.say).slice(0, 14);
   ev.commentary = (Array.isArray(o.commentary) ? o.commentary : [])
     .map(c => ({ who: str(c?.who, 10).toLowerCase(), say: str(c?.say, 160).replace(/^["']|["']$/g, "") }))
     .filter(c => (c.who === "zohar" || c.who === "oren") && c.say).slice(0, 2);
@@ -548,8 +553,8 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (h < 6 && last.action === "sleeping" && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts)
       return { ev, problem: `he is asleep and it is the middle of the night: keep him "sleeping" (a short bathroom or water trip is the only exception)` }; }
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
-  if (ev.with && (ev.action === "phoning" || ev.action === "talking") && ev.lines.length < 2 && !allowNoHosts)
-    return { ev, problem: `he is ${ev.action === "phoning" ? "on the phone" : "talking"} with ${s.cast[ev.with]?.name || ev.with}, so "lines" must contain their actual conversation: 3 to 6 lines alternating between "ishai" and "${ev.with}"` };
+  if (ev.with && ev.lines.length < 6 && !allowNoHosts)
+    return { ev, problem: `he is ${ev.action === "phoning" ? "on the phone" : "together"} with ${s.cast[ev.with]?.name || ev.with}, so "lines" must contain their actual conversation: 8 to 14 lines alternating between "ishai" and "${ev.with}"` };
   { const prev = recentHostLines(s);
     const rep = ev.commentary.find(c => isRepeat(c.say, prev));
     if (rep) { if (!allowNoHosts) return { ev, problem: `the host line "${rep.say}" repeats something the hosts already said; write fresh commentary about what is new in this moment` };
@@ -685,7 +690,7 @@ function newGoal(d, now) {
     startAfter: d.startAt ? Date.parse(d.startAt) : now + Math.max(0, Number(d.startAfterH) || 0) * 3600000,
     deadlineH: clamp(Number(d.deadlineH) || 24, .1, 24 * 14), deadlineAt: d.deadlineAt ? Date.parse(d.deadlineAt) : null,
     where: str(d.location, 20) || null, with: str(d.with, 60) || null, forceWith: str(d.forceWith, 20) || null,
-    forceAction: str(d.forceAction, 20) || null, forceLines: Array.isArray(d.forceLines) ? d.forceLines.slice(0, 6) : [],
+    forceAction: str(d.forceAction, 20) || null, forceLines: Array.isArray(d.forceLines) ? d.forceLines.slice(0, 14) : [],
     forceCommentary: Array.isArray(d.forceCommentary) ? d.forceCommentary.slice(0, 2) : [],
     status: str(d.art, 300) ? "needs-art" : "waiting", art: str(d.art, 300) || null,
     activatedAt: null, doneAt: null, how: null, createdAt: now
@@ -712,7 +717,7 @@ function forcedEvent(g, last, s) {
   const act = g.forceAction && LOCATIONS[loc].includes(g.forceAction) ? g.forceAction
     : loc === "offscreen" ? "away" : (last.action === "sleeping" ? "waking" : "idle");
   const w = g.forceWith && s.cast[g.forceWith] ? g.forceWith : null;
-  return { location: loc, action: act, text, with: w, lines: w ? g.forceLines.filter(l => l && (l.who === "ishai" || l.who === w) && l.say).slice(0, 6) : [],
+  return { location: loc, action: act, text, with: w, lines: w ? g.forceLines.filter(l => l && (l.who === "ishai" || l.who === w) && l.say).slice(0, 14) : [],
     commentary: Array.isArray(g.forceCommentary) ? g.forceCommentary.filter(c => c && HOSTS[c.who] && c.say).slice(0, 2) : [] };
 }
 // Merge the bundled plan into the goals once per plan version: new beats are added,
@@ -731,7 +736,7 @@ function applyPlan(s, now) {
     if (o.deadlineAt) g.deadlineAt = Date.parse(o.deadlineAt);
     if (o.deadlineH) g.deadlineH = o.deadlineH;
     if (Array.isArray(o.forceCommentary)) g.forceCommentary = o.forceCommentary.slice(0, 2);
-    if (Array.isArray(o.forceLines)) g.forceLines = o.forceLines.slice(0, 6);
+    if (Array.isArray(o.forceLines)) g.forceLines = o.forceLines.slice(0, 14);
     if (o.forceText) g.forceText = String(o.forceText).slice(0, 260);
   }
   s.planVersion = PLAN.version;
