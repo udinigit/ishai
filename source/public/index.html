@@ -1734,9 +1734,16 @@
     ['The Sunscreen Boys','Factor Fifty'],["Grandma's Wi-Fi",'Password Is on the Fridge'],['Mediterranean Static','Signal Lost']];
   const ADS = [
     'Tired? Cooola. Very tired? Two Cooolas. Cooola: wake up, aggressively.',
+    'New! Cooola Zero Sleep. Same lightning, no bedtime. Ask your doctor. Actually, do not.',
     'HummusPrime: fresh hummus, delivered by drone. Because chickpeas deserve wings.',
     "Wee Laddie Virgin Scotch. For kids. You won't believe it's not alcohol. Neither will your teachers.",
-    'Tonight at nine, A Butcher Is Born! Can Grandpa Moti stay undefeated? Never gory. Always tender.'];
+    'Tonight at nine, A Butcher Is Born! Can Grandpa Moti stay undefeated? Never gory. Always tender.',
+    'Tahini Tower Savings Bank. We keep your money smooth, nutty, and slightly bitter.',
+    'Yalla Yoga, on Dizengoff. Stretch like nobody is watching. Somebody is watching. Namaste.',
+    'FluffNap pillows. Sleep so deep your neighbors will check on you. FluffNap!',
+    'Herzl Hardware: if it squeaks, leaks or creaks, we have the thing. Probably.',
+    'Kfar Kofi instant coffee. Ninety seconds from kettle to personality.'];
+  const BRAND_TAGS = ['Cooola','HummusPrime','Tahini Tower Savings Bank','FluffNap pillows','Kfar Kofi','Herzl Hardware'];
   const QUIPS = ['Big if true.','I will read the rest after my coffee.','Good news, for once.','My producer says that is a real story.','Science, everybody.','Wild times.'];
   function dj(){ const h = hourNow(); return h >= 6 && h < 12 ? {id:'dj_benny', name:'Benny Boom', show:'the Wake-Up Call'}
     : h >= 12 && h < 19 ? {id:'dj_shira', name:'Shira Gold', show:'the Afternoon Drive'} : {id:'dj_yoni', name:'Night Owl Yoni', show:'Night Owls'}; }
@@ -1744,16 +1751,17 @@
     const d = dj(), r = k => hash(seg * 31 + k), pickOf = (arr, k) => arr[Math.floor(r(k) * arr.length)];
     const song = BANDS[seg % BANDS.length], nextSong = BANDS[(seg + 1) % BANDS.length];
     const W8 = WORLD || {}, wx = W8.weather, heads = (W8.headlines || []).filter(Boolean), sh = W8.shabbat;
-    const kinds = ['song','weather','news','ad','song','news','time','ad'];
+    const kinds = ['song','ad','weather','news','ad','song','time','ad','news'];
     if (sh && /^(Fri|Sat)/.test(sh.startLabel || '') ) kinds.push('shabbat');
     let kind = kinds[seg % kinds.length];
     if (kind === 'weather' && !wx) kind = 'time'; if (kind === 'news' && !heads.length) kind = 'song';
     const hello = r(3) < .4 ? `${d.name} here, on ${d.show}. ` : '';
-    if (kind === 'song') return `${hello}That was ${song[0]} with "${song[1]}". Coming up: ${nextSong[0]}. Radio Herzl, 88.2!`;
-    if (kind === 'weather') return `${hello}${Math.round(wx.temp)} degrees and ${wx.desc} in Tel Aviv. ` + (wx.rain ? 'Umbrellas out, people.' : wx.temp >= 27 ? "Hydrate. That's an order." : wx.temp <= 14 ? 'Find a sweater.' : 'Honestly? Lovely.');
+    const tag = r(9) < .45 ? ` This ${['song','news','hour','minute'][Math.floor(r(11)*4)]} is brought to you by ${pickOf(BRAND_TAGS, 13)}.` : '';
+    if (kind === 'song') return `${hello}That was ${song[0]} with "${song[1]}". Coming up: ${nextSong[0]}. Radio Herzl, 88.2!${tag}`;
+    if (kind === 'weather') return `${hello}${Math.round(wx.temp)} degrees and ${wx.desc} in Tel Aviv. ` + (wx.rain ? 'Umbrellas out, people.' : wx.temp >= 27 ? "Hydrate. That's an order." : wx.temp <= 14 ? 'Find a sweater.' : 'Honestly? Lovely.') + tag;
     if (kind === 'news') return `${hello}In the news: ${pickOf(heads, 5)}. ${pickOf(QUIPS, 7)}`;
-    if (kind === 'ad') return `A word from our sponsors. ${ADS[Math.floor(seg / kinds.length) % ADS.length]}`;
-    if (kind === 'time') return `${hello}It's ${fmtHM.format(new Date())} on Radio Herzl. If you're stuck in traffic on the Ayalon, we're sorry. We are too.`;
+    if (kind === 'ad') return `A word from our sponsors. ${ADS[Math.floor(r(17) * ADS.length)]}`;
+    if (kind === 'time') return `${hello}It's ${fmtHM.format(new Date())} on Radio Herzl. If you're stuck in traffic on the Ayalon, we're sorry. We are too.${tag}`;
     return `${hello}Shabbat comes in ${sh.startLabel} and goes out ${sh.endLabel}. Shabbat shalom from Radio Herzl!`;
   }
   function radioTick(){
