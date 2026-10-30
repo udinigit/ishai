@@ -157,6 +157,8 @@
   let UNLOCKED = new Set(); // items the story has brought in (tv, radio)
   const BATH = new Set(['bathroom','showering']); // he disappears behind the bathroom door
   let WORLD = null; // real weather / Shabbat from the Worker
+  let DREAM = []; // today's highlights {t, loc, a, w}: replayed in a thought bubble while he sleeps
+  let DREAMING = false; // true while a dream picture is being drawn off screen
   let SPEAKING = null; // who is talking right now (drives the speech bubbles on camera)
   function setSpeaking(w){ SPEAKING = w; }
   const LABEL = {phoning:'ON THE PHONE',drinking:'DRINKING',bathroom:'BATHROOM',showering:'SHOWER',watching:'WATCHING TV',listening:'RADIO ON',sleeping:'SLEEPING',waking:'WAKING UP',idle:'IDLE',walking:'WALKING',working:'WORKING',gaming:'GAMING',
@@ -257,7 +259,7 @@
   function bubble(){} // speech is shown in a real bubble above the speaker (see showSay)
   // where each visible character's head is this frame (for placing speech bubbles)
   let HEADS = {};
-  const markHead = (id, x, y) => { if (id) HEADS[id] = {x: x + 5, y}; };
+  const markHead = (id, x, y) => { if (id && !DREAMING) HEADS[id] = {x: x + 5, y}; };
 
   // ================= Ishai (and NPCs) =================
   // figure box: 10 wide x 22 tall, (x,y) = top-left
@@ -407,7 +409,7 @@
   const layer = document.createElement('canvas'), lctx = layer.getContext('2d');
   const sil = document.createElement('canvas'), sctx = sil.getContext('2d');
   function outlined(bx, by, bw, bh, fn){
-    if (g !== ctx){ fn(); return; } // portraits etc.: no outline
+    if (g !== ctx){ fn(); return; } // portraits, dreams etc.: no outline
     layer.width = sil.width = bw + 2; layer.height = sil.height = bh + 2;
     const prev = g; g = lctx; lctx.setTransform(1,0,0,1,-bx+1,-by+1); fn(); lctx.setTransform(1,0,0,1,0,0); g = prev;
     sctx.drawImage(layer,0,0); sctx.globalCompositeOperation = 'source-in'; sctx.fillStyle = '#0b0b10'; sctx.fillRect(0,0,sil.width,sil.height); sctx.globalCompositeOperation = 'source-over';
@@ -471,7 +473,7 @@
     });
   }
   const dog = { x:0, loc:null, last:0, lastBark:0 };
-  function liveLayer(t, scene){ compUpdate(t, scene); dogUpdate(t, scene); } // drawn under the scene's night lighting
+  function liveLayer(t, scene){ if (DREAMING) return; compUpdate(t, scene); dogUpdate(t, scene); } // drawn under the scene's night lighting
   function dogUpdate(t, scene){
     if (!UNLOCKED.has('dog') || actor.loc==='offscreen' || actor.switching){ dog.loc = null; return; }
     if (actor.ride && actor.hidden) return; // on the bus with Ishai
@@ -597,6 +599,40 @@
   // Each scene: cam, place, stand{action:x}, walkY, entry, exit, draw(t,hf,a,settled,actor)
   const SCENES = {};
 
+  // ---- dreams: while he sleeps, a thought bubble replays today's highlights ----
+  const dreamCv = document.createElement('canvas'); dreamCv.width = W; dreamCv.height = H; const dctx = dreamCv.getContext('2d');
+  const DREAM_EACH = 7000, dream = {cx:96, cy:60};
+  function storyHour(ms){ const [h,m] = fmtHM.format(new Date(ms)).split(':').map(Number); return h + m/60; }
+  function drawDream(t){
+    const list = DREAM.filter(d => SCENES[d.loc] && d.loc !== 'apartment' || d.w); if (!list.length) return;
+    const now = Date.now(), k = Math.floor(now / DREAM_EACH), d = list[k % list.length], ph = (now % DREAM_EACH) / DREAM_EACH;
+    const sc = SCENES[d.loc]; if (!sc) return;
+    // render that moment off screen: the place as it looked then, Ishai and whoever he was with
+    const prev = g; g = dctx; DREAMING = true;
+    try {
+      const fake = { loc:d.loc, action:'idle', x:0, targetX:0, travelling:false, hidden:true, pending:null, with:null };
+      sc.draw(t, storyHour(d.t), 'idle', false, fake);
+      const ix = Math.max(20, Math.min(W-40, sc.stand?.talking ?? sc.stand?.idle ?? 90)), y = sc.walkY;
+      const L = d.w && CAST[d.w] && CAST[d.w].look;
+      drawIshai(L ? 'talking' : 'idle', ix, y, t, {face: 1});
+      if (L) person(L, ix + 14, y, t + 400, {face:-1, talkPhase:true});
+      dream.cx = ix + (L ? 12 : 5); dream.cy = y + 8;
+    } catch(e) {}
+    DREAMING = false; g = prev;
+    // the bubble: three little puffs rising from his head, then a cloud
+    const bob = Math.round(Math.sin(t/1600)), fade = Math.min(1, ph*10, (1-ph)*10);
+    const sx = Math.max(0, Math.min(W-96, dream.cx - 48)), sy = Math.max(0, Math.min(H-54, dream.cy - 30)); // zoom in on the people
+    const puff = (x,y,r) => { R(x-r,y-r+1,r*2,r*2-2,'#e6e0fa'); R(x-r+1,y-r,r*2-2,r*2,'#e6e0fa'); };
+    alpha(.8,()=>{ puff(26,60+bob,1); puff(33,54+bob,2); puff(41,47+bob,3); });
+    const bx = 46, by = 6 + bob, bw = 74, bh = 44;
+    alpha(.8,()=>{ R(bx+3,by,bw-6,bh,'#e6e0fa'); R(bx,by+3,bw,bh-6,'#e6e0fa'); R(bx+1,by+1,bw-2,bh-2,'#e6e0fa');
+      [[bx+10,by-2],[bx+30,by-3],[bx+52,by-2],[bx+12,by+bh],[bx+40,by+bh+1],[bx+60,by+bh]].forEach(([x,y])=>R(x,y,10,3,'#e6e0fa')); });
+    g.imageSmoothingEnabled = false;
+    R(bx+5,by+4,64,36,'#1a1630');
+    alpha(fade,()=>g.drawImage(dreamCv, sx, sy, 96, 54, bx+5, by+4, 64, 36));
+    alpha(.12,()=>R(bx+5,by+4,64,36,'#b9a6ff'));                                   // dreamy tint
+  }
+
   // ---------- apartment ----------
   SCENES.apartment = {
     cam:'CAM-01', place:'ISHAI // APARTMENT 4', walkY:74, entry:135, exit:135,
@@ -693,6 +729,7 @@
       liveLayer(t, this);
       let dark = 0; if (isNight(hf)) dark = S('sleeping') ? .62 : .28; else if (hf<7||hf>=18) dark=.12;
       if (dark) alpha(dark,()=>R(0,0,W,H,'#050a1e'));
+      if (S('sleeping') && !DREAMING) drawDream(t);
       if (S('watching')){ const c = ['#9fd0ff','#ffd36a','#ff9a9a','#a0ffb0'][Math.floor(t/1500)%4];
         alpha(isNight(hf)?.4:.2,()=>R(112,63,8,15,c)); }
       if (S('working')||S('gaming')){
@@ -1694,6 +1731,7 @@
       if (!loaded) TALK_HISTORY = s.talk || [];
       NOTES = s.notes || ''; setCast(s.cast);
       if (s.world) { WORLD = s.world; $('stNext').textContent = weatherLabel(); }
+      if (Array.isArray(s.dream)) DREAM = s.dream;
       // items appear when the moment that brings them is shown, not before (broadcast delay)
       const future = new Set(s.events.filter(e=>e.unlocks && !shown.has(e.id) && e.t > Date.now()).map(e=>e.unlocks));
       (s.unlocked||[]).forEach(u=>{ if (!future.has(u)) UNLOCKED.add(u); });

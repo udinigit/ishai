@@ -74,3 +74,7 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 ## 8. New art workflow
 - If the story needs something that cannot be drawn yet, it goes on the missing-art list or into a director goal with `art` — the beat waits until the art is live.
 - Before pushing new art: preview it with the page's `?loc=…&pose=…&with=…&hour=…` parameters, check day and night, and check it against every rule above.
+
+## 9. Dreams
+- While Ishai sleeps, a thought bubble above his bed replays the day's highlights (`DREAM`, from the worker's `s.hl`: moments with a person, a new place, a goal or an unlock), 7 s each, zoomed on the people.
+- Dream pictures are drawn off screen with `DREAMING = true`, so they never touch live state (companions, the dog, speech-bubble heads). Any new scene must draw correctly with a fake, hidden actor.
