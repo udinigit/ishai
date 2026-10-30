@@ -316,6 +316,11 @@
         R(x+8,y+9,1,2,C.shirt); R(x+8,y+5,1,4,C.skin); R(x+7,y+3,2,4,'#2a2a2a'); R(x+7,y+4,1,1,'#7fd0ff');
         legs(x,y,0); if (speak) bubble(x+9,y-7,t);
         break; }
+      case 'back': {
+        R(x+2,y,6,2,C.hair); R(x+1,y+1,8,7,C.hair); R(x+1,y+5,1,2,C.skin); R(x+8,y+5,1,2,C.skin);
+        torso(x,y); armsDown(x,y); legs(x,y,0);
+        if (o.water){ R(x-1,y+10,3,2,'#c9ced4'); if (Math.floor(t/300)%2) R(x-2,y+12,1,1,'#9fd3f0'); }
+        break; }
       case 'idle': {
         head(x,y,{closed:blinkOn(t), look:(Math.floor(t/4000)%3)-1}); torso(x,y); armsDown(x,y); legs(x,y,0); break; }
       case 'talking': {
@@ -479,17 +484,26 @@
     if (actor.ride && actor.hidden) return; // on the bus with Ishai
     if (actor.loc==='bathroom'){ dog.x = 62; return; }                  // waits outside the bathroom door
     const floor = scene.walkY + 22, a = actor.action, settled = !actor.travelling && !actor.hidden;
-    const moving = actor.travelling || a==='walking';
-    const mdir = actor.travelling ? Math.sign(actor.targetX - actor.x) || 1 : (actor.paceDir || 1);
+    const ew = actor.err && actor.err.walking;
+    const moving = actor.travelling || a==='walking' || ew;
+    const mdir = actor.travelling ? Math.sign(actor.targetX - actor.x) || 1 : ew ? actor.err.dir : (actor.paceDir || 1);
     if (dog.loc !== actor.loc){ dog.loc = actor.loc; dog.x = actor.x - 12*mdir; }
     let target = actor.x + (actor.x > W-40 ? -12 : 12), pose = 'sit', fy = floor;
     if (moving) { target = actor.x - 10*mdir; pose = 'walk'; }
     else if (actor.hidden && BATH.has(a)) { target = 62; }                                   // waits at the bathroom door
     else if (actor.loc==='apartment'){
       if (a==='sleeping' || a==='listening') { target = 52; pose = 'sleep'; fy = 94; }      // his own bed
-      else if (a==='working' || a==='gaming') target = 64;
       else if (['eating','cooking','drinking'].includes(a)) target = 142;                    // begging by the counter
-      else if (a==='reading' || a==='watching') { target = 98; pose = 'sleep'; }
+      else if (!actor.err && ['working','gaming','reading','watching','idle'].includes(a)){
+        // his own little routine around the flat, on the clock (same for every viewer)
+        const ph = Math.floor(Date.now() / 18000) % 6;
+        if (ph === 0){ target = a==='working'||a==='gaming' ? 64 : a==='idle' ? target : 98; if (a==='reading'||a==='watching') pose = 'sleep'; }
+        else if (ph === 1){ target = 128; }                                                   // at the water bowl
+        else if (ph === 2){ target = 52; pose = 'sleep'; fy = 94; }                          // on his bed
+        else if (ph === 3){ target = 26; }                                                    // looking out the window
+        else if (ph === 4){ target = 90 + Math.sin(t/2200)*55; pose = 'walk'; }                // trotting around
+        else { target = 122; }                                                                // by the front door: "walk?"
+      }
     }
     else if (actor.loc==='park' && (a==='idle' || a==='exercising' || a==='talking' || a==='reading' || a==='eating')){
       target = 80 + Math.sin(t/2600)*45; pose = 'walk';                                      // running around
@@ -499,7 +513,14 @@
     const d = target - dog.x, step = (moving ? 26 : 45) * dts;
     dog.x += Math.abs(d) <= step ? d : Math.sign(d)*step;
     const arrived = Math.abs(target - dog.x) < 1;
-    drawDog(dog.x, arrived ? fy : floor, t, arrived ? pose : 'walk', arrived ? (pose==='walk' ? Math.sign(Math.cos(t/2600))||1 : (actor.x >= dog.x ? 1 : -1)) : Math.sign(d)||1);
+    const ddir = arrived ? (pose==='walk' ? Math.sign(Math.cos(t/2200))||1 : (actor.x >= dog.x ? 1 : -1)) : Math.sign(d)||1;
+    drawDog(dog.x, arrived ? fy : floor, t, arrived ? pose : 'walk', ddir);
+    // on the leash outside
+    if ((actor.loc==='street' || actor.loc==='park') && !actor.hidden){
+      const hx = actor.x + (dog.x > actor.x ? 9 : 1), hy = scene.walkY + 13, cx = Math.round(dog.x) + (ddir > 0 ? 8 : 2), cy = floor - 4;
+      const sag = Math.min(4, Math.abs(cx - hx) / 6), mx = (hx + cx) / 2, my = Math.max(hy, cy) + sag;
+      line(hx, hy, Math.round(mx), Math.round(my), '#c23b3b'); line(Math.round(mx), Math.round(my), cx, cy, '#c23b3b');
+    }
     // an occasional bark (same moment for every viewer)
     const sec = Math.floor(Date.now()/1000);
     if (pose !== 'sleep' && sec % 71 === 0 && dog.lastBark !== sec){ dog.lastBark = sec; Sound.bark(); }
@@ -669,7 +690,11 @@
       R(151,64,25,2,C.top); R(151,66,25,14,C.counter); R(153,68,9,10,'#7a6b5c'); R(164,68,9,10,'#7a6b5c');
       R(161,72,1,2,C.metal); R(165,72,1,2,C.metal); R(154,63,4,1,'#333'); R(166,63,4,1,'#333');
       R(160,48,12,6,'#e8e2d6'); R(160,54,12,1,'#bdb6a8');
-      R(177,38,14,42,C.fridge); R(177,52,14,1,'#b8bec4'); R(179,44,1,5,'#9aa3ad'); R(179,55,1,7,'#9aa3ad'); R(182,40,3,3,'#e0605a'); R(184,46,5,6,COOOLA.bg); bolt(185,46,COOOLA.fg);
+      R(177,38,14,42,C.fridge); R(177,52,14,1,'#b8bec4');
+      const fridgeOpen = (actor.err && actor.err.tag==='fridge') || (actor.viaUntil && actor.loc==='apartment'); R(179,44,1,5,'#9aa3ad'); R(179,55,1,7,'#9aa3ad'); R(182,40,3,3,'#e0605a'); R(184,46,5,6,COOOLA.bg); bolt(185,46,COOOLA.fg);
+      if (fridgeOpen){ R(178,39,12,40,'#f4f8ff'); R(178,52,12,1,'#c9d0d6'); R(178,64,12,1,'#c9d0d6'); R(180,57,3,5,COOOLA.bg); R(184,58,3,4,COOOLA.bg); R(181,46,6,4,'#e0b04a'); R(180,68,8,3,'#7fbf6a');
+        R(170,38,7,42,C.fridge); R(170,38,1,42,'#b8bec4'); alpha(.15,()=>R(150,40,40,50,'#f4f8ff')); }
+      if (actor.err && actor.err.tag==='kettle') for (let i=0;i<3;i++){ const ph=(t/700+i/3)%1; alpha(1-ph,()=>R(163+i*2,46-Math.floor(ph*10),1,1,'#f2f2f2')); }
       R(96,95,44,10,C.rug); R(98,97,40,6,C.rugLight); R(100,99,36,2,C.rug);
       if (UNLOCKED.has('dog')){ R(50,90,16,6,'#8a3b3b'); R(51,91,14,3,'#c96a5a'); R(134,93,7,2,'#3b7bc2'); R(135,92,5,1,'#c9a26a'); }
       // bed back
@@ -1003,6 +1028,8 @@
     if (actor.hidden) return;
     const y = scene.walkY;
     if (actor.wash > 1){ drawIshai('idle', actor.x, y, t); return; }
+    if (actor.err && !DREAMING){ drawIshai(actor.err.pose, actor.x, y, t, actor.err.o); return; }
+    if (actor.viaUntil && !DREAMING){ drawIshai('back', actor.x, y, t); return; }
     // companion standing / walking next to Ishai
     let face = 0;
     const atIsland = actor.loc==='apartment' && ['eating','drinking','cooking'].includes(a);
@@ -1029,6 +1056,46 @@
   function digit(n,x,y,c='#2a2018'){
     const gl = {3:['111','001','111','001','111'],4:['101','101','111','001','001'],5:['111','100','111','001','111']}[n];
     if (!gl) return; gl.forEach((row,j)=>[...row].forEach((b,i)=>{ if(b==='1') R(x+i-1,y+j,1,1,c); }));
+  }
+
+  // ================= everyday life: small errands inside a long moment =================
+  // Every 45 s block may hold a little routine (get a drink, look out the window, water Moshe...).
+  // The choice and the timeline come from the clock, so every viewer sees the same thing.
+  const ERR_BLOCK = 45000;
+  const ERRANDS = {
+    apartment: {
+      drink:   [{to:168},{pose:'back',dur:1.6,tag:'fridge'},{pose:'drinking',dur:4,o:{legs:'stand'}}],
+      window:  [{to:24},{pose:'back',dur:6}],
+      basil:   [{to:31},{pose:'back',dur:4,o:{water:true},tag:'basil'}],
+      books:   [{to:72},{pose:'back',dur:4.5}],
+      stretch: [{pose:'exercising',dur:3.5}],
+      kettle:  [{to:156},{pose:'back',dur:5,tag:'kettle'},{pose:'drinking',dur:3,o:{legs:'stand',food:'#f2f2f2'}}]
+    },
+    park:   { look: [{pose:'idle',dur:3},{to:'+26'},{pose:'back',dur:3},{to:'+0'}], stretch: [{pose:'exercising',dur:4}] },
+    street: { look: [{pose:'back',dur:3}] },
+    cafe:   {}
+  };
+  // which actions can be interrupted, and how often (share of blocks that get an errand)
+  const ERR_CHANCE = { idle:.75, reading:.45, watching:.4, working:.35, gaming:.3 };
+  const hash = n => { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4); n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; };
+  function errandNow(){
+    const a = actor.action, list = ERRANDS[actor.loc];
+    if (!list || !(a in ERR_CHANCE) || actor.with || actor.travelling || actor.hidden || actor.pending || actor.switching || actor.ride) return null;
+    const now = Date.now(), block = Math.floor(now / ERR_BLOCK), start = block * ERR_BLOCK + 4000;
+    if (now < start || actor.settledAt == null || actor.settledAt > start) return null;
+    const keys = Object.keys(list); if (!keys.length) return null;
+    if (hash(block * 7 + 1) > ERR_CHANCE[a]) return null;
+    const steps = list[keys[Math.floor(hash(block * 13 + 5) * keys.length)]];
+    // build the timeline: walk there, do things, walk back to his spot
+    const x0 = standX(actor.loc, a, null); let x = x0, e = (now - start) / 1000;
+    const seq = [...steps, {to: x0}];
+    for (const st of seq){
+      if (st.pose){ if (e < st.dur) return {x, pose: st.pose, o: st.o || {}, tag: st.tag, walking:false}; e -= st.dur; continue; }
+      const to = typeof st.to === 'string' ? x0 + Number(st.to) : st.to, d = Math.abs(to - x) / 24;
+      if (e < d){ const nx = x + Math.sign(to - x) * e * 24; return {x: nx, pose:'walk', o:{}, walking:true, dir: Math.sign(to - x)}; }
+      e -= d; x = to;
+    }
+    return null;
   }
 
   // ================= actor & transitions =================
@@ -1073,7 +1140,7 @@
     a = fixAction(loc, a);
     if (instant){
       Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null});
-      actor.x = standX(loc,a,w); updateLabels(); return;
+      actor.x = standX(loc,a,w); actor.settledAt = Date.now(); updateLabels(); return;
     }
     if (loc !== actor.loc || (actor.pending && actor.pending.route.length)){
       const r = route(actor.loc, loc);
@@ -1084,11 +1151,15 @@
         startLeg(); return;
       }
     }
+    if (actor.err){ actor.err = null; }
+    actor.viaFinal = null; actor.viaUntil = 0;
     const prev = actor.action; actor.prevAction = prev; actor.action = a; actor.pending = null; actor.with = w;
     if (BATH.has(prev) && actor.hidden){ if (prev===a){ updateLabels(); return; } actor.hidden = false; actor.x = standX(loc, prev); }
     const bed = new Set(['sleeping','waking']);
     if (bed.has(prev) && bed.has(a)) { actor.x = standX(loc,a,w); }
-    else { actor.targetX = standX(loc,a,w); actor.travelling = Math.abs(actor.x-actor.targetX) > 1; }
+    else { actor.targetX = standX(loc,a,w); actor.travelling = Math.abs(actor.x-actor.targetX) > 1;
+      if (loc==='apartment' && ['drinking','eating','cooking'].includes(a) && !['drinking','eating','cooking'].includes(prev) && !w){
+        actor.viaFinal = actor.targetX; actor.targetX = 168; actor.travelling = true; } }
     updateLabels();
   }
   // walk to the exit that leads to the next place on the route
@@ -1146,14 +1217,19 @@
 
   function update(dt, now){
     if (actor.switching){ if (now >= actor.switching) finishSwitch(); return; }
+    { const was = actor.err; actor.err = errandNow();
+      if (actor.err) actor.x = actor.err.x; else if (was && !actor.travelling) actor.x = standX(actor.loc, actor.action, actor.with); }
     if (actor.wash > 1){ if (now >= actor.wash){ actor.wash = 0; actor.targetX = actor.washExit; actor.travelling = true; } return; } // washing hands
+    if (actor.viaUntil){ if (now >= actor.viaUntil){ actor.viaUntil = 0; actor.targetX = actor.viaFinal; actor.viaFinal = null; actor.travelling = Math.abs(actor.x-actor.targetX) > 1; } return; } // at the fridge
     if (actor.ride) updateRide(now);
     if (actor.travelling && !actor.hidden){
       const dir = Math.sign(actor.targetX-actor.x); actor.x += dir*24*dt;
       if (Math.sign(actor.targetX-actor.x)!==dir){
         actor.x = actor.targetX; actor.travelling = false;
         if (actor.wash === 1){ actor.wash = now + 3500; $('hudAction').textContent = 'WASHING HANDS'; return; }
+        if (actor.viaFinal != null && !actor.pending){ actor.viaUntil = now + 2200; return; }
         if (actor.loc !== 'bathroom') actor.fromLoc = null;
+        actor.settledAt = Date.now();
         if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && actor.loc==='street') startRide('depart'); else beginSwitch(); }
         else if (BATH.has(actor.action)){ actor.hidden = true; actor.hiddenAt = now; actor.leftBath = null; }
       }
@@ -1181,7 +1257,7 @@
       $('nosig').style.display='flex'; $('nosigText').textContent = next ? `[ SWITCHING TO ${next.cam} ]` : '[ ... ]';
       return;
     }
-    const settled = !actor.travelling && !actor.hidden;
+    const settled = !actor.travelling && !actor.hidden && !actor.err && !actor.viaUntil && actor.viaFinal == null;
     SCENES[actor.loc].draw(t, hf, actor.action, settled, actor);
 
     if (rainy() && (actor.loc==='street' || actor.loc==='park')) drawRain(0,0,W,H,t,90);

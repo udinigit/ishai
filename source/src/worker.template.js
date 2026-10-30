@@ -281,6 +281,7 @@ async function tick(env, force) {
   if ((ev.commentary || []).some(c => SPONSORS.some(sp => c.say.toLowerCase().includes(sp.name.toLowerCase())))) s.lastAd = now;
   const did = { eating: ["eat"], cooking: [], drinking: ["drink"], bathroom: ["bathroom"], showering: ["shower", "bathroom"] }[ev.action] || [];
   if (ev.action === "eating" && ev.location === "cafe") did.push("drink");
+  if (s.unlocked.includes("dog") && (ev.location === "park" || ev.location === "street")) did.push("dogwalk");
   did.forEach(k => { s.done[k] = storyMs; });
   if (ev.missing) {
     const w = s.wishlist[ev.missing] || (s.wishlist[ev.missing] = { count: 0, example: "" });
@@ -376,7 +377,11 @@ function buildMessages(s, clock, now, goal) {
     (hourNow >= 23 || hourNow < 6) && last.action !== "sleeping" ? (last.location === "apartment"
       ? `It is late (${clock.label.slice(-5)}). He is tired: guests say goodnight and leave, he winds down (bathroom, glass of water) and goes to bed — "sleeping" in this or the next moment.`
       : `It is late (${clock.label.slice(-5)}). He heads home now, place by place, to go to bed.`) : "",
-    awake && sinceTalk > 80 ? `Nobody has interacted with him for about ${(sinceTalk / 60).toFixed(1)} hours. In this or the next moment someone should call, visit, or he should meet someone.` : ""
+    awake && last.location === "apartment" && evs.slice(-3).length === 3 && evs.slice(-3).every(e => e.action === last.action && e.location === last.location)
+      ? `He has been ${last.action} for a while. Change what he is doing now (gets up for a drink, tidies, waters Moshe, calls someone, steps out, a neighbor knocks).` : "",
+    awake && s.unlocked.includes("dog") && (hourNow >= 7 && hourNow < 9 || hourNow >= 18 && hourNow < 21) && (s.done.dogwalk ? hrs("dogwalk") : 99) > 5
+      ? `Falafel needs his walk: Ishai takes him out on the leash (down the stairs, the street, the park), now or very soon.` : "",
+    awake && sinceTalk > 55 ? `Nobody has interacted with him for about ${(sinceTalk / 60).toFixed(1)} hours. In this or the next moment someone should call, visit (a friend knocks and comes in through the front door), or he should meet someone.` : ""
   ].filter(Boolean).join(" ");
   const wr = s.world || {};
   const real = [
@@ -402,6 +407,7 @@ RULES
 - Ishai does not know he is being filmed. He never talks to or about the camera, the show or the hosts.
 - Real-world logic: things take time and follow physics and logistics. He must physically get places (walk, bus or taxi), wait, carry what he buys, pay, clean up. Other people have their own jobs, schedules and moods and are not always available. Weather and time of day change plans.
 - Continue the story and its ongoing threads.
+- The camera shows only "action": pick the action that matches what happens (a drink = drinking, a snack = eating); the hosts describe only what the picture can show.
 - Respect the clock: he sleeps at night (roughly 00:00-07:30), eats at mealtimes, works on weekdays (Sunday-Thursday in Israel).
 - He is a real person: he drinks, eats, uses the bathroom and showers. Bathroom and shower happen behind the closed bathroom door; keep them brief and tasteful.
 - THE REAL WORLD is real: use the real weather and the Jewish calendar (e.g. Friday-night Shabbat dinner) naturally. If any real news sounds sad or serious, he reacts briefly and respectfully, never jokes about it, or changes the channel.
@@ -422,7 +428,7 @@ COMMENTATORS (they talk to the viewers, who do NOT see your "text", only the pic
 - ${HOSTS.zohar}
 - ${HOSTS.oren}
 - ${HOSTS.rules}
-${(() => { const r = recentHostLines(s, 12); return r.length ? `- The hosts ALREADY SAID these (never repeat them, their jokes, openings, catchphrases or topics; find something NEW about THIS moment):\n${r.map(x => "  * " + x).join("\n")}\n` : ""; })()}"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: tell viewers what is happening and any detail they cannot see, make them care about the characters, tease what might come, and make them laugh. Comment on most moments. REQUIRED: whenever another character is present or anyone speaks, include 1-2 commentary lines reacting to it (write the dialogue first, then the hosts react). They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them. Never mention or advertise real brands or companies.${sponsor ? `
+${(() => { const r = recentHostLines(s, 12); return r.length ? `- The hosts ALREADY SAID these (never repeat them, their jokes, openings, catchphrases or topics; find something NEW about THIS moment):\n${r.map(x => "  * " + x).join("\n")}\n` : ""; })()}"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: react to what viewers SEE right now (the place, the action, who is there) and HEAR (the spoken lines), connect it to earlier moments, make viewers care about the characters, and make them laugh. They NEVER invent things that are not on screen: no drinks, food, objects, visitors, calls or plans that are not in this moment's action/lines. Opinions, guesses and jokes about what is visible are fine ("he's been staring at that fridge for a while"). Comment on most moments. REQUIRED: whenever another character is present or anyone speaks, include 1-2 commentary lines reacting to it (write the dialogue first, then the hosts react). They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them. Never mention or advertise real brands or companies.${sponsor ? `
 - THIS MOMENT: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
 
 Reply with ONLY this JSON, nothing else:
@@ -523,6 +529,12 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   if (ev.with && o.update && typeof o.update === "object")
     ev.update = { memory: str(o.update.memory, 180), mood: Number(o.update.mood) || 0 };
 
+  // the picture must match the words: a drink or a meal mentioned while "idle" becomes drinking / eating
+  if (ev.action === "idle" && LOCATIONS[ev.location]) {
+    const all = (ev.text + " " + ev.commentary.map(c => c.say).join(" ")).toLowerCase();
+    if (/\b(drink|drinks|drinking|sip|sips|coffee|tea|water|glass of|cooola|juice|beer|wine)\b/.test(all) && LOCATIONS[ev.location].includes("drinking")) ev.action = "drinking";
+    else if (/\b(eat|eats|eating|snack|sandwich|bite|meal|breakfast|lunch|dinner)\b/.test(all) && LOCATIONS[ev.location].includes("eating")) ev.action = "eating";
+  }
   if (!LOCATIONS[ev.location]) return { ev, problem: `"${ev.location}" is not a known location` };
   if (!LOCATIONS[ev.location].includes(ev.action))
     return { ev, problem: `"${ev.action}" is not possible in ${ev.location} (allowed: ${allowed(ev.location, s.unlocked).join(", ")})` };
