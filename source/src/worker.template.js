@@ -336,6 +336,7 @@ async function tick(env, force) {
   else if (s.scene && s.scene.w === ev.with){ s.scene.lines += (ev.lines || []).length; if ((ev.lines || []).some(l => FAREWELL.test(l.say))) s.scene.leaving = true; }
   else s.scene = { w: ev.with, loc: ev.location, startedAt: storyMs, lines: (ev.lines || []).length,
     ...(ev.scene || { type: "small talk", why: "they ran into each other", ishaiWants: "a pleasant chat", theyWant: "a pleasant chat", beats: "greet, catch up, part", ending: "a natural goodbye", target: 14 }) };
+  s.stuck = ev.stuck ? (s.stuck || 0) + 1 : 0;
   if (ev.notes) s.notes = ev.notes;
   s.events = s.events.slice(-KEEP_EVENTS);
   const evId = s.nextId - 1;
@@ -382,8 +383,9 @@ function castSection(s, last) {
 const BATH_ACTIONS = ["bathroom", "showering"];
 const FAREWELL = /\b(bye|goodbye|good ?night|see (you|ya)|laila tov|lehitraot|take care|i should go|i('ll| will) go|gotta go|i'm off|heading (out|home)|talk tomorrow|hang(ing)? up)\b/i;
 // a scene must end: well past its length, too long, or bedtime
-function sceneOverdue(sc, storyMs) {
+function sceneOverdue(sc, storyMs, stuck) {
   if (!sc) return false;
+  if (stuck >= 2) return true;   // the story is going in circles: wrap it up
   const h = storyClock(storyMs).hour;
   return sc.lines >= sc.target * 1.4 || storyMs - (sc.startedAt || storyMs) > 100 * 60000 || h >= 23 || h < 6;
 }
@@ -417,7 +419,7 @@ function buildMessages(s, clock, now, goal) {
   const sceneBrief = sc ? `\nSCENE BRIEF (this conversation with ${name(sc.w)}): type: ${sc.type}. Why they are talking: ${sc.why}. Ishai wants: ${sc.ishaiWants}. ${name(sc.w)} wants: ${sc.theyWant}. ` +
     `Beats: ${sc.beats}. Planned ending: ${sc.ending}. Progress: ${sc.lines} of about ${sc.target} lines.` +
     (!last.with ? ` Ishai just came back from the bathroom; ${name(sc.w)} waited in the apartment and is still there.` : "") +
-    (sceneOverdue(sc, now + DELAY_MIN * 60000) ? ` THE SCENE ENDS IN THIS MOMENT: they wrap up and say goodbye (2-4 lines) and ${name(sc.w)} leaves (walks out / hangs up). After this moment ${name(sc.w)} is gone.`
+    (sceneOverdue(sc, now + DELAY_MIN * 60000, s.stuck) ? ` THE SCENE ENDS IN THIS MOMENT: they wrap up and say goodbye (2-4 lines) and ${name(sc.w)} leaves (walks out / hangs up). After this moment ${name(sc.w)} is gone.`
       : sc.lines >= sc.target ? ` It is time to reach the planned ending now, naturally (a reason to leave, hang up, or move on).` : ` Keep both people pursuing what they want; move to the next beat when the current one is done.`) + "\n" : "";
   const allowNew = canAddPerson(s, now);
   // now and then, ask the hosts for an obvious "secret" sponsor plug
@@ -507,7 +509,7 @@ newCharacter format: {"name":"...","role":"...","personality":"...","speech":"..
 He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
 Plot notes: ${s.notes || "none"}
 ${body}
-${real}${media}${pacing ? "\nPACING: " + pacing : ""}
+${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.stuck ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
 ${recent}${gap}${convo}${sceneBrief}
 
@@ -625,7 +627,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   const vNow = Date.now() + DELAY_MIN * 60000;
   // an overdue scene must end with a real goodbye in this moment
   const saidBye = (last.lines || []).some(l => FAREWELL.test(l.say));
-  if (ev.with && s.scene && s.scene.w === ev.with && !saidBye && sceneOverdue(s.scene, vNow) && !ev.lines.some(l => FAREWELL.test(l.say))) {
+  if (ev.with && s.scene && s.scene.w === ev.with && !saidBye && sceneOverdue(s.scene, vNow, s.stuck) && !ev.lines.some(l => FAREWELL.test(l.say))) {
     const nmW = s.cast[ev.with]?.name || ev.with;
     if (!allowNoHosts) return { ev, problem: `this moment ends the scene: finish the conversation with their goodbye (e.g. "Good night", "See you"), ${nmW} leaves` };
     ev.lines = [...ev.lines.slice(0, 10), { who: ev.with, say: "Okay, it's late. I should go. Good night, Ishai." }, { who: "ishai", say: "Good night. Thanks for coming." }];
@@ -639,6 +641,15 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (!allowNoHosts) return { ev, problem: `${s.cast[ev.with]?.name || ev.with} already said goodbye and left; "with" must be null now and Ishai is alone (no lines from them)` };
     ev.with = null; ev.lines = ev.lines.filter(l => l.who === "ishai").slice(0, 1); if (ev.action === "talking") ev.action = "idle";
   }
+  // "heads to the bathroom" must actually take him there, or the story loops on it forever
+  if (!BATH_ACTIONS.includes(ev.action) && ev.location === "apartment" && /\b(goes|go|heads?|walks?|gets up to go|disappears|steps)\b[^.]{0,30}\b(bathroom|toilet|loo)\b/i.test(ev.text) && !/\b(back|returns?|comes out|out of)\b/i.test(ev.text)) {
+    ev.action = /shower/i.test(ev.text) ? "showering" : "bathroom"; ev.with = null;
+  }
+  // the story must move: a moment that retells one of the last few is sent back
+  { const prevTexts = s.events.slice(-4).map(e => e.text);
+    const rep = prevTexts.find(p => similar(ev.text, p) >= 0.6);
+    if (rep) { if (!allowNoHosts) return { ev, problem: `the narration repeats an earlier moment ("${rep.slice(0, 80)}"). Write what happens NEXT: a new action, a new topic, someone moves or leaves, time passes` };
+      ev.stuck = true; } }
   if (!ev.with && ev.action === "talking") ev.action = "idle"; // nobody to talk to
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
   if (ev.with && ev.with !== last.with && !(BATH_ACTIONS.includes(last.action) && s.scene && s.scene.w === ev.with) && !(ev.scene && ev.scene.why) && ev.action !== "sleeping" && !allowNoHosts)
