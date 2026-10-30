@@ -493,7 +493,7 @@ ${(() => { const r = recentHostLines(s, 12); return r.length ? `- The hosts ALRE
 - THIS MOMENT: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
 
 Reply with ONLY this JSON, nothing else:
-{"location":"...","action":"...","text":"...","with":null,"lines":[],"commentary":[],"scene":null,"update":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
+{"location":"...","action":"...","text":"...","with":null,"lines":[{"who":"ishai","say":"..."},{"who":"<the with id>","say":"..."}],"commentary":[],"scene":null,"update":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
 "missing": if this moment features an object, animal or place the camera cannot show (not listed above), name it in 1-3 words (e.g. "bicycle", "puppy"); otherwise null.
 newCharacter format: {"name":"...","role":"...","personality":"...","speech":"...","hangouts":["..."],"look":{"hair":"...","hairColor":"...","skin":"...","shirt":"...","pants":"...","extras":[]}}`;
   const user =
@@ -516,6 +516,8 @@ async function askAI(env, s, clock, now, goal) {
   for (let attempt = 0; attempt < 2; attempt++) {
     const raw = await runModel(env, messages);
     const { ev, problem } = validate(raw, s, last, allowNew, goal, attempt === 1);
+    // diagnostics for the director page: what the AI returned and why it was sent back
+    s.diag = [...(s.diag || []), { at: now, attempt, problem: problem || null, with: ev?.with || null, action: ev?.action || null, lines: ev?.lines?.length ?? null, chars: raw.length }].slice(-16);
     if (ev && !problem) return ev;
     if (attempt === 1) return ev ? repair(ev, s, last) : null;
     // ask the story to correct itself once
@@ -839,7 +841,7 @@ async function directorApi(req, env) {
 }
 function directorView(s) {
   const last = s.events[s.events.length - 1];
-  return { scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
+  return { diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse(), lastError: s.lastError || null,
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t } };
