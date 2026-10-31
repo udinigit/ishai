@@ -26,6 +26,8 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 | Park | right edge | Street | left edge |
 | Café | entrance (left) | Street | right edge |
 
+- Every link is the same door both ways: leaving X by door A into Y always arrives at Y's door B, and leaving Y by door B always arrives back at X's door A (`MAP[x][y].exit === MAP[x][y].entry`).
+- A friend going somewhere with Ishai walks right behind him through the same doors, place after place, and arrives through the door he used (never from a random edge).
 - If the story jumps several places at once, the page routes Ishai through every place in between (shortest path on the map).
 - Far places are reached by bus or taxi from the street bus stop: the vehicle pulls in, stops, he gets on/off, it drives away.
 - **Adding a place** (e.g. a restaurant): decide where it physically is, add its exits/entries to `MAP` (page) and `NEXT` + `PLACES` (worker) on both sides, draw its doors/edges, and say how you get there (walk from a neighbouring scene, or bus/taxi from a stop). A place without a connection must not ship.

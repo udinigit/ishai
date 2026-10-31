@@ -632,12 +632,21 @@
       if (comp.id && comp.loc === 'apartment' && comp.mode !== 'out') comp.parked = {id: comp.id, look: comp.look, x: comp.x, until: Date.now() + 20 * 60000}; // waits while he is in the bathroom
       if (actor.loc !== 'bathroom' && actor.loc !== 'apartment' && !actor.switching) comp.parked = null;
       comp.id = null; comp.mode = null; comp.loc = actor.loc; }
-    const w = compWant; compWant = null;
+    let w = compWant; compWant = null;
+    // a friend going somewhere WITH Ishai walks behind him, through the same doors, place after place
+    const goer = actor.pending && actor.pending.w ? actor.pending.w : (actor.travelling ? actor.with : null);
+    if (!w && goer && lookOf(goer) && !actor.hidden && (actor.pending || actor.travelling)){
+      const dir = Math.sign(actor.targetX - actor.x) || 1;
+      w = {id: goer, look: lookOf(goer), x: actor.x - 12*dir, kind:'follow'};
+    }
     if (w && comp.id !== w.id){
       if (comp.id && comp.mode !== 'out'){ comp.mode = 'out'; }                       // current friend leaves first
       else if (!comp.id){ const pk = comp.parked && comp.parked.id === w.id && actor.loc === 'apartment' && Date.now() < comp.parked.until ? comp.parked : null; comp.parked = null;
         const already = pk || performance.now() < (comp.settleUntil || 0);   // tuned in mid-scene (or the page just updated): they are already here
-        Object.assign(comp, {id:w.id, look:w.look, mode: already ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: pk ? pk.x : already ? w.x : exitX(actor.loc, w.id, w.x), tx: w.x, fromDoor: !already}); }
+        // came in together with Ishai: through the same door he just used, right behind him
+        const withHim = actor.fromLoc && performance.now() - (actor.arrivedAt || 0) < 8000 && (w.id === actor.with || (actor.pending && actor.pending.w === w.id)) ? (MAP[actor.loc] || {})[actor.fromLoc] : null;
+        const startX = pk ? pk.x : already ? w.x : withHim && withHim.entry !== undefined ? withHim.entry : exitX(actor.loc, w.id, w.x);
+        Object.assign(comp, {id:w.id, look:w.look, mode: already ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: startX, tx: w.x, fromDoor: !already}); }
     }
     // the story still has them together (Ishai is just walking to the counter, the fridge...): they stay, standing
     const together = !w && comp.id && comp.mode !== 'out' && (actor.with === comp.id || actor.guestWaits === comp.id);
@@ -649,7 +658,7 @@
     if (comp.mode==='here' && Math.abs(target - comp.x) > 6 && !(actor.action==='walking' && Math.abs(target - comp.x) < 20)) comp.mode = 'in';     // a real move (table -> counter): walk there
     else if (comp.mode==='here' && Math.abs(target - comp.x) > .5){ const st = 40 * dts; comp.x += Math.abs(target - comp.x) <= st ? target - comp.x : Math.sign(target - comp.x) * st; }     // their spot moved (table -> counter): walk there
     if (comp.mode==='here'){
-      if (together){ markHead(comp.id, comp.x, scene.walkY); person(comp.look, comp.x, scene.walkY, t+300, {face: actor.x > comp.x ? 1 : -1}); }
+      if (together || (w && w.kind==='follow')){ markHead(comp.id, comp.x, scene.walkY); person(comp.look, comp.x, scene.walkY, t+300, {face: actor.x > comp.x ? 1 : -1}); }
       return; }
     const d = target - comp.x, step = 30 * dts;
     comp.x += Math.abs(d) <= step ? d : Math.sign(d)*step;
