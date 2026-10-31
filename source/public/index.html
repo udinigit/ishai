@@ -1739,6 +1739,7 @@
     const ts = document.createElement('span'); ts.className='ts'; ts.textContent = `[${fmtHM.format(new Date(ev.t))}] `;
     const tx = document.createElement('span'); const cur = document.createElement('span'); cur.className='cursor';
     p.append(ts, tx, cur);
+    if (ev.src){ const sr = document.createElement('div'); sr.style.cssText = 'font-size:.75em;opacity:.55;margin-left:1.2em'; sr.textContent = 'written by: ' + ev.src; p.appendChild(sr); }
     const budget = {ms: ev._late || 0};
     const fresh = () => budget.ms <= 0; // only speak lines the viewer gets from the start
     await Promise.all([animate && fresh() ? Sound.say('narrator', ev.text) : null, typeInto(tx, '> ' + ev.text, animate, ch=>Sound.key(ch), budget)]);

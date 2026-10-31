@@ -282,7 +282,7 @@ function publicState(s, dev) {
   return {
     day: Math.floor((Date.now() - s.startedAt) / 86400000) + 1,
     build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
-    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, text: dev ? e.text : "", with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null })),
+    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null })),
     talk: (s.talk || []).slice(-80), dev: !!dev,
     studio: s.studio || null, show: s.show || null, call: s.call || null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
@@ -379,16 +379,16 @@ async function tick(env, force) {
   let goal = activeGoal(s, now);
   let ev = null;
   if (goal && now > deadlineOf(goal)) {
-    ev = forcedEvent(goal, last, s);
+    ev = forcedEvent(goal, last, s); ev.src = "director goal (forced)";
     finishGoal(s, goal, "forced", now); ev.unlocks = goal.unlock || null;
     goal = null;
   }
   // AI out of budget (no backup AI): Ishai feels unwell, goes home and rests until the allowance resets
   cfOutUntil = Math.max(cfOutUntil, s.aiOutUntil || 0);
-  if (!ev && now < (s.aiOutUntil || 0) && !env.BACKUP_AI_KEY) ev = sickEvent(s, last, clock.hour);
+  if (!ev && now < (s.aiOutUntil || 0) && !env.BACKUP_AI_KEY){ ev = sickEvent(s, last, clock.hour); ev.src = "sick day (AI out of budget)"; }
   if (!ev) {
     try {
-      ev = await askAI(env, s, clock, now, goal); s.lastError = null;
+      ev = await askAI(env, s, clock, now, goal); s.lastError = null; if (ev) ev.src = lastWriter;
       if (s.sickN) { s.sickN = 0; s.recoverUntil = now + 90 * 60000; }
     }
     catch (e) {
@@ -397,10 +397,10 @@ async function tick(env, force) {
       if (QUOTA_RE.test(msg)) {
         s.aiOutUntil = Math.max(s.aiOutUntil || 0, nextUtcMidnight(now));
         cfOutUntil = s.aiOutUntil;
-        ev = sickEvent(s, last, clock.hour);
+        ev = sickEvent(s, last, clock.hour); ev.src = "sick day (AI out of budget)";
       }
     }
-    if (!ev){ ev = fallback(last, clock.hour, s); ev.stuck = true; }
+    if (!ev){ ev = fallback(last, clock.hour, s); ev.stuck = true; ev.src = s.lastError && s.lastError.at === now ? "backup line (AI error)" : "backup line (AI reply dropped: repeat)"; }
     if (goal && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
   }
 
@@ -422,7 +422,7 @@ async function tick(env, force) {
     c.lastSeen = storyMs; c.scenes = (c.scenes || 0) + 1;
   }
   s.events.push({ id: s.nextId++, t: storyMs, created: now, location: ev.location, action: ev.action,
-    text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null });
+    text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null });
   // the day's highlights, replayed in Ishai's dreams at night
   { const prevEv = s.events[s.events.length - 2], hl = s.hl || (s.hl = []), lastHl = hl[hl.length - 1];
     const notable = !["sleeping", "waking", "bathroom", "showering"].includes(ev.action) && ev.location !== "offscreen" &&
@@ -633,7 +633,7 @@ async function askAI(env, s, clock, now, goal) {
     const raw = await runModel(env, messages);
     const { ev, problem } = validate(raw, s, last, allowNew, goal, attempt === 1);
     // diagnostics for the director page: what the AI returned and why it was sent back
-    s.diag = [...(s.diag || []), { at: now, attempt, problem: problem || null, with: ev?.with || null, action: ev?.action || null, lines: ev?.lines?.length ?? null, chars: raw.length }].slice(-16);
+    s.diag = [...(s.diag || []), { at: now, model: lastWriter, attempt, problem: problem || null, with: ev?.with || null, action: ev?.action || null, lines: ev?.lines?.length ?? null, chars: raw.length }].slice(-16);
     if (ev && !problem) return ev;
     if (attempt === 1) return ev ? repair(ev, s, last) : null;
     // ask the story to correct itself once
@@ -643,6 +643,7 @@ async function askAI(env, s, clock, now, goal) {
   return null;
 }
 
+let lastWriter = null; // which model wrote the latest AI reply (shown to the director)
 let modelIdx = 0; // remembers the first model that works in this isolate
 async function runModel(env, messages) {
   let lastErr;
@@ -654,6 +655,7 @@ async function runModel(env, messages) {
       const msgs = qwen ? messages.map((m, k) => k === messages.length - 1 && m.role === "user" ? { ...m, content: m.content + " /no_think" } : m) : messages;
       const out = await env.AI.run(MODELS[i], { messages: msgs, max_tokens: 1000, temperature: qwen ? 0.8 : 0.9 });
       const clean = t => t.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+      lastWriter = MODELS[i].split("/").pop();
       if (typeof out?.response === "string") return clean(out.response);
       const c = out?.choices?.[0]?.message?.content;
       if (typeof c === "string") return clean(c);
@@ -864,7 +866,7 @@ async function runBackup(env, messages) {
     }
   }
   if (!r.ok) throw new Error("backup AI " + r.status + " (" + model + "): " + (await r.text()).slice(0, 150));
-  backupModel = model;
+  backupModel = model; lastWriter = "backup: " + model;
   const j = await r.json();
   const c = j?.choices?.[0]?.message?.content;
   if (typeof c !== "string" || !c.trim()) throw new Error("backup AI: empty reply");

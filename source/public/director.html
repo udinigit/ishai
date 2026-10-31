@@ -121,7 +121,7 @@
       bl.appendChild(d); });
     const S = v.scene; $('scene').textContent = !S ? 'Ishai is not in a conversation right now.' :
       `With ${S.name} (${S.type}) at ${S.loc} · ${S.lines} of ~${S.target} lines\nWhy: ${S.why}\nIshai wants: ${S.ishaiWants}\n${S.name} wants: ${S.theyWant}\nBeats: ${S.beats}\nEnding: ${S.ending}`;
-    $('diag').textContent = (v.diag || []).slice().reverse().map(d => `${fmt(d.at)} try ${d.attempt + 1}: ${d.action || '?'}${d.with ? ' with ' + d.with : ''}, ${d.lines ?? '?'} lines → ${d.problem ? 'SENT BACK: ' + d.problem : 'ok'}`).join('\n') || '—';
+    $('diag').textContent = (v.diag || []).slice().reverse().map(d => `${fmt(d.at)} try ${d.attempt + 1}${d.model ? ' [' + d.model + ']' : ''}: ${d.action || '?'}${d.with ? ' with ' + d.with : ''}, ${d.lines ?? '?'} lines → ${d.problem ? 'SENT BACK: ' + d.problem : 'ok'}`).join('\n') || '—';
     const wd = $('world'), W = v.world;
     wd.textContent = !W ? 'Not fetched yet (happens on the next moment).' :
       [W.weather ? `Weather: ${W.weather.temp}°C, ${W.weather.desc}` : 'Weather: —',
