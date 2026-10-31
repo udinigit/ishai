@@ -313,8 +313,8 @@
     return d >= 0 && d < 380 && !(d > 90 && d < 200);
   }
   // a plain navy umbrella held in his right hand (no brand)
-  function umbrella(x,y,t){
-    const U='#2f4f7a', S='#243d5f', H='#3a3a3a';
+  function umbrella(x,y,t,U='#2f4f7a',S='#243d5f'){
+    const H='#3a3a3a';
     R(x+1,y-7,8,1,U); R(x-1,y-6,12,1,U); R(x-2,y-5,14,1,U); R(x-3,y-4,16,1,S);
     R(x-3,y-3,2,1,S); R(x+2,y-3,2,1,S); R(x+7,y-3,2,1,S); R(x+12,y-3,1,1,S);
     R(x+4,y-8,1,1,H); R(x+8,y-3,1,13,H); R(x+7,y+10,1,1,H);
@@ -591,9 +591,14 @@
     if (ex.includes('apron')){ R(x+3,y+10,4,6,'#f0ead8'); R(x+3,y+9,1,1,'#f0ead8'); R(x+6,y+9,1,1,'#f0ead8'); }
     if (ex.includes('scarf')){ R(x+2,y+8,6,2,'#c23b3b'); R(x+6,y+10,1,3,'#c23b3b'); }
     if (o.legs==='sit') sitLegs(x,y); else if (o.legs!==false) legs(x,y, o.walk ? (fw===1?1:fw===3?2:0) : legsFid(t, kind));
+    if (UMB && !DREAMING && o.legs!==false){   // everyone outdoors (not behind a counter, like Avi in his kiosk) in the rain has an umbrella; the colour stays with the person (no brands)
+      const k = strHash(L.hair + L.shirt + L.skin + L.pants + (o.seed ?? '')) % UMBS.length, u = UMBS[k];
+      umbrella(x, y, t, o.muted ? tint(u[0], .25) : u[0], o.muted ? tint(u[1], .25) : u[1]);
+    }
     Object.assign(C, keep);
     if (theirs) bubble(x-7,y-7,t);
   }
+  const UMBS = [['#b8323a','#8e252c'],['#2e7d5b','#225f45'],['#3a3a44','#26262e'],['#d9a02a','#b07f1c'],['#7a4fa0','#5d3b7c'],['#2f6fa8','#235582']];
   // ---- Falafel the dog (and, before the adoption, the stray at Avi's kiosk) ----
   const DOGPAL = {B:'#d9b27a', D:'#b48a52', W:'#f2ead8', E:'#161616', N:'#2a1a12', K:'#7a5232', T:'#e0606a'};
   const DOG = {
@@ -614,6 +619,10 @@
     const y = floorY - map.length;
     outlined(Math.round(x)-2, y-8, 16, map.length+10, () => {
       dogMap(map, Math.round(x), y, dir < 0);
+      if (UMB && !DREAMING && pose!=='sleep'){   // a yellow raincoat over his back in the rain
+        const w = Math.max(...map.map(r=>r.length));
+        map.forEach((row,j)=>{ if (j<3 || j>4) return; [...row].forEach((ch,i)=>{ if (ch==='B' && i>=1 && i<=6) R(dir<0 ? Math.round(x)+(w-1-i) : Math.round(x)+i, y+j, 1, 1, j===4 ? '#c9a028' : '#e8c23a'); }); });
+      }
       if (pose==='sleep'){ const ph = (t/2400)%1; alpha(1-ph, () => zee(Math.round(x)+8+Math.floor(ph*4), y-2-Math.floor(ph*6), '#cfe8ff')); }
     });
   }
