@@ -1732,6 +1732,8 @@
     if (typing) return; typing = true;
     while (queue.length){
       const ev = queue.shift(); if (ev.unlocks) UNLOCKED.add(ev.unlocks);
+      // several moments became due at once (phone woke up, tab came back): skip the silent ones in between, so he doesn't hop in and out of bed
+      if (queue.length && !(ev.lines || []).length){ shown.add(ev.id); if (DEV) addLine(ev, false); continue; }
       if (!forceLoc) setState(ev.location||'apartment', ev.action, false, ev.with||null);
       enterScene(ev.location, ev.with);
       if (DEV){ addTalk(ev, false); await addLine(ev,true); }

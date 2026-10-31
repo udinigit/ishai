@@ -853,7 +853,11 @@ function sickEvent(s, last, hour) {
       ["sleeping", "He dozes off again, one sock on, one sock off."]
     ];
     const [action, text] = pick(R);
-    ev = { location: "apartment", action, text };
+    // a small varying detail, so the quiet afternoon never repeats word for word
+    const D = ["A neighbor's radio plays faintly through the wall.", "Outside, a scooter buzzes past.", "The fridge hums.", "A pigeon lands on the windowsill and leaves again.",
+      "Somewhere a door slams; he doesn't even look up.", "The light in the room shifts as clouds pass.", "His phone buzzes once; he ignores it.", "Moshe the basil sways in the draft.",
+      "Kids are shouting in the street below.", "He sighs and pulls the blanket closer.", "The kettle ticks as it cools.", "A bus brakes loudly at the stop outside."];
+    ev = { location: "apartment", action, text: text + " " + D[(n * 5 + Math.floor(Date.now() / 6e4)) % D.length] };
     if (n === 1) ev.lines = [{ who: "ishai", say: "I don't feel well. I'm just going to lie down for a while." }];
   }
   if (n === 1 && last.with) {
