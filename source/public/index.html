@@ -770,7 +770,7 @@
       [[bx+10,by-2],[bx+30,by-3],[bx+52,by-2],[bx+12,by+bh],[bx+40,by+bh+1],[bx+60,by+bh]].forEach(([x,y])=>R(x,y,10,3,'#e6e0fa')); });
     g.imageSmoothingEnabled = false;
     R(bx+5,by+4,64,36,'#1a1630');
-    if (kind === 'sheep') drawSheep(bx+5, by+4, t);
+    if (kind === 'sheep'){ g.save(); g.beginPath(); g.rect(bx+5, by+4, 64, 36); g.clip(); drawSheep(bx+5, by+4, t); g.restore(); }   // stays inside the frame
     else if (kind === 'image') alpha(fade, () => g.drawImage(im.pix || im.img, 0, 0, im.pix ? 32 : im.img.width, im.pix ? 18 : im.img.height, bx+5, by+4, 64, 36));
     else { const sx = Math.max(0, Math.min(W-96, dream.cx - 48)), sy = Math.max(0, Math.min(H-54, dream.cy - 30)); // zoom in on the people
       alpha(fade,()=>g.drawImage(dreamCv, sx, sy, 96, 54, bx+5, by+4, 64, 36)); }
