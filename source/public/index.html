@@ -2152,8 +2152,11 @@
   async function playShow(){
     if (showOn) return;
     // no hourly recap yet: the hosts improvise from their latest quick recap, or just say hello
+    // no hourly recap yet: read the day's summary if there is one, otherwise the latest quick recap
+    const sumLines = SUMMARY ? [SUMMARY.yesterday && ('Yesterday: ' + SUMMARY.yesterday.text), SUMMARY.today && ('Today so far: ' + SUMMARY.today.text)].filter(Boolean)
+      .flatMap(t => t.match(/[^.!?]+[.!?]+/g) || [t]).map((t, i) => ({who: i % 2 ? 'zohar' : 'oren', say: t.trim()})) : [];
     const sh = SHOW || { lines: [{who:'zohar', say:'This studio break is brought to you by Cooola. Something to drink about.'},
-      ...((STUDIO && STUDIO.lines) || [{who:'oren', say:'The full recap comes on the hour. Until then: he is right there on the screen. Living. Allegedly.'}]),
+      ...(sumLines.length ? sumLines : ((STUDIO && STUDIO.lines) || [{who:'oren', say:'The full recap comes on the hour. Until then: he is right there on the screen.'}])),
       {who:'oren', say:'Brought to you by HummusPrime. Back to the cameras.'}] };
     showOn = true;
     if (studioOn) $('pip').classList.remove('on');

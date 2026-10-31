@@ -307,6 +307,24 @@ function storyClock(ms) {
 }
 
 // ---------- hourly studio recap (picture-in-picture on the page) ----------
+// a plain recap without the AI (used when the AI is out): the day's notable moments read out by the hosts
+function basicRecap(s, day, storyMs) {
+  const lines = (s.log && s.log.date === day ? s.log.lines : []).map(l => {
+    const m = l.match(/^(\d\d:\d\d) (\w+)\/(\w+)( \+([^:]+))?: (.*)$/); if (!m) return null;
+    const text = m[6].split(' Ishai: "')[0].split(" [")[0].replace(/ [A-Z][a-z]+(\.? [A-Z][a-z]+)?: ".*$/, "").trim();
+    return { time: m[1], loc: m[2], act: m[3], w: m[5] || null, text };
+  }).filter(x => x && x.text && x.act !== "sleeping");
+  const notable = []; let prevLoc = null, prevW = null;
+  for (const x of lines){ if (x.w !== prevW || (x.loc !== prevLoc && !["corridor", "street"].includes(x.loc))) notable.push(x); prevLoc = x.loc; prevW = x.w; }
+  const pickN = notable.slice(-6);
+  if (!pickN.length) return null;
+  const sp = [...SPONSORS].sort(() => Math.random() - .5).slice(0, 2), out = [];
+  out.push({ who: "zohar", say: `This recap is brought to you by ${sp[0].name}. Let's catch you up.` });
+  if (s.yesterdaySum) out.push({ who: "oren", say: "Yesterday: " + s.yesterdaySum.text.split(/(?<=\.)\s/)[0] });
+  pickN.forEach((x, i) => out.push({ who: (out.length % 2) ? "oren" : "zohar", say: `${x.time}: ${x.text}`.slice(0, 220) }));
+  out.push({ who: (out.length % 2) ? "oren" : "zohar", say: `That's the day so far. Brought to you by ${sp[1].name}. Back to the cameras.` });
+  return { today: pickN.map(x => `${x.time} ${x.text}`).join(" "), show: { id: "studio-" + Math.floor(storyMs / 3600000) + "-basic", t: storyMs, lines: out, sponsors: sp.map(x => x.name) } };
+}
 async function studioRecap(env, s, storyMs, day) {
   const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || id;
   const fmt = e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " with " + nm(e.with) : ""}: ${e.text}` +
@@ -326,10 +344,11 @@ Reply with ONLY JSON:
 {"today":"what happened today so far: 3-6 plain sentences, past tense, neutral, for a text summary",
  "show":[{"who":"zohar"|"oren","say":"..."}],
  "pip":[{"who":"zohar"|"oren","say":"..."}]}
-"show" is the studio recap, 7-11 lines, alternating hosts, max 25 words each, sassy and witty, PG-13:
+"show" is the studio recap, 8-12 lines, alternating hosts, max 30 words each. It is a REAL RECAP that tells viewers what happened, in order:
  1) the FIRST line is a cheesy sponsor intro: "This recap is brought to you by ${sp[0].name}" plus a joke (${sp[0].pitch});
- 2) yesterday: ${yLines} (skip if there is no yesterday);
- 3) today, focusing on the last hour, with sarcastic remarks and banter;
+ 2) yesterday: ${yLines} (skip if there is no yesterday), each stating what actually happened (who, where, what);
+ 3) today in time order (morning, midday, afternoon...), ending with the last hour: every line first states a concrete fact from the log (time of day, place, who he was with, what was said or done), THEN may add a short sassy remark. The other host reacts or adds the next fact. No line may be only a joke;
+ Write the "today" summary first and base the show on it, so a viewer who missed the day understands it from the show alone.
  4) the LAST line is a sponsor outro: "...brought to you by ${sp[1].name}" plus a joke (${sp[1].pitch}), then back to the cameras.
 "pip" is a 4-5 line quick version about the last hour only (first line greets: "Live from the studio...").` },
   { role: "user", content: `YESTERDAY (${s.yesterdaySum ? s.yesterdaySum.date : "none"}): ${s.yesterdaySum ? s.yesterdaySum.text : "(no summary)"}\n\nTODAY so far:\n${earlier.join("\n") || "(little)"}\n\nLAST HOUR:\n${lastHour.join("\n") || "(quiet)"}\n\nJSON only.` }];
@@ -437,7 +456,7 @@ async function tick(env, force) {
       let r = null; try { r = await studioRecap(env, s, storyMs, day); } catch (e) { s.studioErr = { at: now, msg: String(e && e.message || e).slice(0, 160) }; }
       if (r) { s.studioKey = key; s.studioTries = 0; s.studioErr = null; s.daySum = { date: day, text: r.today, at: storyMs }; s.show = r.show; if (r.pip) s.studio = r.pip; }
       else { s.studioTries = (s.studioTries || 0) + 1; if (!s.studioErr) s.studioErr = { at: now, msg: "the AI reply could not be used" };
-        if (s.studioTries >= 3) { s.studioKey = key; s.studioTries = 0; } } } }   // try again on the next moments (max 3 per hour)
+        if (s.studioTries >= 3 || now < (s.aiOutUntil || 0)) { s.studioKey = key; s.studioTries = 0; const b = basicRecap(s, day, storyMs); if (b) { s.daySum = { date: day, text: b.today, at: storyMs }; s.show = b.show; } } } } }   // try again on the next moments (max 3 per hour)
   await saveState(env, s);
   return s;
 }
