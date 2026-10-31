@@ -277,10 +277,15 @@ async function loadState(env) {
 }
 async function saveState(env, s) { await env.ISHAI.put("state", JSON.stringify(s)); memo = s; memoAt = Date.now(); }
 
+// day number of the show, counted in Israel calendar days (a new day starts at midnight)
+function showDay(start, now) {
+  const d = t => { const [y, m, dd] = new Date(t).toLocaleDateString("en-CA", { timeZone: TZ }).split("-").map(Number); return Date.UTC(y, m - 1, dd); };
+  return Math.round((d(now) - d(start)) / 86400000) + 1;
+}
 function publicState(s, dev) {
   const last = s.events[s.events.length - 1];
   return {
-    day: Math.floor((Date.now() - s.startedAt) / 86400000) + 1,
+    day: showDay(s.startedAt, Date.now()),
     build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
     events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null })),
     talk: (s.talk || []).slice(-80), dev: !!dev,
