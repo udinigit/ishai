@@ -601,7 +601,7 @@ COMMENTATORS (they talk to the viewers, who do NOT see your "text", only the pic
 - ${HOSTS.zohar}
 - ${HOSTS.oren}
 - ${HOSTS.rules}
-${(() => { const r = recentHostLines(s, 8); return r.length ? `- The hosts ALREADY SAID these (never repeat them, their jokes, openings, catchphrases or topics; find something NEW about THIS moment):\n${r.map(x => "  * " + x).join("\n")}\n` : ""; })()}"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: react to what viewers SEE right now (the place, the action, who is there) and HEAR (the spoken lines), connect it to earlier moments, make viewers care about the characters, and make them laugh. They NEVER invent things that are not on screen: no drinks, food, objects, visitors, calls or plans that are not in this moment's action/lines. Opinions, guesses and jokes about what is visible are fine ("he's been staring at that fridge for a while"). Comment on most moments. REQUIRED: whenever another character is present or anyone speaks, include 1-2 commentary lines reacting to it (write the dialogue first, then the hosts react). They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, no jokes about death, dying or illness, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them. Never mention or advertise real brands or companies.${sponsor ? `
+${(() => { const r = recentHostLines(s, 8); return r.length ? `- The hosts ALREADY SAID these (never repeat them, their jokes, openings, catchphrases or topics; find something NEW about THIS moment):\n${r.map(x => "  * " + x).join("\n")}\n` : ""; })()}"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: react to what viewers SEE right now (the place, the action, who is there) and HEAR (the spoken lines), connect it to earlier moments, make viewers care about the characters, and make them laugh. They NEVER invent things that are not on screen: no drinks, food, objects, visitors, calls or plans that are not in this moment's action/lines. Opinions, guesses and jokes about what is visible are fine ("he's been staring at that fridge for a while"). Comment on most moments. Viewers cannot read the narration, so usually ONE of the lines says in plain words what is happening right now (e.g. "He's making tea with honey, the third today"), and the other adds the joke or reaction. REQUIRED: whenever another character is present or anyone speaks, include 1-2 commentary lines reacting to it (write the dialogue first, then the hosts react). They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, no jokes about death, dying or illness, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them. Never mention or advertise real brands or companies.${sponsor ? `
 - THIS MOMENT: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
 
 Reply with ONLY this JSON, nothing else:
@@ -818,6 +818,20 @@ function repair(ev, s, last) {
     lines: ok ? ev.lines : ev.lines.filter(l => l.who === "ishai"), update: ok ? ev.update : null, newCard: ok ? ev.newCard : null };
 }
 
+// moments written without the AI (sick day, backups): the hosts tell viewers what is happening, plus a fresh joke now and then
+const RELAY_OPEN = ["Live update:", "For those just tuning in:", "Right now:", "Status report from apartment 4:", "Quick update:", "What you're seeing:", "Meanwhile:", "Breaking, kind of:"];
+const SICK_JOKES = ["Our boy is not okay. Somebody bring that man soup.", "Sick day on live TV. Respect the blanket.", "Nobody judge the pajamas. He is recovering.",
+  "Even Moshe the basil looks worried.", "Rest up, Ishai. The whole country is whispering.", "This is the most relaxing episode we have ever aired.",
+  "If he naps any harder he'll need a sponsor. FluffNap, call us.", "Tea count today: I lost track at four.", "Somewhere Mrs. Levi is already preparing soup. I can feel it.",
+  "He has the energy of a phone at two percent.", "Medical update: still horizontal.", "Honestly? Goals.", "The blanket is winning this round.", "Plot twist: there is no plot today. Just tea."];
+function relayHosts(s, text, n, jokes) {
+  const who = n % 2 ? "oren" : "zohar", other = who === "zohar" ? "oren" : "zohar";
+  const t = String(text).replace(/^(He|Ishai)\b/, "Ishai").replace(/\s+/g, " ").trim();
+  const out = [{ who, say: `${RELAY_OPEN[n % RELAY_OPEN.length]} ${t}`.slice(0, 200) }];
+  if (jokes && n % 2 === 0) { const prev = recentHostLines(s, 16); const fresh = jokes.filter(j => !prev.includes(j));
+    if (fresh.length) out.push({ who: other, say: fresh[(Math.floor(n / 2) * 5) % fresh.length] }); }
+  return out;
+}
 var QUOTA_RE = /4006|daily free allocation|backup AI/i;
 var cfOutUntil = 0;
 function nextUtcMidnight(now) {
@@ -866,7 +880,6 @@ function sickEvent(s, last, hour) {
     { who: "zohar", say: "Rest up, Ishai. The whole country is whispering." },
     { who: "oren", say: "This is the most relaxing episode we have ever aired." }
   ];
-  const commentary = n === 1 || n % 3 === 0 ? [pick(HOSTS_SAY)] : [];
   const step = { offscreen: "street", street: "corridor", park: "street", cafe: "street", corridor: "apartment" }[last.location];
   let ev;
   if (step) {
@@ -907,7 +920,7 @@ function sickEvent(s, last, hour) {
     ev.text = "Ishai tells " + nm(last.with) + " he isn't feeling well; " + nm(last.with) + " wishes him a quick recovery and leaves. " + ev.text;
     ev.lines = [{ who: "ishai", say: "Sorry, I'm not feeling great. I think I need to lie down." }];
   }
-  return { with: null, lines: [], commentary, ...ev };
+  return { with: null, lines: [], ...ev, commentary: relayHosts(s, ev.text, n, SICK_JOKES) };
 }
 function fallback(last, hour, s) {
   const night = hour < 7 || hour >= 23;
@@ -929,7 +942,7 @@ function fallback(last, hour, s) {
   const fresh = P.filter((p) => !seen.has(p[2]));
   const opts = fresh.length ? fresh : P;
   const [location, action, text] = opts[Math.floor(Math.random() * opts.length)];
-  return { location, action, text, with: null, lines: [] };
+  return { location, action, text, with: null, lines: [], commentary: relayHosts(s || { events: [] }, text, Math.floor(Date.now() / 36e4), null) };
 }
 
 // ---------- real world ----------
