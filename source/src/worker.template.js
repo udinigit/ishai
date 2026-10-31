@@ -284,7 +284,7 @@ function publicState(s, dev) {
     build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
     events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, text: dev ? e.text : "", with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null })),
     talk: (s.talk || []).slice(-80), dev: !!dev,
-    studio: s.studio || null, show: s.show || null,
+    studio: s.studio || null, show: s.show || null, call: s.call || null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
     unlocked: s.unlocked,
@@ -449,6 +449,10 @@ async function tick(env, force) {
     (ev.commentary || []).map(c => ` [${c.who}] ${c.say}`).join(""));
   if (s.log.lines.length > 450) s.log.lines = s.log.lines.slice(-450);
   // once an hour (08:00-23:00) the hosts go live from the studio with a recap
+  // every 30 minutes (08:00-23:59, he is awake, no conversation going on): a viewer calls the hosts
+  { const slot = Math.floor(storyMs / 1800000), hr = clock.hour;
+    if (hr >= 8 && ev.action !== "sleeping" && !ev.with && s.callSlot !== slot && now >= (s.aiOutUntil || 0)) { s.callSlot = slot;
+      try { const c = await callIn(env, s, storyMs); if (c) s.call = c; } catch (e) { console.log("call", e && e.message); } } }
   // every rounded hour while he is awake: "what happened today" summary + the studio recap show (+ a short PiP version)
   { const key = Math.floor(storyMs / 3600000), hr = clock.hour, day = new Date(storyMs).toLocaleDateString("en-CA", { timeZone: TZ });
     if (s.daySum && s.daySum.date !== day) { s.yesterdaySum = { date: s.daySum.date, text: s.daySum.text }; s.daySum = null; }   // a new day
@@ -946,6 +950,46 @@ function fallback(last, hour, s) {
 }
 
 // ---------- real world ----------
+// ---------- viewers calling in ----------
+const CALLER_MOODS = ["funny", "angry", "confused (asks something)", "over-excited superfan", "conspiracy theorist", "sweet grandma", "deadpan", "nitpicker"];
+const CALLER_NAMES = ["Moti", "Rina", "Yossi", "Shira", "Avraham", "Tali", "Gadi", "Noga", "Itzik", "Michal", "Ronen", "Orly", "Kobi", "Dafna", "Eli", "Sigal", "Benny", "Hila"];
+const CALLER_TOWNS = ["Haifa", "Be'er Sheva", "Ramat Gan", "Netanya", "Eilat", "Holon", "Kiryat Shmona", "Rishon", "Ashdod", "Herzliya", "Tiberias", "Modi'in"];
+// free, no-key sources for something random the caller can bring up
+const CALL_SOURCES = [
+  ["joke", "https://official-joke-api.appspot.com/random_joke", j => `${j.setup} ${j.punchline}`],
+  ["fact", "https://uselessfacts.jsph.pl/api/v2/facts/random?language=en", j => j.text],
+  ["wiki", "https://en.wikipedia.org/api/rest_v1/page/random/summary", j => `${j.title}: ${String(j.extract || "").slice(0, 300)}`],
+  ["quote", "https://zenquotes.io/api/random", j => `"${j[0].q}" (${j[0].a})`],
+  ["advice", "https://api.adviceslip.com/advice", j => j.slip.advice],
+  ["cat", "https://catfact.ninja/fact", j => j.fact]
+];
+async function callIn(env, s, storyMs) {
+  const r = n => Math.floor(Math.random() * n), pickOf = a => a[r(a.length)];
+  const caller = { name: pickOf(CALLER_NAMES), from: pickOf(CALLER_TOWNS), mood: pickOf(CALLER_MOODS) };
+  const kind = pickOf(["show", "random", "both", "both"]);
+  let extra = "";
+  if (kind !== "show") {
+    const [src, url, f] = pickOf(CALL_SOURCES);
+    try { const t = await getText(url); extra = `${src.toUpperCase()}: ${String(f(JSON.parse(t)) || "").replace(/\s+/g, " ").slice(0, 400)}`; } catch (e) { extra = ""; }
+  }
+  const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || id;
+  const recent = s.events.slice(-6).map(e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " with " + nm(e.with) : ""}: ${e.text}`).join("\n");
+  const messages = [{ role: "system", content:
+`A viewer calls in live to a reality show about Ishai (Tel Aviv). Hosts: ${HOSTS.zohar} ${HOSTS.oren}
+The caller: ${caller.name} from ${caller.from}, ${caller.mood}.
+${kind === "show" ? "The caller talks about the show (what Ishai did recently, the cast, Moshe the basil, the hosts)." : kind === "random" ? "The caller brings up the random thing below (it has nothing to do with the show)." : "The caller connects the random thing below to what is happening on the show."}
+${extra ? "RANDOM THING: " + extra + "\nIf it is about anything sad, violent, sexual or political, ignore it and talk about the show instead." : ""}
+Write 4-6 short lines (max 22 words each): first a host says "We've got ${caller.name} from ${caller.from} on the line" (in their own words), then the caller (1-2 lines, clearly in character), then a host answers briefly (witty, never cruel), optionally the other host adds a quip or ends the call. Only facts from the recent moments about the show. PG-13, fictional brands only.
+Reply with ONLY JSON: {"lines":[{"who":"zohar"|"oren"|"caller","say":"..."}]}` },
+  { role: "user", content: `Recent moments:\n${recent}\n\nJSON only.` }];
+  const raw = await runModel(env, messages);
+  let o; try { o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch { return null; }
+  const lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 200) }))
+    .filter(l => ["zohar", "oren", "caller"].includes(l.who) && l.say.length > 2).slice(0, 7);
+  if (lines.length < 3 || !lines.some(l => l.who === "caller")) return null;
+  return { id: "call-" + Math.floor(storyMs / 1800000), t: storyMs, caller, kind, source: extra ? extra.split(":")[0] : null, lines };
+}
+
 async function getText(url) {
   const r = await fetch(url, { headers: { "user-agent": "WatchingIshai/1.0 (story website)" }, cf: { cacheTtl: 900 } });
   if (!r.ok) throw new Error(url.split("/")[2] + " " + r.status);

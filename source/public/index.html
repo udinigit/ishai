@@ -123,6 +123,13 @@
   .pip{position:absolute;z-index:5;top:11%;left:2.5%;width:34%;opacity:0;transition:opacity .9s;pointer-events:none;
     background:#0b0716;border:2px solid #ff9ad0;border-radius:6px;box-shadow:0 0 14px rgba(255,154,208,.35);overflow:hidden}
   .pip.on{opacity:1}
+  .callw{position:absolute;z-index:5;top:11%;right:2.5%;width:34%;opacity:0;transition:opacity .7s;pointer-events:none;background:#0b0716;border:2px solid #ffd36a;border-radius:6px;overflow:hidden;box-shadow:0 0 14px rgba(255,211,106,.35)}
+  .callw.on{opacity:1}
+  .callw canvas{display:block;width:100%;image-rendering:pixelated}
+  .callw .tag{position:absolute;top:3px;left:5px;z-index:1;font-size:clamp(10px,2.4vw,14px);color:#1a1200;background:#ffd36a;padding:0 5px;border-radius:3px}
+  .callw .who{position:absolute;top:3px;right:5px;z-index:1;font-size:clamp(10px,2.2vw,13px);color:#ffd36a;text-align:right;text-shadow:0 0 3px #000}
+  .callw .cap{font-size:clamp(10px,2.3vw,14px);line-height:1.15;padding:2px 6px;color:#f4f1ff;height:2.3em;overflow:hidden;background:#1a1408}
+  .host.caller .hn{color:#ffd36a}
   .stv{position:absolute;inset:0;z-index:8;background:#0b0716;overflow:hidden}
   .stv > canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
   .stvLive{position:absolute;top:9%;left:32.5%;width:35%;border:2px solid var(--phos);border-radius:5px;overflow:hidden;background:#000;box-shadow:0 0 10px rgba(77,255,122,.3)}
@@ -168,6 +175,7 @@
     <div class="pip" id="pip" aria-hidden="true"><span class="tag">● LIVE · STUDIO</span><canvas id="pipCv" width="64" height="40"></canvas><div class="cap" id="pipCap"></div></div>
     <div class="adb" id="adb" aria-hidden="true"><canvas id="adCv" width="40" height="20"></canvas><div class="t" id="adT"></div><span class="ad">AD</span></div>
     <div class="pvb" id="pvb" hidden></div>
+    <div class="callw" id="callw" aria-hidden="true"><span class="tag">📞 ON THE LINE</span><span class="who" id="callWho"></span><canvas id="callCv" width="64" height="30"></canvas><div class="cap" id="callCap"></div></div>
     <div class="fsCap" id="fsCap"></div>
     <div class="stv" id="stv" hidden>
       <canvas id="stvCv" width="64" height="40"></canvas>
@@ -1672,6 +1680,7 @@
       const resume = () => { document.removeEventListener('pointerdown', resume, true); document.removeEventListener('keydown', resume, true); if (mode === 'off') setMode(saved); };
       document.addEventListener('pointerdown', resume, true); document.addEventListener('keydown', resume, true);
     }
+    function ring(){ if (!on()) return; for (let k = 0; k < 2; k++) for (let i = 0; i < 8; i++){ tone(880, .05, 'square', .03, k * .9 + i * .06); tone(1100, .05, 'square', .02, k * .9 + i * .06 + .03); } }
     function duck(down){
       if (amb && amb.duck) amb.duck.gain.setTargetAtTime(down ? .15 : 1, ac.currentTime, .25);
       if (amb && amb.audio){ const el = amb.audio, to = down ? .12 : radioVol; let i = 0; const from = el.volume;
@@ -1679,7 +1688,7 @@
     }
     function newSong(){ if (amb && amb.reseed) amb.reseed(); }
     const speaking = () => mode === 'voices';
-    return { blip, key, say, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb };
+    return { blip, key, say, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -2059,7 +2068,7 @@
     pip.classList.remove('on'); await new Promise(r => setTimeout(r, 1000)); studioOn = false;
   }
   setInterval(() => {
-    const st = STUDIO; if (!st || studioOn || showOn || studioDone.has(st.id) || DEV_ONLY_NARRATION_SKIP()) return;
+    const st = STUDIO; if (!st || studioOn || showOn || callOn || studioDone.has(st.id) || DEV_ONLY_NARRATION_SKIP()) return;
     const age = Date.now() - st.t;
     const quiet = !actor.with && !SPEAKING && !actor.switching && !actor.ride && actor.action !== 'phoning' && actor.action !== 'sleeping'; // only when things get quiet
     const h = hourNow(); if (h < 8) { if (age >= 0) studioDone.add(st.id); return; }   // the studio is closed from midnight to 08:00
@@ -2095,7 +2104,7 @@
   const AD_EVERY = 6 * 60000, AD_SHOW = 9000; let adOn = null;
   function adTick(){
     const now = Date.now(), slot = Math.floor(now / AD_EVERY), e = now % AD_EVERY - 20000;
-    const quiet = !forceLoc && !actor.with && !SPEAKING && !studioOn && !showOn && !actor.switching && (SAY.who !== 'radio' || performance.now() > SAY.until)
+    const quiet = !forceLoc && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !actor.switching && (SAY.who !== 'radio' || performance.now() > SAY.until)
       && (actor.action === 'sleeping' || !['talking','phoning'].includes(actor.action));
     const want = e >= 0 && e < AD_SHOW && quiet ? BANNERS[Math.floor(hash(slot * 5 + 11) * BANNERS.length)] : null;
     const el = $('adb');
@@ -2196,8 +2205,8 @@
   $('studioBtn').onclick = (e) => { e.stopPropagation(); if (showOn){ if (SHOW_STOP) SHOW_STOP(); } else playShow(); };   // the same button switches Studio <-> Live
   // ================= full screen: tap the picture (works for the live picture and the Studio); the last lines stay visible =================
   const camEl = $('scene').parentElement, FS = [];
-  function fsPush(who, say){
-    const sp = speaker(who); FS.push({name: sp.name, color: sp.color, say}); if (FS.length > 2) FS.shift();
+  function fsPush(who, say, nm, col){
+    const sp = nm ? {name: nm, color: col || '#ffd36a'} : speaker(who); FS.push({name: sp.name, color: sp.color, say}); if (FS.length > 2) FS.shift();
     const el = $('fsCap'); el.textContent = '';
     FS.forEach(x => { const d = document.createElement('div'); const b = document.createElement('b'); b.style.color = x.color; b.textContent = x.name + ': '; d.append(b, document.createTextNode(x.say)); el.appendChild(d); });
   }
@@ -2209,6 +2218,53 @@
   camEl.addEventListener('click', e => { if (e.target.closest('button')) return; setFs(!camEl.classList.contains('fs')); });
   document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && camEl.classList.contains('fs')) { camEl.classList.remove('fs'); document.body.classList.remove('fsOn'); } });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && camEl.classList.contains('fs')) setFs(false); });
+  // ================= callers: every 30 minutes a viewer phones the hosts (shown in a call window, in the hosts' column and in full screen) =================
+  let CALL = null, callOn = false; const callDone = new Set();
+  const callCtx = $('callCv').getContext('2d');
+  function drawPhone(t, ringing){
+    const prev = g; g = callCtx;
+    R(0,0,64,30,'#1a1408'); for (let i=0;i<64;i+=8) R(i,0,1,30,'#221a0c');
+    const sh = ringing ? (Math.floor(t/60)%2 ? 1 : -1) : 0, x = 22 + sh, y = 8;
+    R(x,y+6,20,12,'#c23b3b'); R(x+1,y+6,18,1,'#e05a5a'); R(x+2,y+18,16,2,'#8a1c2c');           // body
+    R(x-2,y+2,24,4,'#c23b3b'); R(x-2,y+2,24,1,'#e05a5a'); R(x-3,y+3,4,4,'#a82c2c'); R(x+19,y+3,4,4,'#a82c2c'); // handset
+    R(x+6,y+9,8,7,'#f2efe0'); [[7,10],[10,10],[13,10],[7,13],[10,13],[13,13]].forEach(([a,b])=>R(x+a-1+1,y+b,1,1,'#3a2a1c')); // dial
+    if (ringing) for (let i=0;i<3;i++){ const ph=(t/500+i/3)%1; alpha(1-ph,()=>{ R(x-6-ph*6,y+4-ph*3,1,3,'#ffd36a'); R(x+26+ph*6,y+4-ph*3,1,3,'#ffd36a'); }); }
+    else { R(52,22,8,1,'#4caf50'); R(52,22,1,1,'#4caf50'); alpha(.5 + .5*Math.sin(t/200),()=>R(56,24,2,2,'#4caf50')); }      // line open
+    g = prev;
+  }
+  function boothCaller(c, say, animate){
+    const booth = $('booth'), card = document.createElement('div'); card.className = 'host caller';
+    const face = document.createElement('canvas'); face.width = 12; face.height = 12; face.style.width = '36px'; face.style.imageRendering = 'pixelated';
+    const fc = face.getContext('2d'); fc.fillStyle = '#1a1408'; fc.fillRect(0,0,12,12); fc.fillStyle = '#c23b3b'; fc.fillRect(2,5,8,5); fc.fillRect(1,3,10,2); fc.fillStyle = '#f2efe0'; fc.fillRect(4,6,4,3);
+    const body = document.createElement('div'), hn = document.createElement('div'); hn.className = 'hn'; hn.textContent = `📞 ${c.name.toUpperCase()} · ${c.from}`;
+    const line = document.createElement('div'); line.className = 'hl'; line.textContent = say;
+    body.append(hn, line); card.append(face, body); booth.appendChild(card);
+    while (booth.querySelectorAll('.host').length > 8) booth.removeChild(booth.querySelector('.host'));
+    boothScroll();
+  }
+  async function playCall(c){
+    callDone.add(c.id); callOn = true; const w = $('callw'), cap = $('callCap');
+    $('callWho').textContent = `${c.caller.name} · ${c.caller.from}`; cap.textContent = '';
+    let ringing = true; const anim = () => { if (!callOn) return; drawPhone(wall(), ringing); requestAnimationFrame(anim); }; anim();
+    w.classList.add('on'); Sound.ring && Sound.ring();
+    await new Promise(r => setTimeout(r, 2200)); ringing = false;
+    for (const l of c.lines){
+      const isCaller = l.who === 'caller', name = isCaller ? c.caller.name.toUpperCase() : HOSTS[l.who].name, color = isCaller ? '#ffd36a' : HOSTS[l.who].color;
+      const row = document.createElement('div'); const b = document.createElement('b'); b.style.color = color; b.style.fontWeight = 'normal'; b.textContent = name + ': ';
+      const tx = document.createElement('span'); row.append(b, tx); cap.appendChild(row);
+      if (isCaller){ boothCaller(c.caller, l.say); fsPush(null, l.say, '📞 ' + name, color); }
+      else { addMsg({id: c.id + ':' + c.lines.indexOf(l), t: c.t, who: l.who, say: l.say, host: true}, false); fsPush(l.who, l.say); }
+      const vid = isCaller ? 'caller-' + c.caller.name : l.who;
+      await Promise.all([Sound.say(vid, l.say), typeInto(tx, l.say, true, ch => { Sound.blip(vid, ch); cap.scrollTop = cap.scrollHeight; }, null)]);
+      await new Promise(r => setTimeout(r, 900 + Math.min(2200, l.say.length * 22)));
+    }
+    await new Promise(r => setTimeout(r, 1200)); w.classList.remove('on'); await new Promise(r => setTimeout(r, 800)); callOn = false;
+  }
+  setInterval(() => {
+    const c = CALL; if (!c || callOn || callDone.has(c.id) || forceLoc) return;
+    const age = Date.now() - c.t; if (age < 0) return; if (age > 12 * 60000){ callDone.add(c.id); return; }
+    if (!SPEAKING && !studioOn && !showOn && !actor.switching && actor.action !== 'sleeping' && !(SAY.who === 'radio' && performance.now() < SAY.until)) playCall(c);
+  }, 1000);
   let castSig = '';
   setInterval(()=>{ if ($('castPanel').hidden) return; const sig = actor.loc + '|' + [...settledOnCamera()].join(',') + '|' + UNLOCKED.has('dog'); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
@@ -2299,6 +2355,7 @@
       if (!loaded) TALK_HISTORY = s.talk || [];
       NOTES = s.notes || ''; setCast(s.cast);
       if (s.studio) STUDIO = s.studio;
+      if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;
       if (s.summary){ SUMMARY = s.summary; renderSummary(); }
       if (s.world) { WORLD = s.world; $('stNext').textContent = weatherLabel(); }
