@@ -824,11 +824,29 @@ function nextUtcMidnight(now) {
   const d = new Date(now);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) + 2 * 6e4;
 }
+// backup AI (any OpenAI-compatible API; Groq by default). If the model name is gone (404), it asks the API which models exist and picks one.
+let backupModel = null;
+const BACKUP_PREFER = [/llama-3\.3-70b/, /llama-4-scout/, /llama-4-maverick/, /gpt-oss-120b/, /gpt-oss-20b/, /qwen3-32b/, /llama-3\.1-8b/, /llama/, /qwen/, /gemma/];
 async function runBackup(env, messages) {
   const url = env.BACKUP_AI_URL || "https://api.groq.com/openai/v1/chat/completions";
-  const model = env.BACKUP_AI_MODEL || "llama-3.3-70b-versatile";
-  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + env.BACKUP_AI_KEY }, body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.9 }) });
-  if (!r.ok) throw new Error("backup AI " + r.status + ": " + (await r.text()).slice(0, 150));
+  const auth = { authorization: "Bearer " + env.BACKUP_AI_KEY };
+  const call = model => fetch(url, { method: "POST", headers: { "content-type": "application/json", ...auth }, body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.9 }) });
+  let model = backupModel || env.BACKUP_AI_MODEL || "llama-3.3-70b-versatile";
+  let r = await call(model);
+  if (r.status === 404 || r.status === 400) {
+    const body = (await r.text()).slice(0, 300);
+    if (r.status === 404 || /model/i.test(body)) {
+      try {
+        const lr = await fetch(url.replace(/\/chat\/completions$/, "/models"), { headers: auth });
+        const ids = ((await lr.json()).data || []).map(m => m.id).filter(id => !/whisper|tts|guard|embed|vision|playai|distil/i.test(id));
+        const found = BACKUP_PREFER.map(re => ids.find(id => re.test(id))).find(Boolean) || ids[0];
+        if (found && found !== model) { model = found; r = await call(model); }
+        else throw new Error("backup AI " + 404 + ": no usable model (" + ids.slice(0, 6).join(", ") + ")");
+      } catch (e) { if (!r.ok) throw new Error("backup AI " + r.status + ": " + body.slice(0, 120) + " | " + String(e.message || e).slice(0, 120)); }
+    }
+  }
+  if (!r.ok) throw new Error("backup AI " + r.status + " (" + model + "): " + (await r.text()).slice(0, 150));
+  backupModel = model;
   const j = await r.json();
   const c = j?.choices?.[0]?.message?.content;
   if (typeof c !== "string" || !c.trim()) throw new Error("backup AI: empty reply");
@@ -859,6 +877,12 @@ function sickEvent(s, last, hour) {
     };
     ev = { location: step, action: step === "apartment" ? "idle" : "walking", text: pick(T[step]) };
     if (n === 1) ev.lines = [{ who: "ishai", say: "Ugh. I don't feel well. I'm going home." }];
+  } else if (!night && s.fixNote && Date.now() < s.fixNote.until && n > 2) {
+    const G = [["showering", "Feeling a bit better, Ishai finally gets up and takes a long hot shower."], ["cooking", "He chops an onion and starts a simple pasta, humming quietly."],
+      ["eating", "He eats dinner at the counter, slowly, like a man who has been through something."], ["drinking", "He makes tea and stands by the window with it, looking almost human again."],
+      ["reading", "He settles in the armchair with a book, blanket over his knees."], ["idle", "He tidies up the mugs from his sick day and opens the window for some air."]];
+    const [action, text] = G[(s.fixN = (s.fixN || 0) + 1) % G.length];
+    ev = { location: "apartment", action, text };
   } else if (night) {
     ev = { location: "apartment", action: "sleeping", text: pick(["Ishai sleeps off the bad day, blanket up to his chin.", "He sleeps, breathing slow and heavy. A car passes outside.", "Ishai turns over in his sleep and pulls the blanket closer."]) };
   } else {
