@@ -1287,6 +1287,7 @@
     if (BATH.has(prev) && actor.hidden){ if (prev===a){ updateLabels(); return; } actor.hidden = false; actor.x = standX(loc, prev); }
     const bed = new Set(['sleeping','waking']);
     if (bed.has(prev) && bed.has(a)) { actor.x = standX(loc,a,w); }
+    else if (a === 'walking' && prev === 'walking'){ /* still out walking: keep going, don't walk back to the start */ }
     else { actor.targetX = standX(loc,a,w); actor.travelling = Math.abs(actor.x-actor.targetX) > 1;
       if (loc==='apartment' && ['drinking','eating','cooking'].includes(a) && !['drinking','eating','cooking'].includes(prev) && !w){
         actor.viaFinal = actor.targetX; actor.targetX = 168; actor.travelling = true; } }
@@ -1372,7 +1373,10 @@
       const spot = n => { const a = lo + hash(n*7 + 3) * span, b = lo + hash((n-1)*7 + 3) * span; return Math.abs(a - b) < 18 ? (a + span/2 - lo) % span + lo : a; };
       const from = spot(k - 1), to = spot(k), wt = Math.abs(to - from) / 14;
       actor.paceDir = Math.sign(to - from) || 1;
-      if (e < wt){ actor.pacePause = false; actor.x = from + (to - from) * (e / wt); } else { actor.pacePause = true; actor.x = to; }
+      const want = e < wt ? from + (to - from) * (e / wt) : to;
+      if (Math.abs(want - actor.x) > 1.5){ const st = 24 * dt, d = want - actor.x;     // catch up by walking, never jump
+        actor.x += Math.abs(d) <= st ? d : Math.sign(d) * st; actor.paceDir = Math.sign(d) || 1; actor.pacePause = false; }
+      else if (e < wt){ actor.pacePause = false; actor.x = want; } else { actor.pacePause = true; actor.x = to; }
 
     }
   }
