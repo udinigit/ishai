@@ -742,8 +742,11 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   { const h = storyClock(Date.now() + DELAY_MIN * 60000).hour, LATE_OK = ["sleeping", "bathroom", "drinking"];
     if (h >= 1 && h < 6 && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts)
       return { ev, problem: `it is after 01:00 and he is home: he goes to bed now ("sleeping"), or at most a quick bathroom or water break` };
-    if (h < 6 && last.action === "sleeping" && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts)
-      return { ev, problem: `he is asleep and it is the middle of the night: keep him "sleeping" (a short bathroom or water trip is the only exception)` }; }
+    // once he has gone to bed for the night (from 22:00) he sleeps until morning; only a quick bathroom or water trip
+    const night = h >= 22 || h < 6;
+    if (night && (last.action === "sleeping" || BATH_ACTIONS.includes(last.action) && s.events.slice(-3).some(e => e.action === "sleeping")) && ev.location === "apartment" && !LATE_OK.includes(ev.action)) {
+      if (!allowNoHosts) return { ev, problem: `he is asleep for the night: keep him "sleeping" (a short bathroom or water trip is the only exception)` };
+      ev.action = "sleeping"; ev.with = null; ev.lines = []; ev.text = ev.text && /sleep|dream|snor|turns over|blanket/i.test(ev.text) ? ev.text : "Ishai sleeps on, breathing slowly."; } }
   if (ev.with && BATH_ACTIONS.includes(ev.action)) ev.with = null; // the guest waits outside
   const vNow = Date.now() + DELAY_MIN * 60000;
   // an overdue scene must end with a real goodbye in this moment
