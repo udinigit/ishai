@@ -31,6 +31,18 @@
     font-size:clamp(14px,3.8vw,22px);color:#eaffea;pointer-events:none;
     text-shadow:0 0 3px #000,0 0 6px rgba(0,0,0,.9)}
   .hud.top{top:0}.hud.bot{bottom:0}
+  .cam{cursor:zoom-in}
+  .cam.fs{position:fixed;inset:0;z-index:100;border:0;border-radius:0;display:flex;align-items:center;justify-content:center;cursor:zoom-out;margin:0}
+  .cam.fs > canvas#scene{width:min(100vw, calc(100vh * 16 / 9));height:auto}
+  .cam.fs .stv > canvas{object-fit:contain}
+  .fsCap{display:none}
+  .cam.fs .fsCap{display:block;position:absolute;z-index:7;left:50%;transform:translateX(-50%);bottom:8%;width:min(92vw,960px);pointer-events:none;
+    font-size:clamp(14px,2.4vw,24px);line-height:1.25;text-shadow:0 0 4px #000,0 0 8px #000}
+  .fsCap div{background:rgba(0,0,0,.55);border-radius:6px;padding:3px 10px;margin-top:4px;color:#f4f1ff}
+  .fsCap div:first-child{opacity:.7}
+  .fsCap b{font-weight:normal}
+  .cam.fs .fsCap:empty{display:none}
+  body.fsOn{overflow:hidden}
   .rec{color:#ffdede}
   .dot{display:inline-block;width:.55em;height:.55em;border-radius:50%;background:var(--red);margin-right:.35em;
     box-shadow:0 0 6px var(--red);animation:blink 1.2s steps(1) infinite}
@@ -156,6 +168,7 @@
     <div class="pip" id="pip" aria-hidden="true"><span class="tag">● LIVE · STUDIO</span><canvas id="pipCv" width="64" height="40"></canvas><div class="cap" id="pipCap"></div></div>
     <div class="adb" id="adb" aria-hidden="true"><canvas id="adCv" width="40" height="20"></canvas><div class="t" id="adT"></div><span class="ad">AD</span></div>
     <div class="pvb" id="pvb" hidden></div>
+    <div class="fsCap" id="fsCap"></div>
     <div class="stv" id="stv" hidden>
       <canvas id="stvCv" width="64" height="40"></canvas>
       <div class="stvLive"><canvas id="stvLiveCv" width="192" height="108"></canvas><span>● LIVE · ISHAI</span></div>
@@ -1480,10 +1493,10 @@
       el.classList.remove('edge');
       const px = head.x / W * cw, py = (head.y - 2) / H * ch + top;
       const half = el.offsetWidth / 2, left = Math.max(half + 6, Math.min(cw - half - 6, px));
-      el.style.left = left + 'px'; el.style.top = Math.max(el.offsetHeight + 4, py) + 'px';
+      el.style.left = (left + cv.offsetLeft) + 'px'; el.style.top = Math.max(el.offsetHeight + 4, py) + 'px';
       el.style.setProperty('--tail', Math.max(10, Math.min(el.offsetWidth - 10, px - left + half)) + 'px');
     } else { // on the phone / not in the room: a bubble at the screen edge
-      el.classList.add('edge'); el.style.left = (cw - el.offsetWidth/2 - 8) + 'px'; el.style.top = (top + 40 + el.offsetHeight) + 'px';
+      el.classList.add('edge'); el.style.left = (cv.offsetLeft + cw - el.offsetWidth/2 - 8) + 'px'; el.style.top = (top + 40 + el.offsetHeight) + 'px';
     }
   }
   setInterval(()=>{ $('clock').textContent = fmtClock.format(new Date()); }, 500);
@@ -1799,6 +1812,7 @@
   }
   const boothScroll = () => { const b = $('booth'); b.scrollTop = b.scrollHeight; };
   function hostLine(m, animate, budget){
+    if (!talkShown.has(m.id) && HOSTS[m.who] && animate !== false) fsPush(m.who, m.say);
     if (talkShown.has(m.id) || !HOSTS[m.who]) return Promise.resolve(); talkShown.add(m.id);
     const booth = $('booth');
     const card = document.createElement('div'); card.className = 'host';
@@ -1824,6 +1838,7 @@
   function addMsg(m, animate, budget){
     if (m.host) return hostLine(m, animate, budget);
     if (talkShown.has(m.id)) return Promise.resolve(); talkShown.add(m.id);
+    if (animate) fsPush(m.who, m.say);
     $('talkEmpty').hidden = true;
     const scene = (m.loc||'') + '|' + fmtHM.format(new Date(m.t)).slice(0,2);
     if (m.loc && m.loc !== lastScene.split('|')[0]){ const d = document.createElement('div'); d.className = 'scene'; d.textContent = `— ${PLACE_NAME[m.loc]||m.loc.toUpperCase()} · ${fmtHM.format(new Date(m.t))} —`; talkEl.appendChild(d); }
@@ -2179,6 +2194,21 @@
   }
   let SHOW_STOP = null;
   $('studioBtn').onclick = (e) => { e.stopPropagation(); if (showOn){ if (SHOW_STOP) SHOW_STOP(); } else playShow(); };   // the same button switches Studio <-> Live
+  // ================= full screen: tap the picture (works for the live picture and the Studio); the last lines stay visible =================
+  const camEl = $('scene').parentElement, FS = [];
+  function fsPush(who, say){
+    const sp = speaker(who); FS.push({name: sp.name, color: sp.color, say}); if (FS.length > 2) FS.shift();
+    const el = $('fsCap'); el.textContent = '';
+    FS.forEach(x => { const d = document.createElement('div'); const b = document.createElement('b'); b.style.color = x.color; b.textContent = x.name + ': '; d.append(b, document.createTextNode(x.say)); el.appendChild(d); });
+  }
+  function setFs(on){
+    camEl.classList.toggle('fs', on); document.body.classList.toggle('fsOn', on);
+    try { if (on && !document.fullscreenElement && camEl.requestFullscreen) camEl.requestFullscreen().catch(()=>{});
+          if (!on && document.fullscreenElement) document.exitFullscreen().catch(()=>{}); } catch(e){}
+  }
+  camEl.addEventListener('click', e => { if (e.target.closest('button')) return; setFs(!camEl.classList.contains('fs')); });
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && camEl.classList.contains('fs')) { camEl.classList.remove('fs'); document.body.classList.remove('fsOn'); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && camEl.classList.contains('fs')) setFs(false); });
   let castSig = '';
   setInterval(()=>{ if ($('castPanel').hidden) return; const sig = actor.loc + '|' + [...settledOnCamera()].join(',') + '|' + UNLOCKED.has('dog'); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
