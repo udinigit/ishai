@@ -11,7 +11,7 @@
 const MODELS = ["@cf/qwen/qwen3-30b-a3b-fp8", "@cf/meta/llama-3.1-8b-instruct-fast", "@cf/zai-org/glm-4.7-flash", "@cf/meta/llama-3.2-3b-instruct"];
 const TZ = "Asia/Jerusalem";
 const DELAY_MIN = 5;          // broadcast delay: viewers see events 5 minutes after they are written (not shown on the page)
-const INTERVAL_MIN = 4;       // keep equal to your Cron Trigger (*/4 * * * *)
+const INTERVAL_MIN = 6;       // keep equal to your Cron Trigger (*/6 * * * *)
 const KEEP_EVENTS = 40;
 const MAX_CAST = 12;          // the AI can add people until the cast reaches this size
 const NEW_PERSON_EVERY_H = 20; // at most one new person per this many hours
@@ -197,7 +197,7 @@ export default {
         stuck: s.stuck || 0, scene: s.scene ? { with: nm(s.scene.w), lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null,
         bugs: JSON.parse(await env.ISHAI.get("bugs") || "[]").filter(x => x.status === "new").slice(-5).map(x => ({ at: x.at, text: x.text.slice(0, 200), screen: x.screen })),
         studio: { lastShowAt: s.show ? s.show.t : null, lastSummaryAt: s.daySum ? s.daySum.at : null, err: s.studioErr || null },
-        fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
+        fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })) }, { "cache-control": "no-store" });
     }
     // quick story fix for the scheduled health check: /api/fix?token=...&endScene=1&note=...&minutes=45
@@ -364,13 +364,24 @@ async function tick(env, force) {
     finishGoal(s, goal, "forced", now); ev.unlocks = goal.unlock || null;
     goal = null;
   }
+  // AI out of budget (no backup AI): Ishai feels unwell, goes home and rests until the allowance resets
+  cfOutUntil = Math.max(cfOutUntil, s.aiOutUntil || 0);
+  if (!ev && now < (s.aiOutUntil || 0) && !env.BACKUP_AI_KEY) ev = sickEvent(s, last, clock.hour);
   if (!ev) {
-    try { ev = await askAI(env, s, clock, now, goal); s.lastError = null; }
+    try {
+      ev = await askAI(env, s, clock, now, goal); s.lastError = null;
+      if (s.sickN) { s.sickN = 0; s.recoverUntil = now + 90 * 60000; }
+    }
     catch (e) {
       const msg = !env.AI ? "Workers AI binding missing: add a Workers AI binding named AI" : String(e && e.message || e);
       console.log("AI error", msg); s.lastError = { at: now, msg };
+      if (QUOTA_RE.test(msg)) {
+        s.aiOutUntil = Math.max(s.aiOutUntil || 0, nextUtcMidnight(now));
+        cfOutUntil = s.aiOutUntil;
+        ev = sickEvent(s, last, clock.hour);
+      }
     }
-    if (!ev) ev = fallback(last, clock.hour);
+    if (!ev) ev = fallback(last, clock.hour, s);
     if (goal && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
   }
 
@@ -477,15 +488,16 @@ function buildMessages(s, clock, now, goal) {
       `In the moment it is fully done, set "complete":"${goal.id}".` + (goal.unlock && ITEMS[goal.unlock] ? ` Until then Ishai does NOT have ${ITEMS[goal.unlock]}.` : "")
     : "";
   const name = id => s.cast[id]?.name || id;
-  const recent = s.events.slice(-8).map(e =>
+  const recent = s.events.slice(-6).map(e =>
     `[${storyClock(e.t).label}] (${e.location}/${e.action}${e.with ? " with " + name(e.with) : ""}) ${e.text}` +
-    (e.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : name(l.who)}: "${l.say}"`).join("") +
-    (e.commentary || []).map(c => ` [${c.who === "zohar" ? "Zohar" : "Oren"}: ${c.say}]`).join("")).join("\n");
+    (e.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : name(l.who)}: "${l.say}"`).join("")).join("\n"); // host lines are listed separately (ALREADY SAID)
   const convo = cw && s.cast[cw] ? (() => {
-    const w = cw, ls = (s.talk || []).filter(m => !m.host && (m.w === w || m.who === w) && now + DELAY_MIN * 60000 - m.t < 40 * 60000).slice(-12);
+    const w = cw, ls = (s.talk || []).filter(m => !m.host && (m.w === w || m.who === w) && now + DELAY_MIN * 60000 - m.t < 40 * 60000).slice(-8);
     return ls.length ? `\nCONVERSATION SO FAR with ${name(w)} (still going unless someone has a reason to leave; do NOT greet again or repeat; react to the last line, add something new):\n` +
       ls.map(m => `${m.who === "ishai" ? "Ishai" : name(m.who)}: "${m.say}"`).join("\n") + "\n" : "";
   })() : "";
+  // a guest who already left: say so up front (cheaper than a retry)
+  const goneNote = s.gone && s.gone.w && now + DELAY_MIN * 60000 < s.gone.until && !last.with ? `\nNOTE: ${name(s.gone.w)} has already gone home and is NOT here. Ishai is alone ("with": null); no lines from ${name(s.gone.w)}.` : "";
   const sc = s.scene && cw && s.scene.w === cw ? s.scene : null;
   const sceneBrief = sc ? `\nSCENE BRIEF (this conversation with ${name(sc.w)}): type: ${sc.type}. Why they are talking: ${sc.why}. Ishai wants: ${sc.ishaiWants}. ${name(sc.w)} wants: ${sc.theyWant}. ` +
     `Beats: ${sc.beats}. Planned ending: ${sc.ending}. Progress: ${sc.lines} of about ${sc.target} lines.` +
@@ -570,7 +582,7 @@ COMMENTATORS (they talk to the viewers, who do NOT see your "text", only the pic
 - ${HOSTS.zohar}
 - ${HOSTS.oren}
 - ${HOSTS.rules}
-${(() => { const r = recentHostLines(s, 12); return r.length ? `- The hosts ALREADY SAID these (never repeat them, their jokes, openings, catchphrases or topics; find something NEW about THIS moment):\n${r.map(x => "  * " + x).join("\n")}\n` : ""; })()}"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: react to what viewers SEE right now (the place, the action, who is there) and HEAR (the spoken lines), connect it to earlier moments, make viewers care about the characters, and make them laugh. They NEVER invent things that are not on screen: no drinks, food, objects, visitors, calls or plans that are not in this moment's action/lines. Opinions, guesses and jokes about what is visible are fine ("he's been staring at that fridge for a while"). Comment on most moments. REQUIRED: whenever another character is present or anyone speaks, include 1-2 commentary lines reacting to it (write the dialogue first, then the hosts react). They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, no jokes about death, dying or illness, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them. Never mention or advertise real brands or companies.${sponsor ? `
+${(() => { const r = recentHostLines(s, 8); return r.length ? `- The hosts ALREADY SAID these (never repeat them, their jokes, openings, catchphrases or topics; find something NEW about THIS moment):\n${r.map(x => "  * " + x).join("\n")}\n` : ""; })()}"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: react to what viewers SEE right now (the place, the action, who is there) and HEAR (the spoken lines), connect it to earlier moments, make viewers care about the characters, and make them laugh. They NEVER invent things that are not on screen: no drinks, food, objects, visitors, calls or plans that are not in this moment's action/lines. Opinions, guesses and jokes about what is visible are fine ("he's been staring at that fridge for a while"). Comment on most moments. REQUIRED: whenever another character is present or anyone speaks, include 1-2 commentary lines reacting to it (write the dialogue first, then the hosts react). They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, no jokes about death, dying or illness, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them. Never mention or advertise real brands or companies.${sponsor ? `
 - THIS MOMENT: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
 
 Reply with ONLY this JSON, nothing else:
@@ -584,7 +596,7 @@ Plot notes: ${s.notes || "none"}
 ${body}
 ${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
-${recent}${gap}${convo}${sceneBrief}
+${recent}${gap}${goneNote}${s.recoverUntil && now < s.recoverUntil ? "\nNOTE: Earlier Ishai felt unwell and rested at home. He feels better now, still a little slow; let that show naturally (and he may mention it to someone)." : ""}${convo}${sceneBrief}
 
 What happens next?`;
   return [{ role: "system", content: system }, { role: "user", content: user }];
@@ -611,12 +623,13 @@ async function askAI(env, s, clock, now, goal) {
 let modelIdx = 0; // remembers the first model that works in this isolate
 async function runModel(env, messages) {
   let lastErr;
-  for (let i = modelIdx; i < MODELS.length; i++) {
+  // while Workers AI is out of budget, skip it (no wasted calls) and use the backup AI if one is set
+  for (let i = Date.now() < cfOutUntil ? MODELS.length : modelIdx; i < MODELS.length; i++) {
     try {
       const qwen = MODELS[i].includes("qwen3");
       // Qwen3 "thinks" by default; /no_think keeps it cheap (no hidden reasoning tokens)
       const msgs = qwen ? messages.map((m, k) => k === messages.length - 1 && m.role === "user" ? { ...m, content: m.content + " /no_think" } : m) : messages;
-      const out = await env.AI.run(MODELS[i], { messages: msgs, max_tokens: 1300, temperature: qwen ? 0.8 : 0.9 });
+      const out = await env.AI.run(MODELS[i], { messages: msgs, max_tokens: 1000, temperature: qwen ? 0.8 : 0.9 });
       const clean = t => t.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
       if (typeof out?.response === "string") return clean(out.response);
       const c = out?.choices?.[0]?.message?.content;
@@ -629,8 +642,12 @@ async function runModel(env, messages) {
       // only move on to the next model if this one is gone; budget/other errors stop here
       // the first (preferred) model may also fail for capacity/format reasons: fall back to the next one then too
       if (i > 0 && !/deprecat|not found|no such model|unknown model|5028|5007/i.test(msg)) throw e;
-      if (i === 0 && /neuron|quota|limit exceeded|4006/i.test(msg)) throw e;
+      if (i === 0 && /neuron|quota|limit exceeded|4006/i.test(msg)) { cfOutUntil = nextUtcMidnight(Date.now()); break; }
     }
+  }
+  if (Date.now() < cfOutUntil) {
+    if (env.BACKUP_AI_KEY) return await runBackup(env, messages);
+    throw lastErr || new Error("4006: Workers AI daily free allocation used up (back at 00:00 UTC)");
   }
   throw lastErr;
 }
@@ -707,11 +724,9 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   }
   // whoever left tonight does not walk back in (unless the director wants them)
   if (ev.with && s.gone && s.gone.w === ev.with && vNow < s.gone.until && !(goal && goal.with && String(goal.with).toLowerCase().includes(String(s.cast[ev.with]?.name || ev.with).toLowerCase()))) {
-    if (!allowNoHosts) return { ev, problem: `${s.cast[ev.with]?.name || ev.with} already left a little while ago and is not coming back now; Ishai is alone ("with": null)` };
     ev.with = null; ev.lines = ev.lines.filter(l => l.who === "ishai").slice(0, 1);
   }
   if (ev.with && s.scene && s.scene.leaving && s.scene.w === ev.with && (last.lines || []).some(l => FAREWELL.test(l.say))) {
-    if (!allowNoHosts) return { ev, problem: `${s.cast[ev.with]?.name || ev.with} already said goodbye and left; "with" must be null now and Ishai is alone (no lines from them)` };
     ev.with = null; ev.lines = ev.lines.filter(l => l.who === "ishai").slice(0, 1); if (ev.action === "talking") ev.action = "idle";
   }
   // "heads to the bathroom" must actually take him there, or the story loops on it forever
@@ -784,19 +799,90 @@ function repair(ev, s, last) {
     lines: ok ? ev.lines : ev.lines.filter(l => l.who === "ishai"), update: ok ? ev.update : null, newCard: ok ? ev.newCard : null };
 }
 
-function fallback(last, hour) {
-  const pool = {
-    apartment: hour < 7 || hour >= 23
-      ? [["sleeping", "Ishai is asleep. Somewhere a cat argues with another cat."], ["sleeping", "He turns over and mumbles something about kerning."]]
-      : [["idle", "Ishai stares out the window, thinking about nothing in particular."], ["working", "He opens the laptop and pretends to answer emails."], ["reading", "He picks up a book, reads two pages, and checks his phone."]],
-    corridor: [["walking", "Ishai walks down the hallway, keys jingling."]],
-    street: [["walking", "He walks along Herzl Street, dodging a scooter."]],
-    park: [["idle", "Ishai watches the duck. The duck watches back."]],
-    cafe: [["eating", "He sips his coffee slowly, making it last."]],
-    offscreen: [["away", "No sign of Ishai on any camera."]]
-  }[last.location];
-  const [action, text] = pool[Math.floor(Math.random() * pool.length)];
-  return { location: last.location, action, text, with: null, lines: [] };
+var QUOTA_RE = /4006|daily free allocation|backup AI/i;
+var cfOutUntil = 0;
+function nextUtcMidnight(now) {
+  const d = new Date(now);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) + 2 * 6e4;
+}
+async function runBackup(env, messages) {
+  const url = env.BACKUP_AI_URL || "https://api.groq.com/openai/v1/chat/completions";
+  const model = env.BACKUP_AI_MODEL || "llama-3.3-70b-versatile";
+  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + env.BACKUP_AI_KEY }, body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.9 }) });
+  if (!r.ok) throw new Error("backup AI " + r.status + ": " + (await r.text()).slice(0, 150));
+  const j = await r.json();
+  const c = j?.choices?.[0]?.message?.content;
+  if (typeof c !== "string" || !c.trim()) throw new Error("backup AI: empty reply");
+  return c.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+}
+// the AI is out of budget: Ishai feels unwell, goes home and rests (no AI needed)
+function sickEvent(s, last, hour) {
+  const n = s.sickN = (s.sickN || 0) + 1;
+  const pick = (a) => a[(n + a.length - 1) % a.length];
+  const nm = (id) => s.cast[id]?.name || id;
+  const night = hour < 7 || hour >= 23;
+  const HOSTS_SAY = [
+    { who: "zohar", say: "Our boy is not okay. Somebody bring that man soup." },
+    { who: "oren", say: "Sick day on live TV. Respect the blanket." },
+    { who: "zohar", say: "Nobody judge the pajamas. He is recovering." },
+    { who: "oren", say: "Even Moshe the basil looks worried." },
+    { who: "zohar", say: "Rest up, Ishai. The whole country is whispering." },
+    { who: "oren", say: "This is the most relaxing episode we have ever aired." }
+  ];
+  const commentary = n === 1 || n % 3 === 0 ? [pick(HOSTS_SAY)] : [];
+  const step = { offscreen: "street", street: "corridor", park: "street", cafe: "street", corridor: "apartment" }[last.location];
+  let ev;
+  if (step) {
+    const T = {
+      street: ["Ishai looks pale. He heads back along Herzl Street toward home, slower than usual.", "He walks home along Herzl Street, one hand on his stomach."],
+      corridor: ["Ishai climbs the stairs slowly and fishes for his keys, looking worn out.", "He leans on the wall in the hallway for a second, then unlocks the door."],
+      apartment: ["Ishai comes in, kicks off his shoes and drops onto the bed.", "Home. He drops his keys and heads straight for the bed."]
+    };
+    ev = { location: step, action: step === "apartment" ? "idle" : "walking", text: pick(T[step]) };
+    if (n === 1) ev.lines = [{ who: "ishai", say: "Ugh. I don't feel well. I'm going home." }];
+  } else if (night) {
+    ev = { location: "apartment", action: "sleeping", text: pick(["Ishai sleeps off the bad day, blanket up to his chin.", "He sleeps, breathing slow and heavy. A car passes outside.", "Ishai turns over in his sleep and pulls the blanket closer."]) };
+  } else {
+    const R = [
+      ["drinking", "Ishai makes a mug of tea with honey and sips it under a blanket."],
+      ["sleeping", "He curls up in bed for a nap, blanket up to his chin."],
+      ["idle", "He lies in the armchair with a wet towel on his forehead, staring at the ceiling."],
+      ["drinking", "He refills his water glass and takes slow sips by the window, next to Moshe the basil."],
+      ["sleeping", "Another nap. The street noise drifts in through the window."],
+      ["idle", "Ishai half-watches something on the laptop from bed, too tired to follow it."],
+      ["sleeping", "He dozes off again, one sock on, one sock off."]
+    ];
+    const [action, text] = pick(R);
+    ev = { location: "apartment", action, text };
+    if (n === 1) ev.lines = [{ who: "ishai", say: "I don't feel well. I'm just going to lie down for a while." }];
+  }
+  if (n === 1 && last.with) {
+    ev.text = "Ishai tells " + nm(last.with) + " he isn't feeling well; " + nm(last.with) + " wishes him a quick recovery and leaves. " + ev.text;
+    ev.lines = [{ who: "ishai", say: "Sorry, I'm not feeling great. I think I need to lie down." }];
+  }
+  return { with: null, lines: [], commentary, ...ev };
+}
+function fallback(last, hour, s) {
+  const night = hour < 7 || hour >= 23;
+  const home = { offscreen: "street", street: "corridor", park: "street", cafe: "street", corridor: "apartment" }[last.location];
+  if (night && home) {
+    const T = { street: "Ishai heads back along Herzl Street toward home.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
+    return { location: home, action: home === "apartment" ? "idle" : "walking", text: T[home], with: null, lines: [] };
+  }
+  const P = {
+    apartment: night ? [["apartment", "sleeping", "Ishai is asleep. Somewhere a cat argues with another cat."], ["apartment", "sleeping", "He turns over and mumbles something about kerning."], ["apartment", "sleeping", "Ishai sleeps on, one arm hanging off the bed."]]
+      : [["apartment", "idle", "Ishai stares out the window, thinking about nothing in particular."], ["apartment", "working", "He opens the laptop and pretends to answer emails."], ["apartment", "reading", "He picks up a book, reads two pages, and checks his phone."], ["apartment", "drinking", "He pours a glass of water and waters Moshe the basil too."], ["apartment", "cooking", "He makes a quick omelette and eats it straight from the pan."]],
+    corridor: [["corridor", "walking", "Ishai walks down the hallway, keys jingling."], ["apartment", "idle", "He lets himself back into the flat and drops his keys on the desk."], ["street", "walking", "He steps out of the building onto Herzl Street."]],
+    street: [["street", "walking", "He walks along Herzl Street, dodging a scooter."], ["street", "idle", "He sits on the bus stop bench for a minute, watching the traffic."], ["street", "eating", "He buys a falafel at Avi's kiosk and eats it standing at the counter."], ["park", "walking", "He wanders into the little park and heads for the bench."], ["corridor", "walking", "He heads back into his building and up the stairs."]],
+    park: [["park", "idle", "Ishai watches the duck. The duck watches back."], ["park", "walking", "He does a slow lap around the pond."], ["street", "walking", "He leaves the park and walks back to Herzl Street."]],
+    cafe: [["cafe", "drinking", "He sips his coffee slowly, making it last."], ["cafe", "reading", "He reads the news on his phone at the corner table."], ["street", "walking", "He pays, waves to the barista and steps back out onto Herzl Street."]],
+    offscreen: [["offscreen", "away", "No sign of Ishai on any camera."], ["street", "walking", "Ishai gets off the bus on Herzl Street with a shopping bag."]]
+  }[last.location] || [[last.location, "idle", "A quiet moment."]];
+  const seen = new Set((s && s.events || []).slice(-6).map((e) => e.text));
+  const fresh = P.filter((p) => !seen.has(p[2]));
+  const opts = fresh.length ? fresh : P;
+  const [location, action, text] = opts[Math.floor(Math.random() * opts.length)];
+  return { location, action, text, with: null, lines: [] };
 }
 
 // ---------- real world ----------

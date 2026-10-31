@@ -11,6 +11,6 @@ binding = "ISHAI"
 id = "62778efab6dc475ba095345c03d64fc2"
 
 [triggers]
-crons = ["*/4 * * * *"]
+crons = ["*/6 * * * *"]
 
 # The ADMIN_KEY secret is set in the Cloudflare dashboard and is kept on every deploy.
