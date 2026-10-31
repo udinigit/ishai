@@ -47,6 +47,11 @@ const WMO = { 0: "clear sky", 1: "mostly clear", 2: "partly cloudy", 3: "overcas
 // how long until a need starts nagging (hours)
 const NEED_H = { eat: 5, drink: 3, bathroom: 4, shower: 26 };
 const NEEDS = { watching: "tv", listening: "radio" }; // actions that need an item
+// how many moments in a row (alone, same place) an activity may run before the story must move on
+const RUN_CAP = { eating: 4, drinking: 3, idle: 4, cooking: 6, bathroom: 2, showering: 3, phoning: 0, talking: 0, walking: 4, waking: 2,
+  exercising: 8, reading: 12, working: 20, gaming: 15, watching: 15, listening: 15 };
+const sameRun = evs => { const l = evs[evs.length - 1]; let n = 0;
+  for (let i = evs.length - 1; i >= 0 && evs[i].action === l.action && evs[i].location === l.location && !evs[i].with; i--) n++; return n; };
 
 // The two hosts who comment on the show for viewers (they replace the narration on the public page)
 // --- keep the hosts from repeating themselves ---
@@ -448,14 +453,16 @@ function buildMessages(s, clock, now, goal) {
   const evs = s.events, hourNow = clock.hour;
   let sinceMove = 0; for (let i = evs.length - 1; i >= 0 && evs[i].location === last.location; i--) sinceMove = (now - (evs[i].created || evs[i].t)) / 60000;
   let sinceTalk = 0; for (let i = evs.length - 1; i >= 0 && !evs[i].with; i--) sinceTalk = (now - (evs[i].created || evs[i].t)) / 60000;
-  const awake = hourNow >= 8 && hourNow < 23 && last.action !== "sleeping";
+  const awake = hourNow >= 7 && hourNow < 23 && last.action !== "sleeping";
   const pacing = [
     awake && sinceMove > 100 && last.location !== "offscreen" ? `He has been at the ${last.location} for about ${(sinceMove / 60).toFixed(1)} hours. Time for a change soon: he goes out (step by step through the neighbors rule) or someone comes over.` : "",
     (hourNow >= 23 || hourNow < 6) && last.action !== "sleeping" ? (last.location === "apartment"
       ? `It is late (${clock.label.slice(-5)}). He is tired: guests say goodnight and leave, he winds down (bathroom, glass of water) and goes to bed — "sleeping" in this or the next moment.`
       : `It is late (${clock.label.slice(-5)}). He heads home now, place by place, to go to bed.`) : "",
-    awake && last.location === "apartment" && evs.slice(-3).length === 3 && evs.slice(-3).every(e => e.action === last.action && e.location === last.location)
-      ? `He has been ${last.action} for a while. Change what he is doing now (gets up for a drink, tidies, waters Moshe, calls someone, steps out, a neighbor knocks).` : "",
+    (() => { const run = sameRun(evs), cap = RUN_CAP[last.action]; if (!cap || last.with || run < Math.max(3, cap - 1)) return "";
+      return run >= cap
+        ? `He has been ${last.action} for ${run * DELAY_MIN} minutes, the same thing over and over. In THIS moment he finishes it and does something clearly different (another action, or goes out, or calls someone). Do not write another "${last.action}" moment.`
+        : `He has been ${last.action} for a while. Wrap it up soon and change what he is doing (gets up for a drink, tidies, waters Moshe, calls someone, steps out, a neighbor knocks).`; })(),
     awake && s.unlocked.includes("dog") && (hourNow >= 7 && hourNow < 9 || hourNow >= 18 && hourNow < 21) && (s.done.dogwalk ? hrs("dogwalk") : 99) > 5
       ? `Falafel needs his walk: Ishai takes him out on the leash (down the stairs, the street, the park), now or very soon.` : "",
     awake && sinceTalk > 55 ? `Nobody has interacted with him for about ${(sinceTalk / 60).toFixed(1)} hours. In this or the next moment someone should call, visit (a friend knocks and comes in through the front door), or he should meet someone.` : ""
@@ -664,6 +671,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (rep) { if (!allowNoHosts) return { ev, problem: `the narration repeats an earlier moment ("${rep.slice(0, 80)}"). Write what happens NEXT: a new action, a new topic, someone moves or leaves, time passes` };
       ev.stuck = true; } }
   if (!ev.with && ev.action === "talking") ev.action = "idle"; // nobody to talk to
+  { const cap = RUN_CAP[ev.action]; if (cap && !ev.with && ev.action === last.action && ev.location === last.location && sameRun(s.events) >= cap) ev.stuck = true; }
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
   // dialogue must not repeat itself (inside this moment or from the conversation so far)
   { const norm = t => String(t).toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
@@ -678,12 +686,11 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     return { ev, problem: `a conversation with ${s.cast[ev.with]?.name || ev.with} starts here, so fill "scene" (type, why, ishaiWants, theyWant, beats, ending, lines) and write its first lines` };
   if (ev.with && ev.lines.length < 6 && !allowNoHosts)
     return { ev, problem: `he is ${ev.action === "phoning" ? "on the phone" : "together"} with ${s.cast[ev.with]?.name || ev.with}, so "lines" must contain their actual conversation: 8 to 14 lines alternating between "ishai" and "${ev.with}"` };
-  { const prev = recentHostLines(s);
+  { const prev = recentHostLines(s, 12);
     const rep = ev.commentary.find(c => isRepeat(c.say, prev));
-    if (rep) { if (!allowNoHosts) return { ev, problem: `the host line "${rep.say}" repeats something the hosts already said; write fresh commentary about what is new in this moment` };
-      ev.commentary = ev.commentary.filter(c => !isRepeat(c.say, prev)); } }
+    if (rep) ev.commentary = ev.commentary.filter(c => !isRepeat(c.say, prev)); } // a stale joke is just cut; not worth a whole retry
   if ((ev.with || ev.lines.length >= 2) && !ev.commentary.length && !allowNoHosts)
-    return { ev, problem: 'the hosts are missing: add "commentary" with 1-2 lines from zohar and/or oren reacting to this scene' };
+    return { ev, problem: 'the hosts are missing or only repeated earlier jokes: add "commentary" with 1-2 FRESH lines from zohar and/or oren reacting to what is new in this scene' };
   return { ev, problem: null };
 }
 
