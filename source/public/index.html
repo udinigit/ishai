@@ -244,7 +244,8 @@
   let SLEEP_SINCE = Date.now() - (+new URLSearchParams(location.search).get('sleptMin') || 0) * 60000;
   const sleepPhase = () => { const m = (Date.now() - SLEEP_SINCE) / 60000; return m < 10 ? 0 : m < 15 ? 1 : 2; }; // true while a dream picture is being drawn off screen
   let SPEAKING = null; // who is talking right now (drives the speech bubbles on camera)
-  function setSpeaking(w){ SPEAKING = w; }
+  let LAST_TALK = Date.now();
+  function setSpeaking(w){ SPEAKING = w; if (w) LAST_TALK = Date.now(); }
   const LABEL = {phoning:'ON THE PHONE',drinking:'DRINKING',bathroom:'BATHROOM',showering:'SHOWER',watching:'WATCHING TV',listening:'RADIO ON',sleeping:'SLEEPING',waking:'WAKING UP',idle:'IDLE',walking:'WALKING',working:'WORKING',gaming:'GAMING',
     eating:'EATING',cooking:'COOKING',reading:'READING',exercising:'EXERCISING',talking:'TALKING',away:'UNKNOWN'};
 
@@ -1755,6 +1756,7 @@
     if (typing) return; typing = true;
     while (queue.length){
       const ev = queue.shift(); if (ev.unlocks) UNLOCKED.add(ev.unlocks);
+      if (showOn && SHOW_AUTO && SHOW_STOP && ((ev.lines||[]).length || ev.with || ev.location !== actor.loc)) SHOW_STOP();   // something happens: back to live
       // several moments became due at once (phone woke up, tab came back): skip the silent ones in between, so he doesn't hop in and out of bed
       if (queue.length && !(ev.lines || []).length){ shown.add(ev.id); if (DEV) addLine(ev, false); continue; }
       if (!forceLoc) setState(ev.location||'apartment', ev.action, false, ev.with||null);
@@ -2271,6 +2273,23 @@
     const age = Date.now() - c.t; if (age < 0) return; if (age > 12 * 60000){ callDone.add(c.id); return; }
     if (!SPEAKING && !studioOn && !showOn && !actor.switching && actor.action !== 'sleeping' && !(SAY.who === 'radio' && performance.now() < SAY.until)) playCall(c);
   }, 1000);
+  // ================= dead air -> the Studio comes on by itself =================
+  // Thanks to the broadcast delay the page already holds the next moments, so it knows when nothing will happen for a while.
+  let SHOW_AUTO = false, lastAutoShow = 0; const autoShown = new Set();
+  function quietAhead(ms){
+    const until = Date.now() + ms, next = [...held.values()].filter(e => e.t <= until);
+    return !queue.length && next.every(e => !(e.lines||[]).length && !e.with && (e.location||'apartment') === actor.loc);
+  }
+  setInterval(() => {
+    if (forceLoc || PREVIEW || showOn || studioOn || callOn || !SHOW || autoShown.has(SHOW.id)) return;
+    if (Date.now() - lastAutoShow < 40 * 60000) return;                                   // at most every 40 minutes
+    const h = hourNow(); if (h < 8 || h >= 23.5 || actor.action === 'sleeping') return;
+    if (actor.with || actor.pending || actor.travelling || actor.switching || SPEAKING || typing) return;
+    if (Date.now() - LAST_TALK < 90000) return;                                           // quiet for 1.5 minutes already
+    if (!quietAhead(3 * 60000)) return;                                                   // and nothing coming in the next 3 minutes
+    autoShown.add(SHOW.id); lastAutoShow = Date.now(); SHOW_AUTO = true;
+    playShow().then(() => { SHOW_AUTO = false; });
+  }, 5000);
   let castSig = '';
   setInterval(()=>{ if ($('castPanel').hidden) return; const sig = actor.loc + '|' + [...settledOnCamera()].join(',') + '|' + UNLOCKED.has('dog'); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
