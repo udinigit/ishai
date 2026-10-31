@@ -283,7 +283,8 @@ function publicState(s, dev) {
     build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
     events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, text: dev ? e.text : "", with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null })),
     talk: (s.talk || []).slice(-80), dev: !!dev,
-    studio: s.studio || null,
+    studio: s.studio || null, show: s.show || null,
+    summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
     unlocked: s.unlocked,
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [] } : null,
@@ -305,28 +306,40 @@ function storyClock(ms) {
 }
 
 // ---------- hourly studio recap (picture-in-picture on the page) ----------
-async function studioRecap(env, s, storyMs) {
+async function studioRecap(env, s, storyMs, day) {
   const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || id;
   const fmt = e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " with " + nm(e.with) : ""}: ${e.text}` +
     (e.lines || []).slice(0, 2).map(l => ` ${nm(l.who)}: "${l.say}"`).join("");
   const lastHour = s.events.filter(e => storyMs - e.t < 3600000).map(fmt);
-  if (lastHour.length < 3) return null;
-  const today = (s.log?.lines || []).map(l => l.split(' Ishai: "')[0].split(" [")[0].slice(0, 150));
-  const earlier = today.slice(0, Math.max(0, today.length - lastHour.length)).filter((_, i, a) => i % Math.max(1, Math.floor(a.length / 12)) === 0).slice(-12);
+  const todayLines = (s.log && s.log.date === day ? s.log.lines : []).map(l => l.split(' Ishai: "')[0].split(" [")[0].slice(0, 150));
+  const earlier = todayLines.filter((_, i, a) => i % Math.max(1, Math.floor(a.length / 18)) === 0).slice(-18);
+  if (!lastHour.length && !earlier.length) return null;
+  const hr = storyClock(storyMs).hour, yLines = hr < 11 ? "2-3 lines" : hr < 16 ? "1-2 lines" : "1 short line";   // the longer today, the shorter yesterday
+  const sp = [...SPONSORS].sort(() => Math.random() - .5).slice(0, 2);
   const messages = [{ role: "system", content:
-`You write a 30-second "live from the studio" update for a reality show about Ishai, a man in Tel Aviv. Two hosts:
+`You write for a reality show about Ishai, a man in Tel Aviv. Two hosts in the studio:
 - ${HOSTS.zohar}
 - ${HOSTS.oren}
-They recap today for viewers, focusing on the LAST HOUR, with sarcastic, witty remarks and banter. PG-13, never cruel about real groups or people.
-STRICT: mention only things that are in the log below. Never invent events, people, objects or plans. Do not say what will happen next (teasing "we'll see" is fine).
-Reply with ONLY JSON: {"lines":[{"who":"zohar"|"oren","say":"..."}]} with 4 to 6 lines, alternating hosts, max 25 words each. The first line greets viewers ("Live from the studio..."), the last line sends them back to the cameras.` },
-  { role: "user", content: `Earlier today:\n${earlier.join("\n") || "(nothing much)"}\n\nLAST HOUR:\n${lastHour.join("\n")}\n\nWrite the studio update. JSON only.` }];
+STRICT: use only facts from the logs below. Never invent events, people, objects or plans.
+Reply with ONLY JSON:
+{"today":"what happened today so far: 3-6 plain sentences, past tense, neutral, for a text summary",
+ "show":[{"who":"zohar"|"oren","say":"..."}],
+ "pip":[{"who":"zohar"|"oren","say":"..."}]}
+"show" is the studio recap, 7-11 lines, alternating hosts, max 25 words each, sassy and witty, PG-13:
+ 1) the FIRST line is a cheesy sponsor intro: "This recap is brought to you by ${sp[0].name}" plus a joke (${sp[0].pitch});
+ 2) yesterday: ${yLines} (skip if there is no yesterday);
+ 3) today, focusing on the last hour, with sarcastic remarks and banter;
+ 4) the LAST line is a sponsor outro: "...brought to you by ${sp[1].name}" plus a joke (${sp[1].pitch}), then back to the cameras.
+"pip" is a 4-5 line quick version about the last hour only (first line greets: "Live from the studio...").` },
+  { role: "user", content: `YESTERDAY (${s.yesterdaySum ? s.yesterdaySum.date : "none"}): ${s.yesterdaySum ? s.yesterdaySum.text : "(no summary)"}\n\nTODAY so far:\n${earlier.join("\n") || "(little)"}\n\nLAST HOUR:\n${lastHour.join("\n") || "(quiet)"}\n\nJSON only.` }];
   const raw = await runModel(env, messages);
   let o; try { o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch { return null; }
-  const lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 200) }))
-    .filter(l => (l.who === "zohar" || l.who === "oren") && l.say.length > 3).slice(0, 6);
-  if (lines.length < 3) return null;
-  return { id: "studio-" + Math.floor(storyMs / 3600000), t: storyMs, lines };
+  const clean = arr => (Array.isArray(arr) ? arr : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 220) }))
+    .filter(l => (l.who === "zohar" || l.who === "oren") && l.say.length > 3);
+  const show = clean(o.show).slice(0, 12), pip = clean(o.pip).slice(0, 6), today = String(o.today || "").replace(/\s+/g, " ").trim().slice(0, 900);
+  if (show.length < 4 || today.length < 20) return null;
+  const id = "studio-" + Math.floor(storyMs / 3600000);
+  return { today, show: { id: id + "-show", t: storyMs, lines: show, sponsors: sp.map(x => x.name) }, pip: pip.length >= 3 ? { id, t: storyMs, lines: pip } : null };
 }
 
 async function tick(env, force) {
@@ -405,10 +418,12 @@ async function tick(env, force) {
     (ev.commentary || []).map(c => ` [${c.who}] ${c.say}`).join(""));
   if (s.log.lines.length > 450) s.log.lines = s.log.lines.slice(-450);
   // once an hour (08:00-23:00) the hosts go live from the studio with a recap
-  { const key = Math.floor(storyMs / 3600000), hr = clock.hour;
-    const quiet = !ev.with && !s.scene && !BATH_ACTIONS.includes(ev.action) && ev.action !== "sleeping" && ev.action !== "phoning"; // never during a conversation
-    if (hr >= 8 && hr <= 23 && s.studioKey !== key && quiet) { s.studioKey = key;
-      try { const st = await studioRecap(env, s, storyMs); if (st) s.studio = st; } catch (e) { console.log("studio", e && e.message); } } }
+  // every rounded hour while he is awake: "what happened today" summary + the studio recap show (+ a short PiP version)
+  { const key = Math.floor(storyMs / 3600000), hr = clock.hour, day = new Date(storyMs).toLocaleDateString("en-CA", { timeZone: TZ });
+    if (s.daySum && s.daySum.date !== day) { s.yesterdaySum = { date: s.daySum.date, text: s.daySum.text }; s.daySum = null; }   // a new day
+    if (hr >= 7 && ev.action !== "sleeping" && s.studioKey !== key) { s.studioKey = key;
+      try { const r = await studioRecap(env, s, storyMs, day); if (r) { s.daySum = { date: day, text: r.today, at: storyMs }; s.show = r.show; if (r.pip) s.studio = r.pip; } }
+      catch (e) { console.log("studio", e && e.message); } } }
   await saveState(env, s);
   return s;
 }
