@@ -164,6 +164,8 @@ const DIRECTOR_HTML = __DIRECTOR_HTML__;
 const BUILD = "__BUILD__";
 // The story plan (story/plan.json in the repository), written ahead by the daily planner.
 const PLAN = __PLAN__;
+// sha-256 of the health check's fix token (the token itself lives only in the scheduled task)
+const FIX_HASH = "b5c6aeba6f36ea21799c22ef3a0a75c2692b6d8f9018f76669af06fe84d7c505";
 
 // ============================================================
 export default {
@@ -193,8 +195,22 @@ export default {
         lastMomentAgoMin: Math.round((now - (s.events[s.events.length - 1].created || 0)) / 60000),
         retryRate: moments ? +(retried / moments).toFixed(2) : null, problems: d.filter(x => x.problem).slice(-6).map(x => x.problem.slice(0, 120)),
         stuck: s.stuck || 0, scene: s.scene ? { with: nm(s.scene.w), lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null,
-        lastError: s.lastError || null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
+        fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })) }, { "cache-control": "no-store" });
+    }
+    // quick story fix for the scheduled health check: /api/fix?token=...&endScene=1&note=...&minutes=45
+    if (url.pathname === "/api/fix") {
+      const tok = url.searchParams.get("token") || "";
+      const hex = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(tok)))].map(b => b.toString(16).padStart(2, "0")).join("");
+      if (hex !== FIX_HASH) return json({ error: "bad token" }, {}, 403);
+      const s = await loadState(env), now = Date.now(), done = [];
+      if (url.searchParams.get("endScene") === "1") { s.stuck = Math.max(s.stuck || 0, 2); done.push("endScene"); }
+      if (url.searchParams.get("unstick") === "1") { s.stuck = 0; done.push("unstick"); }
+      const note = (url.searchParams.get("note") || "").slice(0, 300);
+      if (note) { s.fixNote = { text: note, until: now + clamp(Number(url.searchParams.get("minutes")) || 45, 5, 180) * 60000 }; done.push("note"); }
+      s.fixLog = [...(s.fixLog || []), { at: now, done, note }].slice(-10);
+      await saveState(env, s);
+      return json({ ok: true, done, stuck: s.stuck || 0, note: s.fixNote || null }, { "cache-control": "no-store" });
     }
     if (url.pathname === "/director")
       return new Response(DIRECTOR_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
@@ -529,7 +545,7 @@ newCharacter format: {"name":"...","role":"...","personality":"...","speech":"..
 He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
 Plot notes: ${s.notes || "none"}
 ${body}
-${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${s.stuck ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
+${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
 ${recent}${gap}${convo}${sceneBrief}
 
@@ -666,7 +682,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     ev.action = /shower/i.test(ev.text) ? "showering" : "bathroom"; ev.with = null;
   }
   // the story must move: a moment that retells one of the last few is sent back
-  { const prevTexts = s.events.slice(-4).map(e => e.text);
+  if (!(ev.action === "sleeping" && last.action === "sleeping")) { const prevTexts = s.events.slice(-4).map(e => e.text);
     const rep = prevTexts.find(p => similar(ev.text, p) >= 0.6);
     if (rep) { if (!allowNoHosts) return { ev, problem: `the narration repeats an earlier moment ("${rep.slice(0, 80)}"). Write what happens NEXT: a new action, a new topic, someone moves or leaves, time passes` };
       ev.stuck = true; } }

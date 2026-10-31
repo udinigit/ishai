@@ -1,1 +1,1 @@
-v63 — 2026-10-31 (fewer retries, no activity loops)
+v64 — 2026-10-31 (night loop fix; instant /api/fix for the health check)

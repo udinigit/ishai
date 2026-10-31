@@ -21,3 +21,5 @@ Owner (the director): udinigit. Read `docs/SCENE_GUIDELINES.md` before adding or
 ## Health check and quick fixes
 - `GET /api/health` (public): recent moments, retry rate, recent rule problems, stuck counter, current scene, last AI error, art requests.
 - Quick fixes without touching code: add to `story/plan.json` a `"fixes": [{"id": "fix-<date>-<hhmm>", "endScene": true, "note": "...", "minutes": 60}]` and bump `"version"`. `endScene` wraps up the running scene with a goodbye; `note` is a director note the story follows for `minutes`. Each fix id runs once.
+- The health check can also apply a fix instantly without git: `GET /api/fix?token=<token>&endScene=1&note=...&minutes=45` (or `unstick=1`). The token is only in the scheduled task's prompt; the code holds its SHA-256 (`FIX_HASH`).
+- Sleep moments may resemble each other (no repeat check while he sleeps); at night the prompt says it is dark and keeps him in bed.
