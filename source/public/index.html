@@ -154,7 +154,6 @@
       <div class="stvLive"><canvas id="stvLiveCv" width="192" height="108"></canvas><span>● LIVE · ISHAI</span></div>
       <span class="stvTag">● STUDIO · RECAP</span>
       <div class="stvCap" id="stvCap"></div>
-      <button class="snd stvBack" id="stvBack">BACK TO LIVE</button>
     </div>
     <div class="say" id="say" hidden><b id="sayWho"></b><span id="sayText"></span></div>
     <div class="nosig" id="nosig"><span id="nosigText">[ SUBJECT NOT IN FRAME ]</span></div>
@@ -2147,21 +2146,23 @@
     if (studioOn) $('pip').classList.remove('on');
     const st = $('stv'), cap = $('stvCap'); st.hidden = false; cap.textContent = '';
     const anim = () => { if (!showOn) return; const t = wall(); drawStudio(t, stvCtx); stvLive.imageSmoothingEnabled = false; stvLive.drawImage(cv, 0, 0); requestAnimationFrame(anim); }; anim();
-    let stop = false; $('stvBack').onclick = () => { stop = true; };
+    let stop = false; $('studioBtn').textContent = '● LIVE';
+    SHOW_STOP = () => { stop = true; st.hidden = true; showOn = false; studioWho = null; $('studioBtn').textContent = '📺 STUDIO'; if ('speechSynthesis' in window) try { speechSynthesis.cancel(); } catch(e){} };   // back to live at once
     await new Promise(r => setTimeout(r, 800));
     for (const l of sh.lines){
-      if (stop) break;
+      if (stop) return;
       studioWho = l.who; const b = document.createElement('b'); b.style.color = HOSTS[l.who].color; b.style.fontWeight = 'normal'; b.textContent = HOSTS[l.who].name + ': ';
       const tx = document.createElement('span'); const row = document.createElement('div'); row.append(b, tx); cap.appendChild(row);
       await Promise.all([Sound.say(l.who, l.say), typeInto(tx, l.say, true, ch => { Sound.blip(l.who, ch); cap.scrollTop = cap.scrollHeight; }, null)]);
-      studioWho = null; if (stop) break;
+      studioWho = null; if (stop) return;
       await new Promise(r => setTimeout(r, 1200 + Math.min(2500, l.say.length * 25)));
     }
     if (!stop) await new Promise(r => setTimeout(r, 1500));
     if ('speechSynthesis' in window) try { speechSynthesis.cancel(); } catch(e){}
-    st.hidden = true; showOn = false; studioWho = null;
+    st.hidden = true; showOn = false; studioWho = null; SHOW_STOP = null; $('studioBtn').textContent = '📺 STUDIO';
   }
-  $('studioBtn').onclick = (e) => { e.stopPropagation(); playShow(); };
+  let SHOW_STOP = null;
+  $('studioBtn').onclick = (e) => { e.stopPropagation(); if (showOn){ if (SHOW_STOP) SHOW_STOP(); } else playShow(); };   // the same button switches Studio <-> Live
   let castSig = '';
   setInterval(()=>{ if ($('castPanel').hidden) return; const sig = actor.loc + '|' + [...settledOnCamera()].join(',') + '|' + UNLOCKED.has('dog'); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
