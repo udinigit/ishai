@@ -46,7 +46,7 @@
         <button id="tick">Run next moment now</button>
       </div>
       <div class="muted" style="margin-top:6px">Latest moment written: <span id="last">—</span></div>
-      <div class="muted" style="font-size:16px">New moments appear on the page after the 5-minute delay. "Run now" uses AI budget.</div>
+      <div class="muted" style="font-size:16px">New moments appear on the page right away. "Run now" uses AI budget.</div>
       <div id="aiErr" class="err"></div>
       <div id="tickMsg"></div>
     </div>
@@ -176,7 +176,7 @@
   };
   $('tick').onclick = async () => {
     $('tick').disabled = true; $('tickMsg').className='muted'; $('tickMsg').textContent = 'Writing…';
-    try { render(await api({action:'tick'})); $('tickMsg').className='ok'; $('tickMsg').textContent = 'Done. It will appear on the page in about 5 minutes.'; }
+    try { render(await api({action:'tick'})); $('tickMsg').className='ok'; $('tickMsg').textContent = 'Done. It is on the page now.'; }
     catch(e){ $('tickMsg').className='err'; $('tickMsg').textContent = 'Error: ' + e.message; }
     $('tick').disabled = false;
   };
