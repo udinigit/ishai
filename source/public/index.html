@@ -356,7 +356,7 @@
         if (o.water){ R(x-1,y+10,3,2,'#c9ced4'); if (Math.floor(t/300)%2) R(x-2,y+12,1,1,'#9fd3f0'); }
         break; }
       case 'idle': {
-        const k = o.still ? 'none' : fid(11, t, false, false); if (k==='shift') x += Math.floor(t/2000)%2;
+        const k = o.fidget || (o.still ? 'none' : fid(11, t, false, false)); if (k==='shift') x += Math.floor(t/2000)%2;
         head(x,y,{closed:blinkOn(t), look: lookFid(t, k, (Math.floor(t/4000)%3)-1)}); if (k==='turn') backHair(x,y,C.hair);
         torso(x,y); armsFid(x,y,t,k); legs(x,y,legsFid(t,k)); break; }
       case 'talking': {
@@ -1200,32 +1200,45 @@
   // Every 45 s block may hold a little routine (get a drink, look out the window, water Moshe...).
   // The choice and the timeline come from the clock, so every viewer sees the same thing.
   const ERR_BLOCK = 45000;
+  // Each place has its own little routines, with a weight for when Ishai is alone and when he has company.
   const ERRANDS = {
     apartment: {
-      drink:   [{to:168},{pose:'back',dur:1.6,tag:'fridge'},{pose:'drinking',dur:4,o:{legs:'stand'}}],
-      window:  [{to:24},{pose:'back',dur:6}],
-      basil:   [{to:31},{pose:'back',dur:4,o:{water:true},tag:'basil'}],
-      books:   [{to:72},{pose:'back',dur:4.5}],
-      stretch: [{pose:'exercising',dur:3.5}],
-      kettle:  [{to:156},{pose:'back',dur:5,tag:'kettle'},{pose:'drinking',dur:3,o:{legs:'stand',food:'#f2f2f2'}}]
+      drink:   {alone:2, company:0, steps:[{to:168},{pose:'back',dur:1.6,tag:'fridge'},{pose:'drinking',dur:4,o:{legs:'stand'}}]},
+      drinks2: {alone:0, company:3, steps:[{to:168},{pose:'back',dur:1.8,tag:'fridge'},{to:'+0'},{pose:'drinking',dur:3,o:{legs:'stand'}}]},   // brings drinks for both
+      window:  {alone:3, company:1, steps:[{to:24},{pose:'back',dur:6}]},
+      basil:   {alone:2, company:1, steps:[{to:31},{pose:'back',dur:4,o:{water:true},tag:'basil'}]},
+      books:   {alone:2, company:1, steps:[{to:72},{pose:'back',dur:4.5}]},
+      stretch: {alone:2, company:0, steps:[{pose:'exercising',dur:3.5}]},
+      kettle:  {alone:2, company:2, steps:[{to:156},{pose:'back',dur:5,tag:'kettle'},{pose:'drinking',dur:3,o:{legs:'stand',food:'#f2f2f2'}}]},
+      phone:   {alone:2, company:2, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]}                       // checks (or shows) something on his phone
     },
-    park:   { look: [{pose:'idle',dur:3},{to:'+26'},{pose:'back',dur:3},{to:'+0'}], stretch: [{pose:'exercising',dur:4}] },
-    street: { look: [{pose:'back',dur:3}] },
-    cafe:   {}
+    park:   { look:    {alone:3, company:1, steps:[{pose:'idle',dur:3},{to:'+26'},{pose:'back',dur:3},{to:'+0'}]},
+              stretch: {alone:2, company:1, steps:[{pose:'exercising',dur:4}]},
+              phone:   {alone:1, company:2, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} },
+    street: { look:    {alone:2, company:1, steps:[{pose:'back',dur:3}]},
+              phone:   {alone:2, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
+    cafe:   { phone:   {alone:3, company:1, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} },
+    corridor: { phone: {alone:1, company:1, steps:[{pose:'idle',dur:3,o:{fidget:'phone'}}]} }
   };
-  // which actions can be interrupted, and how often (share of blocks that get an errand)
-  const ERR_CHANCE = { idle:.75, reading:.45, watching:.4, working:.35, gaming:.3 };
+  // which actions can be interrupted, and how often (share of 45 s blocks that get a routine), alone / with company
+  const ERR_CHANCE = { idle:[.55,.35], reading:[.35,.2], watching:[.3,.2], working:[.3,.15], gaming:[.25,.15], talking:[0,.2], eating:[0,.12], drinking:[0,.12] };
   const hash = n => { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4); n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; };
   function errandNow(){
-    const a = actor.action, list = ERRANDS[actor.loc];
-    if (!list || !(a in ERR_CHANCE) || actor.with || actor.travelling || actor.hidden || actor.pending || actor.switching || actor.ride) return null;
+    const a = actor.action, list = ERRANDS[actor.loc], co = actor.with ? 1 : 0;
+    if (!list || !(a in ERR_CHANCE) || actor.travelling || actor.hidden || actor.pending || actor.switching || actor.ride) return null;
+    if (co && (SPEAKING === 'ishai' || actor.action === 'phoning')) return null;   // not in the middle of his own line
     const now = Date.now(), block = Math.floor(now / ERR_BLOCK), start = block * ERR_BLOCK + 4000;
     if (now < start || actor.settledAt == null || actor.settledAt > start) return null;
-    const keys = Object.keys(list); if (!keys.length) return null;
-    if (hash(block * 7 + 1) > ERR_CHANCE[a]) return null;
-    const steps = list[keys[Math.floor(hash(block * 13 + 5) * keys.length)]];
+    if (hash(block * 7 + 1) > ERR_CHANCE[a][co]) return null;
+    // weighted pick, never the same routine as the block before (no drink-drink-drink loops)
+    const pick = b => { const ks = Object.keys(list).filter(k => list[k][co ? 'company' : 'alone'] > 0); if (!ks.length) return null;
+      const tot = ks.reduce((n, k) => n + list[k][co ? 'company' : 'alone'], 0); let r = hash(b * 13 + 5) * tot;
+      for (const k of ks){ r -= list[k][co ? 'company' : 'alone']; if (r < 0) return k; } return ks[ks.length - 1]; };
+    let kind = pick(block); if (!kind) return null;
+    if (kind === pick(block - 1) || kind === pick(block - 2)){ const ks = Object.keys(list).filter(k => k !== kind && list[k][co ? 'company' : 'alone'] > 0); if (!ks.length) return null; kind = ks[Math.floor(hash(block * 17 + 9) * ks.length)]; }
+    const steps = list[kind].steps;
     // build the timeline: walk there, do things, walk back to his spot
-    const x0 = standX(actor.loc, a, null); let x = x0, e = (now - start) / 1000;
+    const x0 = standX(actor.loc, a, actor.with); let x = x0, e = (now - start) / 1000;
     if (!actor.err && Math.abs(actor.x - x0) > 3) return null;   // not at his spot (just arrived, or walked off): no errand this time
     const seq = [...steps, {to: x0}];
     for (const st of seq){
@@ -1301,7 +1314,7 @@
     if (bed.has(prev) && bed.has(a)) { actor.x = standX(loc,a,w); }
     else if (a === 'walking' && prev === 'walking'){ /* still out walking: keep going, don't walk back to the start */ }
     else { actor.targetX = standX(loc,a,w); actor.travelling = Math.abs(actor.x-actor.targetX) > 1;
-      if (loc==='apartment' && ['drinking','eating','cooking'].includes(a) && !['drinking','eating','cooking'].includes(prev) && !w){
+      if (loc==='apartment' && ['drinking','eating','cooking'].includes(a) && !['drinking','eating','cooking'].includes(prev) && !w && Date.now() - (actor.lastFridge || 0) > 6 * 60000){ actor.lastFridge = Date.now();
         actor.viaFinal = actor.targetX; actor.targetX = 168; actor.travelling = true; } }
     updateLabels();
   }

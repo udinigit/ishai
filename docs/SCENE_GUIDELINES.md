@@ -86,4 +86,5 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 ## 10. Fidgets and idle life
 - Standing or listening characters fidget every few seconds (`fid()`): foot tap, stomp, weight shift, stretch, look around, scratch head, turn around, cross arms, check phone. Talking adds gestures, nods and shrugs. Seated people nod, gesture and look around.
 - Standing friends take a couple of steps and come back now and then (`wander()`), never while it is their turn to speak.
-- Ishai does small errands inside long moments (`ERRANDS`). All of it runs on the real clock so every viewer sees the same thing. Portraits and dreams stay still.
+- Ishai does small routines inside long moments (`ERRANDS`): every place has its own list, each with a weight alone and a weight with company (e.g. alone he grabs a drink; with a guest he brings drinks for both or shows something on his phone; the guest waits in place). `ERR_CHANCE` sets how often, alone vs. with company. The same routine never runs twice in a row, and a fridge trip before a drink happens at most every 6 minutes.
+- New places must get their own `ERRANDS` entry. All of it runs on the real clock so every viewer sees the same thing. Portraits and dreams stay still.
