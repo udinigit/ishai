@@ -13,9 +13,9 @@ You (the director) can edit anything here; changes go live with the next deploy.
 - 3-6 key beats per day, each with a time window. New props, places or animals need art first ("art" field).
 
 ## Arcs
-1. **Dana and the basil cups** — Dana, the deadpan barista, draws basil leaves on Ishai's cups. Slow, shy romance over 1-2 weeks. Stages: he notices → he asks → a real conversation → she visits Moshe → first date.
-2. **Saving Moshe** — Moshe the basil is wilting. Ishai tries everything (too much water, talking to him); Dana knows plants. Ends with Moshe thriving.
-3. **The big client** — a client wants the logo "bigger but smaller". Paid work that pays for the TV; ends with a win or a funny disaster.
+1. **Dana and the basil cups** — Dana, the deadpan barista, draws basil leaves on Ishai's cups. Slow, shy romance over 1-2 weeks. Stages: he notices ✓ → he asks (Sat)  → a real conversation → she visits Moshe → first date.
+2. **Saving Moshe** — Moshe the basil is wilting. Ishai tries everything (too much water, talking to him); Dana knows plants. Ends with Moshe thriving. *Now: overwatered; Dana's first tip Sat.*
+3. **The big client** — a client wants the logo "bigger but smaller". Paid work that pays for the TV; ends with a win or a funny disaster. *Now: new 'bigger but smaller' email Sat night.*
 4. **Getting a TV** — Sunday morning: Avi's cousin offers an old TV (director goal "tv").
 5. **Mrs. Levi's old radio** — Tuesday Nov 3: she gives him her late husband's radio (director goal "radio").
 6. **Falafel the dog** — Sat: a scruffy sandy stray hangs around Avi's kiosk (Avi feeds it falafel balls). Sun: Ishai adopts him, names him Falafel. After that Falafel goes everywhere with Ishai; the hosts adore him; Oren worries about Moshe.
@@ -28,3 +28,7 @@ You (the director) can edit anything here; changes go live with the next deploy.
 
 ## Day 1 — Friday, Oct 30 (planned by Claude, 14:30)
 Cafe with Dana (he notices the basil cup) → invites Noa for Shabbat → Mrs. Levi's challah in the hallway → candle lighting at home → Shabbat dinner with Noa.
+
+## Day 2 — Saturday, Oct 31 (planned by Claude, 05:20)
+**Previously:** Friday afternoon Ishai noticed the basil leaf Dana draws on his cups, invited Noa for Shabbat, got a challah ambush from Mrs. Levi in the hallway, lit candles and hosted Noa for Shabbat dinner. (Live log was not reachable this run, so details are from the plan.)
+**Today:** Slow Shabbat — Moshe pep talk → the stray at Avi's kiosk → bumps into Dana in the park → havdalah → the client's "bigger but smaller" email.

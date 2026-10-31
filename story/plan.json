@@ -1,116 +1,61 @@
 {
-  "version": "2026-10-30c",
-  "written": "2026-10-30T14:30+02:00",
+  "version": "2026-10-31a",
+  "written": "2026-10-31T05:20:00+02:00",
   "arcs": [
     {
       "id": "dana-basil",
       "title": "Dana and the basil cups",
-      "stage": "1/5 — Ishai finally notices the basil leaves Dana draws on his cups."
+      "stage": "2/5 — He noticed the leaf on Friday; today he bumps into Dana in the park and finally asks why basil."
     },
     {
       "id": "moshe",
       "title": "Saving Moshe",
-      "stage": "1/3 — Moshe the basil is wilting; Ishai is worried and clueless."
+      "stage": "1/3 — Moshe is wilting; Ishai overwaters and gives him pep talks. Dana hints she knows plants."
     },
     {
       "id": "big-client",
       "title": "The big client",
-      "stage": "1/4 — A client keeps asking for the logo 'bigger but smaller'. Paid work, but painful."
+      "stage": "1/4 — Motzei Shabbat email: the logo must be 'bigger but smaller' again."
     },
     {
       "id": "tv",
       "title": "Getting a TV",
-      "stage": "Moved to Sunday so it does not land on Shabbat."
+      "stage": "Sunday Nov 1, 09:30–12:30 — Avi's cousin brings the old TV."
     },
     {
       "id": "levi-radio",
       "title": "Mrs. Levi's old radio",
-      "stage": "Waiting; starts Monday."
+      "stage": "Waiting; Tue Nov 3 from 15:00."
     },
     {
       "id": "falafel",
       "title": "Falafel the dog",
-      "stage": "Planned: Sat — a stray at Avi's kiosk; Sun — Ishai adopts him and names him Falafel."
+      "stage": "Today: the stray appears at Avi's kiosk. Sunday: adoption."
     }
   ],
   "beats": [
     {
-      "id": "fri-cafe-dana",
-      "startAt": "2026-10-30T14:35:00+02:00",
-      "deadlineAt": "2026-10-30T15:40:00+02:00",
-      "location": "cafe",
-      "with": "Dana (dana)",
-      "goal": "Friday afternoon errand-and-coffee: Ishai walks from the apartment to Cafe Nahat (apartment -> corridor -> street -> cafe). Dana serves his usual and there is a tiny basil leaf drawn on the cup. For the first time, he notices it. Keep it light and a little awkward.",
+      "id": "1031-moshe-morning",
+      "startAt": "2026-10-31T08:30:00+02:00",
+      "deadlineAt": "2026-10-31T10:00:00+02:00",
+      "location": "apartment",
+      "goal": "Slow Shabbat morning, no work, no rushing. Ishai wakes late, makes coffee, finishes leftover challah from last night with Noa, and checks on Moshe the basil on the windowsill. Moshe looks droopier. Ishai waters him (again, too much) and gives him a sincere pep talk out loud.",
       "forceAction": "talking",
-      "forceWith": "dana",
-      "forceText": "At Cafe Nahat, Dana slides a cup across the counter. There is a tiny basil leaf drawn on it, and this time Ishai notices.",
+      "forceText": "Ishai kneels by the windowsill with a glass of water and gives Moshe the basil a quiet pep talk.",
       "forceLines": [
         {
           "who": "ishai",
-          "say": "Wait... is that a basil leaf?"
+          "say": "Come on, Moshe. It's Shabbat. Even you get to rest. Just... rest upright."
+        }
+      ],
+      "forceCommentary": [
+        {
+          "who": "oren",
+          "say": "That's his third glass of water. Moshe is not wilting, he's drowning."
         },
         {
-          "who": "dana",
-          "say": "It's a leaf. Drink your coffee."
-        }
-      ]
-    },
-    {
-      "id": "fri-invite-noa",
-      "startAt": "2026-10-30T15:35:00+02:00",
-      "deadlineAt": "2026-10-30T16:10:00+02:00",
-      "with": "Noa (noa)",
-      "goal": "Ishai invites Noa to Shabbat dinner at his apartment tonight, in person if she drops by the cafe or by phone. She teases him, says yes, and warns she will be late (she always is).",
-      "forceAction": "phoning",
-      "forceWith": "noa",
-      "forceText": "Ishai calls Noa and invites her for Shabbat dinner tonight. She laughs, says yes, and promises to be only a little late.",
-      "forceLines": [
-        {
-          "who": "noa",
-          "say": "You? Hosting Shabbat? I'm coming just to see this."
-        }
-      ]
-    },
-    {
-      "id": "fri-levi-challah",
-      "startAt": "2026-10-30T16:05:00+02:00",
-      "deadlineAt": "2026-10-30T16:30:00+02:00",
-      "location": "corridor",
-      "with": "Mrs. Levi (levi)",
-      "goal": "Ishai heads home to get ready for Shabbat. In the building hallway Mrs. Levi stops him with a warm homemade challah and a lot of advice; she insists he cannot do Shabbat without one.",
-      "forceAction": "talking",
-      "forceWith": "levi",
-      "forceText": "In the hallway, Mrs. Levi blocks Ishai's way holding a warm challah wrapped in a towel. She will not take no for an answer.",
-      "forceLines": [
-        {
-          "who": "levi",
-          "say": "Motek, Shabbat without challah is just Friday."
-        }
-      ]
-    },
-    {
-      "id": "fri-candles",
-      "startAt": "2026-10-30T16:25:00+02:00",
-      "deadlineAt": "2026-10-30T16:55:00+02:00",
-      "location": "apartment",
-      "goal": "Back in his apartment, Ishai tidies up and lights the Shabbat candles on the kitchen counter at candle-lighting time. A quiet, sincere moment, a little clumsy.",
-      "forceAction": "idle",
-      "forceText": "Ishai lights the Shabbat candles on the kitchen counter, a little clumsily, then stands still for a moment watching the flames."
-    },
-    {
-      "id": "fri-shabbat-dinner",
-      "startAt": "2026-10-30T17:30:00+02:00",
-      "deadlineAt": "2026-10-30T21:00:00+02:00",
-      "location": "apartment",
-      "with": "Noa (noa)",
-      "goal": "Shabbat dinner at Ishai's apartment, warm and traditional-but-relaxed. Noa arrives late with wine, Ishai makes Kiddush, they share Mrs. Levi's challah and his food, talk and laugh at the kitchen counter. Spread it over several moments; it can end with Noa going home late.",
-      "forceAction": "eating",
-      "forceWith": "noa",
-      "forceText": "Noa finally arrives, late, with a bottle of wine. Ishai makes Kiddush, they tear into Mrs. Levi's challah, and the little apartment fills with laughter.",
-      "forceLines": [
-        {
-          "who": "noa",
-          "say": "Shabbat shalom, Ishush. Your challah is better than you."
+          "who": "zohar",
+          "say": "A man talking to a plant on Shabbat morning. Dana needs to see this."
         }
       ]
     },
@@ -151,6 +96,87 @@
       ]
     },
     {
+      "id": "1031-park-dana",
+      "startAt": "2026-10-31T14:30:00+02:00",
+      "deadlineAt": "2026-10-31T16:15:00+02:00",
+      "location": "park",
+      "with": "Dana (dana)",
+      "goal": "Shabbat afternoon walk: Ishai goes apartment -> corridor -> street -> park to read on a bench. Dana, off work, walks through the park and recognizes him. Short, awkward, real: he asks why she draws basil on his cups; she shrugs it off, then reveals she knows plants. He mentions Moshe is dying; she gives one dry tip (stop drowning him). Keep it shy, no date yet.",
+      "forceAction": "talking",
+      "forceWith": "dana",
+      "forceText": "On a park bench, Ishai looks up from his book. Dana, off duty, stops in front of him with the faintest smile.",
+      "forceLines": [
+        {
+          "who": "ishai",
+          "say": "Why basil? On my cups. Why basil?"
+        },
+        {
+          "who": "dana",
+          "say": "You look like a guy who kills basil. Stop overwatering it."
+        }
+      ],
+      "forceCommentary": [
+        {
+          "who": "zohar",
+          "say": "OUTSIDE THE CAFE. Off the clock. In the wild. I'm screaming."
+        },
+        {
+          "who": "oren",
+          "say": "She diagnosed Moshe from across a park. Marry her or hire her."
+        }
+      ]
+    },
+    {
+      "id": "1031-havdalah",
+      "startAt": "2026-10-31T17:30:00+02:00",
+      "deadlineAt": "2026-10-31T18:30:00+02:00",
+      "location": "apartment",
+      "goal": "After dark (three stars, about 17:35) Ishai makes a simple, sincere havdalah at home: a cup, a braided candle if he has one, smelling spices, a short blessing. Then 'Shavua tov' and he reaches for his phone again.",
+      "forceAction": "idle",
+      "forceText": "Three stars are out. Ishai makes a short havdalah at the kitchen counter, then exhales: Shavua tov.",
+      "forceLines": [
+        {
+          "who": "ishai",
+          "say": "Shavua tov, Moshe. New week. You can do this."
+        }
+      ],
+      "forceCommentary": [
+        {
+          "who": "zohar",
+          "say": "Shabbat's over. The phone is back. The emails are coming."
+        },
+        {
+          "who": "oren",
+          "say": "Week one hundred sixty of Ishai being a better Jew than me."
+        }
+      ]
+    },
+    {
+      "id": "1031-client-email",
+      "startAt": "2026-10-31T19:30:00+02:00",
+      "deadlineAt": "2026-10-31T21:30:00+02:00",
+      "location": "apartment",
+      "goal": "Motzei Shabbat: Ishai opens his laptop and finds a long email from the big client: the logo must be 'bigger, but also smaller, but more premium'. He reads it aloud in disbelief, tries a few versions, and grumbles to Moshe. He needs the money for a TV, so he does not say no.",
+      "forceAction": "working",
+      "forceText": "Ishai stares at the laptop. The client wants the logo bigger, but smaller. He reads it twice.",
+      "forceLines": [
+        {
+          "who": "ishai",
+          "say": "'Bigger, but smaller, but more premium.' Moshe, what does that even mean?"
+        }
+      ],
+      "forceCommentary": [
+        {
+          "who": "oren",
+          "say": "Bigger but smaller. The client wants a Schrodinger's logo."
+        },
+        {
+          "who": "zohar",
+          "say": "Saturday night and he's working. Dana would never let this happen."
+        }
+      ]
+    },
+    {
       "id": "1101-adopt",
       "startAt": "2026-11-01T13:30:00+02:00",
       "deadlineAt": "2026-11-01T18:00:00+02:00",
@@ -173,112 +199,6 @@
     }
   ],
   "overrides": [
-    {
-      "id": "fri-invite-noa",
-      "forceCommentary": [
-        {
-          "who": "zohar",
-          "say": "He invited a woman over. To his apartment. Where Moshe lives. Bold."
-        },
-        {
-          "who": "oren",
-          "say": "Noa will be late. I have a spreadsheet. It's always 47 minutes."
-        }
-      ],
-      "forceLines": [
-        {
-          "who": "ishai",
-          "say": "So... Shabbat dinner. My place. Tonight?"
-        },
-        {
-          "who": "noa",
-          "say": "You? Hosting Shabbat? I'm coming just to see this."
-        },
-        {
-          "who": "ishai",
-          "say": "I'll cook. Probably."
-        },
-        {
-          "who": "noa",
-          "say": "I'll bring wine. And a fire extinguisher. See you at seven-ish."
-        }
-      ]
-    },
-    {
-      "id": "fri-levi-challah",
-      "forceCommentary": [
-        {
-          "who": "zohar",
-          "say": "Mrs. Levi, ambush specialist. That challah was baked with love and surveillance."
-        },
-        {
-          "who": "oren",
-          "say": "Free bread. Ishai's net worth just went up twelve percent."
-        }
-      ],
-      "forceLines": [
-        {
-          "who": "levi",
-          "say": "Motek, Shabbat without challah is just Friday."
-        },
-        {
-          "who": "ishai",
-          "say": "Mrs. Levi, you really didn't have to..."
-        },
-        {
-          "who": "levi",
-          "say": "I know. I did anyway. And who is the girl coming tonight?"
-        },
-        {
-          "who": "ishai",
-          "say": "How do you even know that?"
-        }
-      ]
-    },
-    {
-      "id": "fri-candles",
-      "forceCommentary": [
-        {
-          "who": "zohar",
-          "say": "Okay, I'm not crying, the camera is just very dusty."
-        },
-        {
-          "who": "oren",
-          "say": "Two candles, zero fires. A personal record."
-        }
-      ]
-    },
-    {
-      "id": "fri-shabbat-dinner",
-      "forceCommentary": [
-        {
-          "who": "zohar",
-          "say": "She's late, he's nervous, the challah is perfect. This is the content I signed up for."
-        },
-        {
-          "who": "oren",
-          "say": "Kiddush complete. Moshe the basil approves from the windowsill."
-        }
-      ],
-      "forceLines": [
-        {
-          "who": "noa",
-          "say": "Shabbat shalom, Ishush. Your challah is better than you."
-        },
-        {
-          "who": "ishai",
-          "say": "Mrs. Levi made it. I made the potatoes."
-        },
-        {
-          "who": "noa",
-          "say": "The potatoes are... brave."
-        },
-        {
-          "who": "ishai",
-          "say": "Shabbat shalom, Noa. Thanks for coming."
-        }
-      ]
-    },
     {
       "id": "tv",
       "startAt": "2026-11-01T09:30:00+02:00",
