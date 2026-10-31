@@ -1853,6 +1853,8 @@
   function addMsg(m, animate, budget){
     if (m.host) return hostLine(m, animate, budget);
     if (talkShown.has(m.id)) return Promise.resolve(); talkShown.add(m.id);
+    if (m.t - (addMsg.lastT || m.t) > 30 * 60000) clearTalk();   // a new stretch of the day: start the conversation list afresh
+    addMsg.lastT = m.t;
     if (animate) fsPush(m.who, m.say);
     $('talkEmpty').hidden = true;
     const scene = (m.loc||'') + '|' + fmtHM.format(new Date(m.t)).slice(0,2);
