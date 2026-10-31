@@ -397,7 +397,8 @@ async function tick(env, force) {
       if (QUOTA_RE.test(msg)) {
         s.aiOutUntil = Math.max(s.aiOutUntil || 0, nextUtcMidnight(now));
         cfOutUntil = s.aiOutUntil;
-        ev = sickEvent(s, last, clock.hour); ev.src = "sick day (AI out of budget)";
+        // sick day only when there is no backup AI at all; a backup hiccup just uses an ordinary backup line
+        if (!env.BACKUP_AI_KEY){ ev = sickEvent(s, last, clock.hour); ev.src = "sick day (AI out of budget)"; }
       }
     }
     if (!ev){ ev = fallback(last, clock.hour, s); ev.stuck = true; ev.src = s.lastError && s.lastError.at === now ? "backup line (AI error)" : "backup line (AI reply dropped: repeat)"; }
@@ -926,7 +927,7 @@ function sickEvent(s, last, hour) {
       ["idle", "Ishai half-watches something on the laptop from bed, too tired to follow it."],
       ["sleeping", "He dozes off again, one sock on, one sock off."]
     ];
-    const [action, text] = pick(R);
+    const [action, text] = n === 1 ? ["idle", "He lies in the armchair with a wet towel on his forehead, staring at the ceiling."] : pick(R);
     // a small varying detail, so the quiet afternoon never repeats word for word
     const D = ["A neighbor's radio plays faintly through the wall.", "Outside, a scooter buzzes past.", "The fridge hums.", "A pigeon lands on the windowsill and leaves again.",
       "Somewhere a door slams; he doesn't even look up.", "The light in the room shifts as clouds pass.", "His phone buzzes once; he ignores it.", "Moshe the basil sways in the draft.",
