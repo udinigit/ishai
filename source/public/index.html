@@ -240,6 +240,7 @@
   let WORLD = null; // real weather / Shabbat from the Worker
   let DREAM = []; // today's highlights {t, loc, a, w}: replayed in a thought bubble while he sleeps
   let DREAMING = false;
+  let UMB = false;   // Ishai is outdoors (street/park) in the rain: he holds an umbrella
   // sleep phases: 0 = first 10 minutes (just sleeping), 1 = zzz, 2 = after 15 minutes the dreams begin
   let SLEEP_SINCE = Date.now() - (+new URLSearchParams(location.search).get('sleptMin') || 0) * 60000;
   const sleepPhase = () => { const m = (Date.now() - SLEEP_SINCE) / 60000; return m < 10 ? 0 : m < 15 ? 1 : 2; }; // true while a dream picture is being drawn off screen
@@ -305,6 +306,19 @@
   }
   const rainy = () => !!(WORLD && WORLD.weather && WORLD.weather.rain);
   const cloudy = () => !!(WORLD && WORLD.weather && WORLD.weather.cloudy);
+  const stormy = () => !!(WORLD && WORLD.weather && [95,96,99].includes(WORLD.weather.code));
+  // lightning on the real clock (same flash for every viewer): about every 20-45 s, a double flicker
+  function lightning(t){
+    const n = Date.now(), slot = Math.floor(n/30000), seed = (slot*9301+49297)%233280/233280, at = slot*30000 + Math.floor(seed*22000), d = n - at;
+    return d >= 0 && d < 380 && !(d > 90 && d < 200);
+  }
+  // a plain navy umbrella held in his right hand (no brand)
+  function umbrella(x,y,t){
+    const U='#2f4f7a', S='#243d5f', H='#3a3a3a';
+    R(x+1,y-7,8,1,U); R(x-1,y-6,12,1,U); R(x-2,y-5,14,1,U); R(x-3,y-4,16,1,S);
+    R(x-3,y-3,2,1,S); R(x+2,y-3,2,1,S); R(x+7,y-3,2,1,S); R(x+12,y-3,1,1,S);
+    R(x+4,y-8,1,1,H); R(x+8,y-3,1,13,H); R(x+7,y+10,1,1,H);
+  }
   function drawRain(x,y,w,h,t,n=40){
     for (let i=0;i<n;i++){ const rx = x + ((i*37 + Math.floor(t/30)) % w), ry = y + ((i*53 + Math.floor(t/12)) % h);
       R(rx,ry,1,2,'#cfe0ff'); }
@@ -386,7 +400,8 @@
   function drawIshai(pose, x, y, t, o={}){
     if (pose==='sleeping' || pose==='listening') markHead('ishai', 9, 66); else markHead('ishai', x, y);
     if (pose==='sleeping' || pose==='listening') return outlined(6, 56, 44, 26, () => drawIshaiRaw(pose, x, y, t, o));
-    return outlined(x-12, y-10, 36, 36, () => drawIshaiRaw(pose, x, y, t, o));
+    const umb = UMB && !DREAMING && !['exercising','stretch','waking'].includes(pose);
+    return outlined(x-12, y-10, 36, 36, () => { drawIshaiRaw(pose, x, y, t, o); if (umb) umbrella(x, y, t); });
   }
   function drawIshaiRaw(pose, x, y, t, o={}){
     const f2 = Math.floor(t/450)%2;
@@ -1477,9 +1492,13 @@
       return;
     }
     const settled = !actor.travelling && !actor.hidden && !actor.err && !actor.viaUntil && actor.viaFinal == null;
+    const outdoor = actor.loc==='street' || actor.loc==='park';
+    UMB = rainy() && outdoor;
     SCENES[actor.loc].draw(t, hf, actor.action, settled, actor);
+    UMB = false;
 
-    if (rainy() && (actor.loc==='street' || actor.loc==='park')) drawRain(0,0,W,H,t,90);
+    if (rainy() && outdoor) drawRain(0,0,W,H,t, stormy() ? 140 : 90);
+    if (stormy() && actor.loc!=='offscreen' && actor.loc!=='bathroom' && lightning(t)) alpha(outdoor ? .55 : .18, () => R(0,0,W,H,'#eef4ff'));
     const off = actor.loc==='offscreen';
     $('nosig').style.display = off ? 'flex' : 'none';
     if (off) $('nosigText').textContent = '[ SUBJECT OUT OF CAMERA COVERAGE ]';
@@ -1630,7 +1649,14 @@
         loop(2500, 5000, () => tone(2300 + Math.random()*900, .3, 'sine', .02, 0, dest));
         loop(20000, 20000, () => noise(2,{vol:.04,type:'highpass',freq:3000,dest}));
       }
-      if (wx === 'rain' && loc !== 'static' && loc !== 'offscreen') bed(white, 'bandpass', 2600, (loc==='street'||loc==='park') ? .09 : .025);
+      if ((wx === 'rain' || wx === 'storm') && loc !== 'static' && loc !== 'offscreen') bed(white, 'bandpass', 2600, (loc==='street'||loc==='park') ? (wx==='storm' ? .13 : .09) : .025);
+      if (wx === 'storm' && loc !== 'static' && loc !== 'offscreen'){   // thunder a few seconds after each flash
+        const out = (loc==='street'||loc==='park') ? 1 : .45;
+        const roll = () => { if (!a.alive) return; const n = Date.now(), slot = Math.floor(n/30000) + 1, seed = (slot*9301+49297)%233280/233280,
+          at = slot*30000 + Math.floor(seed*22000) + 2500 + (slot%3)*900, wait = at - n;
+          setTimeout(() => { if (!a.alive) return; noise(3.2,{vol:.22*out,type:'lowpass',freq:160,sweep:[420,90],buf:brown,dest}); noise(1.4,{vol:.12*out,type:'lowpass',freq:300,when:.15,buf:brown,dest}); roll(); }, Math.max(200, wait)); };
+        roll();
+      }
       if (extra === 'shower') bed(white, 'bandpass', 3200, .05);
       if (extra === 'toilet') setTimeout(() => { if (a.alive){ noise(2.4,{vol:.12,type:'lowpass',freq:500,sweep:[1800,300],dest}); noise(1.2,{vol:.05,type:'highpass',freq:2500,when:1.4,dest}); } }, 6000 + Math.random()*8000);
       if (extra === 'tv') loop(110, 130, () => { if (Math.random()<.7) noise(.09,{vol:.07,type:'bandpass',freq:500+Math.random()*900,q:4,dest}); });
@@ -1699,7 +1725,7 @@
     const settled = !actor.travelling && !actor.hidden;
     let extra = settled && actor.loc==='apartment' ? (actor.action==='watching' ? 'tv' : actor.action==='listening' ? 'radio' : '') : '';
     if (actor.loc==='bathroom' && actor.hidden && BATH.has(actor.action)) extra = actor.action==='showering' ? 'shower' : 'toilet';
-    return `${actor.loc}|${extra}|${isNight(hourNow()) ? 'night' : 'day'}|${rainy() ? 'rain' : ''}`;
+    return `${actor.loc}|${extra}|${isNight(hourNow()) ? 'night' : 'day'}|${stormy() ? 'storm' : rainy() ? 'rain' : ''}`;
   }
 
   // ================= terminal =================
@@ -2398,7 +2424,8 @@
     } catch(e){ console.error('feed render error', e); loaded = true; }
   }
 
-  if (params.has('rain') || params.has('cloudy')) WORLD = {weather:{temp:19, desc: params.has('rain') ? 'light rain' : 'overcast', rain: params.has('rain'), cloudy: true}};
+  if (params.has('rain') || params.has('cloudy') || params.has('storm')) WORLD = {weather:{temp:19, code: params.has('storm') ? 95 : params.has('rain') ? 61 : 3,
+    desc: params.has('storm') ? 'thunderstorm' : params.has('rain') ? 'light rain' : 'overcast', rain: params.has('rain') || params.has('storm'), cloudy: true}};
   if (WORLD) $('stNext').textContent = weatherLabel();
   boothInit();
   if (params.get('unlock')) params.get('unlock').split(',').forEach(u=>UNLOCKED.add(u));

@@ -379,6 +379,7 @@ async function tick(env, force) {
     return s;
 
   if (!s.world || now - s.world.at > 55 * 60000) await refreshWorld(s, now);
+  else if (now - (s.world.wxAt || s.world.at) > 15 * 60000) await refreshWeather(s, now);
 
   // director: activate the next goal, or force it if its deadline passed
   let goal = activeGoal(s, now);
@@ -564,6 +565,7 @@ function buildMessages(s, clock, now, goal) {
   const wr = s.world || {};
   const real = [
     wr.weather ? `Weather in Tel Aviv right now: ${wr.weather.temp}°C, ${wr.weather.desc}${wr.weather.wind > 30 ? ", windy" : ""}.` : "",
+    wr.weather && wr.weather.rain ? `IT IS RAINING${[95, 96, 99].includes(wr.weather.code) ? " (THUNDERSTORM: thunder and lightning)" : ""}: outside he carries an umbrella and hurries; no lingering on the park bench, no exercising or reading outdoors, he takes a taxi rather than waiting at the bus stop. Indoors the rain is part of the mood (rain on the window, wet shoes by the door, plans changed or postponed). People arriving are wet and shake off umbrellas.` : "",
     wr.shabbat ? `Shabbat: candle lighting ${wr.shabbat.startLabel}, ends ${wr.shabbat.endLabel}${wr.shabbat.parasha ? " (" + wr.shabbat.parasha + ")" : ""}.` : "",
     wr.holidays && wr.holidays.length ? `Jewish holidays this week: ${wr.holidays.map(h => h.title + " (" + h.date + ")").join(", ")}.` : ""
   ].filter(Boolean).join(" ");
@@ -965,6 +967,18 @@ function fallback(last, hour, s) {
     cafe: [["cafe", "drinking", "He sips his coffee slowly, making it last."], ["cafe", "reading", "He reads the news on his phone at the corner table."], ["street", "walking", "He pays, waves to the barista and steps back out onto Herzl Street."]],
     offscreen: [["offscreen", "away", "No sign of Ishai on any camera."], ["street", "walking", "Ishai gets off the bus on Herzl Street with a shopping bag."]]
   }[last.location] || [[last.location, "idle", "A quiet moment."]];
+  const wet = !!(s && s.world && s.world.weather && s.world.weather.rain);
+  if (wet && (last.location === "street" || last.location === "park")) {
+    const R = {
+      street: [["street", "walking", "Ishai opens his umbrella and hurries along Herzl Street, stepping around the puddles."], ["corridor", "walking", "He ducks back into his building, shaking the rain off his umbrella."],
+        ["cafe", "idle", "Rain picks up; he hurries into the café and leans his dripping umbrella by the door."], ["street", "eating", "He buys a falafel at Avi's kiosk and eats it under the kiosk awning, watching the rain."]],
+      park: [["park", "walking", "Ishai crosses the wet park under his umbrella. The duck does not seem to mind the rain."], ["street", "walking", "It is pouring; he gives up on the park and heads back to Herzl Street."]]
+    }[last.location];
+    const recent = new Set((s.events || []).slice(-6).map((e) => e.text)), f = R.filter((p) => !recent.has(p[2])), o = f.length ? f : R;
+    const [location, action, text] = o[Math.floor(Math.random() * o.length)];
+    return { location, action, text, with: null, lines: [], commentary: relayHosts(s, text, Math.floor(Date.now() / 36e4), null) };
+  }
+  if (wet && last.location === "apartment") P.push(["apartment", "idle", "Ishai stands at the window watching the rain run down the glass. Moshe the basil looks out too."]);
   const seen = new Set((s && s.events || []).slice(-6).map((e) => e.text));
   const fresh = P.filter((p) => !seen.has(p[2]));
   const opts = fresh.length ? fresh : P;
@@ -1050,14 +1064,21 @@ async function refreshStations(s, now) {
   }
   if (all.length >= 5) { s.world.stations = all.slice(0, 80); s.world.stationsAt = now; }
 }
+async function fetchWeather() {
+  const c = JSON.parse(await getText(WEATHER_URL)).current;
+  return { temp: Math.round(c.temperature_2m), code: c.weather_code, desc: WMO[c.weather_code] || "unclear", wind: Math.round(c.wind_speed_10m), isDay: !!c.is_day,
+    rain: [51,53,55,61,63,65,66,67,80,81,82,95,96,99].includes(c.weather_code), cloudy: c.weather_code >= 3 };
+}
+// rain starts and stops fast: between full world refreshes, re-check just the weather every 15 minutes (no extra KV writes; the state is saved anyway)
+async function refreshWeather(s, now) {
+  s.world.wxAt = now;
+  try { s.world.weather = await fetchWeather(); } catch (e) {}
+}
 async function refreshWorld(s, now) {
   const w = { at: now, errors: [], stations: s.world?.stations || [], stationsAt: s.world?.stationsAt || 0, weather: s.world?.weather || null, shabbat: s.world?.shabbat || null, holidays: s.world?.holidays || [], headlines: s.world?.headlines || [] };
   const hm = iso => new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
   await Promise.all([
-    getText(WEATHER_URL).then(t => { const c = JSON.parse(t).current;
-      w.weather = { temp: Math.round(c.temperature_2m), code: c.weather_code, desc: WMO[c.weather_code] || "unclear", wind: Math.round(c.wind_speed_10m), isDay: !!c.is_day,
-        rain: [51,53,55,61,63,65,66,67,80,81,82,95,96,99].includes(c.weather_code), cloudy: c.weather_code >= 3 }; })
-      .catch(e => w.errors.push("weather: " + e.message)),
+    fetchWeather().then(x => { w.weather = x; w.wxAt = now; }).catch(e => w.errors.push("weather: " + e.message)),
     getText(CALENDAR_URL).then(t => { const items = JSON.parse(t).items || [];
       const c = items.find(i => i.category === "candles"), h = items.find(i => i.category === "havdalah"), p = items.find(i => i.category === "parashat");
       w.shabbat = c ? { start: Date.parse(c.date), end: h ? Date.parse(h.date) : null, startLabel: hm(c.date), endLabel: h ? hm(h.date) : "?", parasha: p ? p.title : null } : null;
