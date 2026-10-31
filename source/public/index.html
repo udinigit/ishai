@@ -166,7 +166,7 @@
     <span>FEED: <b id="stLink">CONNECTING…</b></span>
     <span id="stNext"></span>
     <span id="stMusic" style="opacity:.75"></span>
-    <button id="studioBtn" class="snd" title="Watch the hosts recap the day" disabled>📺 STUDIO</button>
+    <button id="studioBtn" class="snd" title="Watch the hosts recap the day">📺 STUDIO</button>
     <button id="bugBtn" class="snd" title="Report a bug" style="margin-left:6px">🐞</button>
     <button id="snd" class="snd" title="Tap to change sound" style="margin-left:6px">SOUND: OFF</button>
   </div>
@@ -2138,13 +2138,18 @@
     add('YESTERDAY', SUMMARY.yesterday);
   }
   async function playShow(){
-    if (!SHOW || showOn) return; showOn = true;
+    if (showOn) return;
+    // no hourly recap yet: the hosts improvise from their latest quick recap, or just say hello
+    const sh = SHOW || { lines: [{who:'zohar', say:'This studio break is brought to you by Cooola. Something to drink about.'},
+      ...((STUDIO && STUDIO.lines) || [{who:'oren', say:'The full recap comes on the hour. Until then: he is right there on the screen. Living. Allegedly.'}]),
+      {who:'oren', say:'Brought to you by HummusPrime. Back to the cameras.'}] };
+    showOn = true;
     if (studioOn) $('pip').classList.remove('on');
     const st = $('stv'), cap = $('stvCap'); st.hidden = false; cap.textContent = '';
     const anim = () => { if (!showOn) return; const t = wall(); drawStudio(t, stvCtx); stvLive.imageSmoothingEnabled = false; stvLive.drawImage(cv, 0, 0); requestAnimationFrame(anim); }; anim();
     let stop = false; $('stvBack').onclick = () => { stop = true; };
     await new Promise(r => setTimeout(r, 800));
-    for (const l of SHOW.lines){
+    for (const l of sh.lines){
       if (stop) break;
       studioWho = l.who; const b = document.createElement('b'); b.style.color = HOSTS[l.who].color; b.style.fontWeight = 'normal'; b.textContent = HOSTS[l.who].name + ': ';
       const tx = document.createElement('span'); const row = document.createElement('div'); row.append(b, tx); cap.appendChild(row);
@@ -2247,7 +2252,7 @@
       if (!loaded) TALK_HISTORY = s.talk || [];
       NOTES = s.notes || ''; setCast(s.cast);
       if (s.studio) STUDIO = s.studio;
-      if (s.show && s.show.lines){ SHOW = s.show; $('studioBtn').disabled = false; }
+      if (s.show && s.show.lines) SHOW = s.show;
       if (s.summary){ SUMMARY = s.summary; renderSummary(); }
       if (s.world) { WORLD = s.world; $('stNext').textContent = weatherLabel(); }
       if (Array.isArray(s.dream)) DREAM = s.dream;
