@@ -195,6 +195,7 @@ export default {
         lastMomentAgoMin: Math.round((now - (s.events[s.events.length - 1].created || 0)) / 60000),
         retryRate: moments ? +(retried / moments).toFixed(2) : null, problems: d.filter(x => x.problem).slice(-6).map(x => x.problem.slice(0, 120)),
         stuck: s.stuck || 0, scene: s.scene ? { with: nm(s.scene.w), lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null,
+        bugs: JSON.parse(await env.ISHAI.get("bugs") || "[]").filter(x => x.status === "new").slice(-5).map(x => ({ at: x.at, text: x.text.slice(0, 200), screen: x.screen })),
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })) }, { "cache-control": "no-store" });
     }
@@ -217,6 +218,18 @@ export default {
       const s = await loadState(env);
       return json({ version: PLAN.version || null, written: PLAN.written || null, arcs: PLAN.arcs || [], beats: PLAN.beats || [], unlocked: s.unlocked,
         cast: Object.values(s.cast).map(c => ({ id: c.id, name: c.name, role: c.role, personality: c.personality, look: c.look, memory: c.memory, relationship: c.relationship })) }, { "cache-control": "no-store" });
+    }
+    // viewers' bug reports (kept apart from the story state)
+    if (url.pathname === "/api/bug" && req.method === "POST") {
+      let b = {}; try { b = await req.json(); } catch {}
+      const text = String(b.text || "").replace(/\s+/g, " ").trim().slice(0, 600);
+      if (text.length < 3) return json({ error: "write what went wrong" }, {}, 400);
+      const list = JSON.parse(await env.ISHAI.get("bugs") || "[]"), now = Date.now();
+      if (list.filter(x => now - x.at < 60000).length >= 5) return json({ error: "too many reports, try again in a minute" }, {}, 429);
+      const str = (v, n) => String(v ?? "").slice(0, n);
+      list.push({ id: now.toString(36), at: now, text, build: BUILD, page: str(b.page, 300), screen: str(b.screen, 300), ua: str(req.headers.get("user-agent"), 120), status: "new" });
+      await env.ISHAI.put("bugs", JSON.stringify(list.slice(-60)));
+      return json({ ok: true });
     }
     if (url.pathname === "/director")
       return new Response(DIRECTOR_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
@@ -917,20 +930,23 @@ async function directorApi(req, env) {
       if (g) { g.status = "waiting"; g.startAfter = Math.max(g.startAfter, now); }
     } else if (b.action === "forget") {
       delete s.wishlist[b.item];
+    } else if (b.action === "bugDone") {
+      const list = JSON.parse(await env.ISHAI.get("bugs") || "[]"); const x = list.find(y => y.id === b.id);
+      if (x){ x.status = "done"; await env.ISHAI.put("bugs", JSON.stringify(list)); }
     } else if (b.action === "cancel") {
       const g = s.director.find(d => d.id === b.id && d.status !== "done");
       if (g) { g.status = "done"; g.how = "cancelled"; g.doneAt = now; }
     } else if (b.action === "tick") {
       await saveState(env, s); await tick(env, true);
-      return json(directorView(await loadState(env)));
+      return json(directorView(await loadState(env), JSON.parse(await env.ISHAI.get("bugs") || "[]")));
     }
     await saveState(env, s);
   }
-  return json(directorView(s));
+  return json(directorView(s, JSON.parse(await env.ISHAI.get("bugs") || "[]")));
 }
-function directorView(s) {
+function directorView(s, bugs) {
   const last = s.events[s.events.length - 1];
-  return { diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
+  return { bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse(), lastError: s.lastError || null,
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t } };

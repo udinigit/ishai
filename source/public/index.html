@@ -104,6 +104,10 @@
   .pip{position:absolute;z-index:5;top:11%;left:2.5%;width:34%;opacity:0;transition:opacity .9s;pointer-events:none;
     background:#0b0716;border:2px solid #ff9ad0;border-radius:6px;box-shadow:0 0 14px rgba(255,154,208,.35);overflow:hidden}
   .pip.on{opacity:1}
+  .bugf{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}
+  .bugf .in{background:#050705;border:2px solid var(--phos-faint);border-radius:10px;padding:12px;width:100%;max-width:480px;display:flex;flex-direction:column;gap:8px}
+  .bugf textarea{font:inherit;font-size:18px;background:#071007;color:var(--phos);border:1px solid var(--phos-faint);border-radius:6px;min-height:110px;padding:6px}
+  .bugf .row{display:flex;gap:8px;justify-content:flex-end;align-items:center}
   .pvb{position:absolute;z-index:6;top:9%;left:50%;transform:translateX(-50%);max-width:92%;background:rgba(10,8,30,.85);color:#ffd36a;border:1px solid #ffd36a;border-radius:6px;padding:2px 8px;font-size:clamp(11px,2.6vw,15px);line-height:1.15;text-align:center;pointer-events:none}
   .adb{position:absolute;z-index:5;left:0;right:0;bottom:12%;display:flex;align-items:center;gap:8px;padding:4px 10px 4px 6px;
     transform:translateX(-105%);transition:transform .7s cubic-bezier(.2,.8,.2,1);pointer-events:none;border-top:2px solid;border-bottom:2px solid}
@@ -139,7 +143,8 @@
     <span>FEED: <b id="stLink">CONNECTING…</b></span>
     <span id="stNext"></span>
     <span id="stMusic" style="opacity:.75"></span>
-    <button id="snd" class="snd" title="Tap to change sound">SOUND: OFF</button>
+    <button id="bugBtn" class="snd" title="Report a bug">🐞 BUG</button>
+    <button id="snd" class="snd" title="Tap to change sound" style="margin-left:6px">SOUND: OFF</button>
   </div>
 
   <div class="booth" id="booth" aria-live="polite"></div>
@@ -2066,6 +2071,22 @@
     };
     setInterval(step, 500);
   }
+  // ---- bug reports ----
+  (() => {
+    const f = $('bugF'), open = () => { $('bugM').textContent = ''; f.hidden = false; $('bugT').focus(); };
+    $('bugBtn').onclick = (e) => { e.stopPropagation(); open(); };
+    $('bugC').onclick = () => { f.hidden = true; };
+    $('bugS').onclick = async () => {
+      const text = $('bugT').value.trim(); if (text.length < 3){ $('bugM').textContent = 'Please describe it.'; return; }
+      const screen = `${fmtClock.format(new Date())} ${actor.loc}/${actor.action}${actor.with ? ' +' + actor.with : ''} x=${Math.round(actor.x)}${actor.travelling ? ' travelling' : ''}${actor.pending ? ' →' + actor.pending.route.join('>') : ''}${comp.id ? ' comp=' + comp.id + '/' + comp.mode + '@' + Math.round(comp.x) : ''}${actor.switching ? ' switching' : ''}${actor.hidden ? ' hidden' : ''}`;
+      $('bugS').disabled = true; $('bugM').textContent = 'Sending…';
+      try { const r = await fetch('/api/bug', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({text, screen, page: location.search})});
+        const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
+        $('bugM').textContent = 'Thanks! Sent.'; $('bugT').value = ''; setTimeout(() => { f.hidden = true; }, 900);
+      } catch(e){ $('bugM').textContent = 'Could not send: ' + e.message; }
+      $('bugS').disabled = false;
+    };
+  })();
   let castSig = '';
   setInterval(()=>{ if ($('castPanel').hidden) return; const sig = actor.loc + '|' + [...settledOnCamera()].join(',') + '|' + UNLOCKED.has('dog'); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
@@ -2178,5 +2199,11 @@
   else { poll(); setInterval(()=>{ if (!demoMode) poll(); }, POLL_MS); }
 })();
 </script>
+<div class="bugf" id="bugF" hidden><div class="in">
+  <div>REPORT A BUG</div>
+  <div style="font-size:15px;opacity:.75">What went wrong? The time and what is on screen right now are added automatically.</div>
+  <textarea id="bugT" maxlength="600" placeholder="e.g. Noa walked through the wall next to the fridge"></textarea>
+  <div class="row"><span id="bugM" style="font-size:15px"></span><button id="bugC" class="snd">CANCEL</button><button id="bugS" class="snd">SEND</button></div>
+</div></div>
 </body>
 </html>

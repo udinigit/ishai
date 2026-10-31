@@ -75,6 +75,8 @@
 
     <div class="box"><div style="font-size:24px">Current scene</div><div id="scene" class="muted" style="white-space:pre-line"></div></div>
 
+    <div class="box"><div style="font-size:24px">Bug reports</div><div id="bugs" class="muted" style="font-size:16px"></div></div>
+
     <div class="box"><div style="font-size:24px">AI checks (last moments)</div><div id="diag" class="muted" style="white-space:pre-line;font-size:16px"></div></div>
 
     <div class="box"><div style="font-size:24px">Goals</div><div id="goals"></div></div>
@@ -109,6 +111,14 @@
       const b = document.createElement('button'); b.className = 'ghost'; b.textContent = 'Dismiss'; b.style.marginTop = '4px';
       b.onclick = async () => render(await api({action:'forget', item:w.item}));
       d.append(t, ex, b); wl.appendChild(d); });
+    const bl = $('bugs'); bl.textContent = ''; if (!(v.bugs||[]).length) bl.textContent = 'No reports.';
+    (v.bugs||[]).forEach(b => { const d = document.createElement('div'); d.className = 'goal';
+      const t = document.createElement('div'); t.style.color = b.status === 'new' ? '#ffb84d' : '#9a9a9a'; t.textContent = `${fmt(b.at)} · ${b.status.toUpperCase()} · build ${b.build}`;
+      const x = document.createElement('div'); x.style.color = '#4dff7a'; x.textContent = b.text;
+      const m = document.createElement('div'); m.textContent = b.screen + (b.page ? ' · ' + b.page : '');
+      d.append(t, x, m);
+      if (b.status === 'new'){ const k = document.createElement('button'); k.className = 'ghost'; k.textContent = 'Mark fixed'; k.style.marginTop = '4px'; k.onclick = async () => render(await api({action:'bugDone', id:b.id})); d.appendChild(k); }
+      bl.appendChild(d); });
     const S = v.scene; $('scene').textContent = !S ? 'Ishai is not in a conversation right now.' :
       `With ${S.name} (${S.type}) at ${S.loc} · ${S.lines} of ~${S.target} lines\nWhy: ${S.why}\nIshai wants: ${S.ishaiWants}\n${S.name} wants: ${S.theyWant}\nBeats: ${S.beats}\nEnding: ${S.ending}`;
     $('diag').textContent = (v.diag || []).slice().reverse().map(d => `${fmt(d.at)} try ${d.attempt + 1}: ${d.action || '?'}${d.with ? ' with ' + d.with : ''}, ${d.lines ?? '?'} lines → ${d.problem ? 'SENT BACK: ' + d.problem : 'ok'}`).join('\n') || '—';
