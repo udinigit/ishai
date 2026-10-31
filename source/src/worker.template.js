@@ -844,33 +844,44 @@ function nextUtcMidnight(now) {
   const d = new Date(now);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) + 2 * 6e4;
 }
-// backup AI (any OpenAI-compatible API; Groq by default). If the model name is gone (404), it asks the API which models exist and picks one.
-let backupModel = null;
-const BACKUP_PREFER = [/llama-3\.3-70b/, /llama-4-scout/, /llama-4-maverick/, /gpt-oss-120b/, /gpt-oss-20b/, /qwen3-32b/, /llama-3\.1-8b/, /llama/, /qwen/, /gemma/];
+// backup AI (any OpenAI-compatible API; Groq by default). If the model is gone (404) or answers empty, it asks the API
+// which models exist and moves to the next one. Plain chat models first; "thinking" models only with reasoning turned down.
+let backupModel = null, backupIds = null; const backupBad = new Set();
+const BACKUP_PREFER = [/llama-4-scout/, /llama-4-maverick/, /llama-3\.3-70b/, /llama-3\.1-8b/, /gemma2?-9b/, /gpt-oss-120b/, /gpt-oss-20b/, /qwen3/, /llama/, /gemma/, /qwen/];
 async function runBackup(env, messages) {
   const url = env.BACKUP_AI_URL || "https://api.groq.com/openai/v1/chat/completions";
   const auth = { authorization: "Bearer " + env.BACKUP_AI_KEY };
-  const call = model => fetch(url, { method: "POST", headers: { "content-type": "application/json", ...auth }, body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.9 }) });
-  let model = backupModel || env.BACKUP_AI_MODEL || "llama-3.3-70b-versatile";
-  let r = await call(model);
-  if (r.status === 404 || r.status === 400) {
-    const body = (await r.text()).slice(0, 300);
-    if (r.status === 404 || /model/i.test(body)) {
-      try {
-        const lr = await fetch(url.replace(/\/chat\/completions$/, "/models"), { headers: auth });
-        const ids = ((await lr.json()).data || []).map(m => m.id).filter(id => !/whisper|tts|guard|embed|vision|playai|distil/i.test(id));
-        const found = BACKUP_PREFER.map(re => ids.find(id => re.test(id))).find(Boolean) || ids[0];
-        if (found && found !== model) { model = found; r = await call(model); }
-        else throw new Error("backup AI " + 404 + ": no usable model (" + ids.slice(0, 6).join(", ") + ")");
-      } catch (e) { if (!r.ok) throw new Error("backup AI " + r.status + ": " + body.slice(0, 120) + " | " + String(e.message || e).slice(0, 120)); }
+  const body = model => {
+    const b = { model, messages, max_tokens: 900, temperature: 0.9 };
+    if (/gpt-oss/i.test(model)) { b.reasoning_effort = "low"; b.max_tokens = 2000; }            // reasoning models: think less, leave room for the answer
+    if (/qwen3|deepseek|r1/i.test(model)) { b.reasoning_format = "hidden"; b.max_tokens = 2000; }
+    return JSON.stringify(b);
+  };
+  const listModels = async () => {
+    if (backupIds) return backupIds;
+    const lr = await fetch(url.replace(/\/chat\/completions$/, "/models"), { headers: auth });
+    backupIds = ((await lr.json()).data || []).map(m => m.id).filter(id => !/whisper|tts|guard|embed|vision|playai|distil|compound|orpheus|prompt/i.test(id));
+    return backupIds;
+  };
+  const nextModel = async () => { const ids = (await listModels()).filter(id => !backupBad.has(id));
+    return BACKUP_PREFER.map(re => ids.find(id => re.test(id))).find(Boolean) || ids[0] || null; };
+  let model = backupModel || (env.BACKUP_AI_MODEL && !backupBad.has(env.BACKUP_AI_MODEL) ? env.BACKUP_AI_MODEL : null) || await nextModel().catch(() => null) || "llama-3.1-8b-instant";
+  let lastErr = "";
+  for (let tries = 0; tries < 3 && model; tries++) {
+    const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json", ...auth }, body: body(model) });
+    if (r.ok) {
+      const j = await r.json(), m = j?.choices?.[0]?.message || {};
+      const c = typeof m.content === "string" ? m.content.replace(/<think>[\s\S]*?<\/think>/g, "").trim() : "";
+      if (c) { backupModel = model; lastWriter = "backup: " + model; return c; }
+      lastErr = `empty reply from ${model}`;
+    } else {
+      const t = (await r.text()).slice(0, 160); lastErr = `${r.status} from ${model}: ${t}`;
+      if (r.status === 429 || r.status === 401 || r.status >= 500) break;                    // rate limit, bad key, outage: another model won't help
     }
+    backupBad.add(model); if (backupModel === model) backupModel = null;
+    model = await nextModel().catch(() => null);
   }
-  if (!r.ok) throw new Error("backup AI " + r.status + " (" + model + "): " + (await r.text()).slice(0, 150));
-  backupModel = model; lastWriter = "backup: " + model;
-  const j = await r.json();
-  const c = j?.choices?.[0]?.message?.content;
-  if (typeof c !== "string" || !c.trim()) throw new Error("backup AI: empty reply");
-  return c.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+  throw new Error("backup AI: " + lastErr);
 }
 // the AI is out of budget: Ishai feels unwell, goes home and rests (no AI needed)
 function sickEvent(s, last, hour) {
