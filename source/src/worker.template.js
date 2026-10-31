@@ -400,7 +400,7 @@ async function tick(env, force) {
         ev = sickEvent(s, last, clock.hour);
       }
     }
-    if (!ev) ev = fallback(last, clock.hour, s);
+    if (!ev){ ev = fallback(last, clock.hour, s); ev.stuck = true; }
     if (goal && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
   }
 
@@ -760,7 +760,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   if (!(ev.action === "sleeping" && last.action === "sleeping")) { const prevTexts = s.events.slice(-4).map(e => e.text);
     const rep = prevTexts.find(p => similar(ev.text, p) >= 0.6);
     if (rep) { if (!allowNoHosts) return { ev, problem: `the narration repeats an earlier moment ("${rep.slice(0, 80)}"). Write what happens NEXT: a new action, a new topic, someone moves or leaves, time passes` };
-      ev.stuck = true; } }
+      return { ev: null, problem: "repeat" }; } }   // still the same after a retry: drop it; the engine writes a different backup moment instead
   if (!ev.with && ev.action === "talking") ev.action = "idle"; // nobody to talk to
   { const cap = RUN_CAP[ev.action]; if (cap && !ev.with && ev.action === last.action && ev.location === last.location && sameRun(s.events) >= cap) ev.stuck = true; }
   if (ev.with && ev.action === "sleeping") return { ev, problem: "nobody else is there while he sleeps; set with to null" };
