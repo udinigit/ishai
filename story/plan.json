@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-31b",
+  "version": "2026-10-31b-fix0742",
   "written": "2026-10-31T07:20:00+02:00",
   "arcs": [
     {
@@ -228,6 +228,14 @@
     {
       "id": "fri-shabbat-dinner",
       "cancel": true
+    }
+  ],
+  "fixes": [
+    {
+      "id": "fix-20261031-0742",
+      "endScene": false,
+      "note": "Ishai stops wandering between the window and the empty fridge. He makes himself a coffee, settles on the couch with a book (action reading) and enjoys a slow, quiet Shabbat morning.",
+      "minutes": 45
     }
   ]
 }
