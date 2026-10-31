@@ -2240,7 +2240,7 @@
       return;
     }
     try{
-      $('stLink').textContent = s.delayMin ? `LIVE (${s.delayMin} MIN DELAY)` : 'LIVE';
+      $('stLink').textContent = 'LIVE';
       $('day').textContent = 'DAY ' + (s.day || 1);
       if (s.build && !BUILD.startsWith('__') && s.build !== BUILD) offerUpdate();
       if (s.dev) enableDev();

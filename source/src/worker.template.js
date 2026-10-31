@@ -10,7 +10,7 @@
 // Tried in order; if Cloudflare retires one, the next is used automatically.
 const MODELS = ["@cf/qwen/qwen3-30b-a3b-fp8", "@cf/meta/llama-3.1-8b-instruct-fast", "@cf/zai-org/glm-4.7-flash", "@cf/meta/llama-3.2-3b-instruct"];
 const TZ = "Asia/Jerusalem";
-const DELAY_MIN = 0;          // broadcast delay in minutes (0 = live: viewers see each moment as soon as it is written)
+const DELAY_MIN = 5;          // broadcast delay: viewers see events 5 minutes after they are written (not shown on the page)
 const INTERVAL_MIN = 4;       // keep equal to your Cron Trigger (*/4 * * * *)
 const KEEP_EVENTS = 40;
 const MAX_CAST = 12;          // the AI can add people until the cast reaches this size
