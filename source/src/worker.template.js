@@ -853,6 +853,7 @@ async function runBackup(env, messages) {
   const auth = { authorization: "Bearer " + env.BACKUP_AI_KEY };
   const body = model => {
     const b = { model, messages, max_tokens: 900, temperature: 0.9 };
+    if (/llama|gemma/i.test(model)) b.response_format = { type: "json_object" };              // JSON mode: no broken or wrapped JSON
     if (/gpt-oss/i.test(model)) { b.reasoning_effort = "low"; b.max_tokens = 2000; }            // reasoning models: think less, leave room for the answer
     if (/qwen3|deepseek|r1/i.test(model)) { b.reasoning_format = "hidden"; b.max_tokens = 2000; }
     return JSON.stringify(b);
