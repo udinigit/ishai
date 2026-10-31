@@ -123,6 +123,12 @@
 </style>
 </head>
 <body>
+<div class="bugf" id="bugF" hidden><div class="in">
+  <div>REPORT A BUG</div>
+  <div style="font-size:15px;opacity:.75">What went wrong? The time and what is on screen right now are added automatically.</div>
+  <textarea id="bugT" maxlength="600" placeholder="e.g. Noa walked through the wall next to the fridge"></textarea>
+  <div class="row"><span id="bugM" style="font-size:15px"></span><button id="bugC" class="snd">CANCEL</button><button id="bugS" class="snd">SEND</button></div>
+</div></div>
 <div class="wrap">
   <div class="title"><span>&gt; WATCHING_ISHAI</span><small id="day">DAY --</small></div>
 
@@ -2199,11 +2205,5 @@
   else { poll(); setInterval(()=>{ if (!demoMode) poll(); }, POLL_MS); }
 })();
 </script>
-<div class="bugf" id="bugF" hidden><div class="in">
-  <div>REPORT A BUG</div>
-  <div style="font-size:15px;opacity:.75">What went wrong? The time and what is on screen right now are added automatically.</div>
-  <textarea id="bugT" maxlength="600" placeholder="e.g. Noa walked through the wall next to the fridge"></textarea>
-  <div class="row"><span id="bugM" style="font-size:15px"></span><button id="bugC" class="snd">CANCEL</button><button id="bugS" class="snd">SEND</button></div>
-</div></div>
 </body>
 </html>
