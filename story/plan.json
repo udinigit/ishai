@@ -1,16 +1,16 @@
 {
-  "version": "2026-10-31a",
-  "written": "2026-10-31T05:20:00+02:00",
+  "version": "2026-10-31b",
+  "written": "2026-10-31T07:20:00+02:00",
   "arcs": [
     {
       "id": "dana-basil",
       "title": "Dana and the basil cups",
-      "stage": "2/5 — He noticed the leaf on Friday; today he bumps into Dana in the park and finally asks why basil."
+      "stage": "1/5 — He still hasn't noticed the basil leaves on his cups. Today in the park Dana drops a hint and he finally gets it."
     },
     {
       "id": "moshe",
       "title": "Saving Moshe",
-      "stage": "1/3 — Moshe is wilting; Ishai overwaters and gives him pep talks. Dana hints she knows plants."
+      "stage": "1/3 — Moshe is wilting; Ishai overwaters and gives him pep talks."
     },
     {
       "id": "big-client",
@@ -39,7 +39,7 @@
       "startAt": "2026-10-31T08:30:00+02:00",
       "deadlineAt": "2026-10-31T10:00:00+02:00",
       "location": "apartment",
-      "goal": "Slow Shabbat morning, no work, no rushing. Ishai wakes late, makes coffee, finishes leftover challah from last night with Noa, and checks on Moshe the basil on the windowsill. Moshe looks droopier. Ishai waters him (again, too much) and gives him a sincere pep talk out loud.",
+      "goal": "Slow Shabbat morning, no work, no rushing. The fridge is nearly empty, so Ishai settles for coffee and something simple and stops hunting the cupboards. He checks on Moshe the basil on the windowsill. Moshe looks droopier. Ishai waters him (again, too much) and gives him a sincere pep talk out loud.",
       "forceAction": "talking",
       "forceText": "Ishai kneels by the windowsill with a glass of water and gives Moshe the basil a quiet pep talk.",
       "forceLines": [
@@ -101,28 +101,28 @@
       "deadlineAt": "2026-10-31T16:15:00+02:00",
       "location": "park",
       "with": "Dana (dana)",
-      "goal": "Shabbat afternoon walk: Ishai goes apartment -> corridor -> street -> park to read on a bench. Dana, off work, walks through the park and recognizes him. Short, awkward, real: he asks why she draws basil on his cups; she shrugs it off, then reveals she knows plants. He mentions Moshe is dying; she gives one dry tip (stop drowning him). Keep it shy, no date yet.",
+      "goal": "Shabbat afternoon walk: Ishai goes apartment -> corridor -> street -> park to read on a bench. Dana, the barista from Cafe Nahat, off work, walks through the park and recognizes him. Short, awkward, real: she asks how his basil is doing; he is surprised she knows about Moshe; she tells him to check his cups sometime, and he realizes she has been drawing basil leaves on them. She gives one dry plant tip (stop drowning him). Shy, no date yet.",
       "forceAction": "talking",
       "forceWith": "dana",
       "forceText": "On a park bench, Ishai looks up from his book. Dana, off duty, stops in front of him with the faintest smile.",
       "forceLines": [
         {
-          "who": "ishai",
-          "say": "Why basil? On my cups. Why basil?"
+          "who": "dana",
+          "say": "Extra-shot guy. How's the basil?"
         },
         {
-          "who": "dana",
-          "say": "You look like a guy who kills basil. Stop overwatering it."
+          "who": "ishai",
+          "say": "How do you know about Moshe?"
         }
       ],
       "forceCommentary": [
         {
           "who": "zohar",
-          "say": "OUTSIDE THE CAFE. Off the clock. In the wild. I'm screaming."
+          "say": "She's been drawing basil on his cups for weeks. WEEKS. And he's only finding out now."
         },
         {
           "who": "oren",
-          "say": "She diagnosed Moshe from across a park. Marry her or hire her."
+          "say": "She knows about Moshe. Her intel is better than ours."
         }
       ]
     },
@@ -208,6 +208,26 @@
       "id": "radio",
       "startAt": "2026-11-03T15:00:00+02:00",
       "deadlineH": 24
+    },
+    {
+      "id": "fri-cafe-dana",
+      "cancel": true
+    },
+    {
+      "id": "fri-invite-noa",
+      "cancel": true
+    },
+    {
+      "id": "fri-levi-challah",
+      "cancel": true
+    },
+    {
+      "id": "fri-candles",
+      "cancel": true
+    },
+    {
+      "id": "fri-shabbat-dinner",
+      "cancel": true
     }
   ]
 }

@@ -13,7 +13,7 @@ You (the director) can edit anything here; changes go live with the next deploy.
 - 3-6 key beats per day, each with a time window. New props, places or animals need art first ("art" field).
 
 ## Arcs
-1. **Dana and the basil cups** — Dana, the deadpan barista, draws basil leaves on Ishai's cups. Slow, shy romance over 1-2 weeks. Stages: he notices ✓ → he asks (Sat)  → a real conversation → she visits Moshe → first date.
+1. **Dana and the basil cups** — Dana, the deadpan barista, draws basil leaves on Ishai's cups. Slow, shy romance over 1-2 weeks. Stages: he notices (Sat) → he asks  → a real conversation → she visits Moshe → first date.
 2. **Saving Moshe** — Moshe the basil is wilting. Ishai tries everything (too much water, talking to him); Dana knows plants. Ends with Moshe thriving. *Now: overwatered; Dana's first tip Sat.*
 3. **The big client** — a client wants the logo "bigger but smaller". Paid work that pays for the TV; ends with a win or a funny disaster. *Now: new 'bigger but smaller' email Sat night.*
 4. **Getting a TV** — Sunday morning: Avi's cousin offers an old TV (director goal "tv").
@@ -29,6 +29,6 @@ You (the director) can edit anything here; changes go live with the next deploy.
 ## Day 1 — Friday, Oct 30 (planned by Claude, 14:30)
 Cafe with Dana (he notices the basil cup) → invites Noa for Shabbat → Mrs. Levi's challah in the hallway → candle lighting at home → Shabbat dinner with Noa.
 
-## Day 2 — Saturday, Oct 31 (planned by Claude, 05:20)
-**Previously:** Friday afternoon Ishai noticed the basil leaf Dana draws on his cups, invited Noa for Shabbat, got a challah ambush from Mrs. Levi in the hallway, lit candles and hosted Noa for Shabbat dinner. (Live log was not reachable this run, so details are from the plan.)
-**Today:** Slow Shabbat — Moshe pep talk → the stray at Avi's kiosk → bumps into Dana in the park → havdalah → the client's "bigger but smaller" email.
+## Day 2 — Saturday, Oct 31 (planned by Claude, 07:20)
+**Previously:** Friday afternoon Ishai went to Avi's kiosk for falafel and walked to the park with Avi, who talked about Shabbat and "falafel without tahini". The planned Friday beats (cafe with Dana, Noa's invite, Mrs. Levi's challah, candles, dinner with Noa) never fired, so they're cancelled. Saturday dawn: Ishai is up early, digging through an empty fridge.
+**Today:** Slow Shabbat — Moshe pep talk → the stray at Avi's kiosk → Dana in the park (he finally gets the basil cups) → havdalah → the client's "bigger but smaller" email.
