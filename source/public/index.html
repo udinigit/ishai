@@ -1759,7 +1759,7 @@
       if (queue.length && !(ev.lines || []).length){ shown.add(ev.id); if (DEV) addLine(ev, false); continue; }
       if (!forceLoc) setState(ev.location||'apartment', ev.action, false, ev.with||null);
       enterScene(ev.location, ev.with);
-      if (DEV){ addTalk(ev, false); await addLine(ev,true); }
+      if (DEV){ addTalk(ev, true); await addLine(ev,true); }   // talk + hosts play in their own time (hosts wait for the picture)
       else { shown.add(ev.id);
         if (PREVIEW) for (let w = 0; w < 40 && (actor.pending || actor.travelling || actor.switching || actor.ride); w++) await new Promise(r => setTimeout(r, 500)); // preview: talk once they have arrived
         await addTalk(ev, true); }
@@ -1908,6 +1908,11 @@
     }
     if (animate) setSpeaking(null);
     if ((ev.lines||[]).length && (ev.commentary||[]).length) await pauseFor(1200, budget, animate);
+    // the hosts react to what viewers can SEE: wait until Ishai has got where the moment happens, then a short beat
+    if (animate && (ev.commentary||[]).length && !(budget.ms > 0)){
+      for (let w = 0; w < 50 && (actor.pending || actor.travelling || actor.switching || actor.ride || actor.viaFinal != null || actor.wash); w++) await new Promise(r => setTimeout(r, 400));
+      await pauseFor(2500, budget, animate);
+    }
     for (let i = 0; i < (ev.commentary||[]).length; i++){
       const c = ev.commentary[i];
       if (i > 0) await pauseFor(linePause(ev.commentary[i-1].say), budget, animate);
