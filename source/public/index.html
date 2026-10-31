@@ -104,6 +104,7 @@
   .pip{position:absolute;z-index:5;top:11%;left:2.5%;width:34%;opacity:0;transition:opacity .9s;pointer-events:none;
     background:#0b0716;border:2px solid #ff9ad0;border-radius:6px;box-shadow:0 0 14px rgba(255,154,208,.35);overflow:hidden}
   .pip.on{opacity:1}
+  .pvb{position:absolute;z-index:6;top:9%;left:50%;transform:translateX(-50%);max-width:92%;background:rgba(10,8,30,.85);color:#ffd36a;border:1px solid #ffd36a;border-radius:6px;padding:2px 8px;font-size:clamp(11px,2.6vw,15px);line-height:1.15;text-align:center;pointer-events:none}
   .adb{position:absolute;z-index:5;left:0;right:0;bottom:12%;display:flex;align-items:center;gap:8px;padding:4px 10px 4px 6px;
     transform:translateX(-105%);transition:transform .7s cubic-bezier(.2,.8,.2,1);pointer-events:none;border-top:2px solid;border-bottom:2px solid}
   .adb.on{transform:translateX(0)}
@@ -127,6 +128,7 @@
 
     <div class="pip" id="pip" aria-hidden="true"><span class="tag">● LIVE · STUDIO</span><canvas id="pipCv" width="64" height="40"></canvas><div class="cap" id="pipCap"></div></div>
     <div class="adb" id="adb" aria-hidden="true"><canvas id="adCv" width="40" height="20"></canvas><div class="t" id="adT"></div><span class="ad">AD</span></div>
+    <div class="pvb" id="pvb" hidden></div>
     <div class="say" id="say" hidden><b id="sayWho"></b><span id="sayText"></span></div>
     <div class="nosig" id="nosig"><span id="nosigText">[ SUBJECT NOT IN FRAME ]</span></div>
     <div class="hud bot"><span id="place">ISHAI // APARTMENT</span><span id="hudAction">--</span></div>
@@ -182,7 +184,7 @@
     eating:'EATING',cooking:'COOKING',reading:'READING',exercising:'EXERCISING',talking:'TALKING',away:'UNKNOWN'};
 
   const params = new URLSearchParams(location.search);
-  const forceHour = params.has('hour') ? parseFloat(params.get('hour')) : null;
+  let forceHour = params.has('hour') ? parseFloat(params.get('hour')) : null;
   const forceLoc = LOCATIONS[params.get('loc')] ? params.get('loc') : null;
   const forcePose = params.get('pose');
 
@@ -1627,7 +1629,9 @@
       if (!forceLoc) setState(ev.location||'apartment', ev.action, false, ev.with||null);
       enterScene(ev.location, ev.with);
       if (DEV){ addTalk(ev, false); await addLine(ev,true); }
-      else { shown.add(ev.id); await addTalk(ev, true); }
+      else { shown.add(ev.id);
+        if (PREVIEW) for (let w = 0; w < 40 && (actor.pending || actor.travelling || actor.switching || actor.ride); w++) await new Promise(r => setTimeout(r, 500)); // preview: talk once they have arrived
+        await addTalk(ev, true); }
     }
     typing = false;
   }
@@ -1758,7 +1762,7 @@
   }
   function enterScene(loc, w){ const k = keyOf(loc, w); if (k !== sceneKey){ sceneKey = k; clearTalk(); } }
   async function addTalk(ev, animate){
-    const budget = {ms: ev._late || 0}, gap = convoGap(ev.lines);
+    const budget = {ms: ev._late || 0}, gap = PREVIEW ? 600 : convoGap(ev.lines);
     for (let i = 0; i < (ev.lines||[]).length; i++){
       const l = ev.lines[i];
       if (i > 0) await pauseFor(linePause(ev.lines[i-1].say) + gap, budget, animate);
@@ -1974,6 +1978,39 @@
     if (adOn){ const prev = g; g = actx; try { adOn.draw(wall()); } catch(e){} g = prev; }
   }
   setInterval(adTick, 120);
+  // ================= preview of the planned day (/?preview): plays the planner's beats in order =================
+  let PREVIEW = null;
+  async function startPreview(){
+    demoMode = true;
+    $('stLink').innerHTML = '<span class="warn">PREVIEW OF THE PLAN</span>';
+    let p; try { p = await (await fetch('/api/plan', {cache:'no-store'})).json(); } catch(e){ $('stLink').textContent = 'PREVIEW: could not load the plan'; return; }
+    setCast((p.cast||[]).map(c => ({...c, lastSeen: Date.now()})));
+    (p.unlocked||[]).forEach(u => UNLOCKED.add(u));
+    const tz = d => { const [h,m] = fmtHM.format(new Date(d)).split(':').map(Number); return h + m/60; };
+    const list = [];
+    (p.beats||[]).forEach((b, i) => {
+      const moments = (b.preview && b.preview.moments && b.preview.moments.length) ? b.preview.moments
+        : [{action: b.forceAction || 'idle', text: b.forceText || b.goal, lines: b.forceLines || [], commentary: b.forceCommentary || []}];
+      moments.forEach((m, k) => list.push({beat: i, of: p.beats.length, k, b, hour: tz(b.startAt) + k * .25,
+        ev: {id: 'pv-' + i + '-' + k, t: Date.now(), location: m.location || b.location || 'apartment', action: m.action || b.forceAction || 'idle',
+          with: m.with !== undefined ? m.with : (b.forceWith || null), text: m.text || b.goal, unlocks: k === moments.length - 1 ? (b.unlock || null) : null,
+          lines: (m.lines||[]).map(l => Array.isArray(l) ? {who:l[0], say:l[1]} : l), commentary: (m.commentary||[]).map(c => Array.isArray(c) ? {who:c[0], say:c[1]} : c)}}));
+    });
+    if (!list.length){ $('stLink').textContent = 'PREVIEW: the plan has no beats'; return; }
+    PREVIEW = {list, i: +params.get('from') || 0, nextAt: 0};
+    $('day').textContent = 'PLAN ' + (p.version || '');
+    const step = () => {
+      if (typing || queue.length || Date.now() < PREVIEW.nextAt) return;
+      if (PREVIEW.i >= PREVIEW.list.length){ $('pvb').textContent = 'END OF THE PLANNED DAY · reload to watch again'; return; }
+      const it = PREVIEW.list[PREVIEW.i++];
+      forceHour = it.hour;
+      const time = fmtHM.format(new Date(it.b.startAt));
+      $('pvb').hidden = false; $('pvb').textContent = `PREVIEW · beat ${it.beat + 1}/${it.of} · ${time}${it.b.with ? ' · with ' + String(it.b.with).replace(/\s*\(.*\)/, '') : ''} — ${it.b.goal.length > 120 ? it.b.goal.slice(0, 117) + '…' : it.b.goal}`;
+      ingest([{...it.ev, t: Date.now()}], false);
+      PREVIEW.nextAt = Date.now() + 9000;   // a short beat of picture after the dialogue, then the next moment
+    };
+    setInterval(step, 500);
+  }
   let castSig = '';
   setInterval(()=>{ if ($('castPanel').hidden) return; const sig = actor.loc + '|' + [...settledOnCamera()].join(',') + '|' + UNLOCKED.has('dog'); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
@@ -2081,6 +2118,7 @@
   else setState('apartment','sleeping',true);
   requestAnimationFrame(loop);
   if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }
+  else if (params.has('preview')) startPreview();
   else if (location.protocol === 'file:' || params.has('demo')) { if (params.has('dev')) enableDev(); startDemo(); }
   else { poll(); setInterval(()=>{ if (!demoMode) poll(); }, POLL_MS); }
 })();
