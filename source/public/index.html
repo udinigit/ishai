@@ -402,6 +402,9 @@
         R(x+8,y+9,1,2,C.shirt); R(x+8,y+5,1,4,C.skin); R(x+7,y+3,2,4,'#2a2a2a'); R(x+7,y+4,1,1,'#7fd0ff');
         legs(x,y,0); if (speak) bubble(x+9,y-7,t);
         break; }
+      case 'stretch': {   // a calm stretch: arms up, a slow lean from side to side (no jumping)
+        const lean = Math.round(Math.sin(t/700));
+        head(x+lean,y,{closed:true}); torso(x,y); armsUp(x+lean,y); legs(x,y,0); break; }
       case 'back': {
         R(x+2,y,6,2,C.hair); R(x+1,y+1,8,7,C.hair); R(x+1,y+5,1,2,C.skin); R(x+8,y+5,1,2,C.skin);
         torso(x,y); armsDown(x,y); legs(x,y,0);
@@ -1260,12 +1263,12 @@
       window:  {alone:3, company:1, steps:[{to:24},{pose:'back',dur:6}]},
       basil:   {alone:2, company:1, steps:[{to:31},{pose:'back',dur:4,o:{water:true},tag:'basil'}]},
       books:   {alone:2, company:1, steps:[{to:72},{pose:'back',dur:4.5}]},
-      stretch: {alone:2, company:0, steps:[{pose:'exercising',dur:3.5}]},
+      stretch: {alone:2, company:0, steps:[{pose:'stretch',dur:3.5}]},
       kettle:  {alone:2, company:2, steps:[{to:156},{pose:'back',dur:5,tag:'kettle'},{pose:'drinking',dur:3,o:{legs:'stand',food:'#f2f2f2'}}]},
       phone:   {alone:2, company:2, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]}                       // checks (or shows) something on his phone
     },
     park:   { look:    {alone:3, company:1, steps:[{pose:'idle',dur:3},{to:'+26'},{pose:'back',dur:3},{to:'+0'}]},
-              stretch: {alone:2, company:1, steps:[{pose:'exercising',dur:4}]},
+              stretch: {alone:2, company:1, steps:[{pose:'stretch',dur:4}]},
               phone:   {alone:1, company:2, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} },
     street: { look:    {alone:2, company:1, steps:[{pose:'back',dur:3}]},
               phone:   {alone:2, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
