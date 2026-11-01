@@ -1,13 +1,42 @@
 {
-  "version": "2026-11-01a",
-  "written": "2026-11-01T05:20:00+02:00",
+  "version": "2026-11-01b",
+  "written": "2026-11-01T07:20:00+02:00",
   "arcs": [
-    { "id": "dana-basil", "title": "Dana and the basil cups", "stage": "2/5 — He knows about the basil leaves now (Sat in the park). Today at the cafe he asks her something real: how she knows plants." },
-    { "id": "moshe", "title": "Saving Moshe", "stage": "1/3 — Dana's tip: stop drowning him. Ishai is trying (badly) to water less. Tonight Moshe meets Falafel." },
-    { "id": "big-client", "title": "The big client", "stage": "2/4 — Working on 'bigger but smaller'. Tonight he sends version seven." },
-    { "id": "tv", "title": "Getting a TV", "stage": "Today 09:30–12:30 — Avi's cousin brings the old TV (director goal 'tv')." },
-    { "id": "levi-radio", "title": "Mrs. Levi's old radio", "stage": "Waiting; Tue Nov 3 from 15:00." },
-    { "id": "falafel", "title": "Falafel the dog", "stage": "The stray has appeared at Avi's kiosk. Today 13:30–18:00 Ishai adopts him and names him Falafel; first night at home." }
+    {
+      "id": "dana-basil",
+      "title": "Dana and the basil cups",
+      "stage": "2/5 — He knows about the basil leaves now (Sat in the park). Today at the cafe he asks her something real: how she knows plants."
+    },
+    {
+      "id": "moshe",
+      "title": "Saving Moshe",
+      "stage": "1/3 — Dana's tip: stop drowning him. Ishai is trying (badly) to water less. Tonight Moshe meets Falafel."
+    },
+    {
+      "id": "big-client",
+      "title": "The big client",
+      "stage": "2/4 — Working on 'bigger but smaller'. Tonight he sends version seven."
+    },
+    {
+      "id": "noa",
+      "title": "Noa, the best friend",
+      "stage": "They agreed Saturday night to meet Sunday. Tonight she comes over, meets Falafel and pushes him to raise his prices."
+    },
+    {
+      "id": "tv",
+      "title": "Getting a TV",
+      "stage": "Today 09:30–12:30 — Avi's cousin brings the old TV (director goal 'tv')."
+    },
+    {
+      "id": "levi-radio",
+      "title": "Mrs. Levi's old radio",
+      "stage": "Waiting; Tue Nov 3 from 15:00."
+    },
+    {
+      "id": "falafel",
+      "title": "Falafel the dog",
+      "stage": "The stray has appeared at Avi's kiosk. Today 13:30–18:00 Ishai adopts him and names him Falafel; first night at home."
+    }
   ],
   "beats": [
     {
@@ -21,44 +50,125 @@
       "forceWith": "dana",
       "forceText": "At the counter Ishai turns his cup and finds a basil leaf drawn in the foam. He looks up; Dana is already looking.",
       "forceLines": [
-        { "who": "ishai", "say": "I checked the cup this time." },
-        { "who": "dana", "say": "Took you three weeks. How's Moshe?" }
+        {
+          "who": "ishai",
+          "say": "I checked the cup this time."
+        },
+        {
+          "who": "dana",
+          "say": "Took you three weeks. How's Moshe?"
+        }
       ],
       "forceCommentary": [
-        { "who": "zohar", "say": "He CHECKED THE CUP. Somebody hold me." },
-        { "who": "oren", "say": "Three weeks to notice foam. The client wants a faster designer." }
+        {
+          "who": "zohar",
+          "say": "He CHECKED THE CUP. Somebody hold me."
+        },
+        {
+          "who": "oren",
+          "say": "Three weeks to notice foam. The client wants a faster designer."
+        }
       ],
-      "preview": { "moments": [
-        { "location": "cafe", "action": "talking", "with": "dana", "text": "Ishai takes his coffee, turns the cup, and sees the basil leaf in the foam.",
-          "lines": [
-            { "who": "dana", "say": "Extra shot. Same as always." },
-            { "who": "ishai", "say": "I checked the cup this time." },
-            { "who": "dana", "say": "Took you three weeks. How's Moshe?" },
-            { "who": "ishai", "say": "I skipped watering yesterday. It was the hardest day of my life." },
-            { "who": "dana", "say": "He'll survive. You might not." },
-            { "who": "ishai", "say": "How do you even know plants? You make coffee." },
-            { "who": "dana", "say": "My grandmother had a whole balcony jungle in Haifa. I was her slave every summer." },
-            { "who": "ishai", "say": "So basil is, like, your family business." },
-            { "who": "dana", "say": "Next customer's waiting, plant dad. Go." }
-          ],
-          "commentary": [
-            { "who": "zohar", "say": "Grandmother's balcony in Haifa. She told him a FAMILY story. That's basically meeting the parents." },
-            { "who": "oren", "say": "Moshe skipped one watering and survived. Medical miracle." }
-          ] },
-        { "location": "cafe", "action": "drinking", "with": "dana", "text": "Ishai lingers at the end of the counter with his cup; Dana wipes the machine nearby.",
-          "lines": [
-            { "who": "ishai", "say": "There's a stray dog at Avi's kiosk. Avi feeds him falafel." },
-            { "who": "dana", "say": "Avi feeds everyone falafel. Is the dog okay?" },
-            { "who": "ishai", "say": "He looked at me like I owed him money." },
-            { "who": "dana", "say": "Then you probably do." },
-            { "who": "ishai", "say": "Okay. Work. Bye. Thanks for the leaf." },
-            { "who": "dana", "say": "It's foam, Ishai. Bye." }
-          ],
-          "commentary": [
-            { "who": "zohar", "say": "She said his NAME. Not extra-shot guy. Ishai." },
-            { "who": "oren", "say": "A dog is coming. I can feel Moshe tensing up." }
-          ] }
-      ] }
+      "preview": {
+        "moments": [
+          {
+            "location": "cafe",
+            "action": "talking",
+            "with": "dana",
+            "text": "Ishai takes his coffee, turns the cup, and sees the basil leaf in the foam.",
+            "lines": [
+              {
+                "who": "dana",
+                "say": "Extra shot. Same as always."
+              },
+              {
+                "who": "ishai",
+                "say": "I checked the cup this time."
+              },
+              {
+                "who": "dana",
+                "say": "Took you three weeks. How's Moshe?"
+              },
+              {
+                "who": "ishai",
+                "say": "I skipped watering yesterday. It was the hardest day of my life."
+              },
+              {
+                "who": "dana",
+                "say": "He'll survive. You might not."
+              },
+              {
+                "who": "ishai",
+                "say": "How do you even know plants? You make coffee."
+              },
+              {
+                "who": "dana",
+                "say": "My grandmother had a whole balcony jungle in Haifa. I was her slave every summer."
+              },
+              {
+                "who": "ishai",
+                "say": "So basil is, like, your family business."
+              },
+              {
+                "who": "dana",
+                "say": "Next customer's waiting, plant dad. Go."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "Grandmother's balcony in Haifa. She told him a FAMILY story. That's basically meeting the parents."
+              },
+              {
+                "who": "oren",
+                "say": "Moshe skipped one watering and survived. Medical miracle."
+              }
+            ]
+          },
+          {
+            "location": "cafe",
+            "action": "drinking",
+            "with": "dana",
+            "text": "Ishai lingers at the end of the counter with his cup; Dana wipes the machine nearby.",
+            "lines": [
+              {
+                "who": "ishai",
+                "say": "There's a stray dog at Avi's kiosk. Avi feeds him falafel."
+              },
+              {
+                "who": "dana",
+                "say": "Avi feeds everyone falafel. Is the dog okay?"
+              },
+              {
+                "who": "ishai",
+                "say": "He looked at me like I owed him money."
+              },
+              {
+                "who": "dana",
+                "say": "Then you probably do."
+              },
+              {
+                "who": "ishai",
+                "say": "Okay. Work. Bye. Thanks for the leaf."
+              },
+              {
+                "who": "dana",
+                "say": "It's foam, Ishai. Bye."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "She said his NAME. Not extra-shot guy. Ishai."
+              },
+              {
+                "who": "oren",
+                "say": "A dog is coming. I can feel Moshe tensing up."
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "1101-adopt",
@@ -71,33 +181,176 @@
       "forceAction": "idle",
       "forceText": "Ishai carries the scruffy stray up to apartment 4 and sets him down. 'Welcome home, Falafel.' Moshe the basil has a new roommate.",
       "forceCommentary": [
-        { "who": "zohar", "say": "HE ADOPTED THE DOG. I need a minute. I need several minutes." },
-        { "who": "oren", "say": "Falafel. He named a dog after lunch. Respect." }
+        {
+          "who": "zohar",
+          "say": "HE ADOPTED THE DOG. I need a minute. I need several minutes."
+        },
+        {
+          "who": "oren",
+          "say": "Falafel. He named a dog after lunch. Respect."
+        }
       ],
-      "preview": { "moments": [
-        { "location": "street", "action": "talking", "with": "avi", "text": "At Avi's kiosk the sandy stray sits by the counter; Ishai crouches down to him.",
-          "lines": [
-            { "who": "avi", "say": "Champion! Back again? He waited for you all morning, I swear." },
-            { "who": "ishai", "say": "Avi, does he belong to anyone?" },
-            { "who": "avi", "say": "He belongs to the street. And to my falafel budget." },
-            { "who": "ishai", "say": "What if I took him? Just to try." },
-            { "who": "avi", "say": "There's no 'try' with a dog. He picks you, you're done." },
-            { "who": "ishai", "say": "Then I'm done. What do I call him?" },
-            { "who": "avi", "say": "He eats falafel all day. Call him Falafel." },
-            { "who": "ishai", "say": "Falafel. Okay, Falafel. Let's go home." }
-          ],
-          "commentary": [
-            { "who": "zohar", "say": "Avi just officiated a wedding between a man and a dog." },
-            { "who": "oren", "say": "Named after lunch. Moshe was named after Moshe. Moshe had dignity." }
-          ] },
-        { "location": "apartment", "action": "idle", "with": null, "text": "Falafel sniffs every corner of apartment 4 and stops, very interested, at Moshe's windowsill.",
-          "lines": [
-            { "who": "ishai", "say": "Falafel, this is Moshe. Moshe is family. We do not eat family." }
-          ],
-          "commentary": [
-            { "who": "oren", "say": "I don't trust that sniff. Protect the basil." }
-          ] }
-      ] }
+      "preview": {
+        "moments": [
+          {
+            "location": "street",
+            "action": "talking",
+            "with": "avi",
+            "text": "At Avi's kiosk the sandy stray sits by the counter; Ishai crouches down to him.",
+            "lines": [
+              {
+                "who": "avi",
+                "say": "Champion! Back again? He waited for you all morning, I swear."
+              },
+              {
+                "who": "ishai",
+                "say": "Avi, does he belong to anyone?"
+              },
+              {
+                "who": "avi",
+                "say": "He belongs to the street. And to my falafel budget."
+              },
+              {
+                "who": "ishai",
+                "say": "What if I took him? Just to try."
+              },
+              {
+                "who": "avi",
+                "say": "There's no 'try' with a dog. He picks you, you're done."
+              },
+              {
+                "who": "ishai",
+                "say": "Then I'm done. What do I call him?"
+              },
+              {
+                "who": "avi",
+                "say": "He eats falafel all day. Call him Falafel."
+              },
+              {
+                "who": "ishai",
+                "say": "Falafel. Okay, Falafel. Let's go home."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "Avi just officiated a wedding between a man and a dog."
+              },
+              {
+                "who": "oren",
+                "say": "Named after lunch. Moshe was named after Moshe. Moshe had dignity."
+              }
+            ]
+          },
+          {
+            "location": "apartment",
+            "action": "idle",
+            "with": null,
+            "text": "Falafel sniffs every corner of apartment 4 and stops, very interested, at Moshe's windowsill.",
+            "lines": [
+              {
+                "who": "ishai",
+                "say": "Falafel, this is Moshe. Moshe is family. We do not eat family."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "oren",
+                "say": "I don't trust that sniff. Protect the basil."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "1101-noa-falafel",
+      "startAt": "2026-11-01T18:15:00+02:00",
+      "deadlineAt": "2026-11-01T19:15:00+02:00",
+      "location": "apartment",
+      "with": "Noa (noa)",
+      "goal": "The Sunday meet-up Ishai and Noa agreed on last night. Noa comes up through the corridor with a bag of snacks, finds a dog in the apartment and demands the whole story. She meets Falafel, approves, and then turns to the big client: she tells him to raise his price for 'bigger but smaller' work. He half agrees. She leaves after about an hour.",
+      "forceAction": "talking",
+      "forceWith": "noa",
+      "forceText": "Noa stops in the doorway of apartment 4. A sandy dog is sitting on Ishai's couch.",
+      "forceLines": [
+        {
+          "who": "noa",
+          "say": "I leave you alone for one Shabbat and you get a dog?"
+        },
+        {
+          "who": "ishai",
+          "say": "His name is Falafel. He chose me."
+        }
+      ],
+      "forceCommentary": [
+        {
+          "who": "zohar",
+          "say": "Noa approves the dog. Now she has to approve Dana. One step at a time."
+        },
+        {
+          "who": "oren",
+          "say": "Noa's been telling him to get a life. He got a dog. Close enough."
+        }
+      ],
+      "preview": {
+        "moments": [
+          {
+            "location": "apartment",
+            "action": "talking",
+            "with": "noa",
+            "text": "Noa walks into apartment 4 with a snack bag and freezes: Falafel is on the couch.",
+            "lines": [
+              {
+                "who": "noa",
+                "say": "I leave you alone for one Shabbat and you get a dog?"
+              },
+              {
+                "who": "ishai",
+                "say": "His name is Falafel. He chose me. Avi was a witness."
+              },
+              {
+                "who": "noa",
+                "say": "Of course Avi was involved. Hi, Falafel. You're cuter than your owner."
+              },
+              {
+                "who": "ishai",
+                "say": "Everyone says that today."
+              },
+              {
+                "who": "noa",
+                "say": "So. The 'bigger but smaller' client. What are you charging them?"
+              },
+              {
+                "who": "ishai",
+                "say": "Same as always."
+              },
+              {
+                "who": "noa",
+                "say": "You now feed a dog. Double it. Say it out loud."
+              },
+              {
+                "who": "ishai",
+                "say": "Double it. Okay, one and a half."
+              },
+              {
+                "who": "noa",
+                "say": "Coward. I'm proud of you anyway."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "Noa approves the dog. Now she has to approve Dana. One step at a time."
+              },
+              {
+                "who": "oren",
+                "say": "One and a half. That's the most aggressive thing he's ever done."
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "1101-logo-falafel",
@@ -108,24 +361,59 @@
       "forceAction": "working",
       "forceText": "Ishai hits send on logo version seven. Under the desk, Falafel snores on his feet.",
       "forceLines": [
-        { "who": "ishai", "say": "Version seven. Bigger, smaller, premium. Falafel, if they hate it, you bite them." }
+        {
+          "who": "ishai",
+          "say": "Version seven. Bigger, smaller, premium. Falafel, if they hate it, you bite them."
+        }
       ],
       "forceCommentary": [
-        { "who": "oren", "say": "One night with a dog and he's delegating to it. Management material." },
-        { "who": "zohar", "say": "Man, dog, laptop, basil. This is the family portrait now." }
+        {
+          "who": "oren",
+          "say": "One night with a dog and he's delegating to it. Management material."
+        },
+        {
+          "who": "zohar",
+          "say": "Man, dog, laptop, basil. This is the family portrait now."
+        }
       ],
-      "preview": { "moments": [
-        { "location": "apartment", "action": "working", "with": null, "text": "Ishai at the laptop, logo versions side by side; Falafel asleep on his feet.",
-          "lines": [ { "who": "ishai", "say": "Bigger... smaller... Falafel, which one says premium? Okay, you're right. Seven. Send." } ],
-          "commentary": [
-            { "who": "oren", "say": "The dog has better taste than the client. Low bar, but still." },
-            { "who": "zohar", "say": "He's got a dog on his feet and a girl's leaf on his cup. Growth." }
-          ] }
-      ] }
+      "preview": {
+        "moments": [
+          {
+            "location": "apartment",
+            "action": "working",
+            "with": null,
+            "text": "Ishai at the laptop, logo versions side by side; Falafel asleep on his feet.",
+            "lines": [
+              {
+                "who": "ishai",
+                "say": "Bigger... smaller... Falafel, which one says premium? Okay, you're right. Seven. Send."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "oren",
+                "say": "The dog has better taste than the client. Low bar, but still."
+              },
+              {
+                "who": "zohar",
+                "say": "He's got a dog on his feet and a girl's leaf on his cup. Growth."
+              }
+            ]
+          }
+        ]
+      }
     }
   ],
   "overrides": [
-    { "id": "tv", "startAt": "2026-11-01T09:30:00+02:00", "deadlineAt": "2026-11-01T12:30:00+02:00" },
-    { "id": "radio", "startAt": "2026-11-03T15:00:00+02:00", "deadlineH": 24 }
+    {
+      "id": "tv",
+      "startAt": "2026-11-01T09:30:00+02:00",
+      "deadlineAt": "2026-11-01T12:30:00+02:00"
+    },
+    {
+      "id": "radio",
+      "startAt": "2026-11-03T15:00:00+02:00",
+      "deadlineH": 24
+    }
   ]
 }

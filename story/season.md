@@ -32,6 +32,6 @@ Cafe with Dana (he notices the basil cup) → invites Noa for Shabbat → Mrs. L
 **Previously:** Friday afternoon Ishai went to Avi's kiosk for falafel and walked to the park with Avi, who talked about Shabbat and "falafel without tahini". The planned Friday beats (cafe with Dana, Noa's invite, Mrs. Levi's challah, candles, dinner with Noa) never fired, so they're cancelled. Saturday dawn: Ishai is up early, digging through an empty fridge.
 **Today:** Slow Shabbat — Moshe pep talk → the stray at Avi's kiosk → Dana in the park (he finally gets the basil cups) → havdalah → the client's "bigger but smaller" email.
 
-## Day 3 — Sunday, Nov 1 (planned by Claude, 05:20)
-**Previously:** (Live data was unreachable for this run, so this follows the plan: past-deadline goals are forced by the engine.) Shabbat: a slow morning and a pep talk for overwatered Moshe; a scruffy sandy stray at Avi's kiosk, fed falafel balls; Dana in the park — Ishai learned she's been drawing basil leaves on his cups, plus a tip: stop drowning Moshe; havdalah; then the client's "bigger but smaller" email.
-**Today:** Cafe with Dana (he asks how she knows plants) → TV from Avi's cousin → adopting Falafel → logo v7 with Falafel on his feet.
+## Day 3 — Sunday, Nov 1 (planned by Claude, 05:20; updated 07:20 with live data)
+**Previously:** Noa left around midnight; Ishai slept badly, partly on the bathroom floor. Shabbat: Mrs. Levi scolded him in the corridor about noise, he gave Moshe a pep talk while watering him, and he went for falafel at Avi's kiosk, where Avi mentioned a stray dog that's been hanging around. In the park Dana told him to stop overwatering Moshe. After havdalah he worked on the "bigger but smaller" logo, then called Noa and they agreed to meet Sunday. Several of yesterday's beats were forced by the engine.
+**Today:** Cafe with Dana (he asks how she knows plants) → TV from Avi's cousin → adopting Falafel → Noa meets Falafel → logo v7 with Falafel on his feet.
