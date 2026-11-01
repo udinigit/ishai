@@ -1,180 +1,64 @@
 {
-  "version": "2026-10-31b-fix0742",
-  "written": "2026-10-31T07:20:00+02:00",
+  "version": "2026-11-01a",
+  "written": "2026-11-01T05:20:00+02:00",
   "arcs": [
-    {
-      "id": "dana-basil",
-      "title": "Dana and the basil cups",
-      "stage": "1/5 — He still hasn't noticed the basil leaves on his cups. Today in the park Dana drops a hint and he finally gets it."
-    },
-    {
-      "id": "moshe",
-      "title": "Saving Moshe",
-      "stage": "1/3 — Moshe is wilting; Ishai overwaters and gives him pep talks."
-    },
-    {
-      "id": "big-client",
-      "title": "The big client",
-      "stage": "1/4 — Motzei Shabbat email: the logo must be 'bigger but smaller' again."
-    },
-    {
-      "id": "tv",
-      "title": "Getting a TV",
-      "stage": "Sunday Nov 1, 09:30–12:30 — Avi's cousin brings the old TV."
-    },
-    {
-      "id": "levi-radio",
-      "title": "Mrs. Levi's old radio",
-      "stage": "Waiting; Tue Nov 3 from 15:00."
-    },
-    {
-      "id": "falafel",
-      "title": "Falafel the dog",
-      "stage": "Today: the stray appears at Avi's kiosk. Sunday: adoption."
-    }
+    { "id": "dana-basil", "title": "Dana and the basil cups", "stage": "2/5 — He knows about the basil leaves now (Sat in the park). Today at the cafe he asks her something real: how she knows plants." },
+    { "id": "moshe", "title": "Saving Moshe", "stage": "1/3 — Dana's tip: stop drowning him. Ishai is trying (badly) to water less. Tonight Moshe meets Falafel." },
+    { "id": "big-client", "title": "The big client", "stage": "2/4 — Working on 'bigger but smaller'. Tonight he sends version seven." },
+    { "id": "tv", "title": "Getting a TV", "stage": "Today 09:30–12:30 — Avi's cousin brings the old TV (director goal 'tv')." },
+    { "id": "levi-radio", "title": "Mrs. Levi's old radio", "stage": "Waiting; Tue Nov 3 from 15:00." },
+    { "id": "falafel", "title": "Falafel the dog", "stage": "The stray has appeared at Avi's kiosk. Today 13:30–18:00 Ishai adopts him and names him Falafel; first night at home." }
   ],
   "beats": [
     {
-      "id": "1031-moshe-morning",
-      "startAt": "2026-10-31T08:30:00+02:00",
-      "deadlineAt": "2026-10-31T10:00:00+02:00",
-      "location": "apartment",
-      "goal": "Slow Shabbat morning, no work, no rushing. The fridge is nearly empty, so Ishai settles for coffee and something simple and stops hunting the cupboards. He checks on Moshe the basil on the windowsill. Moshe looks droopier. Ishai waters him (again, too much) and gives him a sincere pep talk out loud.",
-      "forceAction": "talking",
-      "forceText": "Ishai kneels by the windowsill with a glass of water and gives Moshe the basil a quiet pep talk.",
-      "forceLines": [
-        {
-          "who": "ishai",
-          "say": "Come on, Moshe. It's Shabbat. Even you get to rest. Just... rest upright."
-        }
-      ],
-      "forceCommentary": [
-        {
-          "who": "oren",
-          "say": "That's his third glass of water. Moshe is not wilting, he's drowning."
-        },
-        {
-          "who": "zohar",
-          "say": "A man talking to a plant on Shabbat morning. Dana needs to see this."
-        }
-      ]
-    },
-    {
-      "id": "1031-stray",
-      "startAt": "2026-10-31T11:00:00+02:00",
-      "deadlineAt": "2026-10-31T13:30:00+02:00",
-      "location": "street",
-      "with": "Avi (avi)",
-      "unlock": "stray",
-      "goal": "On a slow Shabbat walk Ishai stops by Avi's kiosk and notices a scruffy sandy stray dog hanging around. Avi admits he has been secretly feeding it falafel balls. Ishai kneels, the dog sniffs him and decides he is acceptable. Ishai pretends not to be charmed. Complete when the stray has clearly entered the story.",
-      "forceAction": "talking",
-      "forceWith": "avi",
-      "forceText": "By Avi's kiosk, a scruffy sandy stray sits and stares at Ishai like they have met before.",
-      "forceLines": [
-        {
-          "who": "avi",
-          "say": "Don't look at me, champion. He showed up Tuesday. Now he's family."
-        },
-        {
-          "who": "ishai",
-          "say": "You're feeding him falafel?"
-        },
-        {
-          "who": "avi",
-          "say": "Only the good ones."
-        }
-      ],
-      "forceCommentary": [
-        {
-          "who": "zohar",
-          "say": "A stray dog and a lonely designer. I'm not saying it's destiny. I'm saying it's destiny."
-        },
-        {
-          "who": "oren",
-          "say": "Moshe the basil will not take this well."
-        }
-      ]
-    },
-    {
-      "id": "1031-park-dana",
-      "startAt": "2026-10-31T14:30:00+02:00",
-      "deadlineAt": "2026-10-31T16:15:00+02:00",
-      "location": "park",
+      "id": "1101-cafe-dana",
+      "startAt": "2026-11-01T07:45:00+02:00",
+      "deadlineAt": "2026-11-01T09:15:00+02:00",
+      "location": "cafe",
       "with": "Dana (dana)",
-      "goal": "Shabbat afternoon walk: Ishai goes apartment -> corridor -> street -> park to read on a bench. Dana, the barista from Cafe Nahat, off work, walks through the park and recognizes him. Short, awkward, real: she asks how his basil is doing; he is surprised she knows about Moshe; she tells him to check his cups sometime, and he realizes she has been drawing basil leaves on them. She gives one dry plant tip (stop drowning him). Shy, no date yet.",
+      "goal": "First workday of the week. Ishai walks apartment -> corridor -> street -> cafe for his usual extra-shot coffee, a little nervous after talking to Dana in the park on Shabbat. This time he looks at the cup before drinking: a basil leaf. He thanks her, reports that Moshe got a day off from water, and asks how she knows so much about plants (her grandmother's balcony garden in Haifa). Short and shy, other customers waiting; she says one dry thing that makes him smile. He mentions the stray at Avi's kiosk. No date yet.",
       "forceAction": "talking",
       "forceWith": "dana",
-      "forceText": "On a park bench, Ishai looks up from his book. Dana, off duty, stops in front of him with the faintest smile.",
+      "forceText": "At the counter Ishai turns his cup and finds a basil leaf drawn in the foam. He looks up; Dana is already looking.",
       "forceLines": [
-        {
-          "who": "dana",
-          "say": "Extra-shot guy. How's the basil?"
-        },
-        {
-          "who": "ishai",
-          "say": "How do you know about Moshe?"
-        }
+        { "who": "ishai", "say": "I checked the cup this time." },
+        { "who": "dana", "say": "Took you three weeks. How's Moshe?" }
       ],
       "forceCommentary": [
-        {
-          "who": "zohar",
-          "say": "She's been drawing basil on his cups for weeks. WEEKS. And he's only finding out now."
-        },
-        {
-          "who": "oren",
-          "say": "She knows about Moshe. Her intel is better than ours."
-        }
-      ]
-    },
-    {
-      "id": "1031-havdalah",
-      "startAt": "2026-10-31T17:30:00+02:00",
-      "deadlineAt": "2026-10-31T18:30:00+02:00",
-      "location": "apartment",
-      "goal": "After dark (three stars, about 17:35) Ishai makes a simple, sincere havdalah at home: a cup, a braided candle if he has one, smelling spices, a short blessing. Then 'Shavua tov' and he reaches for his phone again.",
-      "forceAction": "idle",
-      "forceText": "Three stars are out. Ishai makes a short havdalah at the kitchen counter, then exhales: Shavua tov.",
-      "forceLines": [
-        {
-          "who": "ishai",
-          "say": "Shavua tov, Moshe. New week. You can do this."
-        }
+        { "who": "zohar", "say": "He CHECKED THE CUP. Somebody hold me." },
+        { "who": "oren", "say": "Three weeks to notice foam. The client wants a faster designer." }
       ],
-      "forceCommentary": [
-        {
-          "who": "zohar",
-          "say": "Shabbat's over. The phone is back. The emails are coming."
-        },
-        {
-          "who": "oren",
-          "say": "Week one hundred sixty of Ishai being a better Jew than me."
-        }
-      ]
-    },
-    {
-      "id": "1031-client-email",
-      "startAt": "2026-10-31T19:30:00+02:00",
-      "deadlineAt": "2026-10-31T21:30:00+02:00",
-      "location": "apartment",
-      "goal": "Motzei Shabbat: Ishai opens his laptop and finds a long email from the big client: the logo must be 'bigger, but also smaller, but more premium'. He reads it aloud in disbelief, tries a few versions, and grumbles to Moshe. He needs the money for a TV, so he does not say no.",
-      "forceAction": "working",
-      "forceText": "Ishai stares at the laptop. The client wants the logo bigger, but smaller. He reads it twice.",
-      "forceLines": [
-        {
-          "who": "ishai",
-          "say": "'Bigger, but smaller, but more premium.' Moshe, what does that even mean?"
-        }
-      ],
-      "forceCommentary": [
-        {
-          "who": "oren",
-          "say": "Bigger but smaller. The client wants a Schrodinger's logo."
-        },
-        {
-          "who": "zohar",
-          "say": "Saturday night and he's working. Dana would never let this happen."
-        }
-      ]
+      "preview": { "moments": [
+        { "location": "cafe", "action": "talking", "with": "dana", "text": "Ishai takes his coffee, turns the cup, and sees the basil leaf in the foam.",
+          "lines": [
+            { "who": "dana", "say": "Extra shot. Same as always." },
+            { "who": "ishai", "say": "I checked the cup this time." },
+            { "who": "dana", "say": "Took you three weeks. How's Moshe?" },
+            { "who": "ishai", "say": "I skipped watering yesterday. It was the hardest day of my life." },
+            { "who": "dana", "say": "He'll survive. You might not." },
+            { "who": "ishai", "say": "How do you even know plants? You make coffee." },
+            { "who": "dana", "say": "My grandmother had a whole balcony jungle in Haifa. I was her slave every summer." },
+            { "who": "ishai", "say": "So basil is, like, your family business." },
+            { "who": "dana", "say": "Next customer's waiting, plant dad. Go." }
+          ],
+          "commentary": [
+            { "who": "zohar", "say": "Grandmother's balcony in Haifa. She told him a FAMILY story. That's basically meeting the parents." },
+            { "who": "oren", "say": "Moshe skipped one watering and survived. Medical miracle." }
+          ] },
+        { "location": "cafe", "action": "drinking", "with": "dana", "text": "Ishai lingers at the end of the counter with his cup; Dana wipes the machine nearby.",
+          "lines": [
+            { "who": "ishai", "say": "There's a stray dog at Avi's kiosk. Avi feeds him falafel." },
+            { "who": "dana", "say": "Avi feeds everyone falafel. Is the dog okay?" },
+            { "who": "ishai", "say": "He looked at me like I owed him money." },
+            { "who": "dana", "say": "Then you probably do." },
+            { "who": "ishai", "say": "Okay. Work. Bye. Thanks for the leaf." },
+            { "who": "dana", "say": "It's foam, Ishai. Bye." }
+          ],
+          "commentary": [
+            { "who": "zohar", "say": "She said his NAME. Not extra-shot guy. Ishai." },
+            { "who": "oren", "say": "A dog is coming. I can feel Moshe tensing up." }
+          ] }
+      ] }
     },
     {
       "id": "1101-adopt",
@@ -187,55 +71,61 @@
       "forceAction": "idle",
       "forceText": "Ishai carries the scruffy stray up to apartment 4 and sets him down. 'Welcome home, Falafel.' Moshe the basil has a new roommate.",
       "forceCommentary": [
-        {
-          "who": "zohar",
-          "say": "HE ADOPTED THE DOG. I need a minute. I need several minutes."
-        },
-        {
-          "who": "oren",
-          "say": "Falafel. He named a dog after lunch. Respect."
-        }
-      ]
+        { "who": "zohar", "say": "HE ADOPTED THE DOG. I need a minute. I need several minutes." },
+        { "who": "oren", "say": "Falafel. He named a dog after lunch. Respect." }
+      ],
+      "preview": { "moments": [
+        { "location": "street", "action": "talking", "with": "avi", "text": "At Avi's kiosk the sandy stray sits by the counter; Ishai crouches down to him.",
+          "lines": [
+            { "who": "avi", "say": "Champion! Back again? He waited for you all morning, I swear." },
+            { "who": "ishai", "say": "Avi, does he belong to anyone?" },
+            { "who": "avi", "say": "He belongs to the street. And to my falafel budget." },
+            { "who": "ishai", "say": "What if I took him? Just to try." },
+            { "who": "avi", "say": "There's no 'try' with a dog. He picks you, you're done." },
+            { "who": "ishai", "say": "Then I'm done. What do I call him?" },
+            { "who": "avi", "say": "He eats falafel all day. Call him Falafel." },
+            { "who": "ishai", "say": "Falafel. Okay, Falafel. Let's go home." }
+          ],
+          "commentary": [
+            { "who": "zohar", "say": "Avi just officiated a wedding between a man and a dog." },
+            { "who": "oren", "say": "Named after lunch. Moshe was named after Moshe. Moshe had dignity." }
+          ] },
+        { "location": "apartment", "action": "idle", "with": null, "text": "Falafel sniffs every corner of apartment 4 and stops, very interested, at Moshe's windowsill.",
+          "lines": [
+            { "who": "ishai", "say": "Falafel, this is Moshe. Moshe is family. We do not eat family." }
+          ],
+          "commentary": [
+            { "who": "oren", "say": "I don't trust that sniff. Protect the basil." }
+          ] }
+      ] }
+    },
+    {
+      "id": "1101-logo-falafel",
+      "startAt": "2026-11-01T19:30:00+02:00",
+      "deadlineAt": "2026-11-01T21:30:00+02:00",
+      "location": "apartment",
+      "goal": "First evening with Falafel. Ishai eats something simple, then sits at the laptop to finish the 'bigger but smaller' logo for the big client; Falafel lies on his feet. He tries versions aloud, asks Falafel's opinion, and finally sends version seven with a hopeful sigh. He waters Moshe only a little, proud of himself.",
+      "forceAction": "working",
+      "forceText": "Ishai hits send on logo version seven. Under the desk, Falafel snores on his feet.",
+      "forceLines": [
+        { "who": "ishai", "say": "Version seven. Bigger, smaller, premium. Falafel, if they hate it, you bite them." }
+      ],
+      "forceCommentary": [
+        { "who": "oren", "say": "One night with a dog and he's delegating to it. Management material." },
+        { "who": "zohar", "say": "Man, dog, laptop, basil. This is the family portrait now." }
+      ],
+      "preview": { "moments": [
+        { "location": "apartment", "action": "working", "with": null, "text": "Ishai at the laptop, logo versions side by side; Falafel asleep on his feet.",
+          "lines": [ { "who": "ishai", "say": "Bigger... smaller... Falafel, which one says premium? Okay, you're right. Seven. Send." } ],
+          "commentary": [
+            { "who": "oren", "say": "The dog has better taste than the client. Low bar, but still." },
+            { "who": "zohar", "say": "He's got a dog on his feet and a girl's leaf on his cup. Growth." }
+          ] }
+      ] }
     }
   ],
   "overrides": [
-    {
-      "id": "tv",
-      "startAt": "2026-11-01T09:30:00+02:00",
-      "deadlineAt": "2026-11-01T12:30:00+02:00"
-    },
-    {
-      "id": "radio",
-      "startAt": "2026-11-03T15:00:00+02:00",
-      "deadlineH": 24
-    },
-    {
-      "id": "fri-cafe-dana",
-      "cancel": true
-    },
-    {
-      "id": "fri-invite-noa",
-      "cancel": true
-    },
-    {
-      "id": "fri-levi-challah",
-      "cancel": true
-    },
-    {
-      "id": "fri-candles",
-      "cancel": true
-    },
-    {
-      "id": "fri-shabbat-dinner",
-      "cancel": true
-    }
-  ],
-  "fixes": [
-    {
-      "id": "fix-20261031-0742",
-      "endScene": false,
-      "note": "Ishai stops wandering between the window and the empty fridge. He makes himself a coffee, settles on the couch with a book (action reading) and enjoys a slow, quiet Shabbat morning.",
-      "minutes": 45
-    }
+    { "id": "tv", "startAt": "2026-11-01T09:30:00+02:00", "deadlineAt": "2026-11-01T12:30:00+02:00" },
+    { "id": "radio", "startAt": "2026-11-03T15:00:00+02:00", "deadlineH": 24 }
   ]
 }
