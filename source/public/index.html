@@ -751,7 +751,7 @@
     }
     // an occasional bark (same moment for every viewer)
     const sec = Math.floor(Date.now()/1000);
-    if (pose !== 'sleep' && sec % 71 === 0 && dog.lastBark !== sec){ dog.lastBark = sec; Sound.bark(); }
+    if (pose !== 'sleep' && sec % 71 === 0 && dog.lastBark !== sec){ dog.lastBark = sec; if (!SPEAKING && !Sound.busy() && Date.now() - TALK_AT > 5000) Sound.bark(); }
   }
 
   // ---- bystanders: muted, slightly faded, and the same for every viewer (driven by the clock) ----
@@ -2216,7 +2216,9 @@
     }, 50);
     function newSong(){ if (amb && amb.reseed) amb.reseed(); }
     const speaking = () => mode === 'voices';
-    return { blip, key, say, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx };
+    // anyone speaking right now (a voice still talking, or one queued)? sound effects wait for it
+    const busy = () => saying > 0 || ('speechSynthesis' in window && (speechSynthesis.speaking || speechSynthesis.pending));
+    return { blip, key, say, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -2595,7 +2597,7 @@
   let nextSfx = Date.now() + 15000;
   setInterval(() => {
     const now = Date.now(); if (now < nextSfx) return;
-    if (now - TALK_AT < 2500 || actor.switching || (actor.hidden && !BATH.has(actor.action)) || actor.loc === 'offscreen' || studioOn || showOn || callOn){ nextSfx = now + 3000; return; }
+    if (now - TALK_AT < 5000 || SPEAKING || Sound.busy() || SAY.who && performance.now() < SAY.until || actor.switching || (actor.hidden && !BATH.has(actor.action)) || actor.loc === 'offscreen' || studioOn || showOn || callOn){ nextSfx = now + 3000; return; }
     nextSfx = now + 20000 + Math.random() * 10000;
     const dogHere = UNLOCKED.has('dog') && dog.loc === actor.loc && actor.action !== 'sleeping';
     let list = actor.travelling ? ['steps'] : (SFX[actor.action] || []);
