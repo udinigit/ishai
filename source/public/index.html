@@ -406,6 +406,20 @@
   }
   function sitLegs(x,y){ R(x+2,y+16,6,2,C.pants); R(x+2,y+18,2,4,C.pants); R(x+6,y+18,2,4,C.pants); R(x+1,y+22,3,1,C.shoe); R(x+6,y+22,3,1,C.shoe); }
   const blinkOn = (t, seed=0) => ((t+seed) % 3600) < 160;
+  // now and then, at the desk or in the armchair: a stretch in the chair, a sip, rubbing his eyes (same clock for every viewer)
+  function seatFid(t, seed){
+    if (DREAMING) return null;
+    const blk = Math.floor(t/45000), e = t % 45000;
+    if (hash(blk*41 + seed) > .4 || e < 6000 || e > 10500) return null;
+    return ['stretch','sip','rub'][Math.floor(hash(blk*7 + seed) * 3)];
+  }
+  function seatMove(kind, x, y, t, lower){
+    head(x,y,{closed: kind!=='sip', yawn: kind==='stretch' && Math.floor(t/700)%2}); torso(x,y);
+    if (kind==='stretch'){ armsUp(x,y); }
+    else if (kind==='sip'){ R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+8,y+7,1,2,C.skin); R(x+7,y+5,2,3,'#e8e4d8'); R(x+9,y+6,1,1,'#e8e4d8'); }
+    else { R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+8,1,2,C.shirt); R(x+7,y+4,2,2,C.skin); }
+    lower();
+  }
 
   // pose renderers. o.legs: 'stand' | 'sit' | false
   function drawIshai(pose, x, y, t, o={}){
@@ -465,6 +479,7 @@
         R(31,71,11,4,C.pants); R(42,70-bob,2,2,C.shoe); R(42,72,2,3,C.shoe);
         break; }
       case 'watching': {
+        { const sk = seatFid(t, 6); if (sk && sk !== 'sip'){ seatMove(sk, x, y, t, () => {}); break; } }
         const snack = Math.floor(t/2600)%3===0;
         head(x,y,{closed:blinkOn(t,500), talk: snack && Math.floor(t/150)%2}); torso(x,y); armsFront(x,y);
         R(x+3,y+12,4,2,'#e8e4d8'); R(x+3,y+11,1,1,'#ffe27a'); R(x+5,y+11,1,1,'#ffe27a'); R(x+4,y+11,1,1,'#fff6c8');
@@ -477,13 +492,16 @@
         else { head(x,y,{closed:f===2}); torso(x,y); armsDown(x,y); }
         R(x+2,y+16,6,2,C.pants); break; }
       case 'working': {
+        { const sk = seatFid(t, 3); if (sk){ seatMove(sk, x, y, t, lower); break; } }
         head(x,y,{closed:blinkOn(t,700)}); torso(x,y); armsFront(x,y);
         R(x+1,y+12-(f2?1:0),1,1,C.skin); R(x+8,y+12-(f2?0:1),1,1,C.skin); lower(); break; }
       case 'gaming': {
+        { const sk = seatFid(t, 4); if (sk){ seatMove(sk, x, y, t, lower); break; } }
         head(x,y,{closed:blinkOn(t,300), look:(Math.floor(t/1700)%2)?1:0}); torso(x,y); armsFront(x,y);
         R(x+2,y+12,1,1,C.skin); R(x+7,y+12,1,1,C.skin);
         R(x+3,y+12,4,2,'#222'); R(x+4,y+12,1,1,f2?'#e0605a':'#3b7bc2'); R(x+6,y+12,1,1,'#7fbf6a'); lower(); break; }
       case 'reading': {
+        { const sk = seatFid(t, 5); if (sk){ seatMove(sk, x, y, t, lower); break; } }
         head(x,y,{closed:blinkOn(t,1200)}); torso(x,y); armsFront(x,y);
         R(x+2,y+11,6,4,'#f0ead8'); R(x+5,y+11,1,4,'#bfb69c');
         R(x+3,y+12,2,1,'#9a9a9a'); R(x+6,y+12,1,1,'#9a9a9a'); R(x+3,y+13,2,1,'#9a9a9a');
@@ -547,10 +565,11 @@
   const strHash = str => { let h = 7; for (const ch of String(str)) h = (h*31 + ch.charCodeAt(0)) >>> 0; return h; };
   function fid(seed, t, talking, seated){
     if ((g !== ctx && g !== lctx) || DREAMING) return 'none';     // portraits and dreams stay still
-    const w = Math.floor(t/4000), r = hash(w*131 + seed*7 + 3);
+    const w = Math.floor(t/5000), r = hash(w*131 + seed*7 + 3);
     const list = seated ? (talking ? ['nod','gesture','look','none','none','scratch'] : ['look','scratch','none','none','none','phone'])
       : talking ? ['gesture','nod','shrug','shift','tap','none','none','gesture','look']
-      : ['tap','stretch','look','scratch','turn','shift','cross','phone','stomp','none','none','none'];
+      : ['tap','look','scratch','turn','shift','cross','phone','none','none','none','none','none'];
+    if (!seated && !talking && hash(w*29 + seed) < .04) return 'stretch';   // a real stretch, rarely
     return list[Math.floor(r*list.length)];
   }
   function armsFid(x,y,t,kind){
@@ -1458,7 +1477,7 @@
               phone:   {alone:3, company:1, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} }
   };
   // which actions can be interrupted, and how often (share of 45 s blocks that get a routine), alone / with company
-  const ERR_CHANCE = { idle:[.55,.35], reading:[.35,.2], watching:[.3,.2], working:[.3,.15], gaming:[.25,.15], talking:[0,.2], eating:[0,.12], drinking:[0,.12] };
+  const ERR_CHANCE = { idle:[.45,.3], talking:[0,.2], eating:[0,.12], drinking:[0,.12] };   // seated activities fidget in the seat instead (seatFid)
   const hash = n => { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4); n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; };
   function errandNow(){
     const a = actor.action, list = ERRANDS[actor.loc], co = actor.with ? 1 : 0;

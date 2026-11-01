@@ -634,6 +634,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - Ishai does not know he is being filmed. He never talks to or about the camera, the show or the hosts.
 - Real-world logic: things take time and follow physics and logistics. He must physically get places (walk, bus or taxi), wait, carry what he buys, pay, clean up. Other people have their own jobs, schedules and moods and are not always available. Weather and time of day change plans.
 - Continue the story and its ongoing threads.
+- "exercising" is a real workout (20+ minutes). A quick stretch or a short break at the desk keeps the current action (working, reading...).
 - "walking" means walking somewhere or a stroll outside; for chatting use "talking", for hanging around use "idle".
 - The camera shows only "action": pick the action that matches what happens (a drink = drinking, a snack = eating); the hosts describe only what the picture can show.
 - Respect the clock: he sleeps at night (roughly 00:00-07:30), eats at mealtimes, works on weekdays (Sunday-Thursday in Israel).
@@ -784,6 +785,9 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (/\b(drink|drinks|drinking|sip|sips|coffee|tea|water|glass of|cooola|juice|beer|wine)\b/.test(all) && LOCATIONS[ev.location].includes("drinking")) ev.action = "drinking";
     else if (/\b(eat|eats|eating|snack|sandwich|bite|meal|breakfast|lunch|dinner)\b/.test(all) && LOCATIONS[ev.location].includes("eating")) ev.action = "eating";
   }
+  // a quick stretch / break at the desk or in the armchair is not a workout: he stays put (the page shows a stretch in the seat)
+  if (ev.action === "exercising" && ev.location === last.location && ["working", "gaming", "reading", "watching"].includes(last.action) && !ev.with
+    && /\b(stretch|stretches|break|stands? up|gets up|legs|back|neck|shoulders?|yawn)/i.test(ev.text) && !/\b(workout|push-?ups|sit-?ups|jog|run|yoga|weights|treadmill)\b/i.test(ev.text)) ev.action = last.action;
   // "walking" indoors is not a way to hang out: with someone it is talking, alone it is idle (the page adds errands)
   if (ev.action === "walking" && ["apartment", "cafe", "gym", "bar"].includes(ev.location)) ev.action = ev.with ? "talking" : ev.location === "gym" ? "exercising" : "idle";
   { const h = storyClock(Date.now() + DELAY_MIN * 60000).hour;
