@@ -142,6 +142,7 @@ const LOCATIONS = {
   apartment: ["sleeping","waking","idle","walking","working","gaming","eating","drinking","cooking","reading","exercising","watching","listening","bathroom","showering","talking","phoning"],
   corridor:  ["walking","idle","talking","phoning"],
   street:    ["walking","idle","talking","eating","drinking","phoning"],
+  shops:     ["walking","idle","talking","eating","drinking","phoning"],
   park:      ["walking","idle","talking","reading","eating","drinking","exercising","phoning"],
   cafe:      ["idle","eating","drinking","working","reading","talking","phoning"],
   gym:       ["exercising","idle","talking","drinking","phoning"],
@@ -151,7 +152,8 @@ const LOCATIONS = {
 const PLACES = {
   apartment: "his one-room flat: bed, desk with laptop, armchair, small kitchen, a bathroom door (the camera never sees inside; use bathroom/showering), window with Moshe the basil",
   corridor:  "the building hallway outside his door",
-  street:    "Herzl Street outside the building: Avi's falafel kiosk, a bus stop bench, traffic",
+  street:    "Herzl Street outside his building (west end): Avi's falafel kiosk, a bus stop bench, the doors of Herzl Gym and The Black Candle bar, traffic",
+  shops:     "Herzl Street east, the next block toward the cafe: Herzl Hardware, the Tahini Tower Savings Bank with an ATM, a flower shop with buckets of flowers on the sidewalk, a pedestrian crossing with traffic lights, ficus trees; Cafe Nahat is on the corner at the end",
   park:      "a small park nearby: a bench, a pond with one duck, a big tree",
   cafe:      "Cafe Nahat, a corner cafe (soft pop and soft rock on the radio, quietly)",
   gym:       "Herzl Gym, a small neighborhood gym on Herzl Street, two doors from his building: treadmills facing a wall TV on Channel 9 with the sound on, a mirror wall with dumbbells, a water cooler. Here \"exercising\" means he walks or jogs on the treadmill watching the TV. Open 06:00-23:00",
@@ -162,9 +164,10 @@ const PLACES = {
 const NEXT = {
   apartment: ["corridor"],
   corridor:  ["apartment","street"],
-  street:    ["corridor","park","cafe","gym","bar","offscreen"],
+  street:    ["corridor","park","shops","gym","bar","offscreen"],
+  shops:     ["street","cafe"],
   park:      ["street"],
-  cafe:      ["street"],
+  cafe:      ["shops"],
   gym:       ["street"],
   bar:       ["street"],
   offscreen: ["street"]
@@ -347,7 +350,7 @@ function basicRecap(s, day, storyMs) {
     return { time: m[1], loc: m[2], act: m[3], w: m[5] || null, text };
   }).filter(x => x && x.text && x.act !== "sleeping");
   const notable = []; let prevLoc = null, prevW = null;
-  for (const x of lines){ if (x.w !== prevW || (x.loc !== prevLoc && !["corridor", "street"].includes(x.loc))) notable.push(x); prevLoc = x.loc; prevW = x.w; }
+  for (const x of lines){ if (x.w !== prevW || (x.loc !== prevLoc && !["corridor", "street", "shops"].includes(x.loc))) notable.push(x); prevLoc = x.loc; prevW = x.w; }
   const pickN = notable.slice(-6);
   if (!pickN.length) return null;
   const sp = nextSponsor(s), out = [];
@@ -453,7 +456,7 @@ async function tick(env, force) {
   if ((ev.commentary || []).some(c => SPONSORS.some(sp => c.say.toLowerCase().includes(sp.name.toLowerCase())))) s.lastAd = now;
   const did = { eating: ["eat"], cooking: [], drinking: ["drink"], bathroom: ["bathroom"], showering: ["shower", "bathroom"] }[ev.action] || [];
   if (ev.action === "eating" && (ev.location === "cafe" || ev.location === "bar")) did.push("drink");
-  if (s.unlocked.includes("dog") && (ev.location === "park" || ev.location === "street")) did.push("dogwalk");
+  if (s.unlocked.includes("dog") && ["park", "street", "shops"].includes(ev.location)) did.push("dogwalk");
   did.forEach(k => { s.done[k] = storyMs; });
   if (ev.missing) {
     const w = s.wishlist[ev.missing] || (s.wishlist[ev.missing] = { count: 0, example: "" });
@@ -471,7 +474,7 @@ async function tick(env, force) {
   // the day's highlights, replayed in Ishai's dreams at night
   { const prevEv = s.events[s.events.length - 2], hl = s.hl || (s.hl = []), lastHl = hl[hl.length - 1];
     const notable = !["sleeping", "waking", "bathroom", "showering"].includes(ev.action) && ev.location !== "offscreen" &&
-      (ev.with || ev.complete || ev.unlocks || (prevEv && prevEv.location !== ev.location && !["corridor", "street"].includes(ev.location)));
+      (ev.with || ev.complete || ev.unlocks || (prevEv && prevEv.location !== ev.location && !["corridor", "street", "shops"].includes(ev.location)));
     if (notable && !(lastHl && lastHl.loc === ev.location && lastHl.w === (ev.with || null)))
       { hl.push({ t: storyMs, loc: ev.location, a: ev.action, w: ev.with || null }); s.hl = hl.slice(-20); } }
   if (!ev.with && !BATH_ACTIONS.includes(ev.action)){ if (s.scene && s.scene.w) s.gone = { w: s.scene.w, until: storyMs + 90 * 60000 }; s.scene = null; }
@@ -634,6 +637,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - Ishai does not know he is being filmed. He never talks to or about the camera, the show or the hosts.
 - Real-world logic: things take time and follow physics and logistics. He must physically get places (walk, bus or taxi), wait, carry what he buys, pay, clean up. Other people have their own jobs, schedules and moods and are not always available. Weather and time of day change plans.
 - Continue the story and its ongoing threads.
+- Clothes are automatic (the picture shows them): pajamas in bed at night, sportswear at the gym, a jacket outside in rain or cold, a white shirt at home for Shabbat; mention them naturally if at all.
 - "exercising" is a real workout (20+ minutes). A quick stretch or a short break at the desk keeps the current action (working, reading...).
 - "walking" means walking somewhere or a stroll outside; for chatting use "talking", for hanging around use "idle".
 - The camera shows only "action": pick the action that matches what happens (a drink = drinking, a snack = eating); the hosts describe only what the picture can show.
@@ -968,11 +972,12 @@ function sickEvent(s, last, hour) {
     { who: "zohar", say: "Rest up, Ishai. The whole country is whispering." },
     { who: "oren", say: "This is the most relaxing episode we have ever aired." }
   ];
-  const step = { offscreen: "street", street: "corridor", park: "street", cafe: "street", gym: "street", bar: "street", corridor: "apartment" }[last.location];
+  const step = { offscreen: "street", street: "corridor", shops: "street", park: "street", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   let ev;
   if (step) {
     const T = {
       street: ["Ishai looks pale. He heads back along Herzl Street toward home, slower than usual.", "He walks home along Herzl Street, one hand on his stomach."],
+      shops: ["Ishai leaves the café looking pale and walks slowly back along Herzl Street, past the flower shop.", "He heads home past the shops, one hand on his stomach."],
       corridor: ["Ishai climbs the stairs slowly and fishes for his keys, looking worn out.", "He leans on the wall in the hallway for a second, then unlocks the door."],
       apartment: ["Ishai comes in, kicks off his shoes and drops onto the bed.", "Home. He drops his keys and heads straight for the bed."]
     };
@@ -1012,9 +1017,9 @@ function sickEvent(s, last, hour) {
 }
 function fallback(last, hour, s) {
   const night = hour < 7 || hour >= 23;
-  const home = { offscreen: "street", street: "corridor", park: "street", cafe: "street", gym: "street", bar: "street", corridor: "apartment" }[last.location];
+  const home = { offscreen: "street", street: "corridor", shops: "street", park: "street", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   if (night && home) {
-    const T = { street: "Ishai heads back along Herzl Street toward home.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
+    const T = { street: "Ishai heads back along Herzl Street toward home.", shops: "He walks back past the dark shop windows toward his building.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
     return { location: home, action: home === "apartment" ? "idle" : "walking", text: T[home], with: null, lines: [] };
   }
   const P = {
@@ -1023,16 +1028,20 @@ function fallback(last, hour, s) {
     corridor: [["corridor", "walking", "Ishai walks down the hallway, keys jingling."], ["apartment", "idle", "He lets himself back into the flat and drops his keys on the desk."], ["street", "walking", "He steps out of the building onto Herzl Street."]],
     street: [["street", "walking", "He walks along Herzl Street, dodging a scooter."], ["street", "idle", "He sits on the bus stop bench for a minute, watching the traffic."], ["street", "eating", "He buys a falafel at Avi's kiosk and eats it standing at the counter."], ["park", "walking", "He wanders into the little park and heads for the bench."], ["corridor", "walking", "He heads back into his building and up the stairs."]],
     park: [["park", "idle", "Ishai watches the duck. The duck watches back."], ["park", "walking", "He does a slow lap around the pond."], ["street", "walking", "He leaves the park and walks back to Herzl Street."]],
+    shops: [["shops", "walking", "Ishai walks past the hardware shop, slowing to look at a drill in the window."], ["shops", "idle", "He waits at the crossing for the light to turn green."],
+      ["shops", "idle", "He takes cash out at the Tahini Tower ATM and squints at the receipt."], ["street", "walking", "He walks back west along Herzl Street toward his building."]],
     gym: [["gym", "exercising", "Ishai keeps a steady pace on the treadmill, eyes on the Channel 9 screen."], ["gym", "drinking", "He steps off the treadmill and refills his bottle at the water cooler."], ["street", "walking", "He wipes his face with a towel and heads back out to Herzl Street."]],
     bar: [["bar", "drinking", "He nurses his beer at the candle-lit table, nodding along to the guitar riff."], ["bar", "eating", "He picks at a bowl of salted peanuts while the bar's speaker rumbles."], ["street", "walking", "He pays at the bar, nods to the bartender and steps out onto Herzl Street."]],
-    cafe: [["cafe", "drinking", "He sips his coffee slowly, making it last."], ["cafe", "reading", "He reads the news on his phone at the corner table."], ["street", "walking", "He pays, waves to the barista and steps back out onto Herzl Street."]],
+    cafe: [["cafe", "drinking", "He sips his coffee slowly, making it last."], ["cafe", "reading", "He reads the news on his phone at the corner table."], ["shops", "walking", "He pays, waves to the barista and steps back out onto Herzl Street by the flower shop."]],
     offscreen: [["offscreen", "away", "No sign of Ishai on any camera."], ["street", "walking", "Ishai gets off the bus on Herzl Street with a shopping bag."]]
   }[last.location] || [[last.location, "idle", "A quiet moment."]];
   const wet = !!(s && s.world && s.world.weather && s.world.weather.rain);
-  if (wet && (last.location === "street" || last.location === "park")) {
+  if (wet && ["street", "park", "shops"].includes(last.location)) {
     const R = {
       street: [["street", "walking", "Ishai opens his umbrella and hurries along Herzl Street, stepping around the puddles."], ["corridor", "walking", "He ducks back into his building, shaking the rain off his umbrella."],
-        ["cafe", "idle", "Rain picks up; he hurries into the café and leans his dripping umbrella by the door."], ["street", "eating", "He buys a falafel at Avi's kiosk and eats it under the kiosk awning, watching the rain."]],
+        ["shops", "walking", "Rain picks up; he hurries east along Herzl Street toward the café, umbrella up."], ["street", "eating", "He buys a falafel at Avi's kiosk and eats it under the kiosk awning, watching the rain."]],
+      shops: [["cafe", "idle", "Rain picks up; he hurries into the café and leans his dripping umbrella by the door."], ["street", "walking", "He hurries back west along Herzl Street under his umbrella."],
+        ["shops", "idle", "He waits under the flower shop's awning for the worst of the rain to pass."]],
       park: [["park", "walking", "Ishai crosses the wet park under his umbrella. The duck does not seem to mind the rain."], ["street", "walking", "It is pouring; he gives up on the park and heads back to Herzl Street."]]
     }[last.location];
     const recent = new Set((s.events || []).slice(-6).map((e) => e.text)), f = R.filter((p) => !recent.has(p[2])), o = f.length ? f : R;
@@ -1071,8 +1080,9 @@ const pathStep = (from, to) => { const prev = { [from]: null }, q = [from];
 function travelEvent(s, last, hop, dest) {
   const wet = !!(s.world && s.world.weather && s.world.weather.rain), dog = s.unlocked.includes("dog"), umb = wet ? " under his umbrella" : "";
   const T = { "apartment>corridor": `Ishai grabs his keys${dog ? ", clips on Falafel's leash" : ""} and heads out the door.`, "corridor>street": `He goes down the stairs and out onto Herzl Street${umb}.`,
-    "street>cafe": `He walks along Herzl Street${umb} to the café.`, "street>park": `He crosses Herzl Street${umb} toward the little park.`, "street>corridor": "He heads back into his building and up the stairs.",
-    "corridor>apartment": "He unlocks apartment 4 and goes in.", "park>street": `He walks back to Herzl Street${umb}.`, "cafe>street": `He steps out of the café onto Herzl Street${umb}.`,
+    "street>shops": `He walks east along Herzl Street${umb}, past the hardware shop and the bank.`, "shops>cafe": `He crosses at the lights${umb} and goes into Cafe Nahat.`,
+    "shops>street": `He walks back west along Herzl Street${umb} toward his building.`, "street>park": `He crosses Herzl Street${umb} toward the little park.`, "street>corridor": "He heads back into his building and up the stairs.",
+    "corridor>apartment": "He unlocks apartment 4 and goes in.", "park>street": `He walks back to Herzl Street${umb}.`, "cafe>shops": `He steps out of the café onto Herzl Street${umb}, by the flower shop.`,
     "street>gym": `He pushes open the glass door of Herzl Gym${dog ? ", Falafel trotting behind" : ""}.`, "gym>street": `He leaves the gym, towel round his neck, and steps out onto Herzl Street${umb}.`,
     "street>bar": "He pushes open the heavy door of The Black Candle; red light and a guitar riff spill out.", "bar>street": `He steps out of The Black Candle onto Herzl Street${umb}.`,
     "street>offscreen": "He gets on the bus at the stop.", "offscreen>street": "He gets off the bus on Herzl Street." };

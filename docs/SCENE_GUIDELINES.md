@@ -19,7 +19,9 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 | Corridor | stairs (178) | Street | building entrance (26) |
 | Street | building entrance (26) | Corridor | stairs (178) |
 | Street | left edge | Park | right edge |
-| Street | right edge | Café | entrance (left) |
+| Street | right edge | Shops (Herzl St. east) | left edge |
+| Shops | left edge | Street | right edge |
+| Shops | right edge (the café corner) | Café | entrance (left) |
 | Street | bus stop (128) | Off camera | — by bus (day) or taxi (night / rain) |
 | Street | Herzl Gym door (64, blue building) | Gym | door (4, left) |
 | Gym | door (4) | Street | Herzl Gym door (64) |
@@ -28,7 +30,7 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 | Apartment | bathroom door (48) | Bathroom | door (9) |
 | Bathroom | door (9) | Apartment | bathroom door (48) |
 | Park | right edge | Street | left edge |
-| Café | entrance (left) | Street | right edge |
+| Café | entrance (left) | Shops | right edge |
 
 - Every link is the same door both ways: leaving X by door A into Y always arrives at Y's door B, and leaving Y by door B always arrives back at X's door A (`MAP[x][y].exit === MAP[x][y].entry`).
 - A friend going somewhere with Ishai walks right behind him through the same doors, place after place, and arrives through the door he used (never from a random edge).
@@ -44,6 +46,7 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
   - Corridor: Ishai's door (apt 4), Mrs. Levi's door (apt 5), the stairs/exit, the elevator.
   - Street: Ishai's building entrance, left edge, right edge.
   - Park: right edge (path to the street), left edge (further into the park).
+  - Shops (CAM-09, Herzl St. east): left edge (back to Ishai's block), right edge (the café corner). Herzl Hardware, Tahini Tower Savings Bank + ATM, a flower shop, a pedestrian crossing with lights, Kfar Kofi billboard.
   - Café: the entrance on the left.
   - Gym (CAM-07, Herzl Gym): the glass door on the left. Treadmills under a wall TV (Channel 9, sound on); "exercising" = on the treadmill. Open 06:00-23:00.
   - Bar (CAM-08, The Black Candle): the heavy door on the left. Dark rock bar: black brick, red neon, candles, fictional band posters (Grave Tahini, Iron Falafel). Opens 17:00, closes 02:00.
@@ -89,7 +92,14 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 
 - Sleep phases: first 10 minutes just sleeping, then zzz, after 15 minutes the dream bubble. Every ~100 s the dream takes a 14 s counting-sheep break; twice per cycle it shows a random picsum.photos picture turned into 8-bit pixels (seeded by the clock, same for everyone; skipped if it fails to load). Preview with `?loc=apartment&pose=sleeping&sleptMin=20`.
 
+## 9b. Clothes
+- Outfits change automatically (`outfitOf()` in the page, no AI): pajamas for Ishai in bed / at home late at night without guests, sportswear at the gym, a jacket over the shirt outside in rain or at 15°C and below, a white shirt at home on Shabbat evening. Cast members get the same rules (their own jacket/sport colours); bystanders keep their look. Portraits and dreams use the normal look.
+
+## 9c. Park life
+- The park has street cats (one asleep under the tree, one by the vending machine that comes over when he eats on the bench, one strolling the far lawn), pigeons on the path that flutter off when someone comes close (and peck crumbs by the bench), crows on the lamp and in the tree (one flies over now and then), and joggers.
+
 ## 10. Fidgets and idle life
+- Seated activities (working, gaming, reading, watching) never pop up for an errand: small breaks happen in the seat (`seatFid()`: a yawning stretch, a sip, rubbing eyes). Errands are for standing/idle moments only.
 - Standing or listening characters fidget every few seconds (`fid()`): foot tap, stomp, weight shift, stretch, look around, scratch head, turn around, cross arms, check phone. Talking adds gestures, nods and shrugs. Seated people nod, gesture and look around.
 - Standing friends take a couple of steps and come back now and then (`wander()`), never while it is their turn to speak.
 - Ishai does small routines inside long moments (`ERRANDS`): every place has its own list, each with a weight alone and a weight with company (e.g. alone he grabs a drink; with a guest he brings drinks for both or shows something on his phone; the guest waits in place). `ERR_CHANCE` sets how often, alone vs. with company. The same routine never runs twice in a row, and a fridge trip before a drink happens at most every 6 minutes.

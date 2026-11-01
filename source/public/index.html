@@ -230,6 +230,7 @@
     apartment: ['sleeping','waking','idle','walking','working','gaming','eating','drinking','cooking','reading','exercising','watching','listening','bathroom','showering','talking','phoning'],
     corridor:  ['walking','idle','talking','phoning'],
     street:    ['walking','idle','talking','eating','drinking','phoning'],
+    shops:     ['walking','idle','talking','eating','drinking','phoning'],
     park:      ['walking','idle','talking','reading','eating','drinking','exercising','phoning'],
     cafe:      ['idle','eating','drinking','working','reading','talking','phoning'],
     gym:       ['exercising','idle','talking','drinking','phoning'],
@@ -242,6 +243,7 @@
   let WORLD = null; // real weather / Shabbat from the Worker
   let DREAM = []; // today's highlights {t, loc, a, w}: replayed in a thought bubble while he sleeps
   let DREAMING = false;
+  const OUTSIDE = new Set(['street','park','shops']);
   let MEDIA_UNTIL = 0;
   let TALK_AT = 0;       // last time a character of anyone's speech was typed (music fades under it)   // the story just put a live line on the radio/TV: our own DJ keeps quiet for a while
   let UMB = false;   // Ishai is outdoors (street/park) in the rain: he holds an umbrella
@@ -387,7 +389,20 @@
     else R(x+4,y+6,2,1,C.skinShade);
     R(x+4,y+8,2,1,C.skinShade);
   }
-  function torso(x,y){ R(x+2,y+9,6,7,C.shirt); R(x+2,y+15,6,1,C.shirtShade); R(x+4,y+9,2,1,C.shirtShade); }
+  function torso(x,y){ R(x+2,y+9,6,7,C.shirt); R(x+2,y+15,6,1,C.shirtShade); R(x+4,y+9,2,1,C.shirtShade);
+    if (C.inner) R(x+4,y+10,2,5,C.inner);                                  // open jacket: the shirt shows down the middle
+    if (C.pjs){ R(x+2,y+11,6,1,C.shirtShade); R(x+2,y+13,6,1,C.shirtShade); } }   // striped pajamas
+  // ---- automatic outfits (no AI): pajamas in bed, sportswear at the gym, a jacket outside in rain or cold, a white shirt for Shabbat ----
+  const JACKETS = ['#3a4a3a','#4a3a2a','#2a2e3a','#5a4a3a','#3a3a44'];
+  function outfitOf(id, loc, act){
+    if (DREAMING || !loc) return null;
+    const h = hourNow(), wx = WORLD && WORLD.weather;
+    if (id === 'ishai' && loc === 'apartment' && (act === 'sleeping' || act === 'waking' || ((h >= 23 || h < 7) && !actor.with))) return {shirt:'#9fc3e6', pants:'#7fa6cc', pjs:true};
+    if (loc === 'gym') return {shirt: id === 'ishai' ? '#c23b3b' : CLOTH[['orange','blue','pink','green','yellow'][strHash(id) % 5]], pants:'#2a2a2a'};
+    if (OUTSIDE.has(loc) && wx && (wx.rain || wx.temp <= 15)) return {shirt: JACKETS[strHash(id) % JACKETS.length], inner:true};
+    if (loc === 'apartment' && isShabbatEve()) return {shirt:'#f2f0ea'};
+    return null;
+  }
   function armsDown(x,y,sw=0){
     R(x+1,y+9+sw,1,4,C.shirt); R(x+1,y+13+sw,1,2,C.skin);
     R(x+8,y+9-sw,1,4,C.shirt); R(x+8,y+13-sw,1,2,C.skin);
@@ -423,6 +438,13 @@
 
   // pose renderers. o.legs: 'stand' | 'sit' | false
   function drawIshai(pose, x, y, t, o={}){
+    const fit = outfitOf('ishai', actor.loc, actor.action);
+    if (!fit) return drawIshaiBody(pose, x, y, t, o);
+    const keep = {shirt:C.shirt, shirtShade:C.shirtShade, pants:C.pants, inner:C.inner, pjs:C.pjs};
+    C.inner = fit.inner ? C.shirt : null; C.shirt = fit.shirt; C.shirtShade = shade(fit.shirt, .82); if (fit.pants) C.pants = fit.pants; C.pjs = !!fit.pjs;
+    try { return drawIshaiBody(pose, x, y, t, o); } finally { Object.assign(C, keep); }
+  }
+  function drawIshaiBody(pose, x, y, t, o={}){
     if (pose==='sleeping' || pose==='listening') markHead('ishai', 9, 66); else markHead('ishai', x, y);
     if (pose==='sleeping' || pose==='listening') return outlined(6, 56, 44, 26, () => drawIshaiRaw(pose, x, y, t, o));
     const umb = UMB && !DREAMING && !['exercising','stretch','waking'].includes(pose);
@@ -591,7 +613,9 @@
   function person(L, x, y, t, o={}){
     if (!o.muted && !o._inner) return outlined(x-12, y-10, 36, 36, () => person(L, x, y, t, Object.assign({}, o, {_inner:true})));
     const pal = lookPal(L, o.muted), ex = L.extras||[];
-    const keep = {hair:C.hair,skin:C.skin,skinShade:C.skinShade,shirt:C.shirt,shirtShade:C.shirtShade,pants:C.pants};
+    const keep = {hair:C.hair,skin:C.skin,skinShade:C.skinShade,shirt:C.shirt,shirtShade:C.shirtShade,pants:C.pants,inner:C.inner,pjs:C.pjs};
+    const fit = L._fit; C.inner = null; C.pjs = false;
+    if (fit && !o.muted){ if (fit.inner) pal.inner = pal.shirt; pal.shirt = fit.shirt; pal.shirtShade = shade(fit.shirt, .82); if (fit.pants) pal.pants = fit.pants; }
     Object.assign(C, pal);
     const theirs = o.talkPhase && !!SPEAKING && SPEAKING!=='ishai' && !(SPEAKING in {zohar:1,oren:1});
     const fw = o.walk ? Math.floor(t/220)%4 : 0, bob = o.walk && fw%2 ? -1 : 0;
@@ -696,7 +720,7 @@
     const ddir = arrived ? (pose==='walk' ? Math.sign(Math.cos(t/2200))||1 : (actor.x >= dog.x ? 1 : -1)) : Math.sign(d)||1;
     drawDog(dog.x, arrived ? fy : floor, t, arrived ? pose : 'walk', ddir);
     // on the leash outside
-    if ((actor.loc==='street' || actor.loc==='park') && !actor.hidden){
+    if (OUTSIDE.has(actor.loc) && !actor.hidden){
       const hx = actor.x + (dog.x > actor.x ? 9 : 1), hy = scene.walkY + 13, cx = Math.round(dog.x) + (ddir > 0 ? 8 : 2), cy = floor - 4;
       const sag = Math.min(4, Math.abs(cx - hx) / 6), mx = (hx + cx) / 2, my = Math.max(hy, cy) + sag;
       line(hx, hy, Math.round(mx), Math.round(my), '#c23b3b'); line(Math.round(mx), Math.round(my), cx, cy, '#c23b3b');
@@ -816,7 +840,8 @@
     bartender:{hair:'long',hairColor:'black',skin:'tan',shirt:'black',pants:'black',extras:['beard','earring']}
   };
   let CAST = {}; // id -> card, from the Worker
-  const lookOf = id => (CAST[id] && CAST[id].look) || null;
+  const lookOf = id => { const L = CAST[id] && CAST[id].look; if (!L) return null;
+    let f = null; try { f = outfitOf(id, actor.loc, actor.action); } catch(e){} return f ? Object.assign({}, L, {_fit: f}) : L; };
   // the person currently with Ishai (or a generic stranger when he talks to someone unnamed)
   function companionLook(a){
     if (a==='phoning') return null; // the other person is on the phone, not in the room
@@ -1198,6 +1223,52 @@
     }
   };
 
+  // ---------- Herzl St. east: the shops between his block and the café ----------
+  SCENES.shops = {
+    cam:'CAM-09', place:'HERZL ST. // SHOPS', walkY:66, entry:-14, exit:W+8,
+    stand:{idle:96, walking:96, talking:100, eating:100, drinking:100, phoning:96},
+    draw(t,hf,a,settled,actor){
+      drawSky(0,0,W,52,hf,t); const night = isNight(hf);
+      [[0,12,62,'#8f7f6c'],[62,6,48,'#a89a86'],[110,18,44,'#7d8a7a'],[154,10,38,'#9a7f6a']].forEach(([x,y,w,c],bi)=>{ R(x,y,w,72-y,c); R(x,y,w,2,'#00000033');
+        for (let wy=y+6; wy<34; wy+=9) for (let wx=x+4; wx<x+w-5; wx+=8){ const lit = night && ((wx*7+wy*3+bi)%5<3); R(wx,wy,4,5, lit ? '#ffd36a' : (night?'#1a2238':'#a9c8dc')); } });
+      // Kfar Kofi billboard on the roof
+      R(118,14,1,4,'#444'); R(146,14,1,4,'#444'); R(112,3,40,12,'#6b3f22'); R(112,3,40,1,'#4a2a16'); word('KFAR KOFI',115,6,'#ffd9a0');
+      // Herzl Hardware
+      R(2,40,58,32,'#6a2a2a'); R(2,40,58,7,'#c23b3b'); word('HERZL HARDWARE',3,41,'#ffffff');
+      R(5,49,36,17,'#9fc3d8'); R(10,55,2,9,'#8a6a4a'); R(8,54,6,2,'#c9ced4'); R(17,58,12,3,'#c9ced4'); R(28,57,3,5,'#7a5232'); R(33,60,4,6,'#3b7bc2'); R(37,61,3,5,'#e0b04a');
+      R(44,49,13,23,'#3a2020'); R(46,51,9,10,'#9fc3d8');
+      // Tahini Tower Savings Bank + ATM
+      R(62,38,46,34,'#cfc6b4'); R(62,38,46,8,'#1f3d5a'); word('TAHINI BANK',64,40,'#e8d9a8'); R(64,46,3,26,'#e8e2d6'); R(103,46,3,26,'#e8e2d6');
+      R(74,50,14,22,'#3a4a5a'); R(76,52,10,10,'#8fb0c8'); R(92,52,9,13,'#4a4a4a'); R(93,53,7,4, (Math.floor(t/900)%2) ? '#5ab0ff' : '#4a9ae8'); R(94,58,5,4,'#2a2a2a'); R(95,63,3,1,'#111');
+      // flower shop
+      R(110,44,44,28,'#e8e2d6'); for (let i=0;i<9;i++) R(110+i*5,42,5,5, i%2 ? '#2f7d3a' : '#f4f4f4'); R(118,34,28,7,'#2f7d3a'); word('FLOWERS',119,35,'#ffffff');
+      R(114,50,24,14,'#9fc3d8'); R(140,49,11,23,'#4a5a3a');
+      for (let i=0;i<4;i++){ const x = 112+i*9; R(x,68,7,4,'#7a7a7a'); ['#e0605a','#ffd36a','#d97aa0','#f4f4f4'].forEach((c,k)=>R(x+1+(k%2)*3, 63+(k>>1)*2, 2, 2, c)); R(x+2,67,3,1,'#2f7d3a'); }
+      // the café on the corner (the way in to Cafe Nahat)
+      R(158,40,34,32,'#4a3220'); R(158,40,34,7,'#e0b04a'); word('CAFE',168,41,'#4a3220'); R(162,49,26,15,'#e8c890'); R(166,58,8,2,'#5e4027'); R(178,58,8,2,'#5e4027');
+      // ficus trees in planters
+      [149].forEach(x=>{ R(x+3,34,3,36,'#5e4027'); R(x-6,22,20,14,'#2f7d3a'); R(x-3,18,14,6,'#3f9a48'); R(x-4,30,6,4,'#256b30'); R(x-1,68,11,5,'#7a7a7a'); });
+      // sidewalk, crossing, road
+      R(0,72,W,20,'#8d8d8d'); for (let x=0;x<W;x+=16) R(x,72,1,20,'#7a7a7a'); R(0,82,W,1,'#7a7a7a');
+      R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=0; x<W; x+=20) if (x < 56 || x > 100) R(x+4,101,10,1,'#e8e8a0');
+      for (let i=0;i<7;i++) R(60+i*6,95,3,13,'#e8e8e8');
+      const green = Math.floor(Date.now()/20000) % 2 === 1;   // pedestrians' green (same for everyone)
+      R(107,40,2,48,'#333'); R(104,26,8,14,'#222'); R(106,28,4,3, green ? '#4a1a1a' : '#ff3b3b'); R(106,34,4,3, green ? '#3bff6a' : '#1a3a1a');
+      R(140,84,10,2,'#c23b3b'); R(139,86,3,3,'#111'); R(148,86,3,3,'#111'); R(146,80,1,4,'#444'); R(144,79,4,1,'#444');   // a parked scooter
+      // passers-by; someone at the ATM now and then
+      crowdWalk(t, 3, 29000, 4000, 61, 1, .7); crowdWalk(t, 0, 37000, 15000, 63, -1, .7); crowdWalk(t, 6, 45000, 27000, 67, 1, .85);
+      if (Math.floor(t/75000) % 3 === 1) crowdStill(t, 2, 91, 66, {face:0}, .8 * fadeWin(t, 75000));
+      drawFloor(t,a,settled,actor,this);
+      // traffic: cars wait at the crossing while it is green for pedestrians
+      const lap = Math.floor(t/7000), cx = green ? Math.min(30, ((t/12) % 520) - 60) : ((t/12) % 520) - 60;
+      if (cx < W+10){ const col = ['#3b7bc2','#dcdcdc','#c23b3b','#e0b04a'][lap%4];
+        R(cx,96,26,6,col); R(cx+5,92,14,4,col); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0'); R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111'); if (night) R(cx+25,97,2,2,'#fff3b0'); }
+      liveLayer(t, this);
+      if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
+      if (night){ alpha(.22,()=>{ R(5,49,36,17,'#ffe8a0'); R(114,50,24,14,'#ffe8a0'); R(162,49,26,15,'#ffd890'); }); }
+    }
+  };
+
   function drawBus(cx, night, doorOpen){
     R(cx-10,88,56,14,'#e8e4d8'); R(cx-10,88,56,2,'#cfc8b6'); for (let i=0;i<5;i++) R(cx-6+i*10,90,7,4, night?'#ffd36a':'#9fd3f0');
     cooolaSign(cx+2,94,31,7,false); R(cx-4,102,6,3,'#111'); R(cx+34,102,6,3,'#111'); if (night) R(cx+45,96,2,2,'#fff3b0');
@@ -1208,6 +1279,31 @@
     R(cx+9,90,6,2,'#222'); R(cx+10,90,4,1, night?'#fff3b0':'#f2f2f2'); // TAXI light
     R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111'); if (night) R(cx+25,97,2,2,'#fff3b0');
   }
+
+  // ---------- park animals: Tel Aviv street cats, pigeons, crows ----------
+  const CATS = [{c:'#d9822b',s:'#b0661e'},{c:'#8a8a8a',s:'#666',stripe:'#555'},{c:'#2a2a2a',s:'#1c1c1c',w:'#f2f2f2'}];
+  function drawCat(x, y, t, pose, k, dir){   // y = where its feet are
+    const P = CATS[k % CATS.length], f = dir < 0, px = (dx,dy,w,h,c) => R(f ? x + 10 - dx - w : x + dx, y + dy, w, h, c);
+    if (pose === 'sleep'){ px(1,-4,8,4,P.c); px(7,-5,3,3,P.c); px(7,-6,1,1,P.c); px(9,-6,1,1,P.c); px(0,-2,3,2,P.s); if (P.stripe){ px(3,-4,1,3,P.stripe); px(5,-4,1,3,P.stripe); } if (P.w) px(4,-1,3,1,P.w); return; }
+    const tail = Math.floor(t/500 + k) % 2;
+    px(1,-6,7,3,P.c); px(7,-9,3,3,P.c); px(7,-10,1,1,P.c); px(9,-10,1,1,P.c); px(8,-8,1,1,'#d8c040');
+    if (P.stripe){ px(3,-6,1,3,P.stripe); px(5,-6,1,3,P.stripe); }
+    if (P.w){ px(7,-7,2,1,P.w); px(2,-4,4,1,P.w); }
+    if (pose === 'walk'){ const l = Math.floor(t/200) % 2; px(1+l,-3,1,3,P.s); px(6-l,-3,1,3,P.s); } else { px(1,-3,2,3,P.s); px(6,-3,1,3,P.s); }
+    px(0,-9+tail,1,4,P.c);
+  }
+  function drawPigeon(x, y, t, i, fly){
+    if (fly){ const w = Math.floor(t/90 + i) % 2; R(x,y-2,4,2,'#8a8f9a'); R(x-2,y-3-w,2,1,'#6f7480'); R(x+4,y-3-w,2,1,'#6f7480'); return; }
+    const peck = (Math.floor(t/600) + i) % 3 === 0 ? 2 : 0;
+    R(x,y-3,4,3,'#8a8f9a'); R(x+3,y-5+peck,2,2,'#6f7480'); R(x+3,y-3+peck,1,1,'#4f9a8a'); R(x-1,y-2,1,1,'#6f7480'); R(x+1,y,1,1,'#c96a5a'); R(x+3,y,1,1,'#c96a5a');
+  }
+  function drawCrow(x, y, t, i, fly){
+    if (fly){ const w = Math.floor(t/130 + i) % 2; R(x,y,5,2,'#161618'); R(x-3,y-w*2,3,1,'#161618'); R(x+5,y-w*2,3,1,'#161618'); R(x+5,y,2,1,'#2a2a2e'); return; }
+    const caw = (Math.floor(t/1700) + i) % 5 === 0;
+    R(x,y-4,4,4,'#161618'); R(x+3,y-6,3,3,'#161618'); R(x+6,y-5,2,1,'#2a2a2e'); if (caw) R(x+6,y-3,2,1,'#2a2a2e'); R(x-1,y-3,1,2,'#161618'); R(x+1,y,1,1,'#333'); R(x+3,y,1,1,'#333');
+  }
+  const JOGGERS = [{hair:'cap',hairColor:'black',skin:'tan',shirt:'orange',pants:'black',extras:[]}, {hair:'bun',hairColor:'blonde',skin:'light',shirt:'pink',pants:'black',extras:[]},
+    {hair:'short',hairColor:'brown',skin:'dark',shirt:'yellow',pants:'navy',extras:[]}];
 
   // ---------- park ----------
   SCENES.park = {
@@ -1228,9 +1324,18 @@
       // lamp
       R(96,40,2,40,'#333'); R(93,37,8,4,'#333'); R(94,41,6,1, night?'#fff3b0':'#777');
       if (night) alpha(.18,()=>R(86,42,22,40,'#fff3b0'));
-      // bystanders on the far lawn and a jogger
+      // crows: one on the lamp, one in the tree, now and then one flies over
+      { drawCrow(94, 37, t, 0, false); drawCrow(30, 6, t, 1, false);
+        const fp = (Date.now() % 47000) / 47000; if (fp < .5) drawCrow(Math.round(fp * 2 * (W + 40)) - 20, 16 + Math.round(Math.sin(fp*20)*3), t, 2, true); }
+      // bystanders on the far lawn, and joggers on the path
       crowdWalk(t, 2, 38000, 5000, 50, 1, .6); crowdWalk(t, 7, 47000, 21000, 52, -1, .6);
-      alpha(.75, () => person(CROWD[4], walkerX(t, 15000, 3000, -14, W+4, 1), 66 - (Math.floor(t/190)%2), t, {walk:true, face:1, muted:true}));
+      const jx = [walkerX(t, 11000, 3000, -14, W+4, 1), walkerX(t, 13500, 7000, -14, W+4, -1), walkerX(t, 17000, 1000, -14, W+4, 1)];
+      jx.forEach((x, i) => { if (i === 2 && Math.floor(t/60000) % 2) return; alpha(.8, () => person(JOGGERS[i], x, 70 - (Math.floor(t/150)%2), t * 1.8 + i*300, {walk:true, face: i===1 ? -1 : 1, muted:true})); });
+      // street cats: one curled up under the tree, one washing by the vending machine, one strolling across the far lawn
+      drawCat(36, 72, t, 'sleep', 0, 1);
+      const eating = settled && a==='eating';
+      drawCat(eating ? 104 : 76, 80, t, 'sit', 2, eating ? 1 : -1);
+      { const cp = (Date.now() % 70000) / 70000; if (cp < .6) drawCat(Math.round(cp / .6 * (W + 30)) - 15, 60, t, 'walk', 1, 1); }
       if (Math.floor(t/120000) % 2) crowdStill(t, 1, 156, 66, {face:1}, .75 * fadeWin(t, 120000)); // someone watching the duck, on the path
       // Cooola vending machine
       R(60,52,12,28,COOOLA.bg); R(61,54,10,10,'#2a1240'); for (let i=0;i<3;i++) cooolaCan(62+i*3,57);
@@ -1242,6 +1347,11 @@
       if (settled && a==='eating') drawIshai('eating',122,62,t,{legs:'sit',food:'#e0c060'});
       const pl = sit && companionLook(a); if (pl && wantComp({id: actor.with || 'stranger', look: pl, x: 134, kind:'seat'})){ markHead(actor.with, 134, 62); person(pl,134,62,t,{legs:'sit',face:-1,talkPhase:true}); }
       R(108,77,38,3,'#9a7048'); R(110,80,2,6,'#333'); R(142,80,2,6,'#333');
+      // pigeons on the path: they peck, and flutter off when someone comes close (crumbs by the bench when he eats there)
+      { const near = x => (!actor.hidden && OUTSIDE.has(actor.loc) && Math.abs(actor.x + 5 - x) < 14) || jx.some(j => Math.abs(j + 5 - x) < 12);
+        for (let i = 0; i < 6; i++){
+          const px = sit && a==='eating' && i < 3 ? 112 + i*9 : 8 + Math.floor(hash(Math.floor(Date.now()/40000)*11 + i) * 170), scared = !(sit && a==='eating' && i < 3) && near(px);
+          drawPigeon(scared ? px + (i%2 ? 9 : -9) : px, scared ? 76 - (i%3)*3 : 91, t, i, scared); } }
       if (!sit) drawFloor(t,a,settled,actor,this);
       liveLayer(t, this);
       if (night) alpha(.38,()=>R(0,0,W,H,'#050a1e'));
@@ -1466,6 +1576,9 @@
     park:   { look:    {alone:3, company:1, steps:[{pose:'idle',dur:3},{to:'+26'},{pose:'back',dur:3},{to:'+0'}]},
               stretch: {alone:2, company:1, steps:[{pose:'stretch',dur:4}]},
               phone:   {alone:1, company:2, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} },
+    shops:  { atm:     {alone:2, company:0, steps:[{to:92},{pose:'back',dur:4}]},
+              window:  {alone:2, company:1, steps:[{to:22},{pose:'back',dur:4}]},
+              phone:   {alone:1, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
     street: { look:    {alone:2, company:1, steps:[{pose:'back',dur:3}]},
               phone:   {alone:2, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
     cafe:   { phone:   {alone:3, company:1, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} },
@@ -1529,12 +1642,13 @@
     corridor:  { apartment: {exit:40, entry:40}, street: {exit:178, entry:178} },     // apt 4 door, stairs
     street:    { corridor: {exit:26, entry:26},                                       // building entrance
                  park: {exit:-14, entry:-14},                                         // left edge -> park
-                 cafe: {exit:W+8, entry:W+8},                                         // right edge -> café
+                 shops: {exit:W+8, entry:W+8},                                        // right edge -> Herzl St. east (the shops)
                  gym: {exit:64, entry:64},                                            // Herzl Gym door (blue building)
                  bar: {exit:101, entry:101},                                          // The Black Candle door (next to the bench)
                  offscreen: {exit:128, entry:128, ride:true} },                       // bus stop: bus or taxi
     park:      { street: {exit:W+8, entry:W+8} },                                     // right edge -> street
-    cafe:      { street: {exit:4, entry:4} },                                         // entrance door -> street
+    shops:     { street: {exit:-14, entry:-14}, cafe: {exit:W+8, entry:W+8} },        // left edge -> street, right edge (the café corner) -> café
+    cafe:      { shops: {exit:4, entry:4} },                                          // entrance door -> Herzl St. east
     gym:       { street: {exit:4, entry:4} },                                         // gym door -> street
     bar:       { street: {exit:4, entry:4} },                                         // bar door -> street
     offscreen: { street: {ride:true} }
@@ -1652,7 +1766,7 @@
       }
     } else if (actor.action==='walking' && !actor.pending){
       // pacing back and forth, position taken from the real clock
-      const lo = actor.loc==='street'?50:actor.loc==='park'?40:52, hi = actor.loc==='street'?140:actor.loc==='cafe'?110:124;
+      const lo = actor.loc==='street'?50:actor.loc==='park'?40:actor.loc==='shops'?36:52, hi = actor.loc==='street'?140:actor.loc==='shops'?150:actor.loc==='cafe'?110:124;
       // every ~2 minutes he walks to a new spot somewhere in the room, then stands there (clock-driven, same for everyone)
       const span = hi - lo, D = 120, now = Date.now()/1000, k = Math.floor(now / D), e = now % D;
       const spot = n => { const a = lo + hash(n*7 + 3) * span, b = lo + hash((n-1)*7 + 3) * span; return Math.abs(a - b) < 18 ? (a + span/2 - lo) % span + lo : a; };
@@ -1682,7 +1796,7 @@
       return;
     }
     const settled = !actor.travelling && !actor.hidden && !actor.err && !actor.viaUntil && actor.viaFinal == null;
-    const outdoor = actor.loc==='street' || actor.loc==='park';
+    const outdoor = OUTSIDE.has(actor.loc);
     UMB = rainy() && outdoor;
     SCENES[actor.loc].draw(t, hf, actor.action, settled, actor);
     UMB = false;
@@ -1829,8 +1943,9 @@
       } else if (loc === 'bathroom'){ bed(brown,'lowpass',260,.04); hum(118,.006);   // extractor fan
         if (extra !== 'shower') loop(2600, 1800, () => tone(1900 + Math.random()*500, .05, 'sine', .03, 0, dest, .5)); // dripping tap
       } else if (loc === 'corridor'){ bed(brown,'lowpass',300,.07); hum(100,.008); }
-      else if (loc === 'street'){
+      else if (loc === 'street' || loc === 'shops'){
         bed(brown,'lowpass',700,.14);
+        if (loc === 'shops') loop(20000, 0, () => { if (Math.floor(Date.now()/20000) % 2) for (let i=0;i<6;i++) tone(1800,.03,'square',.012,i*.5,dest); });   // the crossing beeps on green
         loop(5000, 6000, () => noise(2.6,{vol:.16,type:'lowpass',freq:250,sweep:[1500,250],buf:brown,dest}));
         loop(25000, 30000, () => { tone(420,.22,'square',.02,0,dest); tone(530,.22,'square',.02,.03,dest); });
       } else if (loc === 'park'){
@@ -1852,9 +1967,9 @@
         loop(2500, 5000, () => tone(2300 + Math.random()*900, .3, 'sine', .02, 0, dest));
         loop(20000, 20000, () => noise(2,{vol:.04,type:'highpass',freq:3000,dest}));
       }
-      if ((wx === 'rain' || wx === 'storm') && loc !== 'static' && loc !== 'offscreen') bed(white, 'bandpass', 2600, (loc==='street'||loc==='park') ? (wx==='storm' ? .13 : .09) : .025);
+      if ((wx === 'rain' || wx === 'storm') && loc !== 'static' && loc !== 'offscreen') bed(white, 'bandpass', 2600, OUTSIDE.has(loc) ? (wx==='storm' ? .13 : .09) : .025);
       if (wx === 'storm' && loc !== 'static' && loc !== 'offscreen'){   // thunder a few seconds after each flash
-        const out = (loc==='street'||loc==='park') ? 1 : .45;
+        const out = OUTSIDE.has(loc) ? 1 : .45;
         const roll = () => { if (!a.alive) return; const n = Date.now(), slot = Math.floor(n/30000) + 1, seed = (slot*9301+49297)%233280/233280,
           at = slot*30000 + Math.floor(seed*22000) + 2500 + (slot%3)*900, wait = at - n;
           setTimeout(() => { if (!a.alive) return; noise(3.2,{vol:.22*out,type:'lowpass',freq:160,sweep:[420,90],buf:brown,dest}); noise(1.4,{vol:.12*out,type:'lowpass',freq:300,when:.15,buf:brown,dest}); roll(); }, Math.max(200, wait)); };
@@ -2049,7 +2164,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
