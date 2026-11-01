@@ -234,6 +234,8 @@
     park:      ['walking','idle','talking','reading','eating','drinking','exercising','phoning'],
     cafe:      ['idle','eating','drinking','working','reading','talking','phoning'],
     gym:       ['exercising','idle','talking','drinking','phoning'],
+    market:    ['walking','idle','talking','eating','drinking','phoning'],
+    store:     ['idle','talking','phoning'],
     bar:       ['idle','drinking','eating','talking','phoning'],
     offscreen: ['away'],
     bathroom:  ['bathroom','showering'] // page-only room: the story says apartment/bathroom|showering
@@ -243,7 +245,7 @@
   let WORLD = null; // real weather / Shabbat from the Worker
   let DREAM = []; // today's highlights {t, loc, a, w}: replayed in a thought bubble while he sleeps
   let DREAMING = false;
-  const OUTSIDE = new Set(['street','park','shops']);
+  const OUTSIDE = new Set(['street','park','shops','market']);
   let MEDIA_UNTIL = 0;
   let TALK_AT = 0;       // last time a character of anyone's speech was typed (music fades under it)   // the story just put a live line on the radio/TV: our own DJ keeps quiet for a while
   let UMB = false;   // Ishai is outdoors (street/park) in the rain: he holds an umbrella
@@ -681,7 +683,29 @@
     });
   }
   const dog = { x:0, loc:null, last:0, lastBark:0 };
-  function liveLayer(t, scene){ if (DREAMING) return; compUpdate(t, scene); dogUpdate(t, scene); } // drawn under the scene's night lighting
+  function liveLayer(t, scene){ if (DREAMING) return; compUpdate(t, scene); dogUpdate(t, scene); courierUpdate(t); }
+  // ---- ateBite: the (fake) food delivery app. Orange, a round logo with a bite taken out of it ----
+  const ATE = {o:'#ff6a2a', d:'#c94e18', w:'#fff4ea'};
+  function ateHelmet(x, y){ R(x+1,y-1,8,3,ATE.o); R(x+2,y-2,6,1,ATE.o); R(x+7,y+1,2,1,ATE.d); }
+  function ateBox(x, y){ R(x,y,6,6,ATE.o); R(x,y,6,1,ATE.d); R(x+2,y+2,2,2,ATE.w); }
+  function ateScooter(x, y, t, dir){   // y = road level; rider on top; dir 1 = to the right
+    const f = dir < 0, px = (dx,dy,w,h,c) => R(f ? x + 18 - dx - w : x + dx, y + dy, w, h, c);
+    px(2,-3,12,3,'#3a3a3a'); px(13,-9,2,7,'#555'); px(12,-10,4,1,'#222'); px(1,0,4,3,'#111'); px(12,0,4,3,'#111');
+    px(0,-11,7,7,ATE.o); px(0,-11,7,1,ATE.d); px(2,-9,3,3,ATE.w);
+    px(7,-11,5,6,'#2a2a2a'); px(7,-16,5,5,'#c18657'); px(6,-17,7,3,ATE.o); px(11,-8,3,1,'#2a2a2a');
+  }
+  // the courier at his door: rings, steps in, hands over the bag, leaves (first ~40 s of a delivery moment)
+  function courierUpdate(t){
+    const d = actor.delivery; if (!d || actor.loc !== 'apartment' || actor.switching) return;
+    const e = (Date.now() - d.at) / 1000; if (e < 0 || e > 40) return;
+    if (!d.rang){ d.rang = true; Sound.bell(); }
+    const x = e < 5 ? 135 - e * 3 : e < 34 ? 120 : 120 + (e - 34) * 3, y = 74;
+    alpha(.95, () => { person(EXTRA.courier, x, y, t, {walk: e < 5 || e > 34, face: e < 34 ? -1 : 1}); ateHelmet(x, y); ateBox(e < 34 ? x + 9 : x - 5, y + 8);
+      if (e > 8 && e < 30) R(x - 2, y + 12, 4, 4, '#e8dcc0'); });
+  }
+  // now and then an ateBite courier rides past on the road (same clock for everyone)
+  function ateRideBy(t, y){ const P = 75000, e = Date.now() % P; if (e > 9000) return; const dir = Math.floor(Date.now() / P) % 2 ? 1 : -1;
+    const x = dir > 0 ? -24 + e / 9000 * (W + 48) : W + 24 - e / 9000 * (W + 48); ateScooter(Math.round(x), y, t, dir); } // drawn under the scene's night lighting
   function dogUpdate(t, scene){
     if (!UNLOCKED.has('dog') || actor.loc==='offscreen' || actor.switching){ dog.loc = null; return; }
     if (actor.ride && actor.hidden) return; // on the bus with Ishai
@@ -712,7 +736,7 @@
       target = 80 + Math.sin(t/2600)*45; pose = 'walk';                                      // running around
     }
     else if (actor.loc==='cafe' && settled && ['eating','drinking','working','reading','talking'].includes(a)) target = 96; // under the table
-    else if ((actor.loc==='gym' || actor.loc==='bar') && settled) target = 22;                // lies by the door
+    else if ((actor.loc==='gym' || actor.loc==='bar' || actor.loc==='store') && settled) target = 22;                // lies by the door
     const n = performance.now(), dts = Math.min(.1, (n - (dog.last||n))/1000); dog.last = n;
     const d = target - dog.x, step = (moving ? 26 : 45) * dts;
     dog.x += Math.abs(d) <= step ? d : Math.sign(d)*step;
@@ -757,6 +781,7 @@
     return false;
   }
   // draw an open doorway over a closed door (x,y,w,h = the door leaf); the leaf swings in
+  function deliveryDoor(){ const d = actor.delivery; if (!d || actor.loc !== 'apartment') return false; const e = (Date.now() - d.at) / 1000; return e >= 0 && e < 6 || e > 33 && e < 40; }
   function openDoor(x, y, w, h){ R(x, y, w, h, '#14100c'); R(x, y, 3, h, '#6a4e38'); R(x+3, y, 1, h, '#3a2a1c'); }
   // ---- companion controller: every friend walks in from an exit point, and walks out the same way ----
   const comp = { id:null, look:null, x:0, mode:null, loc:null, last:0 };
@@ -765,7 +790,7 @@
     if (loc==='apartment') return 135;                      // front door
     if (loc==='bathroom') return 9;                         // bathroom door
     if (loc==='corridor') return id==='levi' ? 106 : 180;   // Mrs. Levi's door, otherwise the stairs
-    if (loc==='cafe' || loc==='gym' || loc==='bar') return 4;   // café / gym / bar entrance door (left)
+    if (loc==='cafe' || loc==='gym' || loc==='bar' || loc==='store') return 4;   // café / gym / bar entrance door (left)
     return nearX > W/2 ? W+8 : -18;                         // street and park: nearest edge
   }
   // now and then a standing friend takes a couple of steps and comes back (not while it is their turn to talk)
@@ -840,7 +865,9 @@
     neighbor:{hair:'curly',hairColor:'gray',skin:'tan',shirt:'green',pants:'brown',extras:[]},
     barista:{hair:'short',hairColor:'black',skin:'light',shirt:'black',pants:'black',extras:['apron']},
     kiosk:{hair:'bald',hairColor:'black',skin:'brown',shirt:'white',pants:'navy',extras:['mustache','apron']},
-    bartender:{hair:'long',hairColor:'black',skin:'tan',shirt:'black',pants:'black',extras:['beard','earring']}
+    bartender:{hair:'long',hairColor:'black',skin:'tan',shirt:'black',pants:'black',extras:['beard','earring']},
+    courier:{hair:'short',hairColor:'black',skin:'tan',shirt:'orange',pants:'black',extras:[]},
+    cashier:{hair:'bun',hairColor:'brown',skin:'light',shirt:'blue',pants:'navy',extras:['glasses']}
   };
   let CAST = {}; // id -> card, from the Worker
   const lookOf = id => { const L = CAST[id] && CAST[id].look; if (!L) return null;
@@ -892,6 +919,7 @@
   // ---- dream commercials: now and then he dreams about the show's (fake) sponsors ----
   const wordW = txt => txt.length * 4 - 1;
   const AD_BRANDS = [
+    {name:['ATEBITE'], slogan:'AT YOUR DOOR', bg:'#ff6a2a', fg:'#fff4ea', sub:'#5a1e06', icon(x,y,t){ const b = Math.floor(t/300)%2; R(x+2,y+1,10,10,'#fff4ea'); R(x+1,y+2,12,8,'#fff4ea'); R(x+9,y+1,4,3,'#ff6a2a'); R(x+11,y+4,2,2,'#ff6a2a'); R(x+5,y+5,3,3,'#ff6a2a'); R(x+14,y+3+b,2,1,'#fff4ea'); R(x+15,y+6-b,2,1,'#fff4ea'); }},
     {name:['COOOLA'], slogan:'WAKE UP!', bg:COOOLA.bg, fg:COOOLA.fg, sub:COOOLA.bolt, icon(x,y,t){ R(x+3,y,6,11,COOOLA.bg); R(x+2,y+1,8,10,COOOLA.dark); R(x+3,y+1,6,9,COOOLA.bg); R(x+3,y+4,6,2,COOOLA.fg); R(x+3,y,6,1,'#c9ced4'); bolt(x+12,y+2+(Math.floor(t/300)%2),COOOLA.bolt); }},
     {name:['HUMMUSPRIME'], slogan:'BY DRONE!', bg:'#d9822b', fg:'#fff4d6', sub:'#5a2e0e', icon(x,y,t){ const b = Math.round(Math.sin(t/300)); R(x+1,y+7,12,2,'#f4f1ea'); R(x+2,y+9,10,2,'#f4f1ea'); R(x+3,y+6,8,2,'#e8c98a'); R(x+6,y+6,2,1,'#b8902a');
       R(x+4,y+b,6,2,'#3a3a44'); R(x+1,y-1+b,4,1,'#9fd0ff'); R(x+9,y-1+b,4,1,'#9fd0ff'); R(x+6,y+2+b,1,3,'#3a3a44'); }},
@@ -990,7 +1018,7 @@
       ['#c23b3b','#e0b04a','#3b7bc2','#7fbf6a','#d0d0d0','#9a5bc2','#c27a3b'].forEach((c,i)=>{ const h=6+(i%3); R(65+i*4,44-h,3,h,c); });
       R(102,22,18,24,'#1b2230'); R(104,24,14,20,'#f0d070'); R(106,30,10,10,'#e0605a'); R(108,26,6,2,'#1b2230');
       R(131,46,18,34,C.doorFrame); R(133,48,14,32,C.door); R(135,51,10,10,'#6a4e38'); R(135,64,10,12,'#6a4e38'); R(144,64,2,2,C.gold);
-      if (doorBusy(140)) openDoor(133,48,14,32);
+      if (doorBusy(140) || deliveryDoor()) openDoor(133,48,14,32);
       R(151,64,25,2,C.top); R(151,66,25,14,C.counter); R(153,68,9,10,'#7a6b5c'); R(164,68,9,10,'#7a6b5c');
       R(161,72,1,2,C.metal); R(165,72,1,2,C.metal); R(154,63,4,1,'#333'); R(166,63,4,1,'#333');
       R(160,48,12,6,'#e8e2d6'); R(160,54,12,1,'#bdb6a8');
@@ -1209,6 +1237,7 @@
       if (Math.floor(t/90000) % 3 !== 0) crowdStill(t, 3 + Math.floor(t/90000) % 4, 124, 48, {legs:'sit'}, .8 * fadeWin(t, 90000));
       crowdWalk(t, 6, 57000, 31000, 67, -1, .85);
       drawFloor(t,a,settled,actor,this);
+      ateRideBy(t, 99);
       // car
       const cx = ((t/12) % 520) - 60;
       const lap = Math.floor(t/6240);
@@ -1284,7 +1313,7 @@
       if (Math.floor(t/75000) % 3 === 1) crowdStill(t, 2, 91, 66, {face:0}, .8 * fadeWin(t, 75000));
       drawFloor(t,a,settled,actor,this);
       // traffic: cars stop in a queue before the crossing while pedestrians have green, and all drive on when it turns red for them
-      shopsTraffic(Date.now(), night);
+      shopsTraffic(Date.now(), night); ateRideBy(t + 30000, 99);
       liveLayer(t, this);
       if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
       if (night){ alpha(.22,()=>{ R(5,49,36,17,'#ffe8a0'); R(114,50,24,14,'#ffe8a0'); R(162,49,26,15,'#ffd890'); }); }
@@ -1531,6 +1560,83 @@
     }
   };
 
+  // ---------- Shuk Shalom: the open-air food market (a bus ride away; the store's door on the left) ----------
+  function stall(x, w, t, c1, c2, goods){
+    for (let i=0;i<w;i+=6) R(x+i,40,6,6, (i/6)%2 ? c1 : c2); R(x,46,w,1,'#00000044');
+    R(x+1,46,1,26,'#6a5a4a'); R(x+w-2,46,1,26,'#6a5a4a'); R(x,64,w,3,'#8a6a4a'); R(x,67,w,9,'#6a4e38');
+    goods(x, t);
+  }
+  function crate(x, y, c, d){ R(x,y,10,4,'#a07a50'); for (let i=0;i<4;i++) R(x+1+i*2+(i%2), y-2+(i%2), 2, 2, i%2 ? d : c); }
+  SCENES.market = {
+    cam:'CAM-10', place:'SHUK SHALOM // MARKET', walkY:66, entry:128, exit:128,
+    stand:{idle:96, walking:96, talking:100, eating:92, drinking:118, phoning:96},
+    draw(t,hf,a,settled,actor){
+      drawSky(0,0,W,40,hf,t); const night = isNight(hf);
+      R(0,16,W,30,'#c9b48a'); for (let x=30;x<W;x+=14) R(x,22,6,8, night ? '#ffd36a' : '#8fa8b8');
+      // Everything Else (the store) on the left
+      R(0,8,66,10,'#1b4fa0'); word('EVERYTHING ELSE',3,11,'#ffd84a'); R(0,18,24,58,'#e8e4da'); R(3,40,16,36,'#9fc3d8'); R(10,40,1,36,'#7a9ab0');
+      if (doorBusy(9)) { R(3,40,16,36,'#14100c'); }
+      // banner and string lights over the market
+      R(62,4,1,36,'#555'); R(186,4,1,36,'#555'); R(84,6,80,9,'#c23b3b'); word('SHUK SHALOM',102,8,'#fff4d6');
+      for (let x=66;x<186;x+=8) R(x, 18 + Math.round(Math.sin(x/12)*2), 2, 2, (Math.floor(t/600) + x/8) % 3 ? '#ffd36a' : '#ffefb0');
+      // stalls: vegetables, spices, fruit & juice, bread
+      stall(26, 36, t, '#2f7d3a', '#f4f4f4', x => { crate(x+2,62,'#e0403a','#c23030'); crate(x+13,62,'#4f9a3f','#3f7f33'); crate(x+24,62,'#e0b04a','#c27a3b'); });
+      stall(66, 36, t, '#d9822b', '#f4e0c0', x => { [['#c23b3b',4],['#e0b04a',13],['#7a4a2a',22],['#d9822b',29]].forEach(([c,o]) => { R(x+o,61,6,3,c); R(x+o+1,59,4,2,c); R(x+o+2,58,2,1,c); R(x+o-1,64,8,1,'#c9c0b0'); }); });
+      stall(106, 36, t, '#e0b04a', '#f4f4f4', x => { crate(x+2,62,'#f08a2a','#e07a1a'); R(x+14,59,8,4,'#f2d84a'); R(x+15,58,6,1,'#e0c43a');
+        R(x+26,54,6,10,'#c9ced4'); R(x+27,56,4,4,'#f08a2a'); R(x+24,62,3,2,'#f4f4f4'); });
+      stall(146, 36, t, '#7a4a9a', '#f4f4f4', x => { for (let i=0;i<4;i++){ R(x+3+i*8,61-((i%2)*2),7,3,'#e8c890'); R(x+3+i*8,60-((i%2)*2),7,1,'#d4a860'); } });
+      // vendors behind their stalls, calling out
+      [[34,0],[74,5],[114,3],[156,4]].forEach(([x,k],i) => { const shout = (Math.floor(t/1400) + i) % 4 === 0;
+        alpha(.85, () => person(CROWD[k], x, 46, t + i*500, {legs:false, face: i%2 ? -1 : 1, muted:true, talking: shout})); });
+      // stone pavement, curb, road with the market's bus stop
+      R(0,76,W,16,'#b8ab92'); for (let x=0;x<W;x+=12) R(x,76,1,16,'#a89a80'); R(0,84,W,1,'#a89a80');
+      R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=0;x<W;x+=20) R(x+4,101,10,1,'#e8e8a0');
+      R(146,58,1,34,'#555'); R(143,54,8,7,'#2f6fb5'); R(144,55,6,1,'#f2f2f2'); R(145,57,4,2,'#f2f2f2');
+      // shoppers; an ateBite courier waiting for an order now and then
+      crowdWalk(t, 1, 24000, 2000, 61, 1, .75); crowdWalk(t, 5, 31000, 11000, 63, -1, .75); crowdWalk(t, 7, 27000, 19000, 67, 1, .85); crowdWalk(t, 3, 35000, 5000, 65, -1, .8);
+      if (Math.floor(t/60000) % 2){ const f = fadeWin(t, 60000); alpha(.85 * f, () => { person(EXTRA.courier, 176, 66, t, {face:-1, muted:true}); ateHelmet(176, 66); ateBox(185, 74); }); }
+      drawFloor(t,a,settled,actor,this);
+      if (actor.ride && !DREAMING){ const vx = rideX(actor.ride, performance.now());
+        if (actor.ride.kind === 'bus') drawBus(vx+10, night, (performance.now()-actor.ride.t0) > RIDE.come && (performance.now()-actor.ride.t0) < RIDE.come + RIDE.stop); else drawTaxi(vx, night); }
+      else ateRideBy(t + 50000, 99);
+      liveLayer(t, this);
+      if (night) alpha(.35,()=>R(0,0,W,H,'#050a1e'));
+    }
+  };
+
+  // ---------- Everything Else: the big store for everything except food ----------
+  SCENES.store = {
+    cam:'CAM-11', place:'EVERYTHING ELSE // STORE', walkY:74, entry:4, exit:4,
+    stand:{idle:58, walking:58, talking:62, phoning:58},
+    draw(t,hf,a,settled,actor){
+      R(0,0,W,78,'#e8e4da'); R(0,0,W,3,'#d4cfc4'); [20,84,148].forEach(x=>{ R(x,3,30,2,'#ffffff'); alpha(.08,()=>R(x-6,5,42,30,'#ffffff')); });
+      R(0,78,W,30,'#cfcac0'); for (let x=0;x<W;x+=12) R(x,78,1,30,'#bdb8ae'); for (let y=84;y<H;y+=8) R(0,y,W,1,'#bdb8ae');
+      R(40,5,112,10,'#1b4fa0'); word('EVERYTHING ELSE',66,7,'#ffd84a');
+      R(0,38,18,40,'#9aa3ad'); R(2,40,14,38,'#bcd3e3'); if (doorBusy(9)) { R(2,40,14,38,'#e8e4da'); R(2,40,2,38,'#bcd3e3'); }
+      for (let i=0;i<3;i++) R(20,86-i*2,10,2, i%2 ? '#c23b3b' : '#e0403a');
+      // the wall of TVs
+      for (let r=0;r<2;r++) for (let c=0;c<3;c++){ const x = 26+c*22, y = 18+r*16, k = (Math.floor(Date.now()/3000) + r*3 + c) % 4;
+        R(x,y,20,13,'#141418'); R(x+1,y+1,18,11, ['#3b7bc2','#2f8f83','#d9822b','#7a4a9a'][k]); R(x+3+((Math.floor(t/400)+c)%10),y+5,4,3,'#ffffff'); R(x+8,y+13,4,1,'#444'); }
+      R(24,52,70,2,'#bdb8ae'); for (let i=0;i<5;i++) R(28+i*13,46,8,6,['#2a2a2a','#c9ced4','#2a2a2a','#e8e8e8','#3a3a44'][i]);
+      // shelves: kitchenware, lamps, towels
+      R(100,20,50,2,'#8a7a6a'); R(100,36,50,2,'#8a7a6a'); R(100,52,50,2,'#8a7a6a'); R(100,20,2,50,'#8a7a6a'); R(148,20,2,50,'#8a7a6a');
+      for (let i=0;i<5;i++){ R(103+i*9,14,7,6,'#9aa0a8'); R(104+i*9,13,5,1,'#7a8088'); }
+      for (let i=0;i<4;i++){ R(106+i*11,28,2,8,'#555'); R(103+i*11,24,8,4,['#e0b04a','#f4f4f4','#d97aa0','#7fbf6a'][i]); }
+      for (let i=0;i<6;i++) for (let k=0;k<3;k++) R(103+i*7,45-k*3,6,2,['#3b7bc2','#e0605a','#f4f4f4','#7fbf6a','#e0b04a','#9a5bc2'][(i+k)%6]);
+      // clothes rack
+      R(156,38,34,2,'#666'); R(158,40,1,36,'#666'); R(187,40,1,36,'#666');
+      for (let i=0;i<6;i++){ const c = ['#c23b3b','#2c3a66','#f4f4f4','#4f9a3f','#2a2a2a','#d8b43a'][i]; R(160+i*5,41,4,12,c); R(160+i*5,41,4,1,'#444'); }
+      // checkout with the cashier
+      alpha(.9, () => person(EXTRA.cashier, 128, 50, t, {legs:false, face:-1, muted:true}));
+      R(112,64,40,4,'#d6d0c4'); R(112,68,40,18,'#4a5a6a'); R(120,58,8,6,'#2a2a2a'); R(121,59,6,2, (Math.floor(t/700)%2) ? '#7fff7f' : '#3fbf3f');
+      // shoppers
+      if (Math.floor(t/50000) % 3) crowdStill(t, 6, 168, 74, {face:-1}, .8 * fadeWin(t, 50000));
+      crowdWalk(t, 2, 33000, 8000, 74, 1, .7);
+      drawFloor(t,a,settled,actor,this);
+      liveLayer(t, this);
+    }
+  };
+
   // ---------- out of coverage ----------
   const noise = ctx.createImageData(W,H);
   function drawStatic(strength=1){
@@ -1608,6 +1714,12 @@
     gym:    { water:   {alone:2, company:1, steps:[{to:84},{pose:'drinking',dur:4,o:{legs:'stand'}}]},
               mirror:  {alone:2, company:0, steps:[{to:40},{pose:'back',dur:4}]},
               phone:   {alone:1, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
+    market: { stall:   {alone:3, company:1, steps:[{to:44},{pose:'back',dur:4}]},
+              spices:  {alone:2, company:1, steps:[{to:84},{pose:'back',dur:4}]},
+              phone:   {alone:1, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
+    store:  { tvs:     {alone:3, company:1, steps:[{to:52},{pose:'back',dur:5}]},
+              shelves: {alone:3, company:1, steps:[{to:116},{pose:'back',dur:4}]},
+              clothes: {alone:2, company:1, steps:[{to:170},{pose:'back',dur:4}]} },
     bar:    { posters: {alone:2, company:0, steps:[{to:30},{pose:'back',dur:4}]},
               phone:   {alone:3, company:1, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} }
   };
@@ -1667,12 +1779,15 @@
                  shops: {exit:W+8, entry:W+8},                                        // right edge -> Herzl St. east (the shops)
                  gym: {exit:64, entry:64},                                            // Herzl Gym door (blue building)
                  bar: {exit:101, entry:101},                                          // The Black Candle door (next to the bench)
+                 market: {exit:128, entry:128, ride:true},                            // bus stop: the bus (or a taxi) to Shuk Shalom
                  offscreen: {exit:128, entry:128, ride:true} },                       // bus stop: bus or taxi
     park:      { street: {exit:W+8, entry:W+8} },                                     // right edge -> street
     shops:     { street: {exit:-14, entry:-14}, cafe: {exit:W+8, entry:W+8} },        // left edge -> street, right edge (the café corner) -> café
     cafe:      { shops: {exit:4, entry:4} },                                          // entrance door -> Herzl St. east
     gym:       { street: {exit:4, entry:4} },                                         // gym door -> street
     bar:       { street: {exit:4, entry:4} },                                         // bar door -> street
+    market:    { street: {exit:128, entry:128, ride:true}, store: {exit:4, entry:4} },  // the market's own bus stop; the store door on the left
+    store:     { market: {exit:4, entry:4} },                                         // store door -> market
     offscreen: { street: {ride:true} }
   };
   function route(from, to){ // shortest path through the map, e.g. cafe -> street -> corridor -> apartment
@@ -1783,12 +1898,12 @@
         if (actor.viaFinal != null && !actor.pending){ actor.viaUntil = now + 2200; return; }
         if (actor.loc !== 'bathroom') actor.fromLoc = null;
         actor.settledAt = Date.now();
-        if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && actor.loc==='street') startRide('depart'); else beginSwitch(); }
+        if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && (actor.loc==='street' || actor.loc==='market')) startRide('depart'); else beginSwitch(); }
         else if (BATH.has(actor.action)){ actor.hidden = true; actor.hiddenAt = now; actor.leftBath = null; }
       }
     } else if (actor.action==='walking' && !actor.pending){
       // pacing back and forth, position taken from the real clock
-      const lo = actor.loc==='street'?50:actor.loc==='park'?40:actor.loc==='shops'?36:52, hi = actor.loc==='street'?140:actor.loc==='shops'?150:actor.loc==='cafe'?110:124;
+      const lo = actor.loc==='street'?50:actor.loc==='park'?40:actor.loc==='shops'||actor.loc==='market'?36:52, hi = actor.loc==='street'?140:actor.loc==='shops'?150:actor.loc==='cafe'?110:124;
       // every ~2 minutes he walks to a new spot somewhere in the room, then stands there (clock-driven, same for everyone)
       const span = hi - lo, D = 120, now = Date.now()/1000, k = Math.floor(now / D), e = now % D;
       const spot = n => { const a = lo + hash(n*7 + 3) * span, b = lo + hash((n-1)*7 + 3) * span; return Math.abs(a - b) < 18 ? (a + span/2 - lo) % span + lo : a; };
@@ -1842,6 +1957,7 @@
     const el = $('say');
     if (!SAY.who || performance.now() > SAY.until || actor.switching){ el.hidden = true; return; }
     const sp = speaker(SAY.who), head = HEADS[SAY.who];
+    if (!head && !(SAY.who === 'radio' || SAY.who === 'tv' || (actor.action === 'phoning' && actor.with === SAY.who))){ el.hidden = true; return; }
     $('sayWho').textContent = head ? '' : (SAY.who==='radio' ? '\u{1F4FB} ' : SAY.who==='tv' ? '\u{1F4FA} ' : '\u260E ') + sp.name + ':'; $('sayWho').style.color = sp.color;
     let txt = SAY.text; if (txt.length > 110 && SAY.who !== 'radio' && SAY.who !== 'tv'){ const cut = txt.slice(-105); txt = '\u2026' + cut.slice(cut.indexOf(' ') + 1); }   // long lines: the bubble shows the latest part (the full line is in the chat)
     $('sayText').textContent = txt;
@@ -1979,6 +2095,13 @@
         loop(1800, 3500, () => { const f = 2400 + Math.random()*1400, k2 = 2 + Math.floor(Math.random()*3);
           for (let i=0;i<k2;i++) tone(f*(1+i*.06), .07, 'sine', .035, i*.11, dest, 1.3); });
         loop(15000, 20000, () => { tone(330,.12,'sawtooth',.025,0,dest,.7); tone(330,.12,'sawtooth',.025,.2,dest,.7); });
+      } else if (loc === 'market'){
+        bed(brown,'bandpass',600,.2);
+        loop(2500, 4000, () => { const f = 300 + Math.random()*200; for (let i=0;i<3;i++) tone(f*(1+(i%2)*.25), .14, 'square', .02, i*.16, dest, .9); });   // vendors calling prices
+        loop(9000, 9000, () => noise(1.8,{vol:.1,type:'lowpass',freq:250,sweep:[1200,250],buf:brown,dest}));
+      } else if (loc === 'store'){
+        bed(brown,'lowpass',500,.07); hum(120,.006);
+        loop(5000, 7000, () => tone(1650, .08, 'square', .02, 0, dest));                                     // the checkout scanner
       } else if (loc === 'gym'){
         bed(brown,'lowpass',380,.08); hum(52,.012);                                                      // treadmill motors
         loop(110, 130, () => { if (Math.random()<.75) noise(.09,{vol: extra==='walker' ? .1 : .05, type:'bandpass', freq:500+Math.random()*900, q:4, dest}); });   // the TV, sound on
@@ -2054,6 +2177,7 @@
       const resume = () => { document.removeEventListener('pointerdown', resume, true); document.removeEventListener('keydown', resume, true); if (mode === 'off') setMode(saved); };
       document.addEventListener('pointerdown', resume, true); document.addEventListener('keydown', resume, true);
     }
+    function bell(){ if (!on()) return; tone(660, .3, 'sine', .06); tone(523, .45, 'sine', .06, .32); }
     function ring(){ if (!on()) return; for (let k = 0; k < 2; k++) for (let i = 0; i < 8; i++){ tone(880, .05, 'square', .03, k * .9 + i * .06); tone(1100, .05, 'square', .02, k * .9 + i * .06 + .03); } }
     function duck(down){ djDown = !!down; }
     // music volume: a quick fade down while anyone talks (characters, hosts, callers, the DJ), back up after.
@@ -2070,7 +2194,7 @@
     }, 50);
     function newSong(){ if (amb && amb.reseed) amb.reseed(); }
     const speaking = () => mode === 'voices';
-    return { blip, key, say, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring };
+    return { blip, key, say, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -2143,6 +2267,7 @@
       // several moments became due at once (phone woke up, tab came back): skip the silent ones in between, so he doesn't hop in and out of bed
       if (queue.length && !(ev.lines || []).length){ shown.add(ev.id); if (DEV) addLine(ev, false); continue; }
       if (!forceLoc) setState(ev.location||'apartment', ev.action, false, ev.with||null);
+      actor.delivery = ev.delivery && (ev._late || 0) < 35000 ? {at: Date.now() - (ev._late || 0)} : null;   // an ateBite courier at the door
       enterScene(ev.location, ev.with);
       if (DEV){ addTalk(ev, true); await addLine(ev,true); }   // talk + hosts play in their own time (hosts wait for the picture)
       else { shown.add(ev.id);
@@ -2190,7 +2315,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', market:'SHUK SHALOM', store:'EVERYTHING ELSE', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
@@ -2216,7 +2341,7 @@
     const tag = document.createElement('span'); tag.textContent = '· ' + fmtHM.format(new Date(m.t)); hn.appendChild(tag);
     const line = document.createElement('div'); line.className = 'hl';
     body.append(hn, line); card.append(faceCanvas(m.who), body); booth.appendChild(card);
-    card.classList.toggle('ad', /cooola|hummusprime|napmaster|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch/i.test(m.say));
+    card.classList.toggle('ad', /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga/i.test(m.say));
     while (booth.querySelectorAll('.host').length > 8) booth.removeChild(booth.querySelector('.host'));
     if (!animate){ line.textContent = m.say; boothScroll(); return Promise.resolve(); }
     const full = m.say; let i = 0;
@@ -2241,7 +2366,7 @@
     if (m.loc && m.loc !== lastScene.split('|')[0]){ const d = document.createElement('div'); d.className = 'scene'; d.textContent = `— ${PLACE_NAME[m.loc]||m.loc.toUpperCase()} · ${fmtHM.format(new Date(m.t))} —`; talkEl.appendChild(d); }
     lastScene = scene;
     const sp = speaker(m.who);
-    const isAd = m.host && /cooola|hummusprime|napmaster|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch/i.test(m.say);
+    const isAd = m.host && /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga/i.test(m.say);
     const row = document.createElement('div'); row.className = 'msg' + (m.host ? ' host' : '') + (isAd ? ' ad' : '');
     const body = document.createElement('div');
     const who = document.createElement('div'); who.className = 'who'; who.style.color = sp.color; who.textContent = sp.name;
@@ -2389,6 +2514,8 @@
     ['The Second Floor','Elevator Out of Order'],['DJ Kettle','Steam'],['Moshe and the Roots','Thirsty'],['Night Bus 5','Last Stop Jaffa'],
     ['The Sunscreen Boys','Factor Fifty'],["Grandma's Wi-Fi",'Password Is on the Fridge'],['Mediterranean Static','Signal Lost']];
   const ADS = [
+    'Hungry? ateBite. The whole of Shuk Shalom at your door in thirty minutes. Tip your courier. Seriously.',
+    'Everything Else: the store for everything else. Food? Next door, at the shuk.',
     'Tired? Cooola. Very tired? Two Cooolas. Cooola: wake up, aggressively.',
     'New! Cooola Zero Sleep. Same lightning, no bedtime. Ask your doctor. Actually, do not.',
     'HummusPrime: fresh hummus, delivered by drone. Because chickpeas deserve wings.',
@@ -2399,7 +2526,7 @@
     'FluffNap pillows. Sleep so deep your neighbors will check on you. FluffNap!',
     'Herzl Hardware: if it squeaks, leaks or creaks, we have the thing. Probably.',
     'Kfar Kofi instant coffee. Ninety seconds from kettle to personality.'];
-  const BRAND_TAGS = ['Cooola','HummusPrime','Tahini Tower Savings Bank','FluffNap pillows','Kfar Kofi','Herzl Hardware'];
+  const BRAND_TAGS = ['Cooola','ateBite','HummusPrime','Tahini Tower Savings Bank','FluffNap pillows','Kfar Kofi','Herzl Hardware'];
   const QUIPS = ['Big if true.','I will read the rest after my coffee.','Good news, for once.','My producer says that is a real story.','Science, everybody.','Wild times.'];
   function dj(){ const h = hourNow(); return h >= 6 && h < 12 ? {id:'dj_benny', name:'Benny Boom', show:'the Wake-Up Call'}
     : h >= 12 && h < 19 ? {id:'dj_shira', name:'Shira Gold', show:'the Afternoon Drive'} : {id:'dj_yoni', name:'Night Owl Yoni', show:'Night Owls'}; }
@@ -2797,6 +2924,7 @@
   if (params.get('unlock')) params.get('unlock').split(',').forEach(u=>UNLOCKED.add(u));
   if (forceLoc){ setCast(DEMO_CAST); setState(forceLoc, forcePose || 'idle', true, params.get('with')); }
   else setState('apartment','sleeping',true);
+  if (params.has('delivery')) actor.delivery = {at: Date.now() - (+params.get('delivery') || 12) * 1000};   // preview an ateBite delivery (seconds into it)
   requestAnimationFrame(loop);
   if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }
   else if (params.has('preview')) startPreview();

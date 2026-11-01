@@ -14,7 +14,7 @@ Owner (the director): udinigit. Read `docs/SCENE_GUIDELINES.md` before adding or
 - Reality show of a real life ("The Truman Show"), not a sitcom: realistic people, physics and logistics. Ishai never knows he is filmed.
 - No teleportation: every place is on the world map (see the guidelines) with real exits, entries and ways to get there.
 - Follow `docs/SCENE_GUIDELINES.md` for anything visual.
-- Fictional brands only (Cooola, HummusPrime, Wee Laddie Virgin Scotch, A Butcher Is Born, Tahini Tower Savings Bank, Yalla Yoga, FluffNap, Herzl Hardware, Kfar Kofi, Radio Herzl 88.2, …). Never real brands or their look-alike trade dress.
+- Fictional brands only (Cooola, HummusPrime, Wee Laddie Virgin Scotch, A Butcher Is Born, Tahini Tower Savings Bank, Yalla Yoga, FluffNap, Herzl Hardware, Kfar Kofi, Radio Herzl 88.2, ateBite (food delivery), Everything Else (store), Shuk Shalom (market), …). Never real brands or their look-alike trade dress.
 - Narration (`text`) is dev-only; viewers see the picture, spoken lines and the hosts (Zohar, Oren).
 - Keep the free tiers in mind: Workers AI ~10k neurons/day, KV 1k writes/day.
 
@@ -25,6 +25,8 @@ Workers AI output costs ~6.5x input, so the engine avoids AI calls where it can 
 - Live moments (one AI call each, spontaneous): radio/TV on (`liveCue()` + `onAirFor()`: a real headline, the real weather or the real station's genre is read by the DJ / Channel 9 and Ishai reacts; otherwise the AI writes the on-air line in `onAir`), and the moment the rain starts or stops. The on-air line is put first in `lines` with `who: "radio"` or `"tv"`; the page plays it (and keeps its own DJ quiet for 4 minutes). Between live radio/TV moments he just listens (`quietMedia()`, no AI).
 - Everything else: blocks of up to 5 moments in one AI call (`askBlock()`, `s.queue`), shortened before the next planned beat. Each queued moment is validated when it plays; the block is dropped when anything else happens (a live moment, a beat starts, weather flips, a director note, stuck). A bad block falls back to one moment the old way.
 - Places with music: the bar plays a real 24/7 rock station (Radio Paradise Rock Mix; backups from radio-browser in `s.world.barStations`), the café soft rock / pop at low volume (SomaFM Left Coast 70s, Radio Paradise Mellow Mix; backups `cafeStations`), the apartment radio as before. Every stream fades down quickly while anyone talks (`TALK_AT`, set by each typed character of speech) and comes back after; where the browser can't change the volume (iOS) it pauses and resumes instead.
+- Shopping: Shuk Shalom market (food, CAM-10) and the Everything Else store next to it (everything except food, CAM-11) are a bus/taxi ride from the Herzl Street stop (`MAP.street.market` is a ride; the market has its own stop). Opening hours are enforced in `validate()`.
+- ateBite food delivery: ordering is a moment on his phone/laptop; when the courier arrives the moment has `"delivery": true` (set by the AI, or detected from the text) and the page shows the orange-helmeted courier ringing, stepping in with the bag and leaving (`courierUpdate()`). Couriers also ride past on the roads now and then. Preview: `?loc=apartment&pose=idle&delivery=12`.
 - The gym TV is live like the home TV: when Ishai is on the treadmill (`gym/exercising`) Channel 9 news/weather lines are written live and he reacts.
 - `/api/health` shows `usage` (today's AI calls, tokens, estimated neurons, moments, no-AI moments, wasted block moments), `block`, `lastBlockDrop` and `writers` (who wrote the last 10 moments).
 

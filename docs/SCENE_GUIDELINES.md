@@ -22,6 +22,10 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 | Street | right edge | Shops (Herzl St. east) | left edge |
 | Shops | left edge | Street | right edge |
 | Shops | right edge (the café corner) | Café | entrance (left) |
+| Street | bus stop (128) | Market (Shuk Shalom) | its own bus stop (128) — by bus (day) or taxi (night / rain) |
+| Market | bus stop (128) | Street | bus stop (128) |
+| Market | Everything Else door (4, left) | Store | door (4, left) |
+| Store | door (4) | Market | Everything Else door (4) |
 | Street | bus stop (128) | Off camera | — by bus (day) or taxi (night / rain) |
 | Street | Herzl Gym door (64, blue building) | Gym | door (4, left) |
 | Gym | door (4) | Street | Herzl Gym door (64) |
@@ -48,6 +52,8 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
   - Park: right edge (path to the street), left edge (further into the park).
   - Shops (CAM-09, Herzl St. east): left edge (back to Ishai's block), right edge (the café corner). Herzl Hardware, Tahini Tower Savings Bank + ATM, a flower shop, a pedestrian crossing with lights, Kfar Kofi billboard.
   - Café: the entrance on the left.
+  - Market (CAM-10, Shuk Shalom): the bus stop (128) and the Everything Else door (left). Food stalls with striped awnings, vendors, a banner and string lights; open 07:00-19:00, Fri until 14:00, closed Shabbat.
+  - Store (CAM-11, Everything Else): its door on the left. A wall of TVs, shelves of home goods, a clothes rack, a cashier; everything except food; open 09:00-21:00, Fri until 14:00, closed Shabbat.
   - Gym (CAM-07, Herzl Gym): the glass door on the left. Treadmills under a wall TV (Channel 9, sound on); "exercising" = on the treadmill. Open 06:00-23:00.
   - Bar (CAM-08, The Black Candle): the heavy door on the left. Dark rock bar: black brick, red neon, candles, fictional band posters (Grave Tahini, Iron Falafel). Opens 17:00, closes 02:00.
 - A new scene must define its exit points in `MAP` (Ishai's routes) and `exitX()` (companions) before it ships.
