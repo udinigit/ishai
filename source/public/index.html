@@ -70,7 +70,7 @@
   .foot{font-size:15px;color:var(--phos-dim);padding:0 4px;opacity:.8}
   .line.say{margin:-4px 0 9px 1.2em}
   .talk{display:flex;flex-direction:column;gap:10px}
-  .say{position:absolute;z-index:4;pointer-events:none;transform:translate(-50%,-100%);max-width:62%;
+  .say{position:absolute;z-index:4;pointer-events:none;transform:translate(-50%,-100%);max-width:44%;
     background:#f7f7f2;color:#151515;border:2px solid #151515;border-radius:8px;padding:2px 7px 3px;
     font-size:clamp(14px,3.7vw,20px);line-height:1.1;text-shadow:none;box-shadow:0 2px 0 rgba(0,0,0,.35)}
   .say::after{content:"";position:absolute;left:var(--tail,50%);bottom:-8px;margin-left:-6px;border:6px solid transparent;border-top-color:#151515;border-bottom:0}
@@ -781,10 +781,13 @@
       if (comp.id && comp.loc === 'apartment' && comp.mode !== 'out') comp.parked = {id: comp.id, look: comp.look, x: comp.x, until: Date.now() + 20 * 60000}; // waits while he is in the bathroom
       if (actor.loc !== 'bathroom' && actor.loc !== 'apartment' && !actor.switching) comp.parked = null;
       comp.id = null; comp.mode = null; comp.loc = actor.loc; }
+    const posted = id => !!id && POST[actor.loc] === id;
+    if (posted(comp.id)){ comp.id = null; comp.mode = null; }
     let w = compWant; compWant = null;
+    if (w && posted(w.id)) w = null;
     // a friend going somewhere WITH Ishai walks behind him, through the same doors, place after place
     const goer = actor.pending && actor.pending.w ? actor.pending.w : (actor.travelling ? actor.with : null);
-    if (!w && goer && lookOf(goer) && !actor.hidden && (actor.pending || actor.travelling)){
+    if (!w && goer && !posted(goer) && lookOf(goer) && !actor.hidden && (actor.pending || actor.travelling)){
       const dir = Math.sign(actor.targetX - actor.x) || 1;
       w = {id: goer, look: lookOf(goer), x: actor.x - 12*dir, kind:'follow'};
     }
@@ -1533,7 +1536,7 @@
     const cl = settled && !withIsPost() && !atIsland && a!=='sleeping' && a!=='waking' ? companionLook(a) : null;
     if (cl){
       const dir = actor.paceDir||1;
-      const gx = a==='walking' ? actor.x + 12 : (actor.x > W-40 ? actor.x-13 : actor.x+13);   // walking: side by side, always on his right (no jump when turning)
+      const gx = a==='walking' ? actor.x + 12 : (actor.x > W-40 ? actor.x-16 : actor.x+16);   // walking: side by side, always on his right (no jump when turning)
       if (wantComp({id: actor.with || 'stranger', look: cl, x: gx, kind:'floor'})){
         const cx = comp.x;   // comp.x follows gx smoothly (see compUpdate), so there is never a jump   // standing friends may wander a step or two (see compUpdate)
         markHead(actor.with, cx, y);
@@ -1821,13 +1824,17 @@
     if (!SAY.who || performance.now() > SAY.until || actor.switching){ el.hidden = true; return; }
     const sp = speaker(SAY.who), head = HEADS[SAY.who];
     $('sayWho').textContent = head ? '' : (SAY.who==='radio' ? '\u{1F4FB} ' : SAY.who==='tv' ? '\u{1F4FA} ' : '\u260E ') + sp.name + ':'; $('sayWho').style.color = sp.color;
-    $('sayText').textContent = SAY.text;
+    let txt = SAY.text; if (txt.length > 110 && SAY.who !== 'radio' && SAY.who !== 'tv'){ const cut = txt.slice(-105); txt = '\u2026' + cut.slice(cut.indexOf(' ') + 1); }   // long lines: the bubble shows the latest part (the full line is in the chat)
+    $('sayText').textContent = txt;
     el.hidden = false;
     const cw = cv.clientWidth, ch = cv.clientHeight, top = cv.offsetTop;
     if (head){
       el.classList.remove('edge');
       const px = head.x / W * cw, py = (head.y - 2) / H * ch + top;
-      const half = el.offsetWidth / 2, left = Math.max(half + 6, Math.min(cw - half - 6, px));
+      // someone standing close by: the bubble opens to the far side, so it doesn't cover them
+      const other = Object.entries(HEADS).find(([id, h]) => id !== SAY.who && Math.abs(h.x - head.x) < 34 && Math.abs(h.y - head.y) < 20);
+      const half = el.offsetWidth / 2, side = other ? (other[1].x > head.x ? -1 : 1) : 0;
+      const left = Math.max(half + 6, Math.min(cw - half - 6, px + side * (half - 16)));
       el.style.left = (left + cv.offsetLeft) + 'px'; el.style.top = Math.max(el.offsetHeight + 4, py) + 'px';
       el.style.setProperty('--tail', Math.max(10, Math.min(el.offsetWidth - 10, px - left + half)) + 'px');
     } else { // on the phone / not in the room: a bubble at the screen edge
