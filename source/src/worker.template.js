@@ -13,6 +13,7 @@ const TZ = "Asia/Jerusalem";
 const DELAY_MIN = 5;          // broadcast delay: viewers see events 5 minutes after they are written (not shown on the page)
 const INTERVAL_MIN = 6;       // keep equal to your Cron Trigger (*/6 * * * *)
 const KEEP_EVENTS = 40;
+const BLOCK_N = 5;            // ordinary moments are written 5 at a time (one AI call per ~30 minutes); radio/TV, weather changes and anything unplanned stay live
 const MAX_CAST = 12;          // the AI can add people until the cast reaches this size
 const NEW_PERSON_EVERY_H = 20; // at most one new person per this many hours
 // Secret story goals ("director"). Added once, the first time this version runs.
@@ -198,7 +199,10 @@ export default {
         bugs: JSON.parse(await env.ISHAI.get("bugs") || "[]").filter(x => x.status === "new").slice(-5).map(x => ({ at: x.at, text: x.text.slice(0, 200), screen: x.screen })),
         studio: { lastShowAt: s.show ? s.show.t : null, lastSummaryAt: s.daySum ? s.daySum.at : null, err: s.studioErr || null },
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
-        artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })) }, { "cache-control": "no-store" });
+        artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
+        usage: s.usage ? { ...s.usage, neuronsEst: Math.round(s.usage.inTok * 4625 / 1e6 + s.usage.outTok * 30475 / 1e6) } : null,
+        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, lastBlockDrop: s.queueDrop || null,
+        writers: s.events.slice(-10).map(e => e.src || "?") }, { "cache-control": "no-store" });
     }
     // quick story fix for the scheduled health check: /api/fix?token=...&endScene=1&note=...&minutes=45
     if (url.pathname === "/api/fix") {
@@ -271,6 +275,9 @@ async function loadState(env) {
     s.director.push(newGoal(d, Date.now())); s.seeded.push(d.id); dirty = true;
   }
   if (applyPlan(s, Date.now())) dirty = true;
+  // goals loaded before scripts existed: pick up their planned moments from the plan
+  for (const b of (PLAN && PLAN.beats) || []) { const g = s.director.find(x => x.id === b.id);
+    if (g && g.status === "waiting" && !g.script && !g.scriptDone) { const sc = cleanScript(b.script || (b.preview && b.preview.moments)); if (sc) { g.script = sc; dirty = true; } } }
   if (dirty) await env.ISHAI.put("state", JSON.stringify(s));
   memo = s; memoAt = Date.now();
   return s;
@@ -384,17 +391,25 @@ async function tick(env, force) {
   // director: activate the next goal, or force it if its deadline passed
   let goal = activeGoal(s, now);
   let ev = null;
-  if (goal && now > deadlineOf(goal)) {
+  if (goal && now > deadlineOf(goal) && !(goal.step > 0)) {   // a planned scene already playing is not cut off
     ev = forcedEvent(goal, last, s); ev.src = "director goal (forced)";
     finishGoal(s, goal, "forced", now); ev.unlocks = goal.unlock || null;
     goal = null;
   }
   // AI out of budget (no backup AI): Ishai feels unwell, goes home and rests until the allowance resets
   cfOutUntil = Math.max(cfOutUntil, s.aiOutUntil || 0);
+  if (!ev) ev = nightEvent(s, last, clock);                                   // asleep at night: no AI
   if (!ev && now < (s.aiOutUntil || 0) && !env.BACKUP_AI_KEY){ ev = sickEvent(s, last, clock.hour); ev.src = "sick day (AI out of budget)"; }
+  if (!ev && goal && goal.script) ev = scriptEvent(s, last, goal, now);       // the daily plan's scene, as written (no AI)
+  if (!ev) ev = quietMedia(s, last);                                          // between live radio/TV reactions he just listens (no AI)
+  let live = ev ? null : liveCue(s, last, clock, storyMs);                    // radio / TV / weather change: written live
+  if (!ev && !live) { ev = queuedEvent(s, last, goal, now);                   // the next pre-written moment of the current block (no AI)
+    if (!ev && s.plannedLive) live = liveCue(s, last, clock, storyMs); }      // the block reached "he turns on the radio/TV": that moment is live
   if (!ev) {
     try {
-      ev = await askAI(env, s, clock, now, goal); s.lastError = null; if (ev) ev.src = lastWriter;
+      if (live) { ev = await askAI(env, s, clock, now, goal, live); if (ev) { ev.src = lastWriter + " (live: " + live.why + ")"; attachAir(ev, live, s); } }
+      else ev = await askBlock(env, s, clock, now, goal);
+      s.lastError = null;
       if (s.sickN) { s.sickN = 0; s.recoverUntil = now + 90 * 60000; }
     }
     catch (e) {
@@ -408,8 +423,8 @@ async function tick(env, force) {
       }
     }
     if (!ev){ ev = fallback(last, clock.hour, s); ev.stuck = true; ev.src = s.lastError && s.lastError.at === now ? "backup line (AI error)" : "backup line (AI reply dropped: repeat)"; }
-    if (goal && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
   }
+  if (goal && goal.status !== "done" && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
 
   if (ev.newCard) { s.cast[ev.newCard.id] = ev.newCard; s.lastNewAt = now; }
   if ((ev.commentary || []).some(c => SPONSORS.some(sp => c.say.toLowerCase().includes(sp.name.toLowerCase())))) s.lastAd = now;
@@ -444,6 +459,10 @@ async function tick(env, force) {
   if (ev.notes) s.notes = ev.notes;
   s.events = s.events.slice(-KEEP_EVENTS);
   const evId = s.nextId - 1;
+  if (s.queue) { if (ev.fromBlock) s.queue.afterId = evId; else dropQueue(s, "something else happened: " + (ev.src || "")); }   // any other moment ends the pre-written block
+  s.lastRain = !!(s.world && s.world.weather && s.world.weather.rain);
+  { const d = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now)); const u = s.usage && s.usage.date === d ? s.usage : (s.usage = { date: d, calls: 0, inTok: 0, outTok: 0, moments: 0, noAI: 0 });
+    u.moments++; if (/^(night|daily plan|on the way|on air|backup|sick|director)/.test(ev.src || "") || / \(block [2-9]/.test(ev.src || "")) u.noAI++; }
   (ev.lines || []).forEach((l, i) => s.talk.push({ id: evId + ":" + i, t: storyMs, who: l.who, say: l.say, loc: ev.location, w: ev.with || null }));
   (ev.commentary || []).forEach((c, i) => s.talk.push({ id: evId + ":c" + i, t: storyMs, who: c.who, say: c.say, loc: ev.location, host: true }));
   if (s.talk.length > 120) s.talk = s.talk.slice(-120);
@@ -468,6 +487,8 @@ async function tick(env, force) {
       if (r) { s.studioKey = key; s.studioTries = 0; s.studioErr = null; s.daySum = { date: day, text: r.today, at: storyMs }; s.show = r.show; if (r.pip) s.studio = r.pip; }
       else { s.studioTries = (s.studioTries || 0) + 1; if (!s.studioErr) s.studioErr = { at: now, msg: "the AI reply could not be used" };
         if (s.studioTries >= 3 || now < (s.aiOutUntil || 0)) { s.studioKey = key; s.studioTries = 0; const b = basicRecap(s, day, storyMs); if (b) { s.daySum = { date: day, text: b.today, at: storyMs }; s.show = b.show; } } } } }   // try again on the next moments (max 3 per hour)
+  { const d = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now)); const u = s.usage && s.usage.date === d ? s.usage : (s.usage = { date: d, calls: 0, inTok: 0, outTok: 0, moments: 0, noAI: 0 });
+    u.calls += USE.calls; u.inTok += USE.inTok; u.outTok += USE.outTok; USE.calls = USE.inTok = USE.outTok = 0; }
   await saveState(env, s);
   return s;
 }
@@ -501,7 +522,8 @@ function sceneOverdue(sc, storyMs, stuck) {
   const h = storyClock(storyMs).hour;
   return sc.lines >= sc.target * 1.4 || storyMs - (sc.startedAt || storyMs) > 100 * 60000 || h >= 23 || h < 6;
 }
-function buildMessages(s, clock, now, goal) {
+function buildMessages(s, clock, now, goal, opt = {}) {
+  const block = opt.block || 0, cue = opt.live || null;
   const last = s.events[s.events.length - 1];
   const cw = last.with || (BATH_ACTIONS.includes(last.action) && s.scene ? s.scene.w : null); // a guest waits while he is in the bathroom
   const owned = s.unlocked.map(u => ITEMS[u]).filter(Boolean);
@@ -511,7 +533,9 @@ function buildMessages(s, clock, now, goal) {
   const world = Object.entries(PLACES).map(([k, v]) => `- ${k}: ${v}. Allowed actions: ${allowed(k, s.unlocked).join(", ")}`).join("\n");
   const gapMin = Math.round((now - (last.created || last.t)) / 60000);
   const gap = gapMin > 45 ? `\nNote: about ${gapMin >= 120 ? Math.round(gapMin / 60) + " hours" : gapMin + " minutes"} passed since the last moment; account for that.` : "";
-  const direction = goal
+  const direction = goal && goal.script && !(goal.step > 0)
+    ? `\nSECRET STORY DIRECTION: soon a planned scene happens at ${goal.where || goal.script[0].location}${goal.with ? " with " + goal.with : ""}. Do NOT write that scene or bring them in yourself; just let Ishai wrap up what he is doing (end a conversation, finish a task), ready to go.`
+    : goal
     ? `\nSECRET STORY DIRECTION (viewers must not notice it is directed): ${goal.goal}\n` +
       `Work towards it naturally, step by step; it does not have to happen in this moment. ${timeLeft(deadlineOf(goal) - now)} left. ` + (goal.where ? `It happens at: ${goal.where}. ` : "") + (goal.with ? `Involves: ${goal.with}. ` : "") +
       (goal.brief ? `SCENE BRIEF from the director for this conversation: ${goal.brief}${goal.briefLines ? ` (about ${goal.briefLines} lines in total, over several moments)` : ""}. When it starts, turn this brief into "scene". ` : "") +
@@ -581,7 +605,7 @@ ${world}
 ${castSection(s, last)}
 
 RULES
-- Write the NEXT moment only: 1-2 short sentences, max 35 words, present tense, third person.
+${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} minutes apart (story times ${Array.from({ length: block }, (_, k) => storyClock(now + DELAY_MIN * 60000 + k * INTERVAL_MIN * 60000).label.slice(-5)).join(", ")}). Each moment is 1-2 short sentences, max 35 words, present tense, third person, and follows on from the one before (one neighboring place at a time; a conversation may run across several moments with 8-14 NEW lines each, then ends naturally). The radio and TV are written live: if he turns one on, that is the LAST moment you write.` : "- Write the NEXT moment only: 1-2 short sentences, max 35 words, present tense, third person."}
 - Be concrete: viewers only see this one line, so name things plainly (which show, which game, what the news says). Never write vague lines like "an article" or "a new character" without saying what it is.
 - This is reality, not a sitcom and not scripted. Ishai and everyone around him behave like real people: ordinary, believable choices, real pacing, small moments. No slapstick, no staged coincidences, no punchlines in the narration. Humor comes from real life and from the hosts.
 - Ishai does not know he is being filmed. He never talks to or about the camera, the show or the hosts.
@@ -614,10 +638,10 @@ COMMENTATORS (they talk to the viewers, who do NOT see your "text", only the pic
 - ${HOSTS.oren}
 - ${HOSTS.rules}
 ${(() => { const r = recentHostLines(s, 8); return r.length ? `- The hosts ALREADY SAID these (never repeat them, their jokes, openings, catchphrases or topics; find something NEW about THIS moment):\n${r.map(x => "  * " + x).join("\n")}\n` : ""; })()}"commentary": 0-2 short lines (max 20 words each) as {"who":"zohar"|"oren","say":"..."}. Their job: react to what viewers SEE right now (the place, the action, who is there) and HEAR (the spoken lines), connect it to earlier moments, make viewers care about the characters, and make them laugh. They NEVER invent things that are not on screen: no drinks, food, objects, visitors, calls or plans that are not in this moment's action/lines. Opinions, guesses and jokes about what is visible are fine ("he's been staring at that fridge for a while"). Comment on most moments. Viewers cannot read the narration, so usually ONE of the lines says in plain words what is happening right now (e.g. "He's making tea with honey, the third today"), and the other adds the joke or reaction. REQUIRED: whenever another character is present or anyone speaks, include 1-2 commentary lines reacting to it (write the dialogue first, then the hosts react). They banter with each other. Edgy and cynical is fine, but never cruel about real groups or people, no slurs, no jokes about death, dying or illness, keep it PG-13. They may hint at secret story directions ("I have a feeling about that barista") but never reveal them. Never mention or advertise real brands or companies.${sponsor ? `
-- THIS MOMENT: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
+- ${block ? "IN ONE OF THESE MOMENTS" : "THIS MOMENT"}: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
 
-Reply with ONLY this JSON, nothing else:
-{"location":"...","action":"...","text":"...","with":null,"lines":[{"who":"ishai","say":"..."},{"who":"<the with id>","say":"..."}],"commentary":[],"scene":null,"update":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
+${block ? `Reply with ONLY this JSON, nothing else: {"moments":[ ...exactly ${block} moments in order... ]}, where EACH moment looks like this:` : "Reply with ONLY this JSON, nothing else:"}
+{${cue && cue.onAir && !cue.onAir.say ? '"onAir":"...",' : ""}"location":"...","action":"...","text":"...","with":null,"lines":[{"who":"ishai","say":"..."},{"who":"<the with id>","say":"..."}],"commentary":[],"scene":null,"update":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
 "missing": if this moment features an object, animal or place the camera cannot show (not listed above), name it in 1-3 words (e.g. "bicycle", "puppy"); otherwise null.
 newCharacter format: {"name":"...","role":"...","personality":"...","speech":"...","hangouts":["..."],"look":{"hair":"...","hairColor":"...","skin":"...","shirt":"...","pants":"...","extras":[]}}`;
   const user =
@@ -628,14 +652,15 @@ ${body}
 ${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
 ${recent}${gap}${goneNote}${s.recoverUntil && now < s.recoverUntil ? "\nNOTE: Earlier Ishai felt unwell and rested at home. He feels better now, still a little slow; let that show naturally (and he may mention it to someone)." : ""}${convo}${sceneBrief}
+${cue ? "\n" + liveText(cue, s, last) : ""}
 
-What happens next?`;
+${block ? `What happens in the next ${block} moments?` : "What happens next?"}`;
   return [{ role: "system", content: system }, { role: "user", content: user }];
 }
 
-async function askAI(env, s, clock, now, goal) {
+async function askAI(env, s, clock, now, goal, live) {
   const last = s.events[s.events.length - 1];
-  const messages = buildMessages(s, clock, now, goal);
+  const messages = buildMessages(s, clock, now, goal, { live });
   const allowNew = canAddPerson(s, now);
   for (let attempt = 0; attempt < 2; attempt++) {
     const raw = await runModel(env, messages);
@@ -653,7 +678,9 @@ async function askAI(env, s, clock, now, goal) {
 
 let lastWriter = null; // which model wrote the latest AI reply (shown to the director)
 let modelIdx = 0; // remembers the first model that works in this isolate
-async function runModel(env, messages) {
+// what the AI used this run (merged into s.usage in tick, shown in /api/health)
+const USE = { calls: 0, inTok: 0, outTok: 0 };
+async function runModel(env, messages, maxTokens = 1000) {
   let lastErr;
   // while Workers AI is out of budget, skip it (no wasted calls) and use the backup AI if one is set
   for (let i = Date.now() < cfOutUntil ? MODELS.length : modelIdx; i < MODELS.length; i++) {
@@ -661,7 +688,8 @@ async function runModel(env, messages) {
       const qwen = MODELS[i].includes("qwen3");
       // Qwen3 "thinks" by default; /no_think keeps it cheap (no hidden reasoning tokens)
       const msgs = qwen ? messages.map((m, k) => k === messages.length - 1 && m.role === "user" ? { ...m, content: m.content + " /no_think" } : m) : messages;
-      const out = await env.AI.run(MODELS[i], { messages: msgs, max_tokens: 1000, temperature: qwen ? 0.8 : 0.9 });
+      const out = await env.AI.run(MODELS[i], { messages: msgs, max_tokens: maxTokens, temperature: qwen ? 0.8 : 0.9 });
+      USE.calls++; USE.inTok += out?.usage?.prompt_tokens || Math.round(JSON.stringify(msgs).length / 3.8); USE.outTok += out?.usage?.completion_tokens || 0;
       const clean = t => t.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
       lastWriter = MODELS[i].split("/").pop();
       if (typeof out?.response === "string") return clean(out.response);
@@ -679,7 +707,7 @@ async function runModel(env, messages) {
     }
   }
   if (Date.now() < cfOutUntil) {
-    if (env.BACKUP_AI_KEY) return await runBackup(env, messages);
+    if (env.BACKUP_AI_KEY) return await runBackup(env, messages, maxTokens);
     throw lastErr || new Error("4006: Workers AI daily free allocation used up (back at 00:00 UTC)");
   }
   throw lastErr;
@@ -696,6 +724,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     missing: (() => { const m = str(o.missing, 30).toLowerCase().replace(/[^a-z0-9 '-]/g, "").trim(); return m && m !== "null" && m !== "none" ? m : null; })()
   };
   if (ev.text.length < 8) return { ev: null, problem: "the text is missing" };
+  { const a = str(o.onAir && typeof o.onAir === "object" ? o.onAir.say : o.onAir, 220).replace(/^["']|["']$/g, ""); if (a.length > 5 && !/^(null|none)$/i.test(a)) ev.onAir = a; }
 
   // new person
   if (o.newCharacter && typeof o.newCharacter === "object") {
@@ -859,14 +888,14 @@ function nextUtcMidnight(now) {
 // which models exist and moves to the next one. Plain chat models first; "thinking" models only with reasoning turned down.
 let backupModel = null, backupIds = null; const backupBad = new Set();
 const BACKUP_PREFER = [/llama-4-scout/, /llama-4-maverick/, /llama-3\.3-70b/, /llama-3\.1-8b/, /gemma2?-9b/, /gpt-oss-120b/, /gpt-oss-20b/, /qwen3/, /llama/, /gemma/, /qwen/];
-async function runBackup(env, messages) {
+async function runBackup(env, messages, maxTokens = 1000) {
   const url = env.BACKUP_AI_URL || "https://api.groq.com/openai/v1/chat/completions";
   const auth = { authorization: "Bearer " + env.BACKUP_AI_KEY };
   const body = model => {
-    const b = { model, messages, max_tokens: 900, temperature: 0.9 };
+    const b = { model, messages, max_tokens: Math.max(900, maxTokens), temperature: 0.9 };
     if (/llama|gemma/i.test(model)) b.response_format = { type: "json_object" };              // JSON mode: no broken or wrapped JSON
-    if (/gpt-oss/i.test(model)) { b.reasoning_effort = "low"; b.max_tokens = 2000; }            // reasoning models: think less, leave room for the answer
-    if (/qwen3|deepseek|r1/i.test(model)) { b.reasoning_format = "hidden"; b.max_tokens = 2000; }
+    if (/gpt-oss/i.test(model)) { b.reasoning_effort = "low"; b.max_tokens = Math.max(2000, maxTokens + 1000); }            // reasoning models: think less, leave room for the answer
+    if (/qwen3|deepseek|r1/i.test(model)) { b.reasoning_format = "hidden"; b.max_tokens = Math.max(2000, maxTokens + 1000); }
     return JSON.stringify(b);
   };
   const listModels = async () => {
@@ -984,6 +1013,150 @@ function fallback(last, hour, s) {
   const opts = fresh.length ? fresh : P;
   const [location, action, text] = opts[Math.floor(Math.random() * opts.length)];
   return { location, action, text, with: null, lines: [], commentary: relayHosts(s || { events: [] }, text, Math.floor(Date.now() / 36e4), null) };
+}
+
+// ---------- moments without the AI, blocks and live moments ----------
+const NIGHT_TEXTS = ["Ishai sleeps, one arm hanging off the bed.", "He turns over and pulls the blanket up to his ears.", "A scooter buzzes past outside; Ishai doesn't stir.",
+  "He mumbles something about kerning in his sleep.", "The fridge hums. Ishai snores, softly.", "Moshe the basil stands guard on the dark windowsill.",
+  "He kicks the blanket off, then drags it back without waking.", "A neighbor's door clicks shut down the hall. Ishai sleeps on.", "He sleeps on his stomach, face squashed into the pillow.",
+  "Somewhere a cat argues with another cat. Ishai sleeps through it.", "His phone lights up once on the desk. He doesn't notice.", "Ishai smiles in his sleep at something only he can see.",
+  "Rain taps on the window; Ishai sleeps through it.", "The street is quiet. Ishai breathes slow and heavy."];
+const NIGHT_JOKES = ["Night shift report: still horizontal.", "Ratings are low, but so is he. Goodnight, Ishai.", "Moshe has the night watch. Respect.", "Peak content. Truly.", "Sleep tracker says: eight out of ten.", "If anyone needs us, we're also asleep."];
+function nightEvent(s, last, clock) {
+  const h = clock.hour;
+  if (last.action !== "sleeping" || !(h >= 22 || h < 6)) return null;
+  const wet = !!(s.world && s.world.weather && s.world.weather.rain), dog = s.unlocked.includes("dog");
+  const pool = NIGHT_TEXTS.filter(t => wet || !/^Rain/.test(t)).concat(dog ? ["Falafel snores in his little bed by the window.", "Falafel twitches, chasing something in a dream."] : []);
+  const recent = new Set(s.events.slice(-8).map(e => e.text)), fresh = pool.filter(t => !recent.has(t));
+  const text = (fresh.length ? fresh : pool)[Math.floor(Math.random() * (fresh.length || pool.length))];
+  const n = s.nightN = (s.nightN || 0) + 1, prev = recentHostLines(s, 12), jokes = NIGHT_JOKES.filter(j => !prev.includes(j));
+  return { location: "apartment", action: "sleeping", text, with: null, lines: [], src: "night (no AI)",
+    commentary: n % 3 === 0 && jokes.length ? [{ who: n % 2 ? "oren" : "zohar", say: jokes[n % jokes.length] }] : [] };
+}
+const pathStep = (from, to) => { const prev = { [from]: null }, q = [from];
+  while (q.length) { const x = q.shift(); if (x === to) break; for (const y of NEXT[x] || []) if (!(y in prev)) { prev[y] = x; q.push(y); } }
+  if (!(to in prev)) return null; let x = to; while (prev[x] !== from && prev[x] !== null) x = prev[x]; return x; };
+function travelEvent(s, last, hop, dest) {
+  const wet = !!(s.world && s.world.weather && s.world.weather.rain), dog = s.unlocked.includes("dog"), umb = wet ? " under his umbrella" : "";
+  const T = { "apartment>corridor": `Ishai grabs his keys${dog ? ", clips on Falafel's leash" : ""} and heads out the door.`, "corridor>street": `He goes down the stairs and out onto Herzl Street${umb}.`,
+    "street>cafe": `He walks along Herzl Street${umb} to the café.`, "street>park": `He crosses Herzl Street${umb} toward the little park.`, "street>corridor": "He heads back into his building and up the stairs.",
+    "corridor>apartment": "He unlocks apartment 4 and goes in.", "park>street": `He walks back to Herzl Street${umb}.`, "cafe>street": `He steps out of the café onto Herzl Street${umb}.`,
+    "street>offscreen": "He gets on the bus at the stop.", "offscreen>street": "He gets off the bus on Herzl Street." };
+  const text = T[last.location + ">" + hop] || `Ishai heads toward the ${dest}.`;
+  return { location: hop, action: hop === "offscreen" ? "away" : hop === "apartment" ? "idle" : "walking", text, with: null, lines: [], commentary: [], src: "on the way to the planned scene (no AI)" };
+}
+function scriptEvent(s, last, g, now) {
+  const sc = g.script, i = g.step || 0; if (!sc || i >= sc.length) return null;
+  const m = sc[i], to = LOCATIONS[m.location] ? m.location : (LOCATIONS[g.where] ? g.where : last.location);
+  const busy = ["sleeping", "waking"].includes(last.action) || BATH_ACTIONS.includes(last.action) || (last.with && last.with !== String(m.with || "").toLowerCase());
+  if (i === 0 && busy) return null;                                       // he finishes what he is doing first (the story wraps it up)
+  if (to !== last.location && !NEXT[last.location].includes(to)) { const hop = pathStep(last.location, to); return hop ? travelEvent(s, last, hop, to) : null; }
+  const end = i === sc.length - 1;
+  const r = validate(JSON.stringify({ ...m, location: to, scene: null, newCharacter: null, missing: null, complete: end ? g.id : null }), s, last, false, g, true);
+  g.step = i + 1;
+  if (!r.ev) { if (end) { finishGoal(s, g, "script", now); g.scriptDone = true; } return null; }
+  const ev = repair(r.ev, s, last);
+  if (ev.with && ev.with !== last.with) {
+    const total = sc.reduce((n, x) => n + (x.lines || []).length, 0);
+    ev.scene = { type: "plot", why: g.goal.slice(0, 200), ishaiWants: "what the daily plan says", theyWant: "what the daily plan says", beats: "as planned, then it winds down naturally", ending: "a natural goodbye", target: total + 4 };
+  }
+  ev.src = `daily plan (scene ${i + 1}/${sc.length})`;
+  if (end) { finishGoal(s, g, "script", now); g.scriptDone = true; ev.complete = g.id; ev.unlocks = g.unlock || null; }
+  return ev;
+}
+function dropQueue(s, why) {
+  if (s.queue && s.usage) s.usage.wasted = (s.usage.wasted || 0) + s.queue.items.length;
+  s.queueDrop = why; s.queue = null;
+}
+function queuedEvent(s, last, goal, now) {
+  const q = s.queue; if (!q || !q.items.length) { s.queue = null; return null; }
+  const w = s.world && s.world.weather, fix = s.fixNote && now < s.fixNote.until ? s.fixNote.text : null;
+  const why = q.afterId !== last.id ? "something else happened" : (goal ? goal.id : null) !== q.goal ? "a planned beat began"
+    : !!(w && w.rain) !== q.rain ? "the weather changed" : fix !== q.fix ? "a director note" : s.stuck ? "the story was stuck" : now - q.at > 45 * 60000 ? "too old" : "";
+  if (why) { dropQueue(s, why); return null; }
+  const m = q.items[0];
+  if (["listening", "watching"].includes(String(m.action || "").toLowerCase())) { dropQueue(s, "radio/TV: written live"); s.plannedLive = String(m.text || "").slice(0, 200); return null; }  // radio / TV: live
+  const r = validate(JSON.stringify(m), s, last, canAddPerson(s, now), goal, false);
+  if (!r.ev || r.problem) { dropQueue(s, r.problem || "dropped"); return null; }
+  q.items.shift();
+  const ev = r.ev; ev.fromBlock = true; ev.src = `${q.writer} (block ${q.n - q.items.length}/${q.n}, written ahead)`;
+  return ev;
+}
+async function askBlock(env, s, clock, now, goal) {
+  const last = s.events[s.events.length - 1];
+  // don't write past the start of the next planned beat (those moments would be thrown away)
+  const nextG = s.director.filter(d => d.status === "waiting" && d.startAfter > now).sort((a, b) => a.startAfter - b.startAfter)[0];
+  const n = clamp(nextG ? Math.floor((nextG.startAfter - now) / (INTERVAL_MIN * 60000)) + 1 : BLOCK_N, 1, BLOCK_N);
+  if (n === 1) return askAI(env, s, clock, now, goal);
+  const raw = await runModel(env, buildMessages(s, clock, now, goal, { block: n }), 800 + n * 650);
+  let arr = null;
+  try { const t = raw.replace(/```(json)?/g, "").trim(), o = JSON.parse(t.startsWith("[") ? t : (t.match(/\{[\s\S]*\}/) || [""])[0]);
+    arr = Array.isArray(o) ? o : Array.isArray(o.moments) ? o.moments : o.location ? [o] : null; } catch {}
+  arr = (arr || []).filter(x => x && typeof x === "object").slice(0, n);
+  const r = arr.length ? validate(JSON.stringify(arr[0]), s, last, canAddPerson(s, now), goal, false) : { problem: "the block was not valid JSON" };
+  s.diag = [...(s.diag || []), { at: now, model: lastWriter, attempt: "block", problem: r.problem || null, moments: arr.length, chars: raw.length }].slice(-16);
+  if (!r.ev || r.problem) { s.queueDrop = "block: " + (r.problem || "unusable"); s.queue = null; return askAI(env, s, clock, now, goal); }   // one moment the usual way
+  const w = s.world && s.world.weather;
+  s.queue = { items: arr.slice(1), n: arr.length, at: now, goal: goal ? goal.id : null, rain: !!(w && w.rain), fix: s.fixNote && now < s.fixNote.until ? s.fixNote.text : null, writer: lastWriter, afterId: null };
+  r.ev.fromBlock = true; r.ev.src = `${lastWriter} (block 1/${arr.length}, written ahead)`;
+  return r.ev;
+}
+// what is on the radio / TV right now: real headlines, real weather, the real station's music; otherwise the AI makes it up
+const DJ_NAME = h => h >= 6 && h < 12 ? "Benny Boom" : h >= 12 && h < 19 ? "Shira Gold" : "Night Owl Yoni";
+const pageHash = n => { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4); n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; };
+function onAirFor(s, kind, storyMs, hour) {
+  const w = s.world || {}, aired = s.aired || [], heads = (w.headlines || []).filter(h => !aired.includes(h.title)), r = Math.random(), radio = kind === "radio";
+  const pickHead = () => heads[Math.floor(Math.random() * Math.min(5, heads.length))];
+  if (heads.length && r < .5) { const h = pickHead(); return { kind: "news", who: kind, title: h.title,
+    say: radio ? `${DJ_NAME(hour)} on Radio Herzl, the news: ${h.title}.` : `Channel 9 News: ${h.title}.` }; }
+  if (w.weather && r < .68) return { kind: "weather", who: kind, say: radio
+    ? `${DJ_NAME(hour)} here. ${w.weather.temp} degrees and ${w.weather.desc} in Tel Aviv.${w.weather.rain ? " Umbrellas out, people." : ""}`
+    : `Channel 9 weather: ${w.weather.temp} degrees and ${w.weather.desc} in Tel Aviv${w.weather.wind > 30 ? ", strong wind" : ""}.` };
+  const st = w.stations || [];
+  if (radio && st.length && r < .82) { const x = st[Math.floor(pageHash(Math.floor(storyMs / 1200000) * 3 + 7) * st.length)];
+    return { kind: "music", who: "radio", say: `${DJ_NAME(hour)}: more ${x.tag} on Radio Herzl 88.2. Stay with us.` }; }
+  return { kind: radio ? "a made-up radio bit" : hour === 21 ? "A Butcher Is Born" : "a made-up TV show", who: kind };   // the AI writes what is on
+}
+function quietMedia(s, last) {
+  if (last.location !== "apartment" || last.with || !["listening", "watching"].includes(last.action) || !/live: (radio|tv)/.test(last.src || "")) return null;
+  if (typeof s.lastRain === "boolean" && !!(s.world && s.world.weather && s.world.weather.rain) !== s.lastRain) return null;   // the weather changed: live
+  const R = ["Ishai listens to Radio Herzl, drumming his fingers on the desk.", "He hums along to the radio, badly.", "The radio plays on; Ishai stretches out in the armchair and listens.",
+    "He turns the radio up a notch and leans back.", "Ishai half-listens to the radio, scrolling his phone."];
+  const T = ["Ishai watches Channel 9 from the armchair, remote in hand.", "He stays on the couch, eyes on the TV.", "Ishai flicks through the channels and settles back on Channel 9.",
+    "He watches, chin in hand, the TV glow on his face."];
+  const pool = (last.action === "listening" ? R : T).filter(t => !s.events.slice(-6).some(e => e.text === t));
+  return { location: "apartment", action: last.action, text: pool[Math.floor(Math.random() * pool.length)] || "He keeps listening.", with: null, lines: [], commentary: [], src: "on air, he just listens (no AI)" };
+}
+function liveCue(s, last, clock, storyMs) {
+  if (last.action === "sleeping" || BATH_ACTIONS.includes(last.action) || last.location === "offscreen") { s.plannedLive = null; return null; }
+  const planned = s.plannedLive; s.plannedLive = null;
+  const media = last.location === "apartment" && ["listening", "watching"].includes(last.action) ? last.action
+    : planned ? (/\b(tv|television|channel|watch)/i.test(planned) ? "watching" : /radio/i.test(planned) ? "listening" : null) : null;
+  const rain = !!(s.world && s.world.weather && s.world.weather.rain);
+  const flip = typeof s.lastRain === "boolean" && rain !== s.lastRain ? (rain ? "it has just started to rain" : "the rain has just stopped") : null;
+  if (!media && !flip) return null;
+  const kind = media === "watching" ? "tv" : "radio";
+  return { why: [media ? kind : null, flip ? "weather" : null].filter(Boolean).join(" + "), planned, flip,
+    onAir: media && s.unlocked.includes(kind) ? onAirFor(s, kind, storyMs, clock.hour) : null };
+}
+function liveText(cue, s, last) {
+  const w = last.with ? (s.cast[last.with]?.name || last.with) : null, out = [];
+  if (cue.flip) out.push(`LIVE: ${cue.flip}. Ishai notices it right now and reacts spontaneously (a line or two${w ? " with " + w : " to himself"}); plans may change.`);
+  if (cue.planned) out.push(`PLANNED NEXT: ${cue.planned}`);
+  const a = cue.onAir; if (!a) return out.join("\n");
+  const src = a.who === "tv" ? "the TV" : "the radio", react = w ? `he and ${w} react to it in their conversation`
+    : `a short spontaneous monologue in "lines" (1-3 lines by "ishai": he mutters to himself${s.unlocked.includes("dog") ? ", to Falafel" : ""} or to Moshe the basil)`;
+  out.push(a.say
+    ? `ON AIR RIGHT NOW (viewers hear this from ${src} first): "${a.say}"\nTHIS MOMENT IS LIVE: Ishai reacts to exactly this, in character: ${react}. He may agree, argue with ${src}, joke, get an idea, look something up, or switch it off. Serious news: brief and respectful. The hosts may react too. Do not repeat the on-air line itself.`
+    : `THIS MOMENT IS LIVE: in "onAir" write ONE line (max 25 words) that comes out of ${src} right now: ${a.kind}${a.kind === "A Butcher Is Born" ? " (the 21:00 reality show)" : ""}, fictional brands only. Ishai reacts to exactly that line: ${react}.`);
+  return out.join("\n");
+}
+function attachAir(ev, cue, s) {
+  const a = cue && cue.onAir; if (!a || ev.location !== "apartment") return;
+  const say = a.say || ev.onAir; if (!say) return;
+  if (!["listening", "watching"].includes(ev.action) && !/\b(radio|tv|television|news|channel)\b/i.test(ev.text)) return;
+  ev.lines = [{ who: a.who, say: say.slice(0, 220) }, ...(ev.lines || [])];
+  if (a.title) s.aired = [...(s.aired || []), a.title].slice(-30);
 }
 
 // ---------- real world ----------
@@ -1111,8 +1284,16 @@ function newGoal(d, now) {
     forceAction: str(d.forceAction, 20) || null, forceLines: Array.isArray(d.forceLines) ? d.forceLines.slice(0, 14) : [],
     forceCommentary: Array.isArray(d.forceCommentary) ? d.forceCommentary.slice(0, 2) : [],
     status: str(d.art, 300) ? "needs-art" : "waiting", art: str(d.art, 300) || null,
-    activatedAt: null, doneAt: null, how: null, createdAt: now
+    activatedAt: null, doneAt: null, how: null, createdAt: now, script: cleanScript(d.script || (d.preview && d.preview.moments))
   };
+}
+// a planned beat's moments, played as written when the beat starts (the daily planner writes them)
+function cleanScript(a) {
+  if (!Array.isArray(a)) return null;
+  const sc = a.filter(m => m && typeof m === "object" && String(m.text || "").length > 8).slice(0, 8)
+    .map(m => ({ location: m.location, action: m.action, with: m.with || null, text: String(m.text).slice(0, 260),
+      lines: Array.isArray(m.lines) ? m.lines.slice(0, 14) : [], commentary: Array.isArray(m.commentary) ? m.commentary.slice(0, 2) : [] }));
+  return sc.length ? sc : null;
 }
 function activeGoal(s, now) {
   let g = s.director.find(d => d.status === "active");
@@ -1123,7 +1304,7 @@ function activeGoal(s, now) {
   return g || null;
 }
 function finishGoal(s, g, how, now) {
-  g.status = "done"; g.how = how; g.doneAt = now;
+  g.status = "done"; g.how = how; g.doneAt = now; delete g.script;
   if (g.unlock && !s.unlocked.includes(g.unlock)) s.unlocked.push(g.unlock);
 }
 const deadlineOf = g => g.deadlineAt || (g.activatedAt || g.startAfter) + g.deadlineH * 3600000;

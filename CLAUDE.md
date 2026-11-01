@@ -18,6 +18,14 @@ Owner (the director): udinigit. Read `docs/SCENE_GUIDELINES.md` before adding or
 - Narration (`text`) is dev-only; viewers see the picture, spoken lines and the hosts (Zohar, Oren).
 - Keep the free tiers in mind: Workers AI ~10k neurons/day, KV 1k writes/day.
 
+## How moments are written (AI budget)
+Workers AI output costs ~6.5x input, so the engine avoids AI calls where it can (`tick()` in the worker, in this order):
+- Night (asleep, 22:00-06:00): `nightEvent()` picks a sleep moment from a list. No AI.
+- Planned beats: a beat's `preview.moments` (or `script`) are PLAYED AS WRITTEN once the beat starts (`scriptEvent()`): Ishai first walks there one place at a time (`travelEvent()`, no AI), then each moment plays in turn; the live AI then continues the scene and winds it down. The daily planner writes these moments as the finished scene.
+- Live moments (one AI call each, spontaneous): radio/TV on (`liveCue()` + `onAirFor()`: a real headline, the real weather or the real station's genre is read by the DJ / Channel 9 and Ishai reacts; otherwise the AI writes the on-air line in `onAir`), and the moment the rain starts or stops. The on-air line is put first in `lines` with `who: "radio"` or `"tv"`; the page plays it (and keeps its own DJ quiet for 4 minutes). Between live radio/TV moments he just listens (`quietMedia()`, no AI).
+- Everything else: blocks of up to 5 moments in one AI call (`askBlock()`, `s.queue`), shortened before the next planned beat. Each queued moment is validated when it plays; the block is dropped when anything else happens (a live moment, a beat starts, weather flips, a director note, stuck). A bad block falls back to one moment the old way.
+- `/api/health` shows `usage` (today's AI calls, tokens, estimated neurons, moments, no-AI moments, wasted block moments), `block`, `lastBlockDrop` and `writers` (who wrote the last 10 moments).
+
 ## Health check and quick fixes
 - `GET /api/health` (public): recent moments, retry rate, recent rule problems, stuck counter, current scene, last AI error, art requests.
 - Quick fixes without touching code: add to `story/plan.json` a `"fixes": [{"id": "fix-<date>-<hhmm>", "endScene": true, "note": "...", "minutes": 60}]` and bump `"version"`. `endScene` wraps up the running scene with a goodbye; `note` is a director note the story follows for `minutes`. Each fix id runs once.

@@ -240,6 +240,7 @@
   let WORLD = null; // real weather / Shabbat from the Worker
   let DREAM = []; // today's highlights {t, loc, a, w}: replayed in a thought bubble while he sleeps
   let DREAMING = false;
+  let MEDIA_UNTIL = 0;   // the story just put a live line on the radio/TV: our own DJ keeps quiet for a while
   let UMB = false;   // Ishai is outdoors (street/park) in the rain: he holds an umbrella
   // sleep phases: 0 = first 10 minutes (just sleeping), 1 = zzz, 2 = after 15 minutes the dreams begin
   let SLEEP_SINCE = Date.now() - (+new URLSearchParams(location.search).get('sleptMin') || 0) * 60000;
@@ -1525,7 +1526,7 @@
     const el = $('say');
     if (!SAY.who || performance.now() > SAY.until || actor.switching){ el.hidden = true; return; }
     const sp = speaker(SAY.who), head = HEADS[SAY.who];
-    $('sayWho').textContent = head ? '' : '\u260E ' + sp.name + ':'; $('sayWho').style.color = sp.color;
+    $('sayWho').textContent = head ? '' : (SAY.who==='radio' ? '\u{1F4FB} ' : SAY.who==='tv' ? '\u{1F4FA} ' : '\u260E ') + sp.name + ':'; $('sayWho').style.color = sp.color;
     $('sayText').textContent = SAY.text;
     el.hidden = false;
     const cw = cv.clientWidth, ch = cv.clientHeight, top = cv.offsetTop;
@@ -1579,6 +1580,7 @@
       ishai:{f:200,type:'square',pitch:1,rate:1}, levi:{f:520,type:'triangle',pitch:1.6,rate:1.15},
       noa:{f:330,type:'square',pitch:1.25,rate:1.1}, avi:{f:120,type:'sawtooth',pitch:.6,rate:.85},
       dana:{f:280,type:'triangle',pitch:1,rate:.8}, narrator:{f:160,type:'triangle',pitch:.9,rate:1.05},
+      radio:{f:240,type:'square',pitch:1.1,rate:1.15}, tv:{f:180,type:'triangle',pitch:.95,rate:1.1},
       dj_benny:{f:240,type:'square',pitch:1.1,rate:1.18}, dj_shira:{f:360,type:'triangle',pitch:1.4,rate:1.05}, dj_yoni:{f:130,type:'triangle',pitch:.75,rate:.9}
     };
     const hash = id => { let h = 0; for (const ch of String(id)) h = (h*31 + ch.charCodeAt(0)) >>> 0; return h; };
@@ -1750,6 +1752,7 @@
   function speaker(id){
     if (HOSTS[id]) return {name:HOSTS[id].name, color:HOSTS[id].color};
     if (id==='radio') return {name:'RADIO HERZL 88.2', color:'#ffd36a'};
+    if (id==='tv') return {name:'CHANNEL 9', color:'#9fd0ff'};
     if (id==='ishai') return {name:'ISHAI', color:tint(CLOTH.teal,.45)};
     const c = CAST[id]; return {name:(c?c.name:id).toUpperCase(), color: tint(CLOTH[c?.look?.shirt]||CLOTH.gray,.45)};
   }
@@ -1946,7 +1949,10 @@
       const l = ev.lines[i];
       if (i > 0) await pauseFor(linePause(ev.lines[i-1].say) + gap, budget, animate);
       if (!(budget.ms > 0) && animate) setSpeaking(l.who);
+      const air = l.who==='radio' || l.who==='tv';   // a live line from the radio / TV the story reacts to
+      if (air){ MEDIA_UNTIL = Date.now() + 240000; if (l.who==='radio') Sound.duck(true); }
       await addMsg({id: ev.id + ':' + i, t: ev.t, who: l.who, say: l.say, loc: ev.location}, animate, budget);
+      if (air && l.who==='radio') Sound.duck(false);
     }
     if (animate) setSpeaking(null);
     if ((ev.lines||[]).length && (ev.commentary||[]).length) await pauseFor(1200, budget, animate);
@@ -2077,7 +2083,7 @@
     const want = radioPick(); if (live && want && want.url !== live.url) Sound.restartAmb();   // station change
     $('hudAction').textContent = 'RADIO HERZL 88.2';
     $('stMusic').textContent = live ? `\u266A ${live.name} (via radio-browser.info)` : '';
-    if (into >= talkAt && into < talkAt + 14 && RADIO.spoken !== seg){
+    if (into >= talkAt && into < talkAt + 14 && RADIO.spoken !== seg && Date.now() > MEDIA_UNTIL){
       RADIO.spoken = seg; const d = dj(), text = djLine(seg);
       Sound.duck(true); showSay('radio', d.name.toUpperCase() + ': ' + text); holdSay(14000);
       const back = setTimeout(() => Sound.duck(false), 15000);
