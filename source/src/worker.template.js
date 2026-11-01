@@ -638,6 +638,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - Real-world logic: things take time and follow physics and logistics. He must physically get places (walk, bus or taxi), wait, carry what he buys, pay, clean up. Other people have their own jobs, schedules and moods and are not always available. Weather and time of day change plans.
 - Continue the story and its ongoing threads.
 - Clothes are automatic (the picture shows them): pajamas in bed at night, sportswear at the gym, a jacket outside in rain or cold, a white shirt at home for Shabbat; mention them naturally if at all.
+- Buses come every few minutes and taxis are quick: waiting at the bus stop takes at most ONE moment; in the next moment he is already on the way ("offscreen", "away").
 - "exercising" is a real workout (20+ minutes). A quick stretch or a short break at the desk keeps the current action (working, reading...).
 - "walking" means walking somewhere or a stroll outside; for chatting use "talking", for hanging around use "idle".
 - The camera shows only "action": pick the action that matches what happens (a drink = drinking, a snack = eating); the hosts describe only what the picture can show.
@@ -788,6 +789,13 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     const all = (ev.text + " " + ev.commentary.map(c => c.say).join(" ")).toLowerCase();
     if (/\b(drink|drinks|drinking|sip|sips|coffee|tea|water|glass of|cooola|juice|beer|wine)\b/.test(all) && LOCATIONS[ev.location].includes("drinking")) ev.action = "drinking";
     else if (/\b(eat|eats|eating|snack|sandwich|bite|meal|breakfast|lunch|dinner)\b/.test(all) && LOCATIONS[ev.location].includes("eating")) ev.action = "eating";
+  }
+  // buses come every few minutes: waiting at the stop is at most one moment, then he is on the bus (the page shows it pull in)
+  if (last.location === "street" && ev.location === "street" && !ev.with && /\b(bus|taxi)\b/i.test(last.text) && /\b(wait|waits|waiting|bus stop|stop)\b/i.test(last.text)
+    && /\b(bus|taxi|wait|waits|waiting|stop)\b/i.test(ev.text) && !/\b(gets off|got off|steps off|back from)\b/i.test(ev.text)) {
+    const taxi = /taxi/i.test(last.text + " " + ev.text);
+    ev.location = "offscreen"; ev.action = "away"; ev.lines = []; ev.text = taxi ? "A taxi pulls up at the stop and Ishai gets in." : "The bus pulls in; Ishai gets on and it drives off.";
+    if (s.queue) s.queue.items = [];   // the rest of a pre-written block assumed he was still waiting
   }
   // a quick stretch / break at the desk or in the armchair is not a workout: he stays put (the page shows a stretch in the seat)
   if (ev.action === "exercising" && ev.location === last.location && ["working", "gaming", "reading", "watching"].includes(last.action) && !ev.with
