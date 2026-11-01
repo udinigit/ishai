@@ -2155,6 +2155,28 @@
       tick();
     }
 
+    // small character sounds (typing, a page, a creak, steps, a clink...), played now and then by the scheduler below
+    function sfx(kind){
+      if (!on() || !ac) return;
+      const r = Math.random;
+      switch(kind){
+        case 'type': { let w = 0; for (let i = 0; i < 7 + Math.floor(r()*6); i++){ noise(.012,{vol:.045,type:'highpass',freq:3200+r()*800,when:w}); w += .06 + r()*.09; } if (r() < .5) noise(.03,{vol:.05,type:'lowpass',freq:500,when:w+.05}); break; }
+        case 'mouse': tone(1900,.01,'square',.03); tone(1900,.01,'square',.03,.13); break;
+        case 'chair': tone(130 + r()*40,.35,'sawtooth',.018,0,out,1.5); break;
+        case 'game':  [880,1175,1568].forEach((f,i) => tone(f*(r()<.5?1:.75),.06,'square',.028,i*.08)); break;
+        case 'page':  noise(.18,{vol:.05,type:'highpass',freq:2500,sweep:[5000,1500]}); break;
+        case 'remote': tone(2400,.02,'square',.03); noise(.15,{vol:.04,type:'bandpass',freq:1200,when:.1}); break;
+        case 'sizzle': noise(1.6,{vol:.04,type:'highpass',freq:4000}); break;
+        case 'clink': tone(2600,.25,'sine',.04); tone(3150,.2,'sine',.03,.05); break;
+        case 'crunch': for (let i = 0; i < 3; i++) noise(.05,{vol:.06,type:'lowpass',freq:900,when:i*.16}); break;
+        case 'sip':   noise(.3,{vol:.045,type:'bandpass',freq:700,q:3,sweep:[1200,500]}); break;
+        case 'steps': for (let i = 0; i < 4; i++) noise(.05,{vol:.08,type:'lowpass',freq:300,when:i*.42}); break;
+        case 'phone': tone(150,.18,'square',.03); tone(150,.18,'square',.03,.3); break;
+        case 'snore': noise(1.4,{vol:.05,type:'lowpass',freq:250,sweep:[500,180],buf:brown}); break;
+        case 'breath': noise(.4,{vol:.03,type:'bandpass',freq:900,q:1.5}); noise(.4,{vol:.025,type:'bandpass',freq:700,q:1.5,when:.55}); break;
+        case 'bark': bark(); break;
+      }
+    }
     function bark(){
       if (!on()) return;
       noise(.09,{vol:.12,type:'bandpass',freq:650,q:2}); noise(.08,{vol:.1,type:'bandpass',freq:720,q:2,when:.16});
@@ -2194,7 +2216,7 @@
     }, 50);
     function newSong(){ if (amb && amb.reseed) amb.reseed(); }
     const speaking = () => mode === 'voices';
-    return { blip, key, say, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell };
+    return { blip, key, say, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -2566,6 +2588,22 @@
     }
   }
   setInterval(radioTick, 1000);
+  // ---- now and then (every 20-30 s) a small sound from what Ishai is doing; never over someone talking ----
+  const SFX = { working:['type','type','type','mouse','chair'], gaming:['game','game','type'], reading:['page','page','chair'], watching:['remote','chair'],
+    listening:['chair'], cooking:['sizzle','clink'], eating:['clink','crunch'], drinking:['sip','clink'], walking:['steps'], idle:['steps','chair','phone'],
+    sleeping:['snore'], waking:['chair'], exercising:['breath','steps'] };
+  let nextSfx = Date.now() + 15000;
+  setInterval(() => {
+    const now = Date.now(); if (now < nextSfx) return;
+    if (now - TALK_AT < 2500 || actor.switching || (actor.hidden && !BATH.has(actor.action)) || actor.loc === 'offscreen' || studioOn || showOn || callOn){ nextSfx = now + 3000; return; }
+    nextSfx = now + 20000 + Math.random() * 10000;
+    const dogHere = UNLOCKED.has('dog') && dog.loc === actor.loc && actor.action !== 'sleeping';
+    let list = actor.travelling ? ['steps'] : (SFX[actor.action] || []);
+    if (actor.loc === 'bar') list = list.concat(['clink']);
+    if (dogHere && Math.random() < .25) list = ['bark'];
+    if (actor.action === 'sleeping' && Math.random() < .5) return;   // a quiet night now and then
+    if (list.length) Sound.sfx(list[Math.floor(Math.random() * list.length)]);
+  }, 1000);
   // the bar's and the café's music: show what is playing
   setInterval(() => { if (RADIO.on) return; const st = (actor.loc==='bar' || actor.loc==='cafe') ? Sound.streaming() : null;
     $('stMusic').textContent = st ? `\u266A ${st.name}` : ''; }, 2000);
