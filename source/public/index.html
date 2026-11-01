@@ -1226,6 +1226,27 @@
     }
   };
 
+  // cars on the shops block, all from the real clock (same for every viewer): one every 7 s, 1 px per 12 ms, the light changes every 20 s
+  function shopsTraffic(now, night){
+    const EVERY = 7000, SPEED = 12, STOP = 30, LIGHT = 20000;
+    const redFor = a => Math.floor(a / LIGHT) % 2 === 1;                    // cars' red = pedestrians' green
+    const first = Math.floor(now / EVERY) - 7, info = [];
+    for (let i = first; i <= Math.floor(now / EVERY); i++){
+      const s0 = i * EVERY, a0 = s0 + (STOP + 60) * SPEED;                  // when it would reach the stop line
+      let x, stopped = false;
+      if (!redFor(a0)){ x = -60 + (now - s0) / SPEED; }
+      else {
+        const r1 = (Math.floor(a0 / LIGHT) + 1) * LIGHT;                   // when it turns green for cars
+        const k = info.filter(c => c.r1 === r1).length;                     // cars already waiting in this red: queue behind them
+        const xs = STOP - 32 * k, arr = s0 + (xs + 60) * SPEED;
+        x = now < arr ? -60 + (now - s0) / SPEED : now < r1 ? xs : xs + (now - r1) / SPEED; stopped = now >= arr && now < r1;
+        info.push({r1});
+      }
+      if (x > -60 && x < W + 10){ const cx = Math.round(x), col = ['#3b7bc2','#dcdcdc','#c23b3b','#e0b04a','#7fbf6a'][((i % 5) + 5) % 5];
+        R(cx,96,26,6,col); R(cx+5,92,14,4,col); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0'); R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111');
+        if (night) R(cx+25,97,2,2,'#fff3b0'); if (stopped) R(cx,97,1,2,'#ff3b3b'); }   // brake lights while waiting
+    }
+  }
   // ---------- Herzl St. east: the shops between his block and the café ----------
   SCENES.shops = {
     cam:'CAM-09', place:'HERZL ST. // SHOPS', walkY:66, entry:-14, exit:W+8,
@@ -1254,7 +1275,7 @@
       // sidewalk, crossing, road
       R(0,72,W,20,'#8d8d8d'); for (let x=0;x<W;x+=16) R(x,72,1,20,'#7a7a7a'); R(0,82,W,1,'#7a7a7a');
       R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=0; x<W; x+=20) if (x < 56 || x > 100) R(x+4,101,10,1,'#e8e8a0');
-      for (let i=0;i<7;i++) R(60+i*6,95,3,13,'#e8e8e8');
+      for (let i=0;i<4;i++) R(60,96+i*3,36,2,'#e8e8e8');   // zebra crossing: pedestrians cross from the sidewalk down over the road
       const green = Math.floor(Date.now()/20000) % 2 === 1;   // pedestrians' green (same for everyone)
       R(107,40,2,48,'#333'); R(104,26,8,14,'#222'); R(106,28,4,3, green ? '#4a1a1a' : '#ff3b3b'); R(106,34,4,3, green ? '#3bff6a' : '#1a3a1a');
       R(140,84,10,2,'#c23b3b'); R(139,86,3,3,'#111'); R(148,86,3,3,'#111'); R(146,80,1,4,'#444'); R(144,79,4,1,'#444');   // a parked scooter
@@ -1262,10 +1283,8 @@
       crowdWalk(t, 3, 29000, 4000, 61, 1, .7); crowdWalk(t, 0, 37000, 15000, 63, -1, .7); crowdWalk(t, 6, 45000, 27000, 67, 1, .85);
       if (Math.floor(t/75000) % 3 === 1) crowdStill(t, 2, 91, 66, {face:0}, .8 * fadeWin(t, 75000));
       drawFloor(t,a,settled,actor,this);
-      // traffic: cars wait at the crossing while it is green for pedestrians
-      const lap = Math.floor(t/7000), cx = green ? Math.min(30, ((t/12) % 520) - 60) : ((t/12) % 520) - 60;
-      if (cx < W+10){ const col = ['#3b7bc2','#dcdcdc','#c23b3b','#e0b04a'][lap%4];
-        R(cx,96,26,6,col); R(cx+5,92,14,4,col); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0'); R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111'); if (night) R(cx+25,97,2,2,'#fff3b0'); }
+      // traffic: cars stop in a queue before the crossing while pedestrians have green, and all drive on when it turns red for them
+      shopsTraffic(Date.now(), night);
       liveLayer(t, this);
       if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
       if (night){ alpha(.22,()=>{ R(5,49,36,17,'#ffe8a0'); R(114,50,24,14,'#ffe8a0'); R(162,49,26,15,'#ffd890'); }); }
