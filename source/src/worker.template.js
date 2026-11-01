@@ -231,7 +231,8 @@ export default {
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         usage: s.usage ? { ...s.usage, neuronsEst: Math.round(s.usage.inTok * 4625 / 1e6 + s.usage.outTok * 30475 / 1e6) } : null,
-        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, lastBlockDrop: s.queueDrop || null,
+        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null,
+        writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < geminiOutUntil ? geminiOutUntil : null, geminiLastError: geminiErr, hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?") }, { "cache-control": "no-store" });
     }
     // quick story fix for the scheduled health check: /api/fix?token=...&endScene=1&note=...&minutes=45
@@ -396,7 +397,7 @@ Reply with ONLY JSON:
  4) the LAST line is a sponsor outro: once more ${sp.name}, with a DIFFERENT joke than the intro (the other host may groan at it), then back to the cameras.
 "pip" is a 4-5 line quick version about the last hour only (first line greets: "Live from the studio...").` },
   { role: "user", content: `YESTERDAY (${s.yesterdaySum ? s.yesterdaySum.date : "none"}): ${s.yesterdaySum ? s.yesterdaySum.text : "(no summary)"}\n\nTODAY so far:\n${earlier.join("\n") || "(little)"}\n\nLAST HOUR:\n${lastHour.join("\n") || "(quiet)"}\n\nJSON only.` }];
-  const raw = await runModel(env, messages);
+  const raw = await runModel(env, messages, 1400, "hosts");
   let o; try { o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch { return null; }
   const clean = arr => (Array.isArray(arr) ? arr : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 220) }))
     .filter(l => (l.who === "zohar" || l.who === "oren") && l.say.length > 3);
@@ -421,6 +422,7 @@ async function tick(env, force) {
   if (!s.world || now - s.world.at > 55 * 60000) await refreshWorld(s, now);
   else if (now - (s.world.wxAt || s.world.at) > 15 * 60000) await refreshWeather(s, now);
 
+  HOSTS_APART = !!env.GEMINI_API_KEY;
   // director: activate the next goal, or force it if its deadline passed
   let goal = activeGoal(s, now);
   let ev = null;
@@ -432,7 +434,7 @@ async function tick(env, force) {
   // AI out of budget (no backup AI): Ishai feels unwell, goes home and rests until the allowance resets
   cfOutUntil = Math.max(cfOutUntil, s.aiOutUntil || 0);
   if (!ev) ev = nightEvent(s, last, clock);                                   // asleep at night: no AI
-  if (!ev && now < (s.aiOutUntil || 0) && !env.BACKUP_AI_KEY){ ev = sickEvent(s, last, clock.hour); ev.src = "sick day (AI out of budget)"; }
+  if (!ev && now < (s.aiOutUntil || 0) && !env.BACKUP_AI_KEY && !(env.GEMINI_API_KEY && now >= geminiOutUntil)){ ev = sickEvent(s, last, clock.hour); ev.src = "sick day (AI out of budget)"; }
   if (!ev && goal && goal.script) ev = scriptEvent(s, last, goal, now);       // the daily plan's scene, as written (no AI)
   if (!ev) ev = quietMedia(s, last);                                          // between live radio/TV reactions he just listens (no AI)
   let live = ev ? null : liveCue(s, last, clock, storyMs);                    // radio / TV / weather change: written live
@@ -452,7 +454,7 @@ async function tick(env, force) {
         s.aiOutUntil = Math.max(s.aiOutUntil || 0, nextUtcMidnight(now));
         cfOutUntil = s.aiOutUntil;
         // sick day only when there is no backup AI at all; a backup hiccup just uses an ordinary backup line
-        if (!env.BACKUP_AI_KEY){ ev = sickEvent(s, last, clock.hour); ev.src = "sick day (AI out of budget)"; }
+        if (!env.BACKUP_AI_KEY && !(env.GEMINI_API_KEY && now >= geminiOutUntil)){ ev = sickEvent(s, last, clock.hour); ev.src = "sick day (AI out of budget)"; }
       }
     }
     if (!ev){ ev = fallback(last, clock.hour, s); ev.stuck = true; ev.src = s.lastError && s.lastError.at === now ? "backup line (AI error)" : "backup line (AI reply dropped: repeat)"; }
@@ -521,7 +523,8 @@ async function tick(env, force) {
       else { s.studioTries = (s.studioTries || 0) + 1; if (!s.studioErr) s.studioErr = { at: now, msg: "the AI reply could not be used" };
         if (s.studioTries >= 3 || now < (s.aiOutUntil || 0)) { s.studioKey = key; s.studioTries = 0; const b = basicRecap(s, day, storyMs); if (b) { s.daySum = { date: day, text: b.today, at: storyMs }; s.show = b.show; } } } } }   // try again on the next moments (max 3 per hour)
   { const d = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now)); const u = s.usage && s.usage.date === d ? s.usage : (s.usage = { date: d, calls: 0, inTok: 0, outTok: 0, moments: 0, noAI: 0 });
-    u.calls += USE.calls; u.inTok += USE.inTok; u.outTok += USE.outTok; USE.calls = USE.inTok = USE.outTok = 0; }
+    u.calls += USE.calls; u.inTok += USE.inTok; u.outTok += USE.outTok; USE.calls = USE.inTok = USE.outTok = 0;
+    u.gemini = { calls: (u.gemini?.calls || 0) + USE_G.calls, inTok: (u.gemini?.inTok || 0) + USE_G.inTok, outTok: (u.gemini?.outTok || 0) + USE_G.outTok }; USE_G.calls = USE_G.inTok = USE_G.outTok = 0; }
   await saveState(env, s);
   return s;
 }
@@ -693,10 +696,48 @@ ${recent}${gap}${goneNote}${s.recoverUntil && now < s.recoverUntil ? "\nNOTE: Ea
 ${cue ? "\n" + liveText(cue, s, last) : ""}
 
 ${block ? `What happens in the next ${block} moments?` : "What happens next?"}`;
-  return [{ role: "system", content: system }, { role: "user", content: user }];
+  const sys = HOSTS_APART ? system.replace(/\nCOMMENTATORS \(they talk[\s\S]*?\n(?=\nReply with ONLY)/, "\n").replace('"commentary":[],', "") : system;
+  return [{ role: "system", content: sys }, { role: "user", content: user }];
 }
 
+// the hosts react to the moments the story just wrote (one call for a whole block)
+const CAMERA = { apartment: "his apartment", bathroom: "closed bathroom door", corridor: "the building hallway", street: "Herzl Street outside his building", shops: "the shops block of Herzl Street (sidewalk)",
+  park: "the park", cafe: "Cafe Nahat", gym: "Herzl Gym", bar: "The Black Candle bar", market: "Shuk Shalom market", store: "the Everything Else store", offscreen: "STATIC - no camera, he is out of coverage" };
+async function addHosts(env, s, moments, clock, now) {
+  try {
+    const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : s.cast[id]?.name || id;
+    const said = recentHostLines(s, 10);
+    const sponsor = now - (s.lastAd || 0) > AD_EVERY_MIN * 60000 && Math.random() < 0.35 ? SPONSORS[Math.floor(Math.random() * SPONSORS.length)] : null;
+    const list = moments.map((m, i) => { const loc = String(m.location || "").toLowerCase(), act = String(m.action || "").toLowerCase(), w = m.with ? String(m.with).toLowerCase() : null;
+      return `#${i + 1} ${storyClock(now + DELAY_MIN * 60000 + i * INTERVAL_MIN * 60000).label.slice(-5)} CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}\n   what happens: ${String(m.text || "").slice(0, 220)}` +
+        (Array.isArray(m.lines) && m.lines.length ? "\n   they say: " + m.lines.slice(0, 14).map(l => `${nm(String(l.who || "").toLowerCase())}: "${String(l.say || "").slice(0, 120)}"`).join(" / ") : ""); }).join("\n");
+    const msgs = [{ role: "system", content:
+`You write the two hosts of a live reality show that secretly films Ishai, a man in Tel Aviv.
+- ${HOSTS.zohar}
+- ${HOSTS.oren}
+- ${HOSTS.rules}
+For EACH moment below write 0-2 short lines (max 20 words each). The viewers see only the picture (the camera and what Ishai is doing) and hear the spoken lines; they cannot read "what happens", so usually one line says plainly what is going on, then a joke, an opinion or a guess. React only to what is visible or said: never invent drinks, food, objects, visitors, calls or plans. If the CAMERA is STATIC, they cannot see him: they wonder where he is, guess, or joke about losing him. Fresh every time: never repeat the lines below, their jokes, openings or catchphrases.${sponsor ? `\nIN ONE OF THESE MOMENTS one host slips in an obvious, cheesy "secret" plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending with a wink like "...not sponsored, by the way"; the other host reacts.` : ""}
+Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..."}]}]} with exactly ${moments.length} entries, in order.` },
+      { role: "user", content: `ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
+    const raw = await runModel(env, msgs, 200 + moments.length * 140, "hosts");
+    const o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]);
+    const arr = Array.isArray(o.moments) ? o.moments : [];
+    const used = [...said];
+    moments.forEach((m, i) => {
+      const c = (Array.isArray(arr[i]?.commentary) ? arr[i].commentary : []).map(x => ({ who: String(x?.who || "").toLowerCase().trim(), say: String(x?.say || "").replace(/\s+/g, " ").trim().replace(/^["']|["']$/g, "").slice(0, 160) }))
+        .filter(x => (x.who === "zohar" || x.who === "oren") && x.say.length > 3 && !isRepeat(x.say, used)).slice(0, 2);
+      c.forEach(x => used.push(x.say));
+      if (c.length) m.commentary = c;
+    });
+    s.hostsBy = lastWriter;
+  } catch (e) { s.hostsErr = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
+}
 async function askAI(env, s, clock, now, goal, live) {
+  const ev = await askStory(env, s, clock, now, goal, live);
+  if (ev && HOSTS_APART && !(ev.commentary || []).length) await addHosts(env, s, [ev], clock, now);
+  return ev;
+}
+async function askStory(env, s, clock, now, goal, live) {
   const last = s.events[s.events.length - 1];
   const messages = buildMessages(s, clock, now, goal, { live });
   const allowNew = canAddPerson(s, now);
@@ -718,7 +759,54 @@ let lastWriter = null; // which model wrote the latest AI reply (shown to the di
 let modelIdx = 0; // remembers the first model that works in this isolate
 // what the AI used this run (merged into s.usage in tick, shown in /api/health)
 const USE = { calls: 0, inTok: 0, outTok: 0 };
-async function runModel(env, messages, maxTokens = 1000) {
+// who writes what: with a Google key, Gemini writes the story and Cloudflare Workers AI writes the hosts (comments, recaps, callers);
+// each one is the other's backup. Without the key everything runs on Cloudflare as before.
+let HOSTS_APART = false;
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
+const USE_G = { calls: 0, inTok: 0, outTok: 0 };
+let geminiModel = null, geminiOutUntil = 0, geminiErr = null;
+async function pickGemini(env) {
+  if (env.GEMINI_MODEL) return env.GEMINI_MODEL;
+  if (geminiModel) return geminiModel;
+  try {
+    const r = await fetch(GEMINI_URL + "/models", { headers: { authorization: "Bearer " + env.GEMINI_API_KEY } });
+    const ids = ((await r.json()).data || []).map(m => String(m.id || "").replace(/^models\//, ""));
+    const ver = id => parseFloat((id.match(/gemini-([\d.]+)/) || [0, 0])[1]);
+    const lite = ids.filter(id => /^gemini-[\d.]+-flash-lite$/.test(id)).sort((a, b) => ver(b) - ver(a));
+    geminiModel = lite[0] || ids.filter(id => /flash-lite/.test(id) && !/preview|exp|tts|image|live|audio/.test(id)).sort((a, b) => ver(b) - ver(a))[0] || "gemini-2.5-flash-lite";
+  } catch (e) { geminiModel = "gemini-2.5-flash-lite"; }
+  return geminiModel;
+}
+const nextPacificMidnight = now => { const d = new Date(now); const t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 8, 5); return t > now ? t : t + 86400000; };
+async function runGemini(env, messages, maxTokens) {
+  const model = await pickGemini(env);
+  const body = { model, messages, max_tokens: maxTokens, temperature: 0.9, response_format: { type: "json_object" } };
+  const call = () => fetch(GEMINI_URL + "/chat/completions", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + env.GEMINI_API_KEY }, body: JSON.stringify(body) });
+  let r = await call();
+  if (r.status === 400) { delete body.response_format; r = await call(); }            // an older model without JSON mode
+  if (!r.ok) {
+    const t = (await r.text()).slice(0, 220);
+    if (r.status === 429) geminiOutUntil = /per ?day|daily|PerDay/i.test(t) ? nextPacificMidnight(Date.now()) : Date.now() + 90000;   // the free daily quota resets at midnight Pacific
+    if (r.status === 404 && !env.GEMINI_MODEL) geminiModel = null;                    // that model is gone: pick again next time
+    if (r.status === 401 || r.status === 403) geminiOutUntil = Date.now() + 3600000;  // bad key: try again in an hour
+    throw new Error(`gemini ${r.status} (${model}): ${t}`);
+  }
+  const j = await r.json(), c = String(j?.choices?.[0]?.message?.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+  USE_G.calls++; USE_G.inTok += j?.usage?.prompt_tokens || 0; USE_G.outTok += j?.usage?.completion_tokens || 0;
+  if (!c) throw new Error(`gemini (${model}): empty reply`);
+  lastWriter = "gemini: " + model;
+  return c;
+}
+async function runModel(env, messages, maxTokens = 1000, role = "story") {
+  const g = !!env.GEMINI_API_KEY && Date.now() >= geminiOutUntil;
+  if (g && role === "story") { try { return await runGemini(env, messages, maxTokens); } catch (e) { geminiErr = { at: Date.now(), msg: String(e && e.message || e).slice(0, 240) }; } }
+  try { return await runCloudflare(env, messages, maxTokens); }
+  catch (e) {
+    if (g && role !== "story") { try { return await runGemini(env, messages, maxTokens); } catch (e2) { geminiErr = { at: Date.now(), msg: String(e2 && e2.message || e2).slice(0, 240) }; } }
+    throw e;
+  }
+}
+async function runCloudflare(env, messages, maxTokens = 1000) {
   let lastErr;
   // while Workers AI is out of budget, skip it (no wasted calls) and use the backup AI if one is set
   for (let i = Date.now() < cfOutUntil ? MODELS.length : modelIdx; i < MODELS.length; i++) {
@@ -884,7 +972,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   { const prev = recentHostLines(s, 12);
     const rep = ev.commentary.find(c => isRepeat(c.say, prev));
     if (rep) ev.commentary = ev.commentary.filter(c => !isRepeat(c.say, prev)); } // a stale joke is just cut; not worth a whole retry
-  if ((ev.with || ev.lines.length >= 2) && !ev.commentary.length && !allowNoHosts)
+  if ((ev.with || ev.lines.length >= 2) && !ev.commentary.length && !allowNoHosts && !HOSTS_APART)
     return { ev, problem: 'the hosts are missing or only repeated earlier jokes: add "commentary" with 1-2 FRESH lines from zohar and/or oren reacting to what is new in this scene' };
   return { ev, problem: null };
 }
@@ -1178,6 +1266,7 @@ async function askBlock(env, s, clock, now, goal) {
   const w = s.world && s.world.weather;
   s.queue = { items: arr.slice(1), n: arr.length, at: now, goal: goal ? goal.id : null, rain: !!(w && w.rain), fix: s.fixNote && now < s.fixNote.until ? s.fixNote.text : null, writer: lastWriter, afterId: null };
   r.ev.fromBlock = true; r.ev.src = `${lastWriter} (block 1/${arr.length}, written ahead)`;
+  if (HOSTS_APART) await addHosts(env, s, [r.ev, ...s.queue.items], clock, now);
   return r.ev;
 }
 // what is on the radio / TV right now: real headlines, real weather, the real station's music; otherwise the AI makes it up
@@ -1274,7 +1363,7 @@ ${extra ? "RANDOM THING: " + extra + "\nIf it is about anything sad, violent, se
 Write 4-6 short lines (max 22 words each): first a host says "We've got ${caller.name} from ${caller.from} on the line" (in their own words), then the caller (1-2 lines, clearly in character), then a host answers briefly (witty, never cruel), optionally the other host adds a quip or ends the call. Only facts from the recent moments about the show. PG-13, fictional brands only.
 Reply with ONLY JSON: {"lines":[{"who":"zohar"|"oren"|"caller","say":"..."}]}` },
   { role: "user", content: `Recent moments:\n${recent}\n\nJSON only.` }];
-  const raw = await runModel(env, messages);
+  const raw = await runModel(env, messages, 900, "hosts");
   let o; try { o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch { return null; }
   const lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 200) }))
     .filter(l => ["zohar", "oren", "caller"].includes(l.who) && l.say.length > 2).slice(0, 7);

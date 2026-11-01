@@ -19,6 +19,8 @@ Owner (the director): udinigit. Read `docs/SCENE_GUIDELINES.md` before adding or
 - Keep the free tiers in mind: Workers AI ~10k neurons/day, KV 1k writes/day.
 
 ## How moments are written (AI budget)
+Two writers when the `GEMINI_API_KEY` secret is set (Cloudflare dashboard → Workers → ishai → Settings → Variables and Secrets): **Google Gemini (free tier, the newest stable Flash-Lite, or `GEMINI_MODEL`) writes the story** (blocks, live moments) and **Cloudflare Workers AI writes the hosts** (`addHosts()`: one call for a whole block's comments, plus the studio recaps and callers). Each is the other's backup (`runModel(env, messages, maxTokens, role)`); a Gemini 429 pauses it until its quota resets (midnight Pacific). The story prompt then leaves the hosts out (`HOSTS_APART`). Without the key everything runs on Cloudflare in one reply, as before. `/api/health` → `writersSetup` and `usage.gemini`.
+
 Workers AI output costs ~6.5x input, so the engine avoids AI calls where it can (`tick()` in the worker, in this order):
 - Night (asleep, 22:00-06:00): `nightEvent()` picks a sleep moment from a list. No AI.
 - Planned beats: a beat's `preview.moments` (or `script`) are PLAYED AS WRITTEN once the beat starts (`scriptEvent()`): Ishai first walks there one place at a time (`travelEvent()`, no AI), then each moment plays in turn; the live AI then continues the scene and winds it down. The daily planner writes these moments as the finished scene.
