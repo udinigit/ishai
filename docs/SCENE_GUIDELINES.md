@@ -21,6 +21,10 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 | Street | left edge | Park | right edge |
 | Street | right edge | Café | entrance (left) |
 | Street | bus stop (128) | Off camera | — by bus (day) or taxi (night / rain) |
+| Street | Herzl Gym door (64, blue building) | Gym | door (4, left) |
+| Gym | door (4) | Street | Herzl Gym door (64) |
+| Street | The Black Candle door (101, next to the bench) | Bar | door (4, left) |
+| Bar | door (4) | Street | The Black Candle door (101) |
 | Apartment | bathroom door (48) | Bathroom | door (9) |
 | Bathroom | door (9) | Apartment | bathroom door (48) |
 | Park | right edge | Street | left edge |
@@ -41,6 +45,8 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
   - Street: Ishai's building entrance, left edge, right edge.
   - Park: right edge (path to the street), left edge (further into the park).
   - Café: the entrance on the left.
+  - Gym (CAM-07, Herzl Gym): the glass door on the left. Treadmills under a wall TV (Channel 9, sound on); "exercising" = on the treadmill. Open 06:00-23:00.
+  - Bar (CAM-08, The Black Candle): the heavy door on the left. Dark rock bar: black brick, red neon, candles, fictional band posters (Grave Tahini, Iron Falafel). Opens 17:00, closes 02:00.
 - A new scene must define its exit points in `MAP` (Ishai's routes) and `exitX()` (companions) before it ships.
 
 ## 2. Nobody appears or disappears in place

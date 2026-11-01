@@ -144,6 +144,8 @@ const LOCATIONS = {
   street:    ["walking","idle","talking","eating","drinking","phoning"],
   park:      ["walking","idle","talking","reading","eating","drinking","exercising","phoning"],
   cafe:      ["idle","eating","drinking","working","reading","talking","phoning"],
+  gym:       ["exercising","idle","talking","drinking","phoning"],
+  bar:       ["idle","drinking","eating","talking","phoning"],
   offscreen: ["away"]
 };
 const PLACES = {
@@ -151,16 +153,20 @@ const PLACES = {
   corridor:  "the building hallway outside his door",
   street:    "Herzl Street outside the building: Avi's falafel kiosk, a bus stop bench, traffic",
   park:      "a small park nearby: a bench, a pond with one duck, a big tree",
-  cafe:      "Cafe Nahat, a corner cafe",
+  cafe:      "Cafe Nahat, a corner cafe (soft pop and soft rock on the radio, quietly)",
+  gym:       "Herzl Gym, a small neighborhood gym on Herzl Street, two doors from his building: treadmills facing a wall TV on Channel 9 with the sound on, a mirror wall with dumbbells, a water cooler. Here \"exercising\" means he walks or jogs on the treadmill watching the TV. Open 06:00-23:00",
+  bar:       "The Black Candle, a small dark rock bar on Herzl Street next to his building: black brick, red neon, candles on the tables, band posters, a bearded bartender, rock and alternative music on the radio all night. He sits at a candle-lit table (drinking a beer, eating bar snacks). Opens 17:00, closes 02:00",
   offscreen: "anywhere without a camera (the supermarket, a client's office, a friend's home); he gets there by bus or taxi from the bus stop on Herzl Street and comes back the same way"
 };
 // The world map (must match MAP in the page). Far places are reached by bus or taxi from the street bus stop.
 const NEXT = {
   apartment: ["corridor"],
   corridor:  ["apartment","street"],
-  street:    ["corridor","park","cafe","offscreen"],
+  street:    ["corridor","park","cafe","gym","bar","offscreen"],
   park:      ["street"],
   cafe:      ["street"],
+  gym:       ["street"],
+  bar:       ["street"],
   offscreen: ["street"]
 };
 // drawing menu for characters (must match the page)
@@ -314,7 +320,7 @@ function publicState(s, dev) {
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
     unlocked: s.unlocked,
-    world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [] } : null,
+    world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [], barStations: s.world.barStations || [], cafeStations: s.world.cafeStations || [] } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
     artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, goal: g.goal, art: g.art, createdAt: g.createdAt })),
@@ -446,7 +452,7 @@ async function tick(env, force) {
   if (ev.newCard) { s.cast[ev.newCard.id] = ev.newCard; s.lastNewAt = now; }
   if ((ev.commentary || []).some(c => SPONSORS.some(sp => c.say.toLowerCase().includes(sp.name.toLowerCase())))) s.lastAd = now;
   const did = { eating: ["eat"], cooking: [], drinking: ["drink"], bathroom: ["bathroom"], showering: ["shower", "bathroom"] }[ev.action] || [];
-  if (ev.action === "eating" && ev.location === "cafe") did.push("drink");
+  if (ev.action === "eating" && (ev.location === "cafe" || ev.location === "bar")) did.push("drink");
   if (s.unlocked.includes("dog") && (ev.location === "park" || ev.location === "street")) did.push("dogwalk");
   did.forEach(k => { s.done[k] = storyMs; });
   if (ev.missing) {
@@ -779,7 +785,10 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     else if (/\b(eat|eats|eating|snack|sandwich|bite|meal|breakfast|lunch|dinner)\b/.test(all) && LOCATIONS[ev.location].includes("eating")) ev.action = "eating";
   }
   // "walking" indoors is not a way to hang out: with someone it is talking, alone it is idle (the page adds errands)
-  if (ev.action === "walking" && (ev.location === "apartment" || ev.location === "cafe")) ev.action = ev.with ? "talking" : "idle";
+  if (ev.action === "walking" && ["apartment", "cafe", "gym", "bar"].includes(ev.location)) ev.action = ev.with ? "talking" : ev.location === "gym" ? "exercising" : "idle";
+  { const h = storyClock(Date.now() + DELAY_MIN * 60000).hour;
+    if (ev.location === "bar" && last.location !== "bar" && h >= 2 && h < 17) return { ev, problem: "The Black Candle bar is closed now (it opens at 17:00 and closes at 02:00); he cannot go in" };
+    if (ev.location === "gym" && last.location !== "gym" && (h >= 23 || h < 6)) return { ev, problem: "Herzl Gym is closed now (open 06:00-23:00)" }; }
   if (!LOCATIONS[ev.location]) return { ev, problem: `"${ev.location}" is not a known location` };
   if (!LOCATIONS[ev.location].includes(ev.action))
     return { ev, problem: `"${ev.action}" is not possible in ${ev.location} (allowed: ${allowed(ev.location, s.unlocked).join(", ")})` };
@@ -955,7 +964,7 @@ function sickEvent(s, last, hour) {
     { who: "zohar", say: "Rest up, Ishai. The whole country is whispering." },
     { who: "oren", say: "This is the most relaxing episode we have ever aired." }
   ];
-  const step = { offscreen: "street", street: "corridor", park: "street", cafe: "street", corridor: "apartment" }[last.location];
+  const step = { offscreen: "street", street: "corridor", park: "street", cafe: "street", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   let ev;
   if (step) {
     const T = {
@@ -999,7 +1008,7 @@ function sickEvent(s, last, hour) {
 }
 function fallback(last, hour, s) {
   const night = hour < 7 || hour >= 23;
-  const home = { offscreen: "street", street: "corridor", park: "street", cafe: "street", corridor: "apartment" }[last.location];
+  const home = { offscreen: "street", street: "corridor", park: "street", cafe: "street", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   if (night && home) {
     const T = { street: "Ishai heads back along Herzl Street toward home.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
     return { location: home, action: home === "apartment" ? "idle" : "walking", text: T[home], with: null, lines: [] };
@@ -1010,6 +1019,8 @@ function fallback(last, hour, s) {
     corridor: [["corridor", "walking", "Ishai walks down the hallway, keys jingling."], ["apartment", "idle", "He lets himself back into the flat and drops his keys on the desk."], ["street", "walking", "He steps out of the building onto Herzl Street."]],
     street: [["street", "walking", "He walks along Herzl Street, dodging a scooter."], ["street", "idle", "He sits on the bus stop bench for a minute, watching the traffic."], ["street", "eating", "He buys a falafel at Avi's kiosk and eats it standing at the counter."], ["park", "walking", "He wanders into the little park and heads for the bench."], ["corridor", "walking", "He heads back into his building and up the stairs."]],
     park: [["park", "idle", "Ishai watches the duck. The duck watches back."], ["park", "walking", "He does a slow lap around the pond."], ["street", "walking", "He leaves the park and walks back to Herzl Street."]],
+    gym: [["gym", "exercising", "Ishai keeps a steady pace on the treadmill, eyes on the Channel 9 screen."], ["gym", "drinking", "He steps off the treadmill and refills his bottle at the water cooler."], ["street", "walking", "He wipes his face with a towel and heads back out to Herzl Street."]],
+    bar: [["bar", "drinking", "He nurses his beer at the candle-lit table, nodding along to the guitar riff."], ["bar", "eating", "He picks at a bowl of salted peanuts while the bar's speaker rumbles."], ["street", "walking", "He pays at the bar, nods to the bartender and steps out onto Herzl Street."]],
     cafe: [["cafe", "drinking", "He sips his coffee slowly, making it last."], ["cafe", "reading", "He reads the news on his phone at the corner table."], ["street", "walking", "He pays, waves to the barista and steps back out onto Herzl Street."]],
     offscreen: [["offscreen", "away", "No sign of Ishai on any camera."], ["street", "walking", "Ishai gets off the bus on Herzl Street with a shopping bag."]]
   }[last.location] || [[last.location, "idle", "A quiet moment."]];
@@ -1058,9 +1069,11 @@ function travelEvent(s, last, hop, dest) {
   const T = { "apartment>corridor": `Ishai grabs his keys${dog ? ", clips on Falafel's leash" : ""} and heads out the door.`, "corridor>street": `He goes down the stairs and out onto Herzl Street${umb}.`,
     "street>cafe": `He walks along Herzl Street${umb} to the café.`, "street>park": `He crosses Herzl Street${umb} toward the little park.`, "street>corridor": "He heads back into his building and up the stairs.",
     "corridor>apartment": "He unlocks apartment 4 and goes in.", "park>street": `He walks back to Herzl Street${umb}.`, "cafe>street": `He steps out of the café onto Herzl Street${umb}.`,
+    "street>gym": `He pushes open the glass door of Herzl Gym${dog ? ", Falafel trotting behind" : ""}.`, "gym>street": `He leaves the gym, towel round his neck, and steps out onto Herzl Street${umb}.`,
+    "street>bar": "He pushes open the heavy door of The Black Candle; red light and a guitar riff spill out.", "bar>street": `He steps out of The Black Candle onto Herzl Street${umb}.`,
     "street>offscreen": "He gets on the bus at the stop.", "offscreen>street": "He gets off the bus on Herzl Street." };
   const text = T[last.location + ">" + hop] || `Ishai heads toward the ${dest}.`;
-  return { location: hop, action: hop === "offscreen" ? "away" : hop === "apartment" ? "idle" : "walking", text, with: null, lines: [], commentary: [], src: "on the way to the planned scene (no AI)" };
+  return { location: hop, action: hop === "offscreen" ? "away" : ["apartment", "cafe", "gym", "bar"].includes(hop) ? "idle" : "walking", text, with: null, lines: [], commentary: [], src: "on the way to the planned scene (no AI)" };
 }
 function scriptEvent(s, last, g, now) {
   const sc = g.script, i = g.step || 0; if (!sc || i >= sc.length) return null;
@@ -1135,33 +1148,36 @@ function onAirFor(s, kind, storyMs, hour) {
   return { kind: radio ? "a made-up radio bit" : hour === 21 ? "A Butcher Is Born" : "a made-up TV show", who: kind };   // the AI writes what is on
 }
 function quietMedia(s, last) {
-  if (last.location !== "apartment" || last.with || !["listening", "watching"].includes(last.action) || !/live: (radio|tv)/.test(last.src || "")) return null;
+  const gymTv = last.location === "gym" && last.action === "exercising";
+  if (!(last.location === "apartment" || gymTv) || last.with || !(["listening", "watching"].includes(last.action) || gymTv) || !/live: (radio|tv)/.test(last.src || "")) return null;
   if (typeof s.lastRain === "boolean" && !!(s.world && s.world.weather && s.world.weather.rain) !== s.lastRain) return null;   // the weather changed: live
   const R = ["Ishai listens to Radio Herzl, drumming his fingers on the desk.", "He hums along to the radio, badly.", "The radio plays on; Ishai stretches out in the armchair and listens.",
     "He turns the radio up a notch and leans back.", "Ishai half-listens to the radio, scrolling his phone."];
   const T = ["Ishai watches Channel 9 from the armchair, remote in hand.", "He stays on the couch, eyes on the TV.", "Ishai flicks through the channels and settles back on Channel 9.",
     "He watches, chin in hand, the TV glow on his face."];
-  const pool = (last.action === "listening" ? R : T).filter(t => !s.events.slice(-6).some(e => e.text === t));
-  return { location: "apartment", action: last.action, text: pool[Math.floor(Math.random() * pool.length)] || "He keeps listening.", with: null, lines: [], commentary: [], src: "on air, he just listens (no AI)" };
+  const G = ["Ishai keeps a steady pace on the treadmill, eyes on the TV.", "He bumps the treadmill speed up a notch and keeps watching Channel 9.", "Ishai wipes his forehead and keeps walking, half-watching the screen."];
+  const pool = (gymTv ? G : last.action === "listening" ? R : T).filter(t => !s.events.slice(-6).some(e => e.text === t));
+  return { location: last.location, action: last.action, text: pool[Math.floor(Math.random() * pool.length)] || "He keeps listening.", with: null, lines: [], commentary: [], src: "on air, he just listens (no AI)" };
 }
 function liveCue(s, last, clock, storyMs) {
   if (last.action === "sleeping" || BATH_ACTIONS.includes(last.action) || last.location === "offscreen") { s.plannedLive = null; return null; }
   const planned = s.plannedLive; s.plannedLive = null;
-  const media = last.location === "apartment" && ["listening", "watching"].includes(last.action) ? last.action
+  const gymTv = last.location === "gym" && last.action === "exercising";
+  const media = gymTv ? "watching" : last.location === "apartment" && ["listening", "watching"].includes(last.action) ? last.action
     : planned ? (/\b(tv|television|channel|watch)/i.test(planned) ? "watching" : /radio/i.test(planned) ? "listening" : null) : null;
   const rain = !!(s.world && s.world.weather && s.world.weather.rain);
   const flip = typeof s.lastRain === "boolean" && rain !== s.lastRain ? (rain ? "it has just started to rain" : "the rain has just stopped") : null;
   if (!media && !flip) return null;
   const kind = media === "watching" ? "tv" : "radio";
   return { why: [media ? kind : null, flip ? "weather" : null].filter(Boolean).join(" + "), planned, flip,
-    onAir: media && s.unlocked.includes(kind) ? onAirFor(s, kind, storyMs, clock.hour) : null };
+    onAir: media && (gymTv || s.unlocked.includes(kind)) ? onAirFor(s, kind, storyMs, clock.hour) : null };
 }
 function liveText(cue, s, last) {
   const w = last.with ? (s.cast[last.with]?.name || last.with) : null, out = [];
   if (cue.flip) out.push(`LIVE: ${cue.flip}. Ishai notices it right now and reacts spontaneously (a line or two${w ? " with " + w : " to himself"}); plans may change.`);
   if (cue.planned) out.push(`PLANNED NEXT: ${cue.planned}`);
   const a = cue.onAir; if (!a) return out.join("\n");
-  const src = a.who === "tv" ? "the TV" : "the radio", react = w ? `he and ${w} react to it in their conversation`
+  const src = a.who === "tv" ? (last.location === "gym" ? "the gym TV above the treadmill" : "the TV") : "the radio", react = w ? `he and ${w} react to it in their conversation`
     : `a short spontaneous monologue in "lines" (1-3 lines by "ishai": he mutters to himself${s.unlocked.includes("dog") ? ", to Falafel" : ""} or to Moshe the basil)`;
   out.push(a.say
     ? `ON AIR RIGHT NOW (viewers hear this from ${src} first): "${a.say}"\nTHIS MOMENT IS LIVE: Ishai reacts to exactly this, in character: ${react}. He may agree, argue with ${src}, joke, get an idea, look something up, or switch it off. Serious news: brief and respectful. The hosts may react too. Do not repeat the on-air line itself.`
@@ -1169,9 +1185,9 @@ function liveText(cue, s, last) {
   return out.join("\n");
 }
 function attachAir(ev, cue, s) {
-  const a = cue && cue.onAir; if (!a || ev.location !== "apartment") return;
+  const a = cue && cue.onAir; if (!a || !(ev.location === "apartment" || ev.location === "gym")) return;
   const say = a.say || ev.onAir; if (!say) return;
-  if (!["listening", "watching"].includes(ev.action) && !/\b(radio|tv|television|news|channel)\b/i.test(ev.text)) return;
+  if (!["listening", "watching"].includes(ev.action) && !(ev.location === "gym" && ev.action === "exercising") && !/\b(radio|tv|television|news|channel)\b/i.test(ev.text)) return;
   ev.lines = [{ who: a.who, say: say.slice(0, 220) }, ...(ev.lines || [])];
   if (a.title) s.aired = [...(s.aired || []), a.title].slice(-30);
 }
@@ -1239,7 +1255,7 @@ function rssTitles(xml) {
 const RADIO_TAGS = ["lofi", "instrumental", "jazz", "chillout", "lounge", "bossa nova"];
 const NOT_MUSIC = /news|talk|sport|relig|christ|gospel|quran|church|bible|politic|comedy|kids|children|podcast|sermon|islam|catholic|worship/i;
 async function refreshStations(s, now) {
-  if (s.world?.stationsAt && now - s.world.stationsAt < 24 * 3600000 && (s.world.stations || []).length) return;
+  if (s.world?.stationsAt && now - s.world.stationsAt < 24 * 3600000 && (s.world.stations || []).length && (s.world.barStations || []).length) return;
   const all = [], seen = new Set();
   for (const tag of RADIO_TAGS) {
     try {
@@ -1253,6 +1269,18 @@ async function refreshStations(s, now) {
     } catch (e) {}
   }
   if (all.length >= 5) { s.world.stations = all.slice(0, 80); s.world.stationsAt = now; }
+  // backups for the bar (rock / alternative / light metal) and the café (pop / soft rock); the page tries its fixed stations first
+  for (const [key, tags] of [["barStations", ["alternative rock", "hard rock", "classic rock"]], ["cafeStations", ["soft rock", "pop"]]]) {
+    const list = [];
+    for (const tag of tags) {
+      try { const t = await getText(`https://de1.api.radio-browser.info/json/stations/search?tag=${encodeURIComponent(tag)}&tagExact=true&order=votes&reverse=true&limit=8&hidebroken=true&is_https=true`);
+        for (const x of JSON.parse(t)) { const url = String(x.url_resolved || x.url || "");
+          if (!url.startsWith("https://") || x.hls || !x.lastcheckok || list.some(y => y.url === url) || /news|talk|sport|relig|christ|gospel|politic|comedy|kids|podcast/i.test((x.tags || "") + " " + (x.name || ""))) continue;
+          if (!/^(MP3|AAC|AAC\+|OGG)$/i.test(x.codec || "")) continue;
+          list.push({ name: String(x.name || "").trim().slice(0, 60), url, tag }); } } catch (e) {}
+    }
+    if (list.length) s.world[key] = list.slice(0, 12);
+  }
 }
 async function fetchWeather() {
   const c = JSON.parse(await getText(WEATHER_URL)).current;
@@ -1265,7 +1293,7 @@ async function refreshWeather(s, now) {
   try { s.world.weather = await fetchWeather(); } catch (e) {}
 }
 async function refreshWorld(s, now) {
-  const w = { at: now, errors: [], stations: s.world?.stations || [], stationsAt: s.world?.stationsAt || 0, weather: s.world?.weather || null, shabbat: s.world?.shabbat || null, holidays: s.world?.holidays || [], headlines: s.world?.headlines || [] };
+  const w = { at: now, errors: [], stations: s.world?.stations || [], stationsAt: s.world?.stationsAt || 0, barStations: s.world?.barStations || [], cafeStations: s.world?.cafeStations || [], weather: s.world?.weather || null, shabbat: s.world?.shabbat || null, holidays: s.world?.holidays || [], headlines: s.world?.headlines || [] };
   const hm = iso => new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
   await Promise.all([
     fetchWeather().then(x => { w.weather = x; w.wxAt = now; }).catch(e => w.errors.push("weather: " + e.message)),
