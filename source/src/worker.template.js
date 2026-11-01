@@ -232,7 +232,7 @@ export default {
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         usage: s.usage ? { ...s.usage, neuronsEst: Math.round(s.usage.inTok * 4625 / 1e6 + s.usage.outTok * 30475 / 1e6) } : null,
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null,
-        writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < geminiOutUntil ? geminiOutUntil : null, geminiLastError: geminiErr, hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
+        writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < geminiOutUntil ? geminiOutUntil : null, geminiLastError: geminiErr, hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?") }, { "cache-control": "no-store" });
     }
     // quick story fix for the scheduled health check: /api/fix?token=...&endScene=1&note=...&minutes=45
@@ -444,6 +444,7 @@ async function tick(env, force) {
     try {
       if (live) { ev = await askAI(env, s, clock, now, goal, live); if (ev) { ev.src = lastWriter + " (live: " + live.why + ")"; attachAir(ev, live, s); } }
       else ev = await askBlock(env, s, clock, now, goal);
+      if (ev && !ev.src) ev.src = (lastWriter || "AI") + " (one moment)";
       s.lastError = null;
       if (s.sickN) { s.sickN = 0; s.recoverUntil = now + 90 * 60000; }
     }
@@ -525,6 +526,7 @@ async function tick(env, force) {
   { const d = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now)); const u = s.usage && s.usage.date === d ? s.usage : (s.usage = { date: d, calls: 0, inTok: 0, outTok: 0, moments: 0, noAI: 0 });
     u.calls += USE.calls; u.inTok += USE.inTok; u.outTok += USE.outTok; USE.calls = USE.inTok = USE.outTok = 0;
     u.gemini = { calls: (u.gemini?.calls || 0) + USE_G.calls, inTok: (u.gemini?.inTok || 0) + USE_G.inTok, outTok: (u.gemini?.outTok || 0) + USE_G.outTok }; USE_G.calls = USE_G.inTok = USE_G.outTok = 0; }
+  if (GEMINI_SEEN) s.geminiModel = GEMINI_SEEN;
   await saveState(env, s);
   return s;
 }
@@ -641,7 +643,7 @@ ${world}
 ${castSection(s, last)}
 
 RULES
-${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} minutes apart (story times ${Array.from({ length: block }, (_, k) => storyClock(now + DELAY_MIN * 60000 + k * INTERVAL_MIN * 60000).label.slice(-5)).join(", ")}). Each moment is 1-2 short sentences, max 35 words, present tense, third person, and follows on from the one before (one neighboring place at a time; a conversation may run across several moments with 8-14 NEW lines each, then ends naturally). The radio and TV are written live: if he turns one on, that is the LAST moment you write.` : "- Write the NEXT moment only: 1-2 short sentences, max 35 words, present tense, third person."}
+${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} minutes apart (story times ${Array.from({ length: block }, (_, k) => storyClock(now + DELAY_MIN * 60000 + k * INTERVAL_MIN * 60000).label.slice(-5)).join(", ")}). Each moment is 1-2 short sentences, max 35 words, present tense, third person, and follows on from the one before (one neighboring place at a time; a conversation may run across several moments with 8-14 NEW lines each, then ends naturally). The radio and TV are written live: if he turns one on, that is the LAST moment you write. Every moment where he is with someone or on the phone has 8-14 spoken lines; use only the listed actions.` : "- Write the NEXT moment only: 1-2 short sentences, max 35 words, present tense, third person."}
 - Be concrete: viewers only see this one line, so name things plainly (which show, which game, what the news says). Never write vague lines like "an article" or "a new character" without saying what it is.
 - This is reality, not a sitcom and not scripted. Ishai and everyone around him behave like real people: ordinary, believable choices, real pacing, small moments. No slapstick, no staged coincidences, no punchlines in the narration. Humor comes from real life and from the hosts.
 - Ishai does not know he is being filmed. He never talks to or about the camera, the show or the hosts.
@@ -719,9 +721,16 @@ async function addHosts(env, s, moments, clock, now) {
 For EACH moment below write 0-2 short lines (max 20 words each). The viewers see only the picture (the camera and what Ishai is doing) and hear the spoken lines; they cannot read "what happens", so usually one line says plainly what is going on, then a joke, an opinion or a guess. React only to what is visible or said: never invent drinks, food, objects, visitors, calls or plans. If the CAMERA is STATIC, they cannot see him: they wonder where he is, guess, or joke about losing him. Fresh every time: never repeat the lines below, their jokes, openings or catchphrases.${sponsor ? `\nIN ONE OF THESE MOMENTS one host slips in an obvious, cheesy "secret" plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending with a wink like "...not sponsored, by the way"; the other host reacts.` : ""}
 Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..."}]}]} with exactly ${moments.length} entries, in order.` },
       { role: "user", content: `ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
-    const raw = await runModel(env, msgs, 200 + moments.length * 140, "hosts");
-    const o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]);
-    const arr = Array.isArray(o.moments) ? o.moments : [];
+    // read whatever came back, even a cut-off or slightly broken reply: every {"commentary":[...]} found, in order
+    const readHosts = raw => { try { const o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); if (Array.isArray(o.moments)) return o.moments; } catch (e) {}
+      const out = []; const re = /"commentary"\s*:\s*\[([\s\S]*?)\]/g; let m;
+      while ((m = re.exec(raw))) { const items = []; const ri = /\{\s*"who"\s*:\s*"(zohar|oren)"\s*,\s*"say"\s*:\s*"((?:[^"\\]|\\.)*)"/gi; let k;
+        while ((k = ri.exec(m[1]))) items.push({ who: k[1], say: k[2].replace(/\\"/g, '"') }); out.push({ commentary: items }); }
+      return out; };
+    let arr = readHosts(await runModel(env, msgs, 300 + moments.length * 200, "hosts"));
+    if (arr.filter(x => (x.commentary || []).length).length < Math.ceil(moments.length / 2) && env.GEMINI_API_KEY && Date.now() >= geminiOutUntil) {
+      try { const g = readHosts(await runGemini(env, msgs, 300 + moments.length * 200)); if (g.length > arr.length) arr = g; } catch (e) { geminiErr = { at: Date.now(), msg: String(e && e.message || e).slice(0, 240) }; }
+    }
     const used = [...said];
     moments.forEach((m, i) => {
       const c = (Array.isArray(arr[i]?.commentary) ? arr[i].commentary : []).map(x => ({ who: String(x?.who || "").toLowerCase().trim(), say: String(x?.say || "").replace(/\s+/g, " ").trim().replace(/^["']|["']$/g, "").slice(0, 160) }))
@@ -731,6 +740,9 @@ Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..
     });
     s.hostsBy = lastWriter;
   } catch (e) { s.hostsErr = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
+  // nobody wrote anything for a moment with something going on: the hosts at least say what is happening (no AI)
+  moments.forEach((m, i) => { if (!(m.commentary || []).length && (m.with || (m.lines || []).length || i === 0))
+    m.commentary = relayHosts(s, String(m.text || ""), Math.floor(now / 36e4) + i, null); });
 }
 async function askAI(env, s, clock, now, goal, live) {
   const ev = await askStory(env, s, clock, now, goal, live);
@@ -764,7 +776,7 @@ const USE = { calls: 0, inTok: 0, outTok: 0 };
 let HOSTS_APART = false;
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 const USE_G = { calls: 0, inTok: 0, outTok: 0 };
-let geminiModel = null, geminiOutUntil = 0, geminiErr = null;
+let geminiModel = null, geminiOutUntil = 0, geminiErr = null, GEMINI_SEEN = null;
 async function pickGemini(env) {
   if (env.GEMINI_MODEL) return env.GEMINI_MODEL;
   if (geminiModel) return geminiModel;
@@ -794,7 +806,7 @@ async function runGemini(env, messages, maxTokens) {
   const j = await r.json(), c = String(j?.choices?.[0]?.message?.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   USE_G.calls++; USE_G.inTok += j?.usage?.prompt_tokens || 0; USE_G.outTok += j?.usage?.completion_tokens || 0;
   if (!c) throw new Error(`gemini (${model}): empty reply`);
-  lastWriter = "gemini: " + model;
+  lastWriter = "gemini: " + model; GEMINI_SEEN = model;
   return c;
 }
 async function runModel(env, messages, maxTokens = 1000, role = "story") {
@@ -912,6 +924,14 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (ev.location === "market" && last.location !== "market" && shut(7, 19)) return { ev, problem: "Shuk Shalom market is closed now (07:00-19:00, Friday until 14:00, closed on Shabbat)" };
     if (ev.location === "store" && last.location !== "store" && shut(9, 21)) return { ev, problem: "Everything Else is closed now (09:00-21:00, Friday until 14:00, closed on Shabbat)" }; }
   if (!LOCATIONS[ev.location]) return { ev, problem: `"${ev.location}" is not a known location` };
+  if (!LOCATIONS[ev.location].includes(ev.action)) {
+    const A = { waiting: "idle", sitting: "idle", standing: "idle", relaxing: "idle", resting: "idle", thinking: "idle", cleaning: "idle", tidying: "idle", washing: "idle", shopping: "idle", browsing: "idle", looking: "idle", lounging: "idle", stretching: "idle",
+      typing: "working", coding: "working", designing: "working", emailing: "working", texting: "phoning", calling: "phoning", chatting: "talking", speaking: "talking", greeting: "talking",
+      napping: "sleeping", playing: "gaming", microwaving: "cooking", baking: "cooking", dining: "eating", snacking: "eating", sipping: "drinking", jogging: "exercising", running: "exercising", working_out: "exercising",
+      strolling: "walking", leaving: "walking", arriving: "walking", entering: "walking", heading: "walking", tv: "watching", watching_tv: "watching", radio: "listening" };
+    const a2 = A[ev.action.replace(/\s+/g, "_")];
+    if (a2) ev.action = LOCATIONS[ev.location].includes(a2) ? a2 : (ev.with && LOCATIONS[ev.location].includes("talking") ? "talking" : LOCATIONS[ev.location].includes("idle") ? "idle" : ev.action);
+  }
   if (!LOCATIONS[ev.location].includes(ev.action))
     return { ev, problem: `"${ev.action}" is not possible in ${ev.location} (allowed: ${allowed(ev.location, s.unlocked).join(", ")})` };
   if (NEEDS[ev.action] && !s.unlocked.includes(NEEDS[ev.action]) && !(goal && goal.unlock === NEEDS[ev.action] && ev.complete))
@@ -967,7 +987,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (ev.with && reused.length >= 2) ev.stuck = true; }
   if (ev.with && ev.with !== last.with && !(BATH_ACTIONS.includes(last.action) && s.scene && s.scene.w === ev.with) && !(ev.scene && ev.scene.why) && ev.action !== "sleeping" && !allowNoHosts)
     return { ev, problem: `a conversation with ${s.cast[ev.with]?.name || ev.with} starts here, so fill "scene" (type, why, ishaiWants, theyWant, beats, ending, lines) and write its first lines` };
-  if (ev.with && ev.lines.length < 6 && !allowNoHosts)
+  if (ev.with && ev.lines.length < 4 && !allowNoHosts)
     return { ev, problem: `he is ${ev.action === "phoning" ? "on the phone" : "together"} with ${s.cast[ev.with]?.name || ev.with}, so "lines" must contain their actual conversation: 8 to 14 lines alternating between "ishai" and "${ev.with}"` };
   { const prev = recentHostLines(s, 12);
     const rep = ev.commentary.find(c => isRepeat(c.say, prev));
@@ -1244,6 +1264,8 @@ function queuedEvent(s, last, goal, now) {
   const m = q.items[0];
   if (["listening", "watching"].includes(String(m.action || "").toLowerCase())) { dropQueue(s, "radio/TV: written live"); s.plannedLive = String(m.text || "").slice(0, 200); return null; }  // radio / TV: live
   const r = validate(JSON.stringify(m), s, last, canAddPerson(s, now), goal, false);
+  const minor = p => /"lines" must contain|fill "scene"|hosts are missing/.test(p || "");
+  if (r.ev && r.problem && minor(r.problem)) { r.ev = repair(r.ev, s, last); r.problem = null; }
   if (!r.ev || r.problem) { dropQueue(s, r.problem || "dropped"); return null; }
   q.items.shift();
   const ev = r.ev; ev.fromBlock = true; ev.src = `${q.writer} (block ${q.n - q.items.length}/${q.n}, written ahead)`;
@@ -1261,6 +1283,7 @@ async function askBlock(env, s, clock, now, goal) {
     arr = Array.isArray(o) ? o : Array.isArray(o.moments) ? o.moments : o.location ? [o] : null; } catch {}
   arr = (arr || []).filter(x => x && typeof x === "object").slice(0, n);
   const r = arr.length ? validate(JSON.stringify(arr[0]), s, last, canAddPerson(s, now), goal, false) : { problem: "the block was not valid JSON" };
+  if (r.ev && r.problem && /"lines" must contain|fill "scene"|hosts are missing/.test(r.problem)) { r.ev = repair(r.ev, s, last); r.problem = null; }
   s.diag = [...(s.diag || []), { at: now, model: lastWriter, attempt: "block", problem: r.problem || null, moments: arr.length, chars: raw.length }].slice(-16);
   if (!r.ev || r.problem) { s.queueDrop = "block: " + (r.problem || "unusable"); s.queue = null; return askAI(env, s, clock, now, goal); }   // one moment the usual way
   const w = s.world && s.world.weather;
