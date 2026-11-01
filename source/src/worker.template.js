@@ -78,14 +78,28 @@ const HOSTS = {
 const SPONSORS = [
   { name: "Cooola", pitch: "an absurdly strong cola; 'if you really want to wake up'" },
   { name: "HummusPrime", pitch: "a hummus subscription delivered by drone, 'because chickpeas deserve wings'" },
-  { name: "NapMaster 3000", pitch: "a pillow with 'military-grade softness'" },
+  { name: "FluffNap", pitch: "pillows with 'military-grade softness'; sleep so deep the neighbors check on you" },
   { name: "LeafLove", pitch: "plant food that 'makes basil believe in itself again'" },
   { name: "SockWise", pitch: "socks that 'know where their partner is'" },
   { name: "ZenBrick", pitch: "a meditation app that just shows a brick for ten minutes" },
   { name: "A Butcher Is Born", pitch: "the hottest new reality competition on Channel 9, where amateur butchers compete for the Golden Cleaver; " +
       "contestants: Rami 'The Cleaver' (cries every episode), Shuli Two-Knives (trash-talks the meat), and 78-year-old Grandpa Moti (somehow undefeated). Tonight at 21:00; keep it funny, never gory" },
-  { name: "Wee Laddie Virgin Scotch", pitch: "a 0% alcohol 'scotch' for kids, smoky apple juice in a fancy bottle: 'you wouldn't believe it's not alcohol'" }
+  { name: "Wee Laddie Virgin Scotch", pitch: "a 0% alcohol 'scotch' for kids, smoky apple juice in a fancy bottle: 'you wouldn't believe it's not alcohol'" },
+  { name: "Kfar Kofi", pitch: "instant coffee, 'ninety seconds from kettle to personality'" },
+  { name: "Tahini Tower Savings Bank", pitch: "a bank that keeps your money 'smooth, nutty and slightly bitter'" },
+  { name: "Herzl Hardware", pitch: "the hardware shop on Herzl Street: 'if it squeaks, leaks or creaks, we have the thing. Probably'" },
+  { name: "Yalla Yoga", pitch: "a yoga studio on Dizengoff: 'stretch like nobody is watching (somebody is watching)'" }
 ];
+// the studio recap has ONE sponsor each time, taking turns: the one used longest ago (never the same twice in a row)
+function nextSponsor(s) {
+  const used = s.spUsed || {};
+  return [...SPONSORS].sort((a, b) => (used[a.name] || 0) - (used[b.name] || 0) || Math.random() - .5)[0];
+}
+function sponsorUsed(s, sp, lines, storyMs) {
+  s.spUsed = { ...(s.spUsed || {}), [sp.name]: storyMs };
+  const said = (lines || []).filter(l => l.say.includes(sp.name) || /brought to you/i.test(l.say)).map(l => l.say.slice(0, 160));
+  s.spJokes = [...(s.spJokes || []), ...said].slice(-12);
+}
 // fictional show that also airs on Ishai's TV once he has one
 const TV_SHOW = "On Channel 9 the hit fictional reality show 'A Butcher Is Born' airs at 21:00 (contestants Rami 'The Cleaver', Shuli Two-Knives, Grandpa Moti); the hosts are obsessed with it.";
 const AD_EVERY_MIN = 75; // at most one plug per this many minutes
@@ -330,12 +344,13 @@ function basicRecap(s, day, storyMs) {
   for (const x of lines){ if (x.w !== prevW || (x.loc !== prevLoc && !["corridor", "street"].includes(x.loc))) notable.push(x); prevLoc = x.loc; prevW = x.w; }
   const pickN = notable.slice(-6);
   if (!pickN.length) return null;
-  const sp = [...SPONSORS].sort(() => Math.random() - .5).slice(0, 2), out = [];
-  out.push({ who: "zohar", say: `This recap is brought to you by ${sp[0].name}. Let's catch you up.` });
+  const sp = nextSponsor(s), out = [];
+  out.push({ who: "zohar", say: `This recap is brought to you by ${sp.name}. Let's catch you up.` });
   if (s.yesterdaySum) out.push({ who: "oren", say: "Yesterday: " + s.yesterdaySum.text.split(/(?<=\.)\s/)[0] });
   pickN.forEach((x, i) => out.push({ who: (out.length % 2) ? "oren" : "zohar", say: `${x.time}: ${x.text}`.slice(0, 220) }));
-  out.push({ who: (out.length % 2) ? "oren" : "zohar", say: `That's the day so far. Brought to you by ${sp[1].name}. Back to the cameras.` });
-  return { today: pickN.map(x => `${x.time} ${x.text}`).join(" "), show: { id: "studio-" + Math.floor(storyMs / 3600000) + "-basic", t: storyMs, lines: out, sponsors: sp.map(x => x.name) } };
+  out.push({ who: (out.length % 2) ? "oren" : "zohar", say: `That's the day so far. Once again, ${sp.name}. Back to the cameras.` });
+  sponsorUsed(s, sp, [], storyMs);
+  return { today: pickN.map(x => `${x.time} ${x.text}`).join(" "), show: { id: "studio-" + Math.floor(storyMs / 3600000) + "-basic", t: storyMs, lines: out, sponsors: [sp.name] } };
 }
 async function studioRecap(env, s, storyMs, day) {
   const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || id;
@@ -346,7 +361,7 @@ async function studioRecap(env, s, storyMs, day) {
   const earlier = todayLines.filter((_, i, a) => i % Math.max(1, Math.floor(a.length / 18)) === 0).slice(-18);
   if (!lastHour.length && !earlier.length) return null;
   const hr = storyClock(storyMs).hour, yLines = hr < 11 ? "2-3 lines" : hr < 16 ? "1-2 lines" : "1 short line";   // the longer today, the shorter yesterday
-  const sp = [...SPONSORS].sort(() => Math.random() - .5).slice(0, 2);
+  const sp = nextSponsor(s), oldJokes = (s.spJokes || []).slice(-8);
   const messages = [{ role: "system", content:
 `You write for a reality show about Ishai, a man in Tel Aviv. Two hosts in the studio:
 - ${HOSTS.zohar}
@@ -357,11 +372,12 @@ Reply with ONLY JSON:
  "show":[{"who":"zohar"|"oren","say":"..."}],
  "pip":[{"who":"zohar"|"oren","say":"..."}]}
 "show" is the studio recap, 8-12 lines, alternating hosts, max 30 words each. It is a REAL RECAP that tells viewers what happened, in order:
- 1) the FIRST line is a cheesy sponsor intro: "This recap is brought to you by ${sp[0].name}" plus a joke (${sp[0].pitch});
+ THIS RECAP HAS ONE SPONSOR: ${sp.name} (${sp.pitch}). Make up NEW jokes about it: do not just repeat its slogan${oldJokes.length ? `, and do not reuse any of these earlier sponsor lines or their jokes: ${oldJokes.map(j => `"${j}"`).join("; ")}` : ""}.
+ 1) the FIRST line is a cheesy sponsor intro: "This recap is brought to you by ${sp.name}" plus a fresh joke;
  2) yesterday: ${yLines} (skip if there is no yesterday), each stating what actually happened (who, where, what);
  3) today in time order (morning, midday, afternoon...), ending with the last hour: every line first states a concrete fact from the log (time of day, place, who he was with, what was said or done), THEN may add a short sassy remark. The other host reacts or adds the next fact. No line may be only a joke;
  Write the "today" summary first and base the show on it, so a viewer who missed the day understands it from the show alone.
- 4) the LAST line is a sponsor outro: "...brought to you by ${sp[1].name}" plus a joke (${sp[1].pitch}), then back to the cameras.
+ 4) the LAST line is a sponsor outro: once more ${sp.name}, with a DIFFERENT joke than the intro (the other host may groan at it), then back to the cameras.
 "pip" is a 4-5 line quick version about the last hour only (first line greets: "Live from the studio...").` },
   { role: "user", content: `YESTERDAY (${s.yesterdaySum ? s.yesterdaySum.date : "none"}): ${s.yesterdaySum ? s.yesterdaySum.text : "(no summary)"}\n\nTODAY so far:\n${earlier.join("\n") || "(little)"}\n\nLAST HOUR:\n${lastHour.join("\n") || "(quiet)"}\n\nJSON only.` }];
   const raw = await runModel(env, messages);
@@ -371,7 +387,8 @@ Reply with ONLY JSON:
   const show = clean(o.show).slice(0, 12), pip = clean(o.pip).slice(0, 6), today = String(o.today || "").replace(/\s+/g, " ").trim().slice(0, 900);
   if (show.length < 4 || today.length < 20) return null;
   const id = "studio-" + Math.floor(storyMs / 3600000);
-  return { today, show: { id: id + "-show", t: storyMs, lines: show, sponsors: sp.map(x => x.name) }, pip: pip.length >= 3 ? { id, t: storyMs, lines: pip } : null };
+  sponsorUsed(s, sp, show, storyMs);
+  return { today, show: { id: id + "-show", t: storyMs, lines: show, sponsors: [sp.name] }, pip: pip.length >= 3 ? { id, t: storyMs, lines: pip } : null };
 }
 
 async function tick(env, force) {
