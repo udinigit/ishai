@@ -183,7 +183,7 @@ const NEXT = {
   bar:       ["street"],
   bus:       ["street","market","offscreen"],
   taxi:      ["street","market","offscreen"],
-  offscreen: ["street","bus","taxi"]
+  offscreen: ["street","market","bus","taxi"]
 };
 // drawing menu for characters (must match the page)
 const LOOK = {
@@ -668,7 +668,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - THE REAL WORLD is real: use the real weather and the Jewish calendar (e.g. Friday-night Shabbat dinner) naturally. If any real news sounds sad or serious, he reacts briefly and respectfully, never jokes about it, or changes the channel.
 - Location must be one of: ${Object.keys(LOCATIONS).join(", ")}. Action must be allowed in that location.
 - He can only move to a neighboring location: ${Object.entries(NEXT).map(([k, v]) => `${k} -> ${v.join("/")}`).join("; ")}.
-- If he goes somewhere without a camera, use location "offscreen" with action "away".
+- If he is AT a place without a camera, use location "offscreen" with action "away". Never use "offscreen" for being on the way or for arriving somewhere that has a camera.
 - Things he owns at home: laptop, books, game console${owned.length ? ", " + owned.join(", ") : ""}.${dogLine} Do not invent other big objects. When he watches TV or listens to the radio, mention what is on (make up shows and stations). ${TV_SHOW}
 - "with" is the id of ONE person with him in this moment (a visitor at home counts), or the person on the other end when the action is "phoning"; otherwise null.
 - He is social: about one in four moments should involve another person, in person or by phone. People visit him, call him, text him to meet up.
@@ -858,6 +858,14 @@ async function runCloudflare(env, messages, maxTokens = 1000) {
   throw lastErr;
 }
 
+// a ride is never "offscreen": on the way he is on board, and getting off at the market puts him at the market
+function fixRideLocation(ev, last) {
+  if (ev.location !== "offscreen" || !["street", "market", "bus", "taxi", "offscreen"].includes(last.location)) return;
+  const off = /\b(gets? off|got off|getting off|steps? off|stepped off|gets? out|got out|arrives?|arrived|drops?|dropped|reaches|reached)\b/i.test(ev.text);
+  if (off && /\b(market|shuk|everything else)\b/i.test(ev.text + " " + last.text)) { ev.location = "market"; ev.action = "walking"; }
+  else if (off && /\b(herzl|home|his building|his street)\b/i.test(ev.text)) { ev.location = "street"; ev.action = "walking"; }
+  else if (!off && /\b(bus|taxi|cab|ride|driver)\b/i.test(ev.text)) { ev.location = /\b(taxi|cab|driver)\b/i.test(ev.text) ? "taxi" : "bus"; ev.action = "idle"; }
+}
 function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   let o;
   try { o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch { return { problem: "the reply was not valid JSON" }; }
@@ -869,6 +877,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     missing: (() => { const m = str(o.missing, 30).toLowerCase().replace(/[^a-z0-9 '-]/g, "").trim(); return m && m !== "null" && m !== "none" ? m : null; })()
   };
   if (ev.text.length < 8) return { ev: null, problem: "the text is missing" };
+  fixRideLocation(ev, last);
   if (o.delivery === true || o.delivery === "true") ev.delivery = true;
   { const a = str(o.onAir && typeof o.onAir === "object" ? o.onAir.say : o.onAir, 220).replace(/^["']|["']$/g, ""); if (a.length > 5 && !/^(null|none)$/i.test(a)) ev.onAir = a; }
 
@@ -1186,7 +1195,7 @@ function fallback(last, hour, s) {
     cafe: [["cafe", "drinking", "He sips his coffee slowly, making it last."], ["cafe", "reading", "He reads the news on his phone at the corner table."], ["shops", "walking", "He pays, waves to the barista and steps back out onto Herzl Street by the flower shop."]],
     bus: [["street", "walking", "He gets off the bus on Herzl Street."], ["market", "walking", "The bus drops him at Shuk Shalom."]],
     taxi: [["street", "walking", "He pays the driver and gets out on Herzl Street."], ["market", "walking", "The taxi drops him at Shuk Shalom."]],
-    offscreen: [["offscreen", "away", "No sign of Ishai on any camera."], ["street", "walking", "Ishai gets off the bus on Herzl Street with a shopping bag."]]
+    offscreen: [["offscreen", "away", "No sign of Ishai on any camera."], ["market", "walking", "Ishai gets off the bus at Shuk Shalom."], ["street", "walking", "Ishai gets off the bus on Herzl Street with a shopping bag."]]
   }[last.location] || [[last.location, "idle", "A quiet moment."]];
   const wet = !!(s && s.world && s.world.weather && s.world.weather.rain);
   if (wet && ["street", "park", "shops"].includes(last.location)) {
@@ -1241,7 +1250,7 @@ function travelEvent(s, last, hop, dest) {
     "street>market": `He takes the bus to Shuk Shalom market${umb}.`, "market>street": "He takes the bus back to Herzl Street, shopping bags on his knees.",
     "market>store": "He walks into Everything Else, the big store next to the market.", "store>market": "He walks out of Everything Else back into the market.",
     "street>offscreen": "He gets on the bus at the stop.", "offscreen>street": "He gets off the bus on Herzl Street.",
-    "bus>market": "The bus drops him at Shuk Shalom.", "bus>street": "He gets off the bus on Herzl Street.", "taxi>market": "The taxi drops him at Shuk Shalom.", "taxi>street": "He pays the driver and gets out on Herzl Street." };
+    "offscreen>market": "He gets off the bus at Shuk Shalom.", "bus>market": "The bus drops him at Shuk Shalom.", "bus>street": "He gets off the bus on Herzl Street.", "taxi>market": "The taxi drops him at Shuk Shalom.", "taxi>street": "He pays the driver and gets out on Herzl Street." };
   const text = T[last.location + ">" + hop] || `Ishai heads toward the ${dest}.`;
   return { location: hop, action: hop === "offscreen" ? "away" : ["apartment", "cafe", "gym", "bar", "store", "bus", "taxi"].includes(hop) ? "idle" : "walking", text, with: null, lines: [], commentary: [], src: "on the way to the planned scene (no AI)" };
 }

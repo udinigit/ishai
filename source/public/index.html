@@ -1960,7 +1960,7 @@
     store:     { market: {exit:4, entry:4} },                                         // store door -> market
     bus:       { street: {ride:true}, market: {ride:true}, offscreen: {ride:true} },  // on board: he gets off at a stop
     taxi:      { street: {ride:true}, market: {ride:true}, offscreen: {ride:true} },
-    offscreen: { street: {ride:true}, bus: {ride:true}, taxi: {ride:true} }
+    offscreen: { street: {ride:true}, market: {ride:true}, bus: {ride:true}, taxi: {ride:true} }
   };
   ['street','market'].forEach(p => { MAP[p].bus = {exit:128, entry:128, ride:true}; MAP[p].taxi = {exit:128, entry:128, ride:true}; });
   function route(from, to){ // shortest path through the map, e.g. cafe -> street -> corridor -> apartment
