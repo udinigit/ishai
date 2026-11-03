@@ -218,6 +218,24 @@
 
 <script>
 (() => {
+  // ================= one clock for everybody: the server's =================
+  // Device clocks can be seconds apart, so every timed thing on this page uses NOW(), not the device clock.
+  let CLOCK_OFFSET = 0, clockRtt = Infinity;
+  const NOW = () => Date['now']() + CLOCK_OFFSET;
+  async function syncClock(){
+    let best = null;
+    for (let i = 0; i < 3; i++){
+      try {
+        const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 1500), a = performance.now();
+        const r = await fetch('/api/time', {cache:'no-store', signal: ctl.signal}); clearTimeout(to);
+        if (!r.ok) break;
+        const j = await r.json(), rtt = performance.now() - a;
+        if (typeof j.now === 'number' && (!best || rtt < best.rtt)) best = {rtt, off: j.now + rtt/2 - Date['now']()};
+      } catch(e){ break; }
+    }
+    if (best){ CLOCK_OFFSET = best.off; clockRtt = best.rtt; }
+  }
+
   // ================= config =================
   const API = '/api/state';
   const BUILD = '__BUILD__'; // replaced at build time; compared with the server's to auto-update
@@ -237,9 +255,12 @@
     market:    ['walking','idle','talking','eating','drinking','phoning'],
     store:     ['idle','talking','phoning'],
     bar:       ['idle','drinking','eating','talking','phoning'],
+    bus:       ['idle','talking','phoning','reading'],
+    taxi:      ['idle','talking','phoning','reading'],
     offscreen: ['away'],
     bathroom:  ['bathroom','showering'] // page-only room: the story says apartment/bathroom|showering
   };
+  let NEXT_RIDE = null; // 'bus' or 'taxi' when the story's moment says which
   let UNLOCKED = new Set(); // items the story has brought in (tv, radio)
   const BATH = new Set(['bathroom','showering']); // he disappears behind the bathroom door
   let WORLD = null; // real weather / Shabbat from the Worker
@@ -250,11 +271,11 @@
   let TALK_AT = 0;       // last time a character of anyone's speech was typed (music fades under it)   // the story just put a live line on the radio/TV: our own DJ keeps quiet for a while
   let UMB = false;   // Ishai is outdoors (street/park) in the rain: he holds an umbrella
   // sleep phases: 0 = first 10 minutes (just sleeping), 1 = zzz, 2 = after 15 minutes the dreams begin
-  let SLEEP_SINCE = Date.now() - (+new URLSearchParams(location.search).get('sleptMin') || 0) * 60000;
-  const sleepPhase = () => { const m = (Date.now() - SLEEP_SINCE) / 60000; return m < 10 ? 0 : m < 15 ? 1 : 2; }; // true while a dream picture is being drawn off screen
+  let SLEEP_SINCE = NOW() - (+new URLSearchParams(location.search).get('sleptMin') || 0) * 60000;
+  const sleepPhase = () => { const m = (NOW() - SLEEP_SINCE) / 60000; return m < 10 ? 0 : m < 15 ? 1 : 2; }; // true while a dream picture is being drawn off screen
   let SPEAKING = null; // who is talking right now (drives the speech bubbles on camera)
-  let LAST_TALK = Date.now();
-  function setSpeaking(w){ SPEAKING = w; if (w) LAST_TALK = Date.now(); }
+  let LAST_TALK = NOW();
+  function setSpeaking(w){ SPEAKING = w; if (w) LAST_TALK = NOW(); }
   const LABEL = {phoning:'ON THE PHONE',drinking:'DRINKING',bathroom:'BATHROOM',showering:'SHOWER',watching:'WATCHING TV',listening:'RADIO ON',sleeping:'SLEEPING',waking:'WAKING UP',idle:'IDLE',walking:'WALKING',working:'WORKING',gaming:'GAMING',
     eating:'EATING',cooking:'COOKING',reading:'READING',exercising:'EXERCISING',talking:'TALKING',away:'UNKNOWN'};
 
@@ -272,7 +293,7 @@
   const fmtHM = new Intl.DateTimeFormat('en-GB',{timeZone:TZ,hour:'2-digit',minute:'2-digit',hour12:false});
   function hourNow(){
     if (forceHour !== null) return forceHour;
-    const [h,m] = fmtHM.format(new Date()).split(':').map(Number);
+    const [h,m] = fmtHM.format(new Date(NOW())).split(':').map(Number);
     return (h % 24) + m/60;
   }
   const isNight = hf => hf < 6 || hf >= 19.5;
@@ -306,7 +327,7 @@
   function isShabbatEve(){
     if (params.has('shabbat')) return true;
     const sh = WORLD && WORLD.shabbat; if (!sh || !sh.start) return false;
-    const n = Date.now(); return n > sh.start - 20*60000 && n < sh.start + 5*3600000;
+    const n = NOW(); return n > sh.start - 20*60000 && n < sh.start + 5*3600000;
   }
   function weatherLabel(){
     const w = WORLD && WORLD.weather; if (!w) return '';
@@ -317,7 +338,7 @@
   const stormy = () => !!(WORLD && WORLD.weather && [95,96,99].includes(WORLD.weather.code));
   // lightning on the real clock (same flash for every viewer): about every 20-45 s, a double flicker
   function lightning(t){
-    const n = Date.now(), slot = Math.floor(n/30000), seed = (slot*9301+49297)%233280/233280, at = slot*30000 + Math.floor(seed*22000), d = n - at;
+    const n = NOW(), slot = Math.floor(n/30000), seed = (slot*9301+49297)%233280/233280, at = slot*30000 + Math.floor(seed*22000), d = n - at;
     return d >= 0 && d < 380 && !(d > 90 && d < 200);
   }
   // a plain navy umbrella held in his right hand (no brand)
@@ -697,14 +718,14 @@
   // the courier at his door: rings, steps in, hands over the bag, leaves (first ~40 s of a delivery moment)
   function courierUpdate(t){
     const d = actor.delivery; if (!d || actor.loc !== 'apartment' || actor.switching) return;
-    const e = (Date.now() - d.at) / 1000; if (e < 0 || e > 40) return;
+    const e = (NOW() - d.at) / 1000; if (e < 0 || e > 40) return;
     if (!d.rang){ d.rang = true; Sound.bell(); }
     const x = e < 5 ? 135 - e * 3 : e < 34 ? 120 : 120 + (e - 34) * 3, y = 74;
     alpha(.95, () => { person(EXTRA.courier, x, y, t, {walk: e < 5 || e > 34, face: e < 34 ? -1 : 1}); ateHelmet(x, y); ateBox(e < 34 ? x + 9 : x - 5, y + 8);
       if (e > 8 && e < 30) R(x - 2, y + 12, 4, 4, '#e8dcc0'); });
   }
   // now and then an ateBite courier rides past on the road (same clock for everyone)
-  function ateRideBy(t, y){ const P = 75000, e = Date.now() % P; if (e > 9000) return; const dir = Math.floor(Date.now() / P) % 2 ? 1 : -1;
+  function ateRideBy(t, y){ const P = 75000, e = NOW() % P; if (e > 9000) return; const dir = Math.floor(NOW() / P) % 2 ? 1 : -1;
     const x = dir > 0 ? -24 + e / 9000 * (W + 48) : W + 24 - e / 9000 * (W + 48); ateScooter(Math.round(x), y, t, dir); } // drawn under the scene's night lighting
   function dogUpdate(t, scene){
     if (!UNLOCKED.has('dog') || actor.loc==='offscreen' || actor.switching){ dog.loc = null; return; }
@@ -723,7 +744,7 @@
       else if (['eating','cooking','drinking'].includes(a)) target = 142;                    // begging by the counter
       else if (!actor.err && ['working','gaming','reading','watching','idle'].includes(a)){
         // his own little routine around the flat, on the clock (same for every viewer)
-        const ph = Math.floor(Date.now() / 18000) % 6;
+        const ph = Math.floor(NOW() / 18000) % 6;
         if (ph === 0){ target = a==='working'||a==='gaming' ? 64 : a==='idle' ? target : 98; if (a==='reading'||a==='watching') pose = 'sleep'; }
         else if (ph === 1){ target = 128; }                                                   // at the water bowl
         else if (ph === 2){ target = 52; pose = 'sleep'; fy = 94; }                          // on his bed
@@ -750,8 +771,8 @@
       line(hx, hy, Math.round(mx), Math.round(my), '#c23b3b'); line(Math.round(mx), Math.round(my), cx, cy, '#c23b3b');
     }
     // an occasional bark (same moment for every viewer)
-    const sec = Math.floor(Date.now()/1000);
-    if (pose !== 'sleep' && sec % 71 === 0 && dog.lastBark !== sec){ dog.lastBark = sec; if (!SPEAKING && !Sound.busy() && Date.now() - TALK_AT > 5000) Sound.bark(); }
+    const sec = Math.floor(NOW()/1000);
+    if (pose !== 'sleep' && sec % 71 === 0 && dog.lastBark !== sec){ dog.lastBark = sec; if (!SPEAKING && !Sound.busy() && NOW() - TALK_AT > 5000) Sound.bark(); }
   }
 
   // ---- bystanders: muted, slightly faded, and the same for every viewer (driven by the clock) ----
@@ -781,7 +802,7 @@
     return false;
   }
   // draw an open doorway over a closed door (x,y,w,h = the door leaf); the leaf swings in
-  function deliveryDoor(){ const d = actor.delivery; if (!d || actor.loc !== 'apartment') return false; const e = (Date.now() - d.at) / 1000; return e >= 0 && e < 6 || e > 33 && e < 40; }
+  function deliveryDoor(){ const d = actor.delivery; if (!d || actor.loc !== 'apartment') return false; const e = (NOW() - d.at) / 1000; return e >= 0 && e < 6 || e > 33 && e < 40; }
   function openDoor(x, y, w, h){ R(x, y, w, h, '#14100c'); R(x, y, 3, h, '#6a4e38'); R(x+3, y, 1, h, '#3a2a1c'); }
   // ---- companion controller: every friend walks in from an exit point, and walks out the same way ----
   const comp = { id:null, look:null, x:0, mode:null, loc:null, last:0 };
@@ -796,14 +817,14 @@
   // now and then a standing friend takes a couple of steps and comes back (not while it is their turn to talk)
   function wander(id){
     if (SPEAKING === id) return 0;
-    const now = Date.now(), r = hash(Math.floor(now / 20000) * 17 + strHash(id)), e = now % 20000;
+    const now = NOW(), r = hash(Math.floor(now / 20000) * 17 + strHash(id)), e = now % 20000;
     return r < .35 && e > 1000 && e < 12000 ? (r < .175 ? -9 : 9) : 0;
   }
   function wantComp(w){ compWant = w; return comp.mode==='here' && comp.id===w.id; } // true = draw them in place now
   function compUpdate(t, scene){
     const n = performance.now(), dts = Math.min(.1, (n - (comp.last||n))/1000); comp.last = n;
     if (comp.loc !== actor.loc || actor.switching){
-      if (comp.id && comp.loc === 'apartment' && comp.mode !== 'out') comp.parked = {id: comp.id, look: comp.look, x: comp.x, until: Date.now() + 20 * 60000}; // waits while he is in the bathroom
+      if (comp.id && comp.loc === 'apartment' && comp.mode !== 'out') comp.parked = {id: comp.id, look: comp.look, x: comp.x, until: NOW() + 20 * 60000}; // waits while he is in the bathroom
       if (actor.loc !== 'bathroom' && actor.loc !== 'apartment' && !actor.switching) comp.parked = null;
       comp.id = null; comp.mode = null; comp.loc = actor.loc; }
     const posted = id => !!id && POST[actor.loc] === id;
@@ -818,7 +839,7 @@
     }
     if (w && comp.id !== w.id){
       if (comp.id && comp.mode !== 'out'){ comp.mode = 'out'; }                       // current friend leaves first
-      else if (!comp.id){ const pk = comp.parked && comp.parked.id === w.id && actor.loc === 'apartment' && Date.now() < comp.parked.until ? comp.parked : null; comp.parked = null;
+      else if (!comp.id){ const pk = comp.parked && comp.parked.id === w.id && actor.loc === 'apartment' && NOW() < comp.parked.until ? comp.parked : null; comp.parked = null;
         const already = pk || performance.now() < (comp.settleUntil || 0);   // tuned in mid-scene (or the page just updated): they are already here
         // came in together with Ishai: through the same door he just used, right behind him
         const withHim = actor.fromLoc && performance.now() - (actor.arrivedAt || 0) < 8000 && (w.id === actor.with || (actor.pending && actor.pending.w === w.id)) ? (MAP[actor.loc] || {})[actor.fromLoc] : null;
@@ -910,11 +931,11 @@
     R(bx, by, 64, 36, '#1a1630'); for (let i=0;i<8;i++) R(bx + (i*23 % 61) + 1, by + (i*7 % 14) + 2, 1, 1, '#f4f1ff');   // stars
     R(bx, by + 28, 64, 8, '#2f5a2a'); R(bx, by + 28, 64, 1, '#4caf50');
     R(bx + 30, by + 20, 1, 8, '#8a6a4a'); R(bx + 36, by + 20, 1, 8, '#8a6a4a'); R(bx + 28, by + 22, 11, 1, '#a07a50'); R(bx + 28, by + 25, 11, 1, '#a07a50'); // fence
-    const P = 2600, ph = (Date.now() % P) / P, x = bx - 6 + ph * 76, jump = Math.max(0, Math.sin(Math.min(1, Math.max(0, (ph - .32) / .36)) * Math.PI)) * 12;
+    const P = 2600, ph = (NOW() % P) / P, x = bx - 6 + ph * 76, jump = Math.max(0, Math.sin(Math.min(1, Math.max(0, (ph - .32) / .36)) * Math.PI)) * 12;
     const y = by + 22 - Math.round(jump), leg = Math.floor(t / 150) % 2;
     R(x, y, 9, 5, '#f4f4f4'); R(x + 1, y - 1, 7, 1, '#f4f4f4'); R(x + 8, y - 1, 3, 3, '#2a2a2a'); R(x + 9, y, 1, 1, '#f4f4f4');   // wool, head, eye
     if (jump > 1){ R(x + 1, y + 5, 1, 1, '#2a2a2a'); R(x + 7, y + 5, 1, 1, '#2a2a2a'); } else { R(x + 1 + leg, y + 5, 1, 2, '#2a2a2a'); R(x + 7 - leg, y + 5, 1, 2, '#2a2a2a'); }
-    const n = (Math.floor(Date.now() / P) % 9) + 1; for (let i = 0; i < n; i++) R(bx + 3 + i * 3, by + 3, 2, 2, '#ffd36a');  // counting
+    const n = (Math.floor(NOW() / P) % 9) + 1; for (let i = 0; i < n; i++) R(bx + 3 + i * 3, by + 3, 2, 2, '#ffd36a');  // counting
   }
   // ---- dream commercials: now and then he dreams about the show's (fake) sponsors ----
   const wordW = txt => txt.length * 4 - 1;
@@ -945,7 +966,7 @@
   const DREAM_AD = params.has('dreamAd') ? +params.get('dreamAd') : null;
   function drawDream(t){
     const list = DREAM.filter(d => SCENES[d.loc] && d.loc !== 'apartment' || d.w);
-    const now = Date.now(), k = Math.floor(now / DREAM_EACH), ph = (now % DREAM_EACH) / DREAM_EACH, cyc = k % 14;
+    const now = NOW(), k = Math.floor(now / DREAM_EACH), ph = (now % DREAM_EACH) / DREAM_EACH, cyc = k % 14;
     // every ~100 s: a 14 s break of counting sheep; two random pictures; the rest is the day's highlights
     let kind = cyc < 2 ? 'sheep' : (cyc === 5 || cyc === 10) ? 'image' : 'scene';
     if (kind === 'scene' && !list.length) kind = k % 2 ? 'image' : 'sheep';
@@ -1305,7 +1326,7 @@
       R(0,72,W,20,'#8d8d8d'); for (let x=0;x<W;x+=16) R(x,72,1,20,'#7a7a7a'); R(0,82,W,1,'#7a7a7a');
       R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=0; x<W; x+=20) if (x < 56 || x > 100) R(x+4,101,10,1,'#e8e8a0');
       for (let i=0;i<4;i++) R(60,96+i*3,36,2,'#e8e8e8');   // zebra crossing: pedestrians cross from the sidewalk down over the road
-      const green = Math.floor(Date.now()/20000) % 2 === 1;   // pedestrians' green (same for everyone)
+      const green = Math.floor(NOW()/20000) % 2 === 1;   // pedestrians' green (same for everyone)
       R(107,40,2,48,'#333'); R(104,26,8,14,'#222'); R(106,28,4,3, green ? '#4a1a1a' : '#ff3b3b'); R(106,34,4,3, green ? '#3bff6a' : '#1a3a1a');
       R(140,84,10,2,'#c23b3b'); R(139,86,3,3,'#111'); R(148,86,3,3,'#111'); R(146,80,1,4,'#444'); R(144,79,4,1,'#444');   // a parked scooter
       // passers-by; someone at the ATM now and then
@@ -1313,7 +1334,7 @@
       if (Math.floor(t/75000) % 3 === 1) crowdStill(t, 2, 91, 66, {face:0}, .8 * fadeWin(t, 75000));
       drawFloor(t,a,settled,actor,this);
       // traffic: cars stop in a queue before the crossing while pedestrians have green, and all drive on when it turns red for them
-      shopsTraffic(Date.now(), night); ateRideBy(t + 30000, 99);
+      shopsTraffic(NOW(), night); ateRideBy(t + 30000, 99);
       liveLayer(t, this);
       if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
       if (night){ alpha(.22,()=>{ R(5,49,36,17,'#ffe8a0'); R(114,50,24,14,'#ffe8a0'); R(162,49,26,15,'#ffd890'); }); }
@@ -1377,7 +1398,7 @@
       if (night) alpha(.18,()=>R(86,42,22,40,'#fff3b0'));
       // crows: one on the lamp, one in the tree, now and then one flies over
       { drawCrow(94, 37, t, 0, false); drawCrow(30, 6, t, 1, false);
-        const fp = (Date.now() % 47000) / 47000; if (fp < .5) drawCrow(Math.round(fp * 2 * (W + 40)) - 20, 16 + Math.round(Math.sin(fp*20)*3), t, 2, true); }
+        const fp = (NOW() % 47000) / 47000; if (fp < .5) drawCrow(Math.round(fp * 2 * (W + 40)) - 20, 16 + Math.round(Math.sin(fp*20)*3), t, 2, true); }
       // bystanders on the far lawn, and joggers on the path
       crowdWalk(t, 2, 38000, 5000, 50, 1, .6); crowdWalk(t, 7, 47000, 21000, 52, -1, .6);
       const jx = [walkerX(t, 11000, 3000, -14, W+4, 1), walkerX(t, 13500, 7000, -14, W+4, -1), walkerX(t, 17000, 1000, -14, W+4, 1)];
@@ -1386,7 +1407,7 @@
       drawCat(36, 72, t, 'sleep', 0, 1);
       const eating = settled && a==='eating';
       drawCat(eating ? 104 : 76, 80, t, 'sit', 2, eating ? 1 : -1);
-      { const cp = (Date.now() % 70000) / 70000; if (cp < .6) drawCat(Math.round(cp / .6 * (W + 30)) - 15, 60, t, 'walk', 1, 1); }
+      { const cp = (NOW() % 70000) / 70000; if (cp < .6) drawCat(Math.round(cp / .6 * (W + 30)) - 15, 60, t, 'walk', 1, 1); }
       if (Math.floor(t/120000) % 2) crowdStill(t, 1, 156, 66, {face:1}, .75 * fadeWin(t, 120000)); // someone watching the duck, on the path
       // Cooola vending machine
       R(60,52,12,28,COOOLA.bg); R(61,54,10,10,'#2a1240'); for (let i=0;i<3;i++) cooolaCan(62+i*3,57);
@@ -1401,7 +1422,7 @@
       // pigeons on the path: they peck, and flutter off when someone comes close (crumbs by the bench when he eats there)
       { const near = x => (!actor.hidden && OUTSIDE.has(actor.loc) && Math.abs(actor.x + 5 - x) < 14) || jx.some(j => Math.abs(j + 5 - x) < 12);
         for (let i = 0; i < 6; i++){
-          const px = sit && a==='eating' && i < 3 ? 112 + i*9 : 8 + Math.floor(hash(Math.floor(Date.now()/40000)*11 + i) * 170), scared = !(sit && a==='eating' && i < 3) && near(px);
+          const px = sit && a==='eating' && i < 3 ? 112 + i*9 : 8 + Math.floor(hash(Math.floor(NOW()/40000)*11 + i) * 170), scared = !(sit && a==='eating' && i < 3) && near(px);
           drawPigeon(scared ? px + (i%2 ? 9 : -9) : px, scared ? 76 - (i%3)*3 : 91, t, i, scared); } }
       if (!sit) drawFloor(t,a,settled,actor,this);
       liveLayer(t, this);
@@ -1464,7 +1485,7 @@
   }
   function gymTv(t){
     R(116,4,2,6,'#333'); R(98,10,38,24,'#141418');
-    const news = Date.now() < MEDIA_UNTIL, ph = news ? 0 : Math.floor(Date.now()/12000) % 3;
+    const news = NOW() < MEDIA_UNTIL, ph = news ? 0 : Math.floor(NOW()/12000) % 3;
     if (ph === 0){ R(100,12,34,20,'#1d3557'); R(112,14,6,2,'#3a2a1a'); R(112,15,6,6,'#d9a87c'); R(113,17,1,1,'#222'); R(116,17,1,1,'#222'); R(110,21,10,6,'#2a2a3a'); R(114,21,2,3,'#c23b3b');
       R(102,27,30,3,'#a0a6b0'); R(126,13,6,7,'#c23b3b'); word('9',128,14,'#ffffff'); R(100,30,34,2,'#c23b3b');
       for (let k=0;k<4;k++) R(100 + (((k*9 - Math.floor(t/40)) % 34) + 34) % 34, 30, 3, 1, '#ffffff'); }
@@ -1615,7 +1636,7 @@
       R(0,38,18,40,'#9aa3ad'); R(2,40,14,38,'#bcd3e3'); if (doorBusy(9)) { R(2,40,14,38,'#e8e4da'); R(2,40,2,38,'#bcd3e3'); }
       for (let i=0;i<3;i++) R(20,86-i*2,10,2, i%2 ? '#c23b3b' : '#e0403a');
       // the wall of TVs
-      for (let r=0;r<2;r++) for (let c=0;c<3;c++){ const x = 26+c*22, y = 18+r*16, k = (Math.floor(Date.now()/3000) + r*3 + c) % 4;
+      for (let r=0;r<2;r++) for (let c=0;c<3;c++){ const x = 26+c*22, y = 18+r*16, k = (Math.floor(NOW()/3000) + r*3 + c) % 4;
         R(x,y,20,13,'#141418'); R(x+1,y+1,18,11, ['#3b7bc2','#2f8f83','#d9822b','#7a4a9a'][k]); R(x+3+((Math.floor(t/400)+c)%10),y+5,4,3,'#ffffff'); R(x+8,y+13,4,1,'#444'); }
       R(24,52,70,2,'#bdb8ae'); for (let i=0;i<5;i++) R(28+i*13,46,8,6,['#2a2a2a','#c9ced4','#2a2a2a','#e8e8e8','#3a3a44'][i]);
       // shelves: kitchenware, lamps, towels
@@ -1645,6 +1666,155 @@
     ctx.putImageData(noise,0,0);
     const y = Math.floor(Math.random()*H); alpha(.25,()=>R(0,y,W,3,'#ffffff'));
   }
+  // ================= on the road: the city through the windows of the bus and the taxi =================
+  // All of it comes from the real clock: every viewer sees the same street, the same red light, the same passengers.
+  const DRIVE = {cruise: 40000, brake: 3000, stop: 6000, pull: 3000, v: .05};      // ms; v = pixels per ms
+  const DRIVE_P = DRIVE.cruise + DRIVE.brake + DRIVE.stop + DRIVE.pull;
+  function driveAt(t){
+    const {cruise:C, brake:B, stop:S, v} = DRIVE, k = Math.floor(t / DRIVE_P), e = t % DRIVE_P, one = v * (C + B), toStop = v * (C + B/2);
+    let d, sp;
+    if (e < C){ d = v * e; sp = 1; }
+    else if (e < C + B){ const u = e - C; d = v * (C + u - u*u/(2*B)); sp = 1 - u/B; }
+    else if (e < C + B + S){ d = toStop; sp = 0; }
+    else { const u = e - C - B - S; d = toStop + v * u*u/(2*B); sp = u/B; }
+    return {d: k*one + d, sp, stopAt: k*one + toStop, stopped: sp === 0, brake: e >= C && e < C + B, pull: e >= C + B + S};
+  }
+  const WALLS = ['#e8e2d2','#d8cdb6','#c9c3b8','#e2c9a8','#b9c2c4','#d6b8a0','#ddd8cc','#a9b4a8'];
+  const AWN = ['#c23b3b','#2f7f6f','#d9a441','#3d6fa8','#7a4fa0'];
+  // one piece of city, `id` = its place along the road. lights=false: by day; lights=true: what still shines in the dark
+  function cityBlock(id, sx, base, maxH, t, lights){
+    const r = hash(id*13 + 5), r2 = hash(id*29 + 11), r3 = hash(id*47 + 3);
+    if (r < .13){   // a gap with a tree
+      if (lights) return;
+      R(sx+20,base-17,3,17,'#6a4a30'); R(sx+11,base-31,21,16,'#3f7d4a'); R(sx+14,base-34,15,4,'#4c8f58'); R(sx+8,base-1,30,1,'#b5ad9c'); return; }
+    if (r < .23){   // a billboard on its post
+      if (!lights){ R(sx+21,base-16,3,16,'#555'); R(sx+6,base-30,34,15,'#222'); }
+      const k = id & 3;
+      if (lights){ alpha(.5, () => R(sx+6,base-31,34,1,'#fff2c0')); if (k) return; }
+      if (k === 0){ R(sx+7,base-29,32,13,COOOLA.bg); word('COOOLA',sx+11,base-25,COOOLA.fg); }
+      else if (!lights){ R(sx+7,base-29,32,13, k===1 ? ATE.o : k===2 ? '#2f7f6f' : '#d9a441'); R(sx+11,base-25,24,1,'#fff'); R(sx+11,base-22,16,1,'#fff'); }
+      return; }
+    const bw = 34 + Math.floor(r2*11), bh = Math.min(maxH, 24 + Math.floor(r3*(maxH-22))), c = WALLS[Math.floor(r2*97) % WALLS.length], floors = Math.floor((bh-10)/7), cols = Math.floor((bw-6)/7);
+    if (!lights){ R(sx,base-bh,bw,bh,c); R(sx,base-bh,bw,1,'#00000022'); R(sx+bw-1,base-bh,1,bh,'#0000002a'); }
+    for (let f=0;f<floors;f++) for (let k=0;k<cols;k++){
+      const wx = sx+4+k*7, wy = base-bh+3+f*7, n = id*97 + f*11 + k;
+      if (!lights){ R(wx,wy,4,4,'#5e6f7c'); if (hash(n) < .3) R(wx,wy+4,4,1,'#8a8478'); }     // windows, a few balconies
+      else if (hash(n + Math.floor(t/120000)) < .42) R(wx,wy,4,4, hash(n+1) < .75 ? '#ffd98a' : '#a8d0ff');
+    }
+    const aw = AWN[Math.floor(r3*53) % AWN.length];
+    if (!lights){ R(sx+2,base-7,bw-4,7,'#39424a'); R(sx+4,base-6,bw-8,5,'#6f8794'); for (let x=sx+2;x<sx+bw-2;x+=4) R(x,base-9,2,2,aw); R(sx+2,base-9,bw-4,1,aw); }
+    else { const open = hash(id + Math.floor(t/300000)) < .6; if (open) R(sx+4,base-6,bw-8,5,'#ffe2a0'); R(sx+4,base-9,bw-8,1,aw); }
+  }
+  function cityDrive(x,y,w,h,t,hf){
+    const D = driveAt(t), base = y+h-8, night = isNight(hf);
+    g.save(); g.beginPath(); g.rect(x,y,w,h); g.clip();
+    const s = drawSky(x,y,w,h-8,hf,t);
+    // the far skyline, slower
+    const FT = 24, fd = D.d*.22, f0 = Math.floor(fd/FT), fo = fd - f0*FT;
+    for (let i=-1;i*FT<w+FT;i++){ const id = i - f0, fh = 12 + Math.floor(hash(id*7+1)*Math.max(4,h-30)), fx = x + i*FT + fo;
+      R(fx,base-fh,FT-3,fh, night ? '#1a2238' : '#a9b6c2');
+      if (night) for (let k=0;k<3;k++) if (hash(id*5+k) < .5) R(fx+3+k*6,base-fh+3+k*3,1,1,'#ffd98a'); }
+    // the street: the buildings, the sidewalk, the people on it
+    const T = 46, d0 = Math.floor(D.d/T), o = D.d - d0*T, tiles = []; for (let i=-1;i*T<w+T;i++) tiles.push([i - d0, x + i*T + o]);
+    R(x,base,w,1,'#b5ad9c'); R(x,base+1,w,2,'#9b9486');
+    tiles.forEach(([id,sx]) => cityBlock(id, sx, base, h-10, t, false));
+    tiles.forEach(([id,sx]) => { if (hash(id*3+9) < .55){ const px = sx + hash(id*3+2)*36, c = WALLS[id & 7]; R(px,base-7,3,3,'#c99a70'); R(px,base-4,3,5, id & 1 ? '#3d6fa8' : '#a84a4a'); R(px,base+1,1,2,'#333'); R(px+2,base+1,1,2,'#333'); } });
+    // the road, with the dashes running past
+    R(x,base+3,w,5,'#4a4d52'); { const dd = 22, a = D.d % dd; for (let i=-1;i*dd<w+dd;i++) R(x + i*dd + a, base+5, 10, 1, '#d8d4c4'); }
+    // traffic the other way: quicker when the bus is moving
+    const carPos = k => ((t*.075 + D.d + k*83) % (w + 60)) - 30;
+    for (let k=0;k<3;k++){ const n = Math.floor((t*.075 + D.d + k*83) / (w + 60)) + k*7, cx = x + carPos(k), cc = WALLS[(n*3) & 7]; if (hash(n) < .7){ R(cx,base+3,18,3,cc); R(cx+4,base+1,9,2,'#46545e'); R(cx+2,base+6,3,1,'#111'); R(cx+13,base+6,3,1,'#111'); } }
+    // light at the end of the day, then dark
+    if (s.dawn) alpha(.14, () => R(x,y,w,h,'#ff9a5a'));
+    if (night) alpha(.62, () => R(x,y+1,w,h,'#0a1024'));
+    else if (s.overcast || rainy()) alpha(.14, () => R(x,y,w,h,'#3c4656'));
+    if (night || s.dawn) tiles.forEach(([id,sx]) => cityBlock(id, sx, base, h-10, t, true));
+    if (night) for (let k=0;k<3;k++){ const n = Math.floor((t*.075 + D.d + k*83) / (w + 60)) + k*7, cx = x + carPos(k); if (hash(n) < .7){ R(cx+17,base+4,2,1,'#fff3c0'); alpha(.25,()=>R(cx+19,base+3,9,3,'#fff3c0')); R(cx,base+4,1,1,'#ff3030'); } }
+    // street lamps pass close to the glass
+    const LT = 118, ld = D.d*1.35, l0 = Math.floor(ld/LT), lo = ld - l0*LT;
+    for (let i=-1;i*LT<w+LT;i++){ const lx = x + i*LT + lo; R(lx,y+5,2,h-5,'#2f3338'); R(lx-7,y+5,8,1,'#2f3338'); R(lx-8,y+6,4,1,night ? '#fff0b8' : '#8a8f94');
+      if (night || s.dawn) alpha(.16, () => R(lx-16,y+7,20,h-14,'#ffe9a8')); }
+    // the junction: the light he stops at, red while the traffic waits
+    { const q = x + w*.34 + (D.d - D.stopAt), red = D.brake || D.stopped;
+      if (q > x-10 && q < x+w+10){ R(q,base-24,2,27,'#2f3338'); R(q-2,base-31,6,9,'#16181a');
+        R(q-1,base-30,4,2, red ? '#ff3b30' : '#4a1512'); R(q-1,base-27,4,2,'#4a3a12'); R(q-1,base-24,4,2, red ? '#123a1a' : '#39e06a'); } }
+    // rain on the glass
+    if (rainy()){ alpha(.5, () => drawRain(x,y,w,h,t,Math.max(10,Math.floor(w*h/90))));
+      for (let i=0;i<Math.floor(w/9);i++){ const rx = x + (i*53 + Math.floor(D.d*(.2+(i%3)*.1))) % w, ry = y + (i*31) % (h-6) ; alpha(.35, () => { R(rx,ry,1,3,'#dfeaf5'); R(rx-1,ry+3,1,2,'#dfeaf5'); }); } }
+    g.restore();
+    return {D, night, dawn: s.dawn};
+  }
+  // somebody sitting: legs are drawn by hand so nobody seems to stand on the seat
+  function sitter(L, x, y, t, o){ person(L, x, y, t, Object.assign({legs:false, face:-1, muted:true}, o)); R(x+1,y+16,8,2,'#3f4650'); R(x+1,y+18,2,4,'#3f4650'); R(x+1,y+22,3,1,'#222'); }
+  // Ishai from the waist up, with his legs bent on the seat (no lower = nothing below the seat, a door hides it)
+  function seatedIshai(a, x, y, t, lower){
+    g.save(); g.beginPath(); g.rect(0,0,W,y+16); g.clip(); drawIshai(seatedPose(a), x, y, t, {face:-1}); g.restore();
+    if (lower) sitLegs(x, y);
+  }
+  const seatedPose = a => ['talking','phoning','reading'].includes(a) ? a : 'idle';
+  const rideMate = actor => { const id = actor.with || (actor.pending && actor.pending.w); return id ? {id, look: lookOf(id)} : null; };
+  SCENES.bus = {
+    cam:'CAM-12', place:'LINE 88 // ON THE BUS', walkY:78, entry:108, exit:108, stand:{idle:108,talking:108,phoning:108,reading:108},
+    draw(t,hf,a,settled,actor){
+      const c = cityDrive(0,12,W,50,t,hf), D = c.D, bump = D.sp > .5 && (Math.floor(t/430) % 7 === 0) ? 1 : 0, lean = D.brake ? -2 : D.pull ? 2 : 0;
+      // roof, ads, the lit panel
+      R(0,0,W,3,'#efece2'); R(0,3,W,9,'#dcd8cb'); R(30,0,132,2,'#fff7d6');
+      for (let i=0;i<5;i++){ const ax = 6 + i*38; R(ax,4,32,7,'#f4f1e6'); R(ax,4,32,1,'#b5b0a0');
+        if (i%3===0){ R(ax+1,5,30,5,COOOLA.bg); word('COOOLA',ax+4,5,COOOLA.fg); } else if (i%3===1){ R(ax+1,5,30,5,ATE.o); R(ax+4,7,22,1,ATE.w); } else { R(ax+3,6,18,1,'#2f7f6f'); R(ax+3,8,12,1,'#8a8478'); } }
+      // the window pillars and the rail
+      for (let x=0;x<W;x+=48){ R(x+2,12,4,50,'#c7c2b4'); R(x+2,12,1,50,'#e2ddcf'); } R(0,12,W,1,'#8d8a80'); R(0,33,W,1,'#a9a596');
+      R(0,62,W,2,'#8d8a80'); R(0,64,W,14,'#2e6f7a'); R(0,66,W,1,'#3f8a96'); R(0,76,W,2,'#245a63');
+      // the seats by the window, and who is on them; they change at the stops
+      const tt = t + DRIVE.stop + 0, BL = DRIVE_P*3, block = Math.floor(tt/BL), SX = [28,76,144], sy = 54 + bump;
+      const seat = x => { R(x-2,70,16,3,'#b33f3f'); R(x+1,73,12,5,'#7f2c2c'); R(x+12,48,4,25,'#b33f3f'); R(x+13,49,2,3,'#d98a8a'); };
+      SX.forEach(seat); seat(108);
+      SX.forEach((x, i) => { if (hash(block*5 + i*3 + 1) > .68) return; alpha((.6 + hash(i)*.2) * fadeWin(tt, BL), () => sitter(CROWD[(block + i*3) % CROWD.length], x, sy, t + i*700, {seed: 40 + i})); });
+      // Ishai's seat, and a friend on the seat next to his
+      const m = rideMate(actor);
+      if (m && m.look){ seat(92); markHead(m.id, 92, sy); person(m.look, 92, sy, t+300, {legs:false, face:1, talkPhase:true}); R(93,sy+16,8,2,'#3f4650'); R(93,sy+18,2,4,'#3f4650'); R(93,sy+22,3,1,'#222'); }
+      if (!actor.hidden) seatedIshai(a, 108, sy, t, true);
+      // the aisle, the near row, the poles and the swinging straps
+      R(0,78,W,30,'#3b3f44'); for (let x=8;x<W;x+=18) R(x,83,7,1,'#4a4f55');
+      for (let x=14;x<W;x+=44){ R(x-1,88,30,4,'#a33a3a'); R(x,91,28,17,'#7f2c2c'); R(x+2,89,24,1,'#c96a6a'); R(x+12,86,4,2,'#d9c04a'); }
+      R(58,3,2,105,'#d9c04a'); R(58,3,1,105,'#f2df86'); R(152,3,2,105,'#d9c04a'); R(152,3,1,105,'#f2df86');
+      R(0,3,W,1,'#b9b5a6');
+      [18,44,84,136,178].forEach((x,i) => { const l = lean + (Math.floor(t/700 + i) % 2 && D.sp > .5 ? 1 : 0); R(x+l,4,1,6,'#6a6a6a'); R(x-1+l,10,3,3,'#efece2'); });
+      if (c.night) alpha(.07, () => R(0,0,W,H,'#ffeab8'));
+    }
+  };
+  SCENES.taxi = {
+    cam:'CAM-13', place:'TAXI // BACK SEAT', walkY:78, entry:128, exit:128, stand:{idle:128,talking:128,phoning:128,reading:128},
+    draw(t,hf,a,settled,actor){
+      const c = cityDrive(0,6,W,58,t,hf), D = c.D, bump = D.sp > .5 && (Math.floor(t/390) % 6 === 0) ? 1 : 0, y = 37 + bump;
+      // roof, pillars, the sloping windscreen on the left
+      R(0,0,W,7,'#b9b0a0'); R(0,6,W,1,'#8f8778');
+      for (let i=0;i<40;i++) R(0,7+i,Math.max(0,28-i*.45),1,'#262320');
+      R(30,7,2,22,'#262320'); R(104,6,7,58,'#262320'); R(105,6,1,58,'#3f3a34'); R(180,6,12,58,'#262320'); for (let i=0;i<30;i++) R(176+i*.1,7+i,5,1,'#262320');
+      // the mirror and the little air freshener, swinging with the road
+      R(40,6,1,4,'#222'); R(32,10,14,4,'#1c1c1c'); R(33,11,12,2,'#7f93a3');
+      const sw = D.brake ? -3 : D.pull ? 3 : Math.round(Math.sin(t/500)*1.5); R(38,14,1,6,'#d8d4c4'); R(37+sw,20,4,6,'#e2c23c'); R(38+sw,22,2,1,'#2f7f6f');
+      // front seat and driver
+      R(79,27,12,36,'#3a3530'); R(81,20,8,9,'#3a3530'); R(82,21,6,1,'#55504a');
+      markHead('driver', 62, y); alpha(.9, () => person(CROWD[(Math.floor(t/21600000)) % CROWD.length], 62, y, t, {legs:false, face:-1, muted:true, seed:61}));
+      R(0,48,48,16,'#2c2925'); R(0,47,46,2,'#3f3b35');
+      for (let i=0;i<14;i++) R(46+i*.45,36+i,3,1,'#16181a'); R(45,47,12,2,'#16181a');      // the wheel, seen from the side
+      // back seat
+      R(156,24,12,40,'#3a3530'); R(112,53,56,11,'#3a3530'); R(158,17,9,9,'#3a3530'); R(159,18,7,1,'#55504a');
+      const m = rideMate(actor), ix = 128;
+      if (m && m.look){ markHead(m.id, 146, y); person(m.look, 146, y, t+300, {legs:false, face:-1, talkPhase:true}); }
+      if (!actor.hidden) seatedIshai(a, ix, y, t, false);
+      // the door: panel, armrest, handle
+      R(0,62,W,46,'#26231f'); R(0,62,W,2,'#d9b13c'); R(0,64,W,1,'#14110e');
+      R(112,70,64,28,'#332f2a'); R(116,74,56,3,'#46413a'); R(146,80,12,2,'#8a8f94'); R(120,88,40,6,'#201d1a');
+      R(8,70,92,28,'#332f2a'); R(12,74,84,3,'#46413a'); R(66,80,12,2,'#8a8f94'); R(16,88,50,6,'#201d1a'); R(106,64,2,44,'#14110e');
+      if (c.night) alpha(.34, () => R(0,0,W,H,'#050a1e'));
+      // the meter glows at any hour
+      R(6,50,26,10,'#0e0e0e'); R(7,51,24,8,'#1c0606'); const fare = 14 + Math.floor((t/20000) % 60);
+      word(String(fare).padStart(2,'0'), 10, 52, '#ff4a3a'); R(18,56,1,1,'#ff4a3a'); word(String(Math.floor(t/2000) % 10), 20, 52, '#ff4a3a');
+    }
+  };
+  const VEH = new Set(['bus','taxi']);
+
   SCENES.offscreen = { cam:'CAM-??', place:'LOCATION UNKNOWN', walkY:74, entry:0, exit:0, stand:{away:0},
     draw(){ drawStatic(.55); } };
 
@@ -1730,7 +1900,7 @@
     const a = actor.action, list = ERRANDS[actor.loc], co = actor.with ? 1 : 0;
     if (!list || !(a in ERR_CHANCE) || actor.travelling || actor.hidden || actor.pending || actor.switching || actor.ride) return null;
     if (co && (SPEAKING === 'ishai' || actor.action === 'phoning')) return null;   // not in the middle of his own line
-    const now = Date.now(), block = Math.floor(now / ERR_BLOCK), start = block * ERR_BLOCK + 4000;
+    const now = NOW(), block = Math.floor(now / ERR_BLOCK), start = block * ERR_BLOCK + 4000;
     if (now < start || actor.settledAt == null || actor.settledAt > start) return null;
     if (hash(block * 7 + 1) > ERR_CHANCE[a][co]) return null;
     // weighted pick, never the same routine as the block before (no drink-drink-drink loops)
@@ -1788,14 +1958,19 @@
     bar:       { street: {exit:4, entry:4} },                                         // bar door -> street
     market:    { street: {exit:128, entry:128, ride:true}, store: {exit:4, entry:4} },  // the market's own bus stop; the store door on the left
     store:     { market: {exit:4, entry:4} },                                         // store door -> market
-    offscreen: { street: {ride:true} }
+    bus:       { street: {ride:true}, market: {ride:true}, offscreen: {ride:true} },  // on board: he gets off at a stop
+    taxi:      { street: {ride:true}, market: {ride:true}, offscreen: {ride:true} },
+    offscreen: { street: {ride:true}, bus: {ride:true}, taxi: {ride:true} }
   };
+  ['street','market'].forEach(p => { MAP[p].bus = {exit:128, entry:128, ride:true}; MAP[p].taxi = {exit:128, entry:128, ride:true}; });
   function route(from, to){ // shortest path through the map, e.g. cafe -> street -> corridor -> apartment
     if (from === to) return [];
     const prev = {[from]: null}, q = [from];
     while (q.length){ const n = q.shift(); for (const m of Object.keys(MAP[n]||{})) if (!(m in prev)){ prev[m] = n; q.push(m); } }
     if (!(to in prev)) return [to];
-    const path = []; for (let n = to; n !== from; n = prev[n]) path.unshift(n); return path;
+    const path = []; for (let n = to; n !== from; n = prev[n]) path.unshift(n);
+    // a ride between two places goes through the inside of the bus or taxi
+    const out = []; let a = from; path.forEach(n => { if (!VEH.has(a) && !VEH.has(n) && (MAP[a]||{})[n]?.ride) out.push(rideKind()); out.push(n); a = n; }); return out;
   }
   function setState(loc, a, instant, w=null){
     if (!SCENES[loc]) loc = 'offscreen';
@@ -1804,28 +1979,28 @@
     else if (!instant) actor.guestWaits = (w && w === actor.guestWaits) ? w : null;
     a = fixAction(loc, a);
     if (instant){
-      Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null});
-      actor.x = standX(loc,a,w); actor.settledAt = Date.now(); comp.settleUntil = performance.now() + 2500; updateLabels(); return;
+      Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null, rideUntil:0});
+      actor.x = standX(loc,a,w); actor.settledAt = NOW(); comp.settleUntil = performance.now() + 2500; updateLabels(); return;
     }
     if (loc !== actor.loc || (actor.pending && actor.pending.route.length)){
       const r = route(actor.loc, loc);
       actor.pending = {route: r, a, w}; actor.with = null;
       if (!r.length){ actor.pending = null; } // already heading back here
       else {
-        if (actor.ride || actor.switching) return;    // a ride / camera switch in progress: continue with the new plan afterwards
+        if (actor.ride || actor.switching || actor.rideUntil) return;    // a ride / camera switch in progress: continue with the new plan afterwards
         startLeg(); return;
       }
     }
     if (actor.err){ actor.err = null; }
     actor.viaFinal = null; actor.viaUntil = 0;
     const prev = actor.action; actor.prevAction = prev;
-    if (a === 'sleeping' && prev !== 'sleeping') SLEEP_SINCE = Date.now(); actor.action = a; actor.pending = null; actor.with = w;
+    if (a === 'sleeping' && prev !== 'sleeping') SLEEP_SINCE = NOW(); actor.action = a; actor.pending = null; actor.with = w;
     if (BATH.has(prev) && actor.hidden){ if (prev===a){ updateLabels(); return; } actor.hidden = false; actor.x = standX(loc, prev); }
     const bed = new Set(['sleeping','waking']);
     if (bed.has(prev) && bed.has(a)) { actor.x = standX(loc,a,w); }
     else if (a === 'walking' && prev === 'walking'){ /* still out walking: keep going, don't walk back to the start */ }
     else { actor.targetX = standX(loc,a,w); actor.travelling = Math.abs(actor.x-actor.targetX) > 1;
-      if (loc==='apartment' && ['drinking','eating','cooking'].includes(a) && !['drinking','eating','cooking'].includes(prev) && !w && Date.now() - (actor.lastFridge || 0) > 6 * 60000){ actor.lastFridge = Date.now();
+      if (loc==='apartment' && ['drinking','eating','cooking'].includes(a) && !['drinking','eating','cooking'].includes(prev) && !w && NOW() - (actor.lastFridge || 0) > 6 * 60000){ actor.lastFridge = NOW();
         actor.viaFinal = actor.targetX; actor.targetX = 168; actor.travelling = true; } }
     updateLabels();
   }
@@ -1834,7 +2009,7 @@
     const next = actor.pending.route[0];
     const wasToilet = actor.loc==='bathroom' && actor.action==='bathroom';
     if (actor.hidden && BATH.has(actor.action)){ actor.hidden = false; actor.x = standX(actor.loc, actor.action); actor.hiddenAt = performance.now(); actor.leftBath = actor.action; }
-    if (actor.loc === 'offscreen' || actor.hidden){ beginSwitch(); return; }
+    if (actor.loc === 'offscreen' || actor.hidden || VEH.has(actor.loc)){ beginSwitch(); return; }
     const link = (MAP[actor.loc]||{})[next] || {exit: SCENES[actor.loc].exit};
     if (wasToilet){ actor.action = 'walking'; actor.targetX = 86; actor.travelling = true; actor.wash = 1; actor.washExit = link.exit; actor.pending.ride = false; updateLabels(); return; } // sink first
     actor.action = 'walking'; actor.targetX = link.exit; actor.travelling = true;
@@ -1842,7 +2017,7 @@
   }
   function beginSwitch(){
     // about one switch in four is "sponsored"; the choice comes from the clock so all viewers see the same thing
-    actor.bumper = Math.floor(Date.now()/60000) % 4 === 0;
+    actor.bumper = Math.floor(NOW()/60000) % 4 === 0;
     actor.switching = performance.now() + (actor.bumper ? 2200 : 900); actor.hidden = true;
   }
   function finishSwitch(){
@@ -1851,19 +2026,26 @@
     const from = actor.loc, hop = p.route.shift(), last = !p.route.length;
     actor.loc = hop; actor.fromLoc = from; actor.arrivedAt = performance.now();
     if (hop === 'offscreen'){ actor.hidden = true; if (last){ actor.action = p.a; actor.with = p.w; actor.pending = null; updateLabels(); } else { updateLabels(); setTimeout(()=>{ if (actor.loc==='offscreen' && actor.pending) beginSwitch(); }, 3000); } return; }
+    if (VEH.has(hop)){   // the camera comes back on inside: he has taken his seat
+      actor.hidden = false; actor.travelling = false; actor.x = SCENES[hop].entry;
+      if (last){ actor.action = fixAction(hop, p.a); actor.with = p.w; actor.pending = null; } else { actor.action = 'idle'; actor.rideUntil = performance.now() + RIDE_MS; }
+      updateLabels(); return; }
     const link = (MAP[hop]||{})[from] || {entry: SCENES[hop].entry};
     actor.x = link.entry;
     if (last){ actor.action = p.a; actor.with = p.w; actor.pending = null; actor.targetX = standX(hop, p.a, p.w); }
     else { actor.action = 'walking'; actor.targetX = ((MAP[hop]||{})[p.route[0]] || {exit: SCENES[hop].exit}).exit; p.ride = !!(MAP[hop][p.route[0]]||{}).ride; }
-    if (link.ride){ startRide('arrive'); actor.hidden = true; actor.travelling = false; }  // steps off the bus/taxi first
+    if (link.ride){ startRide('arrive', VEH.has(from) ? from : null); actor.hidden = true; actor.travelling = false; }  // steps off the bus/taxi first
     else { actor.hidden = false; actor.travelling = Math.abs(actor.x-actor.targetX) > 1; }
     updateLabels();
   }
   // ---- rides: the bus (or a taxi at night / in the rain) at the street bus stop ----
-  function startRide(mode){
-    const hf = hourNow();
-    actor.ride = { mode, kind: (hf >= 21 || hf < 6 || rainy()) ? 'taxi' : 'bus', t0: performance.now() };
+  // the story can say which (ev.ride); otherwise a taxi late at night, in the rain and on Shabbat, when the buses don't run
+  function rideKind(){
+    const hf = hourNow(), sh = WORLD && WORLD.shabbat, n = NOW(), shabbat = !!sh && !!sh.start && !!sh.end && n > sh.start && n < sh.end;
+    return NEXT_RIDE || (hf >= 21 || hf < 6 || rainy() || shabbat ? 'taxi' : 'bus');
   }
+  function startRide(mode, kind){ actor.ride = { mode, kind: kind || rideKind(), t0: performance.now() }; }
+  const RIDE_MS = 75000;   // how long a ride shows from inside when the story just says he goes somewhere
   const RIDE = { come: 2600, stop: 1600, go: 2000 };
   function rideX(r, now){ // the vehicle's left x on the road
     const stopX = r.kind === 'bus' ? 98 : 116, e = now - r.t0;
@@ -1890,6 +2072,7 @@
     if (actor.wash > 1){ if (now >= actor.wash){ actor.wash = 0; actor.targetX = actor.washExit; actor.travelling = true; } return; } // washing hands
     if (actor.viaUntil){ if (now >= actor.viaUntil){ actor.viaUntil = 0; actor.targetX = actor.viaFinal; actor.viaFinal = null; actor.travelling = Math.abs(actor.x-actor.targetX) > 1; } return; } // at the fridge
     if (actor.ride) updateRide(now);
+    if (actor.rideUntil && now >= actor.rideUntil){ actor.rideUntil = 0; if (actor.pending && actor.pending.route.length) beginSwitch(); }
     if (actor.travelling && !actor.hidden){
       const dir = Math.sign(actor.targetX-actor.x); actor.x += dir*24*dt;
       if (Math.sign(actor.targetX-actor.x)!==dir){
@@ -1897,15 +2080,15 @@
         if (actor.wash === 1){ actor.wash = now + 3500; $('hudAction').textContent = 'WASHING HANDS'; return; }
         if (actor.viaFinal != null && !actor.pending){ actor.viaUntil = now + 2200; return; }
         if (actor.loc !== 'bathroom') actor.fromLoc = null;
-        actor.settledAt = Date.now();
-        if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && (actor.loc==='street' || actor.loc==='market')) startRide('depart'); else beginSwitch(); }
+        actor.settledAt = NOW();
+        if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && (actor.loc==='street' || actor.loc==='market')) startRide('depart', VEH.has(actor.pending.route[0]) ? actor.pending.route[0] : null); else beginSwitch(); }
         else if (BATH.has(actor.action)){ actor.hidden = true; actor.hiddenAt = now; actor.leftBath = null; }
       }
     } else if (actor.action==='walking' && !actor.pending){
       // pacing back and forth, position taken from the real clock
       const lo = actor.loc==='street'?50:actor.loc==='park'?40:actor.loc==='shops'||actor.loc==='market'?36:52, hi = actor.loc==='street'?140:actor.loc==='shops'?150:actor.loc==='cafe'?110:124;
       // every ~2 minutes he walks to a new spot somewhere in the room, then stands there (clock-driven, same for everyone)
-      const span = hi - lo, D = 120, now = Date.now()/1000, k = Math.floor(now / D), e = now % D;
+      const span = hi - lo, D = 120, now = NOW()/1000, k = Math.floor(now / D), e = now % D;
       const spot = n => { const a = lo + hash(n*7 + 3) * span, b = lo + hash((n-1)*7 + 3) * span; return Math.abs(a - b) < 18 ? (a + span/2 - lo) % span + lo : a; };
       const from = spot(k - 1), to = spot(k), wt = Math.abs(to - from) / 14;
       actor.paceDir = Math.sign(to - from) || 1;
@@ -1947,8 +2130,8 @@
 
   let last = performance.now();
   // animations run on the real clock, so every viewer (and every refresh) sees the same frame
-  const wall = () => Date.now() % 86400000;
-  function loop(now){ const dt = Math.min(.1,(now-last)/1000); last = now; update(dt,now); render(wall()); placeSay(); Sound.setAmbience(ambienceKey()); requestAnimationFrame(loop); }
+  const wall = () => NOW() % 86400000;
+  function loop(now){ const dt = Math.min(.1,(now-last)/1000); last = now; if (held.size) release(); update(dt,now); render(wall()); placeSay(); Sound.setAmbience(ambienceKey()); requestAnimationFrame(loop); }
   // ---- speech bubble above whoever is talking ----
   const SAY = { who:null, text:'', until:0 };
   function showSay(who, text){ SAY.who = who; SAY.text = text; SAY.until = performance.now() + 60000; }
@@ -1976,8 +2159,8 @@
       el.classList.add('edge'); el.style.left = (cv.offsetLeft + cw - el.offsetWidth/2 - 8) + 'px'; el.style.top = (top + 40 + el.offsetHeight) + 'px';
     }
   }
-  setInterval(()=>{ $('clock').textContent = fmtClock.format(new Date()); }, 500);
-  $('clock').textContent = fmtClock.format(new Date());
+  setInterval(()=>{ $('clock').textContent = fmtClock.format(new Date(NOW())); }, 500);
+  $('clock').textContent = fmtClock.format(new Date(NOW()));
 
   // ================= sound (Web Audio, generated in code, no files) =================
   const Sound = (() => {
@@ -2024,7 +2207,7 @@
       return {f:140+h%380, type:['square','triangle','sawtooth'][h%3], pitch:.6+(h%100)/100, rate:.85+(h%30)/100}; }
     let n = 0;
     function blip(id, ch){
-      TALK_AT = Date.now();
+      TALK_AT = NOW();
       if (!on() || mode !== 'blips' || !/[a-z0-9]/i.test(ch) || (n++ % 2)) return;
       const v = voiceOf(id); tone(v.f*(.9+Math.random()*.25), .05, v.type, v.type==='sawtooth' ? .025 : .04);
     }
@@ -2085,9 +2268,11 @@
       } else if (loc === 'bathroom'){ bed(brown,'lowpass',260,.04); hum(118,.006);   // extractor fan
         if (extra !== 'shower') loop(2600, 1800, () => tone(1900 + Math.random()*500, .05, 'sine', .03, 0, dest, .5)); // dripping tap
       } else if (loc === 'corridor'){ bed(brown,'lowpass',300,.07); hum(100,.008); }
+      else if (loc === 'bus'){ bed(brown,'lowpass',170,.16); hum(62,.014); }                   // the engine, and the road under the floor
+      else if (loc === 'taxi'){ bed(brown,'lowpass',210,.1); hum(84,.006); }
       else if (loc === 'street' || loc === 'shops'){
         bed(brown,'lowpass',700,.14);
-        if (loc === 'shops') loop(20000, 0, () => { if (Math.floor(Date.now()/20000) % 2) for (let i=0;i<6;i++) tone(1800,.03,'square',.012,i*.5,dest); });   // the crossing beeps on green
+        if (loc === 'shops') loop(20000, 0, () => { if (Math.floor(NOW()/20000) % 2) for (let i=0;i<6;i++) tone(1800,.03,'square',.012,i*.5,dest); });   // the crossing beeps on green
         loop(5000, 6000, () => noise(2.6,{vol:.16,type:'lowpass',freq:250,sweep:[1500,250],buf:brown,dest}));
         loop(25000, 30000, () => { tone(420,.22,'square',.02,0,dest); tone(530,.22,'square',.02,.03,dest); });
       } else if (loc === 'park'){
@@ -2119,7 +2304,7 @@
       if ((wx === 'rain' || wx === 'storm') && loc !== 'static' && loc !== 'offscreen') bed(white, 'bandpass', 2600, OUTSIDE.has(loc) ? (wx==='storm' ? .13 : .09) : .025);
       if (wx === 'storm' && loc !== 'static' && loc !== 'offscreen'){   // thunder a few seconds after each flash
         const out = OUTSIDE.has(loc) ? 1 : .45;
-        const roll = () => { if (!a.alive) return; const n = Date.now(), slot = Math.floor(n/30000) + 1, seed = (slot*9301+49297)%233280/233280,
+        const roll = () => { if (!a.alive) return; const n = NOW(), slot = Math.floor(n/30000) + 1, seed = (slot*9301+49297)%233280/233280,
           at = slot*30000 + Math.floor(seed*22000) + 2500 + (slot%3)*900, wait = at - n;
           setTimeout(() => { if (!a.alive) return; noise(3.2,{vol:.22*out,type:'lowpass',freq:160,sweep:[420,90],buf:brown,dest}); noise(1.4,{vol:.12*out,type:'lowpass',freq:300,when:.15,buf:brown,dest}); roll(); }, Math.max(200, wait)); };
         roll();
@@ -2205,20 +2390,21 @@
     // music volume: a quick fade down while anyone talks (characters, hosts, callers, the DJ), back up after.
     // Phones that don't allow volume control (iOS) pause the stream instead and pick it up again.
     setInterval(() => {
-      const talk = Date.now() - TALK_AT < 700 || saying > 0;
+      const talk = NOW() - TALK_AT < 700 || saying > 0;
       if (amb && amb.duck && ac) amb.duck.gain.setTargetAtTime(djDown ? .15 : talk ? .35 : 1, ac.currentTime, .1);
       const el = amb && amb.audio; if (!el) return;
       if (volOk === null){ const v = el.volume; el.volume = v > .5 ? v - .05 : v + .05; volOk = Math.abs(el.volume - v) > .01; el.volume = v; }
       const target = radioVol * placeVol * (djDown ? .22 : 1) * (talk ? .3 : 1);
       if (volOk){ const d = target - el.volume; el.volume = Math.max(0, Math.min(1, Math.abs(d) <= .04 ? target : el.volume + Math.sign(d) * .04)); }
       else if (talk && !el.paused){ el.pause(); el.dataset.held = '1'; }
-      else if (!talk && el.paused && el.dataset.held === '1' && Date.now() - TALK_AT > 1500){ el.dataset.held = ''; el.play().catch(()=>{}); }
+      else if (!talk && el.paused && el.dataset.held === '1' && NOW() - TALK_AT > 1500){ el.dataset.held = ''; el.play().catch(()=>{}); }
     }, 50);
     function newSong(){ if (amb && amb.reseed) amb.reseed(); }
     const speaking = () => mode === 'voices';
     // anyone speaking right now (a voice still talking, or one queued)? sound effects wait for it
     const busy = () => saying > 0 || ('speechSynthesis' in window && (speechSynthesis.speaking || speechSynthesis.pending));
-    return { blip, key, say, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
+    function hush(){ try { if ('speechSynthesis' in window && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); } catch(e){} }   // a slow voice never runs into the next scheduled line
+    return { blip, key, say, hush, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -2250,11 +2436,12 @@
   // budget.ms = how far into this moment we already are (a viewer tuning in late joins mid-sentence)
   function typeInto(el, full, animate, onChar, budget){
     if (!animate){ el.textContent = full; term.scrollTop = term.scrollHeight; return Promise.resolve(); }
-    let i = 0;
+    let i = 0; const at = budget && budget.at;     // at = when this line started: the typing stays on that schedule
+    if (at) i = charsAt(full, NOW() - at);
     while (budget && budget.ms > 0 && i < full.length){ budget.ms -= charDelay(full[i]); i++; }
     if (i >= full.length){ el.textContent = full; term.scrollTop = term.scrollHeight; return Promise.resolve(); }
     return new Promise(res=>{
-      const step=()=>{ i++; el.textContent = full.slice(0,i); term.scrollTop = term.scrollHeight; if (onChar) onChar(full[i-1]);
+      const step=()=>{ i = Math.min(full.length, Math.max(i + 1, at ? charsAt(full, NOW() - at) : 0)); el.textContent = full.slice(0,i); term.scrollTop = term.scrollHeight; if (onChar) onChar(full[i-1]);
         if (i<full.length) setTimeout(step, charDelay(full[i-1])); else res(); };
       step(); });
   }
@@ -2290,32 +2477,62 @@
       if (showOn && SHOW_AUTO && SHOW_STOP && ((ev.lines||[]).length || ev.with || ev.location !== actor.loc)) SHOW_STOP();   // something happens: back to live
       // several moments became due at once (phone woke up, tab came back): skip the silent ones in between, so he doesn't hop in and out of bed
       if (queue.length && !(ev.lines || []).length){ shown.add(ev.id); if (DEV) addLine(ev, false); continue; }
-      if (!forceLoc) setState(ev.location||'apartment', ev.action, false, ev.with||null);
-      actor.delivery = ev.delivery && (ev._late || 0) < 35000 ? {at: Date.now() - (ev._late || 0)} : null;   // an ateBite courier at the door
+      const entry = TL.get(ev.id), start = startOf(ev); ev._late = Math.max(0, NOW() - start);
+      // already over with more waiting (tab came back): no walking through old moments; well into this one: be where he is by now
+      NEXT_RIDE = ev.ride || null;
+      if (!forceLoc && !(queue.length && entry && NOW() >= entry.end)) setState(ev.location||'apartment', ev.action, ev._late > 20000, ev.with||null);
+      actor.delivery = ev.delivery && ev._late < 35000 ? {at: start} : null;   // an ateBite courier at the door
       enterScene(ev.location, ev.with);
       if (DEV){ addTalk(ev, true); await addLine(ev,true); }   // talk + hosts play in their own time (hosts wait for the picture)
       else { shown.add(ev.id);
         if (PREVIEW) for (let w = 0; w < 40 && (actor.pending || actor.travelling || actor.switching || actor.ride); w++) await new Promise(r => setTimeout(r, 500)); // preview: talk once they have arrived
+        if (PREVIEW && entry){ const d = entry.end - entry.start; entry.start = NOW(); entry.end = entry.start + d; }
         await addTalk(ev, true); }
     }
     typing = false;
   }
   // events with a future timestamp (broadcast delay) are held until their time comes
+  // the schedule: everything below is worked out from the moments alone, so every page gets the same times
+  const TL = new Map(); let tlLast = null;       // moment id -> {ev, start, end, plan}, in order
+  const typeMs = full => [...full].reduce((n, ch) => n + charDelay(ch), 0);
+  const charsAt = (full, ms) => { let i = 0; while (ms > 0 && i < full.length){ ms -= charDelay(full[i]); i++; } return i; };
+  // each line gets the same slot on every device: long enough for the typing and for a voice to say it
+  const lineMs = say => Math.max(typeMs('"' + say + '"'), 500 + say.length * 70);
+  const untilT = at => { const ms = at - NOW(); return ms > 0 ? new Promise(r => setTimeout(r, ms)) : Promise.resolve(); };
+  function talkPlan(ev, prevLoc){
+    const lines = ev.lines || [], hosts = ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines), plan = []; let t = 0;
+    lines.forEach((l, i) => { if (i) t += linePause(lines[i-1].say) + gap; const ms = lineMs(l.say); plan.push({at: t, ms, l, i}); t += ms; });
+    if (hosts.length){   // the hosts react to what viewers can SEE: after Ishai has got there, then a short beat
+      t = Math.max(t + (lines.length ? 1200 : 0), prevLoc && prevLoc !== (ev.location || 'apartment') ? 17500 : 5000);
+      hosts.forEach((c, i) => { if (i) t += linePause(hosts[i-1].say); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i, host: true}); t += ms; });
+    }
+    return {plan, ms: t};
+  }
+  function schedule(events){
+    [...events].sort((a,b)=>a.t-b.t).forEach(e => {
+      if (TL.has(e.id)) return;
+      const p = talkPlan(e, tlLast && (tlLast.ev.location || 'apartment')), start = Math.max(e.t, tlLast ? tlLast.end : 0);   // a long talk finishes before the next moment starts
+      tlLast = {ev: e, start, end: start + p.ms, plan: p.plan}; TL.set(e.id, tlLast);
+    });
+    while (TL.size > 60) TL.delete(TL.keys().next().value);
+  }
+  const startOf = e => TL.has(e.id) ? TL.get(e.id).start : e.t;
   function release(){
-    const now = Date.now();
-    [...held.values()].filter(e=>e.t<=now).sort((a,b)=>a.t-b.t).forEach(e=>{ held.delete(e.id); queue.push(e); });
+    const now = NOW();
+    [...held.values()].filter(e=>startOf(e)<=now).sort((a,b)=>startOf(a)-startOf(b)).forEach(e=>{ held.delete(e.id); queue.push(e); });
     pump();
   }
-  setInterval(release, 2000);
+  setInterval(release, 1000);   // the picture loop does this every frame; this keeps background tabs going
   function ingest(events, firstLoad){
-    const now = Date.now();
+    const now = NOW();
     if (firstLoad && !params.has('sleptMin')){ // when did this sleep start? (the run of sleeping moments at the end)
       const past = events.filter(e => e.t <= now).sort((a,b) => a.t - b.t); let i = past.length - 1, since = null;
       while (i >= 0 && past[i].action === 'sleeping'){ since = past[i].t; i--; }
       if (since) SLEEP_SINCE = since; }
+    schedule(events);
     const fresh = events.filter(e=>!shown.has(e.id) && !held.has(e.id)).sort((a,b)=>a.t-b.t);
-    const due = fresh.filter(e=>e.t<=now);
-    fresh.filter(e=>e.t>now).forEach(e=>held.set(e.id,e));
+    const due = fresh.filter(e=>startOf(e)<=now);
+    fresh.filter(e=>startOf(e)>now).forEach(e=>held.set(e.id,e));
     due.forEach(e=>{ if (e.unlocks && firstLoad) UNLOCKED.add(e.unlocks); });
     if (firstLoad && due.length){
       const newest = due.pop();
@@ -2330,7 +2547,6 @@
       due.forEach((e, i)=>{ if (DEV) addLine(e,false); else shown.add(e.id); if (i >= start) addTalk(e,false); else (e.lines||[]).forEach((l,k)=>talkShown.add(e.id+':'+k)); });
       if (!forceLoc) setState(newest.location||'apartment', newest.action, true, newest.with||null);
       // tune in live: join the newest moment as far into it as real time says
-      newest._late = Math.max(0, Date.now() - newest.t);
       queue.push(newest); pump();
     } else { due.forEach(e=>queue.push(e)); pump(); }
   }
@@ -2339,7 +2555,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', market:'SHUK SHALOM', store:'EVERYTHING ELSE', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', market:'SHUK SHALOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
@@ -2368,16 +2584,15 @@
     card.classList.toggle('ad', /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga/i.test(m.say));
     while (booth.querySelectorAll('.host').length > 8) booth.removeChild(booth.querySelector('.host'));
     if (!animate){ line.textContent = m.say; boothScroll(); return Promise.resolve(); }
-    const full = m.say; let i = 0;
-    while (budget && budget.ms > 0 && i < full.length){ budget.ms -= charDelay(full[i]); i++; }
-    const speak = i === 0 ? Sound.say(m.who, m.say) : null;
+    const full = m.say, b = budget || {at: NOW(), ms: 0}, into = Math.max(0, NOW() - b.at); let i = charsAt(full, into);
+    if (into < 800) Sound.say(m.who, m.say);     // tuned in later than the start of a line: read it, no voice
     card.classList.add('live');
-    return Promise.all([speak, new Promise(res => {
+    return new Promise(res => {
       if (i >= full.length){ line.textContent = full; card.classList.remove('live'); boothScroll(); return res(); }
-      const step = () => { i++; line.textContent = full.slice(0,i); boothScroll(); Sound.blip(m.who, full[i-1]);
+      const step = () => { i = Math.min(full.length, Math.max(i + 1, charsAt(full, NOW() - b.at))); line.textContent = full.slice(0,i); boothScroll(); Sound.blip(m.who, full[i-1]);
         if (i < full.length) setTimeout(step, charDelay(full[i-1])); else { setTimeout(()=>card.classList.remove('live'), 1500); res(); } };
       step();
-    })]);
+    });
   }
   function addMsg(m, animate, budget){
     if (m.host) return hostLine(m, animate, budget);
@@ -2403,29 +2618,24 @@
     const scroll = () => { talkEl.scrollTop = talkEl.scrollHeight; };
     const full = m.host ? m.say : '"' + m.say + '"';
     if (!animate){ said.textContent = full; cur.remove(); scroll(); return Promise.resolve(); }
-    let i = 0;
-    while (budget && budget.ms > 0 && i < full.length){ budget.ms -= charDelay(full[i]); i++; }
-    const speak = i === 0 ? Sound.say(m.who, m.say) : null;
-    return Promise.all([speak, new Promise(res => {
-      if (i >= full.length){ said.textContent = full; scroll(); return res(); }
+    const b = budget || {at: NOW(), ms: 0}, into = Math.max(0, NOW() - b.at); let i = charsAt(full, into);
+    if (into < 800) Sound.say(m.who, m.say);     // tuned in later than the start of a line: read it, no voice
+    const hold = () => Math.max(2500, b.at + b.ms - NOW());
+    return new Promise(res => {
+      if (i >= full.length){ said.textContent = full; scroll(); if (!m.host && into < b.ms + 2500){ showSay(m.who, m.say); holdSay(b.at + b.ms + 2500 - NOW()); } return res(); }
       if (!m.host) showSay(m.who, m.say.slice(0, Math.max(0, i-1)));
-      const step = () => { i++; said.textContent = full.slice(0,i); scroll(); Sound.blip(m.who, full[i-1]); if (m.host) caption(sp, full.slice(0,i)); else showSay(m.who, m.say.slice(0, Math.max(0, i-1)));
-        if (i < full.length) setTimeout(step, charDelay(full[i-1])); else { if (!m.host){ showSay(m.who, m.say); holdSay(2500); } res(); } };
+      const step = () => { i = Math.min(full.length, Math.max(i + 1, charsAt(full, NOW() - b.at))); said.textContent = full.slice(0,i); scroll(); Sound.blip(m.who, full[i-1]); if (m.host) caption(sp, full.slice(0,i)); else showSay(m.who, m.say.slice(0, Math.max(0, i-1)));
+        if (i < full.length) setTimeout(step, charDelay(full[i-1])); else { if (!m.host){ showSay(m.who, m.say); holdSay(hold()); } res(); } };
       step();
-    })]);
+    });
   }
   // natural pause between lines; also counted when a viewer tunes in mid-conversation
   const linePause = say => 900 + Math.min(1600, say.length * 12);
   // spread a long conversation over the whole moment (about 3 minutes), like real people talking
   function convoGap(lines){
     if (!lines || lines.length < 2) return 0;
-    const typing = lines.reduce((n, l) => n + [...l.say].reduce((m, ch) => m + charDelay(ch), 0) + linePause(l.say), 0);
+    const typing = lines.reduce((n, l) => n + lineMs(l.say) + linePause(l.say), 0);
     return Math.max(0, Math.min(12000, (180000 - typing) / (lines.length - 1)));
-  }
-  async function pauseFor(ms, budget, animate){
-    if (!animate) return;
-    if (budget && budget.ms > 0){ const skip = Math.min(budget.ms, ms); budget.ms -= skip; ms -= skip; }
-    if (ms > 0) await new Promise(r => setTimeout(r, ms));
   }
   let sceneKey = null;
   const keyOf = (loc, w) => (loc || '') + '|' + (w || '');
@@ -2435,28 +2645,27 @@
   }
   function enterScene(loc, w){ const k = keyOf(loc, w); if (k !== sceneKey){ sceneKey = k; clearTalk(); } }
   async function addTalk(ev, animate){
-    const budget = {ms: ev._late || 0}, gap = PREVIEW ? 600 : convoGap(ev.lines);
-    for (let i = 0; i < (ev.lines||[]).length; i++){
-      const l = ev.lines[i];
-      if (i > 0) await pauseFor(linePause(ev.lines[i-1].say) + gap, budget, animate);
-      if (!(budget.ms > 0) && animate) setSpeaking(l.who);
+    const entry = TL.get(ev.id);
+    if (!animate || !entry){    // history: everything at once
+      (ev.lines||[]).forEach((l, i) => addMsg({id: ev.id + ':' + i, t: ev.t, who: l.who, say: l.say, loc: ev.location}, false));
+      (ev.commentary||[]).forEach((c, i) => addMsg({id: ev.id + ':c' + i, t: ev.t, who: c.who, say: c.say, loc: ev.location, host: true}, false));
+      return;
+    }
+    for (let k = 0; k < entry.plan.length; k++){
+      const p = entry.plan[k], l = p.l;
+      if (p.host && k && !entry.plan[k-1].host) setSpeaking(null);
+      await untilT(entry.start + p.at);
+      const at = entry.start + p.at, past = NOW() >= at + p.ms;
+      if (!past && k) Sound.hush();
+      if (p.host){ await addMsg({id: ev.id + ':c' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, host: true}, true, {at, ms: p.ms}); await untilT(at + p.ms); continue; }
+      if (!past) setSpeaking(l.who);
       const air = l.who==='radio' || l.who==='tv';   // a live line from the radio / TV the story reacts to
-      if (air){ MEDIA_UNTIL = Date.now() + 240000; if (l.who==='radio') Sound.duck(true); }
-      await addMsg({id: ev.id + ':' + i, t: ev.t, who: l.who, say: l.say, loc: ev.location}, animate, budget);
-      if (air && l.who==='radio') Sound.duck(false);
+      if (air){ MEDIA_UNTIL = at + 240000; if (l.who==='radio' && !past) Sound.duck(true); }
+      await addMsg({id: ev.id + ':' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location}, true, {at, ms: p.ms});
+      await untilT(at + p.ms);
+      if (air && l.who==='radio' && !past) Sound.duck(false);
     }
-    if (animate) setSpeaking(null);
-    if ((ev.lines||[]).length && (ev.commentary||[]).length) await pauseFor(1200, budget, animate);
-    // the hosts react to what viewers can SEE: wait until Ishai has got where the moment happens, then a short beat
-    if (animate && (ev.commentary||[]).length && !(budget.ms > 0)){
-      for (let w = 0; w < 50 && (actor.pending || actor.travelling || actor.switching || actor.ride || actor.viaFinal != null || actor.wash); w++) await new Promise(r => setTimeout(r, 400));
-      await pauseFor(2500, budget, animate);
-    }
-    for (let i = 0; i < (ev.commentary||[]).length; i++){
-      const c = ev.commentary[i];
-      if (i > 0) await pauseFor(linePause(ev.commentary[i-1].say), budget, animate);
-      await addMsg({id: ev.id + ':c' + i, t: ev.t, who: c.who, say: c.say, loc: ev.location, host: true}, animate, budget);
-    }
+    setSpeaking(null);
   }
   // the hosts' words also appear as live captions on the camera
   let capTimer = 0;
@@ -2531,7 +2740,7 @@
   function radioPick(kind){
     if (kind === 'bar' || kind === 'cafe') return [...PLACE_STATIONS[kind], ...((WORLD && WORLD[kind + 'Stations']) || [])].filter(s => !RADIO.bad.has(s.url))[0] || null;
     const list = ((WORLD && WORLD.stations) || []).filter(s => !RADIO.bad.has(s.url)); if (!list.length) return null;
-    return list[Math.floor(hash(Math.floor(Date.now() / STATION_BLOCK) * 3 + 7) * list.length)];
+    return list[Math.floor(hash(Math.floor(NOW() / STATION_BLOCK) * 3 + 7) * list.length)];
   }
   function radioFail(url){ RADIO.bad.add(url); if (Sound.streaming() !== null || RADIO.on) Sound.restartAmb(); }
   const BANDS = [['The Basil Leaves','Morning on Herzl Street'],['Falafel Kings','Extra Tahini'],['Lady Hummus','Chickpea Heart'],
@@ -2569,20 +2778,20 @@
     if (kind === 'weather') return `${hello}${Math.round(wx.temp)} degrees and ${wx.desc} in Tel Aviv. ` + (wx.rain ? 'Umbrellas out, people.' : wx.temp >= 27 ? "Hydrate. That's an order." : wx.temp <= 14 ? 'Find a sweater.' : 'Honestly? Lovely.') + tag;
     if (kind === 'news') return `${hello}In the news: ${pickOf(heads, 5)}. ${pickOf(QUIPS, 7)}`;
     if (kind === 'ad') return `A word from our sponsors. ${ADS[Math.floor(r(17) * ADS.length)]}`;
-    if (kind === 'time') return `${hello}It's ${fmtHM.format(new Date())} on Radio Herzl. If you're stuck in traffic on the Ayalon, we're sorry. We are too.${tag}`;
+    if (kind === 'time') return `${hello}It's ${fmtHM.format(new Date(NOW()))} on Radio Herzl. If you're stuck in traffic on the Ayalon, we're sorry. We are too.${tag}`;
     return `${hello}Shabbat comes in ${sh.startLabel} and goes out ${sh.endLabel}. Shabbat shalom from Radio Herzl!`;
   }
   function radioTick(){
     const playing = UNLOCKED.has('radio') && actor.loc==='apartment' && actor.action==='listening' && !actor.travelling && !actor.hidden && !actor.switching;
     if (!playing){ if (RADIO.on){ RADIO.on = false; Sound.duck(false); $('stMusic').textContent = ''; if (SAY.who==='radio') SAY.until = 0; } return; }
     const live = Sound.streaming(), CYCLE = live ? 240000 : 80000, talkAt = live ? 200 : 62;   // live music: the DJ talks every 4 minutes
-    const now = Date.now(), seg = Math.floor(now / CYCLE), into = (now % CYCLE) / 1000;
+    const now = NOW(), seg = Math.floor(now / CYCLE), into = (now % CYCLE) / 1000;
     if (!RADIO.on){ RADIO.on = true; RADIO.seg = seg; }
     if (seg !== RADIO.seg){ RADIO.seg = seg; if (!live) Sound.newSong(); }
     const want = radioPick(); if (live && want && want.url !== live.url) Sound.restartAmb();   // station change
     $('hudAction').textContent = 'RADIO HERZL 88.2';
     $('stMusic').textContent = live ? `\u266A ${live.name} (via radio-browser.info)` : '';
-    if (into >= talkAt && into < talkAt + 14 && RADIO.spoken !== seg && Date.now() > MEDIA_UNTIL){
+    if (into >= talkAt && into < talkAt + 14 && RADIO.spoken !== seg && NOW() > MEDIA_UNTIL){
       RADIO.spoken = seg; const d = dj(), text = djLine(seg);
       Sound.duck(true); showSay('radio', d.name.toUpperCase() + ': ' + text); holdSay(14000);
       const back = setTimeout(() => Sound.duck(false), 15000);
@@ -2594,9 +2803,9 @@
   const SFX = { working:['type','type','type','mouse','chair'], gaming:['game','game','type'], reading:['page','page','chair'], watching:['remote','chair'],
     listening:['chair'], cooking:['sizzle','clink'], eating:['clink','crunch'], drinking:['sip','clink'], walking:['steps'], idle:['steps','chair','phone'],
     sleeping:['snore'], waking:['chair'], exercising:['breath','steps'] };
-  let nextSfx = Date.now() + 15000;
+  let nextSfx = NOW() + 15000;
   setInterval(() => {
-    const now = Date.now(); if (now < nextSfx) return;
+    const now = NOW(); if (now < nextSfx) return;
     if (now - TALK_AT < 5000 || SPEAKING || Sound.busy() || SAY.who && performance.now() < SAY.until || actor.switching || (actor.hidden && !BATH.has(actor.action)) || actor.loc === 'offscreen' || studioOn || showOn || callOn){ nextSfx = now + 3000; return; }
     nextSfx = now + 20000 + Math.random() * 10000;
     const dogHere = UNLOCKED.has('dog') && dog.loc === actor.loc && actor.action !== 'sleeping';
@@ -2624,28 +2833,64 @@
     R(18,26,3,3,'#f2f2f2'); R(19,27,1,1,'#8a5a3a'); cooolaCan(42,24);                 // her coffee, his (sponsored) Cooola
     g = prev;
   }
-  async function playStudio(st){
+  // a timed list of spoken lines; lead = before the first line, pad = after each line, tail = after the last
+  function spoken(lines, lead, pad, tail){
+    let t = lead; const items = lines.map(l => { const it = {l, at: t, ms: lineMs(l.say)}; t += it.ms + pad(l.say); return it; });
+    return {items, ms: t + tail};
+  }
+  const STUDIO_TIMES = lines => spoken(lines, 1200, say => 1400 + Math.min(2500, say.length * 25), 0);
+  const SHOW_TIMES = lines => spoken(lines, 800, say => 1200 + Math.min(2500, say.length * 25), 1500);
+  const CALL_TIMES = lines => spoken(lines, 2200, say => 900 + Math.min(2200, say.length * 22), 1200);
+  const momentAt = T => { let m = null; for (const x of TL.values()){ if (x.start <= T) m = x; else break; } return m; };
+  const talkBetween = (a, b) => [...TL.values()].some(x => x.plan.length && x.start < b && x.end > a);
+  // the first time from `from` that fits. undefined = not found yet, still looking; null = it never fitted
+  function slotAfter(from, maxWait, fits){
+    for (let T = from; T <= from + maxWait; T += 15000){ if (T > NOW()) return undefined; if (fits(T)) return T; }
+    return null;
+  }
+  const arrivedBy = (m, T) => T - m.start > 20000 || momentAt(m.start - 1)?.ev.location === m.ev.location;
+  // the two hourly recaps take turns: the picture-in-picture on even hours, the full studio break on odd hours
+  function studioStart(st){
+    if (!st || Math.floor(st.t / 3600000) % 2) return null;
+    return slotAfter(st.t, 15 * 60000, T => { const m = momentAt(T); return storyHour(T) >= 8 && m && !m.ev.with && arrivedBy(m, T) && !['phoning','sleeping'].includes(m.ev.action) && !talkBetween(T, T + 1); });
+  }
+  function showStart(sh){
+    if (!sh || !(Math.floor(sh.t / 3600000) % 2)) return null;
+    return slotAfter(sh.t, 20 * 60000, T => { const m = momentAt(T), h = storyHour(T);
+      if (!m || h < 8 || h >= 23.5 || m.ev.action === 'sleeping' || m.ev.with || !arrivedBy(m, T) || talkBetween(T - 90000, T + 180000)) return false;    // quiet for 1.5 minutes, and for 3 more
+      return ![...TL.values()].some(x => x.start > T && x.start <= T + 180000 && (x.ev.with || (x.ev.location || 'apartment') !== (m.ev.location || 'apartment'))); });
+  }
+  function callStart(c){
+    let from = c.t;
+    for (const [at, ms] of [[studioStart(STUDIO), STUDIO ? STUDIO_TIMES(STUDIO.lines).ms + 1000 : 0], [showStart(SHOW), SHOW ? SHOW_TIMES(SHOW.lines).ms : 0]]){
+      if (at === undefined) return undefined;      // wait: the recap goes first
+      if (at !== null && at + ms > from && at < c.t + 12 * 60000) from = at + ms;
+    }
+    return slotAfter(from, 12 * 60000, T => { const m = momentAt(T); return m && m.ev.action !== 'sleeping' && arrivedBy(m, T) && !talkBetween(T, T + 1); });
+  }
+  async function playStudio(st, start){
+    const times = STUDIO_TIMES(st.lines);
     studioDone.add(st.id); studioOn = true; const pip = $('pip'), cap = $('pipCap'); cap.textContent = '';
     const anim = () => { if (!studioOn) return; drawStudio(wall()); requestAnimationFrame(anim); }; anim();
     pip.classList.add('on');
-    await new Promise(r => setTimeout(r, 1200));
-    for (let i = 0; i < st.lines.length; i++){
-      const l = st.lines[i]; studioWho = l.who;
+    for (let i = 0; i < times.items.length; i++){
+      const it = times.items[i], l = it.l, at = start + it.at; await untilT(at); const late = NOW() - at;
+      if (late >= it.ms){ addMsg({id: st.id + ':' + i, t: st.t, who: l.who, say: l.say, host: true}, false); continue; }
+      studioWho = l.who; Sound.hush();
       cap.innerHTML = ''; const b = document.createElement('b'); b.style.color = HOSTS[l.who].color; b.textContent = HOSTS[l.who].name + ': ';
       const tx = document.createElement('span'); cap.append(b, tx);
-      await Promise.all([Sound.say(l.who, l.say), typeInto(tx, l.say, true, ch => { Sound.blip(l.who, ch); cap.scrollTop = cap.scrollHeight; }, null),
-        addMsg({id: st.id + ':' + i, t: st.t, who: l.who, say: l.say, host: true}, false)]);
-      studioWho = null; await new Promise(r => setTimeout(r, 1400 + Math.min(2500, l.say.length * 25)));
+      if (late < 800) Sound.say(l.who, l.say);
+      addMsg({id: st.id + ':' + i, t: st.t, who: l.who, say: l.say, host: true}, false);
+      await typeInto(tx, l.say, true, ch => { Sound.blip(l.who, ch); cap.scrollTop = cap.scrollHeight; }, {at});
+      await untilT(at + it.ms); studioWho = null;
     }
+    await untilT(start + times.ms);
     pip.classList.remove('on'); await new Promise(r => setTimeout(r, 1000)); studioOn = false;
   }
   setInterval(() => {
-    const st = STUDIO; if (!st || studioOn || showOn || callOn || studioDone.has(st.id) || DEV_ONLY_NARRATION_SKIP()) return;
-    if (Date.now() - lastAutoShow < autoGap) return;   // keep studio breaks 30-60 minutes apart
-    const age = Date.now() - st.t;
-    const quiet = !actor.with && !SPEAKING && !actor.switching && !actor.ride && actor.action !== 'phoning' && actor.action !== 'sleeping'; // only when things get quiet
-    const h = hourNow(); if (h < 8) { if (age >= 0) studioDone.add(st.id); return; }   // the studio is closed from midnight to 08:00
-    if (age >= 0 && age < 15 * 60000 && quiet){ lastAutoShow = Date.now(); autoGap = (30 + Math.random() * 30) * 60000; playStudio(st); } else if (age >= 15 * 60000) studioDone.add(st.id);
+    const st = STUDIO; if (!st || studioOn || showOn || studioDone.has(st.id) || DEV_ONLY_NARRATION_SKIP()) return;
+    const at = studioStart(st); if (at === undefined) return;
+    if (at === null || NOW() >= at + STUDIO_TIMES(st.lines).ms) studioDone.add(st.id); else playStudio(st, at);
   }, 1000);
   function DEV_ONLY_NARRATION_SKIP(){ return !!forceLoc; }   // previews stay clean
   // ================= commercial breaks: sliding banners for fake brands and Watch-Ishai merch =================
@@ -2676,7 +2921,7 @@
   ];
   const AD_EVERY = 6 * 60000, AD_SHOW = 9000; let adOn = null;
   function adTick(){
-    const now = Date.now(), slot = Math.floor(now / AD_EVERY), e = now % AD_EVERY - 20000;
+    const now = NOW(), slot = Math.floor(now / AD_EVERY), e = now % AD_EVERY - 20000;
     const quiet = !forceLoc && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !actor.switching && (SAY.who !== 'radio' || performance.now() > SAY.until)
       && (actor.action === 'sleeping' || !['talking','phoning'].includes(actor.action));
     const want = e >= 0 && e < AD_SHOW && quiet ? BANNERS[Math.floor(hash(slot * 5 + 11) * BANNERS.length)] : null;
@@ -2693,7 +2938,7 @@
     demoMode = true;
     $('stLink').innerHTML = '<span class="warn">PREVIEW OF THE PLAN</span>';
     let p; try { p = await (await fetch('/api/plan', {cache:'no-store'})).json(); } catch(e){ $('stLink').textContent = 'PREVIEW: could not load the plan'; return; }
-    setCast((p.cast||[]).map(c => ({...c, lastSeen: Date.now()})));
+    setCast((p.cast||[]).map(c => ({...c, lastSeen: NOW()})));
     (p.unlocked||[]).forEach(u => UNLOCKED.add(u));
     const tz = d => { const [h,m] = fmtHM.format(new Date(d)).split(':').map(Number); return h + m/60; };
     const list = [];
@@ -2701,7 +2946,7 @@
       const moments = (b.preview && b.preview.moments && b.preview.moments.length) ? b.preview.moments
         : [{action: b.forceAction || 'idle', text: b.forceText || b.goal, lines: b.forceLines || [], commentary: b.forceCommentary || []}];
       moments.forEach((m, k) => list.push({beat: i, of: p.beats.length, k, b, hour: tz(b.startAt) + k * .25,
-        ev: {id: 'pv-' + i + '-' + k, t: Date.now(), location: m.location || b.location || 'apartment', action: m.action || b.forceAction || 'idle',
+        ev: {id: 'pv-' + i + '-' + k, t: NOW(), location: m.location || b.location || 'apartment', action: m.action || b.forceAction || 'idle',
           with: m.with !== undefined ? m.with : (b.forceWith || null), text: m.text || b.goal, unlocks: k === moments.length - 1 ? (b.unlock || null) : null,
           lines: (m.lines||[]).map(l => Array.isArray(l) ? {who:l[0], say:l[1]} : l), commentary: (m.commentary||[]).map(c => Array.isArray(c) ? {who:c[0], say:c[1]} : c)}}));
     });
@@ -2709,14 +2954,14 @@
     PREVIEW = {list, i: +params.get('from') || 0, nextAt: 0};
     $('day').textContent = 'PLAN ' + (p.version || '');
     const step = () => {
-      if (typing || queue.length || Date.now() < PREVIEW.nextAt) return;
+      if (typing || queue.length || NOW() < PREVIEW.nextAt) return;
       if (PREVIEW.i >= PREVIEW.list.length){ $('pvb').textContent = 'END OF THE PLANNED DAY · reload to watch again'; return; }
       const it = PREVIEW.list[PREVIEW.i++];
       forceHour = it.hour;
       const time = fmtHM.format(new Date(it.b.startAt));
       $('pvb').hidden = false; $('pvb').textContent = `PREVIEW · beat ${it.beat + 1}/${it.of} · ${time}${it.b.with ? ' · with ' + String(it.b.with).replace(/\s*\(.*\)/, '') : ''} — ${it.b.goal.length > 120 ? it.b.goal.slice(0, 117) + '…' : it.b.goal}`;
-      ingest([{...it.ev, t: Date.now()}], false);
-      PREVIEW.nextAt = Date.now() + 9000;   // a short beat of picture after the dialogue, then the next moment
+      ingest([{...it.ev, t: NOW()}], false);
+      PREVIEW.nextAt = NOW() + 9000;   // a short beat of picture after the dialogue, then the next moment
     };
     setInterval(step, 500);
   }
@@ -2727,7 +2972,7 @@
     $('bugC').onclick = () => { f.hidden = true; };
     $('bugS').onclick = async () => {
       const text = $('bugT').value.trim(); if (text.length < 3){ $('bugM').textContent = 'Please describe it.'; return; }
-      const screen = `${fmtClock.format(new Date())} ${actor.loc}/${actor.action}${actor.with ? ' +' + actor.with : ''} x=${Math.round(actor.x)}${actor.travelling ? ' travelling' : ''}${actor.pending ? ' →' + actor.pending.route.join('>') : ''}${comp.id ? ' comp=' + comp.id + '/' + comp.mode + '@' + Math.round(comp.x) : ''}${actor.switching ? ' switching' : ''}${actor.hidden ? ' hidden' : ''}`;
+      const screen = `${fmtClock.format(new Date(NOW()))} ${actor.loc}/${actor.action}${actor.with ? ' +' + actor.with : ''} x=${Math.round(actor.x)}${actor.travelling ? ' travelling' : ''}${actor.pending ? ' →' + actor.pending.route.join('>') : ''}${comp.id ? ' comp=' + comp.id + '/' + comp.mode + '@' + Math.round(comp.x) : ''}${actor.switching ? ' switching' : ''}${actor.hidden ? ' hidden' : ''}`;
       $('bugS').disabled = true; $('bugM').textContent = 'Sending…';
       try { const r = await fetch('/api/bug', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({text, screen, page: location.search})});
         const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
@@ -2746,8 +2991,8 @@
     add('TODAY SO FAR' + (SUMMARY.today && SUMMARY.today.at ? ' · ' + fmtHM.format(new Date(SUMMARY.today.at)) : ''), SUMMARY.today);
     add('YESTERDAY', SUMMARY.yesterday);
   }
-  async function playShow(){
-    if (showOn) return;
+  async function playShow(start){
+    if (showOn) return; const from = start || NOW();
     // no hourly recap yet: the hosts improvise from their latest quick recap, or just say hello
     // no hourly recap yet: read the day's summary if there is one, otherwise the latest quick recap
     const sumLines = SUMMARY ? [SUMMARY.yesterday && ('Yesterday: ' + SUMMARY.yesterday.text), SUMMARY.today && ('Today so far: ' + SUMMARY.today.text)].filter(Boolean)
@@ -2761,16 +3006,18 @@
     const anim = () => { if (!showOn) return; const t = wall(); drawStudio(t, stvCtx); stvLive.imageSmoothingEnabled = false; stvLive.drawImage(cv, 0, 0); requestAnimationFrame(anim); }; anim();
     let stop = false; $('studioBtn').textContent = '● LIVE';
     SHOW_STOP = () => { stop = true; st.hidden = true; showOn = false; studioWho = null; $('studioBtn').textContent = '📺 STUDIO'; if ('speechSynthesis' in window) try { speechSynthesis.cancel(); } catch(e){} };   // back to live at once
-    await new Promise(r => setTimeout(r, 800));
-    for (const l of sh.lines){
+    const times = SHOW_TIMES(sh.lines);
+    for (const it of times.items){
+      const l = it.l, at = from + it.at; await untilT(at); const late = NOW() - at;
       if (stop) return;
+      Sound.hush();
       studioWho = l.who; const b = document.createElement('b'); b.style.color = HOSTS[l.who].color; b.style.fontWeight = 'normal'; b.textContent = HOSTS[l.who].name + ': ';
       const tx = document.createElement('span'); const row = document.createElement('div'); row.append(b, tx); cap.appendChild(row);
-      await Promise.all([Sound.say(l.who, l.say), typeInto(tx, l.say, true, ch => { Sound.blip(l.who, ch); cap.scrollTop = cap.scrollHeight; }, null)]);
-      studioWho = null; if (stop) return;
-      await new Promise(r => setTimeout(r, 1200 + Math.min(2500, l.say.length * 25)));
+      if (late < 800) Sound.say(l.who, l.say);
+      await typeInto(tx, l.say, true, ch => { Sound.blip(l.who, ch); cap.scrollTop = cap.scrollHeight; }, {at});
+      await untilT(at + it.ms); studioWho = null; if (stop) return;
     }
-    if (!stop) await new Promise(r => setTimeout(r, 1500));
+    if (!stop) await untilT(from + times.ms);
     if ('speechSynthesis' in window) try { speechSynthesis.cancel(); } catch(e){}
     st.hidden = true; showOn = false; studioWho = null; SHOW_STOP = null; $('studioBtn').textContent = '📺 STUDIO';
   }
@@ -2815,46 +3062,44 @@
     while (booth.querySelectorAll('.host').length > 8) booth.removeChild(booth.querySelector('.host'));
     boothScroll();
   }
-  async function playCall(c){
+  async function playCall(c, start){
+    const times = CALL_TIMES(c.lines);
     callDone.add(c.id); callOn = true; const w = $('callw'), cap = $('callCap');
     $('callWho').textContent = `${c.caller.name} · ${c.caller.from}`; cap.textContent = '';
     let ringing = true; const anim = () => { if (!callOn) return; drawPhone(wall(), ringing); requestAnimationFrame(anim); }; anim();
-    w.classList.add('on'); Sound.ring && Sound.ring();
-    await new Promise(r => setTimeout(r, 2200)); ringing = false;
-    for (const l of c.lines){
+    w.classList.add('on'); if (NOW() - start < 1500) Sound.ring && Sound.ring();
+    await untilT(start + 2200); ringing = false;
+    for (const it of times.items){
+      const l = it.l, at = start + it.at; await untilT(at); const late = NOW() - at; Sound.hush();
       const isCaller = l.who === 'caller', name = isCaller ? c.caller.name.toUpperCase() : HOSTS[l.who].name, color = isCaller ? '#ffd36a' : HOSTS[l.who].color;
       const row = document.createElement('div'); const b = document.createElement('b'); b.style.color = color; b.style.fontWeight = 'normal'; b.textContent = name + ': ';
       const tx = document.createElement('span'); row.append(b, tx); cap.appendChild(row);
       if (isCaller){ boothCaller(c.caller, l.say); fsPush(null, l.say, '📞 ' + name, color); }
       else { addMsg({id: c.id + ':' + c.lines.indexOf(l), t: c.t, who: l.who, say: l.say, host: true}, false); fsPush(l.who, l.say); }
       const vid = isCaller ? 'caller-' + c.caller.name : l.who;
-      await Promise.all([Sound.say(vid, l.say), typeInto(tx, l.say, true, ch => { Sound.blip(vid, ch); cap.scrollTop = cap.scrollHeight; }, null)]);
-      await new Promise(r => setTimeout(r, 900 + Math.min(2200, l.say.length * 22)));
+      if (late < 800) Sound.say(vid, l.say);
+      await typeInto(tx, l.say, true, ch => { Sound.blip(vid, ch); cap.scrollTop = cap.scrollHeight; }, {at});
+      await untilT(at + it.ms);
     }
-    await new Promise(r => setTimeout(r, 1200)); w.classList.remove('on'); await new Promise(r => setTimeout(r, 800)); callOn = false;
+    await untilT(start + times.ms); w.classList.remove('on'); await new Promise(r => setTimeout(r, 800)); callOn = false;
   }
   setInterval(() => {
     const c = CALL; if (!c || callOn || callDone.has(c.id) || forceLoc) return;
-    const age = Date.now() - c.t; if (age < 0) return; if (age > 12 * 60000){ callDone.add(c.id); return; }
-    if (!SPEAKING && !studioOn && !showOn && !actor.switching && actor.action !== 'sleeping' && !(SAY.who === 'radio' && performance.now() < SAY.until)) playCall(c);
+    const at = callStart(c); if (at === undefined) return;
+    if (at === null || NOW() >= at + CALL_TIMES(c.lines).ms) callDone.add(c.id); else if (!studioOn && !showOn) playCall(c, at);
   }, 1000);
   // ================= dead air -> the Studio comes on by itself =================
   // Thanks to the broadcast delay the page already holds the next moments, so it knows when nothing will happen for a while.
-  let SHOW_AUTO = false, lastAutoShow = 0, autoGap = 30 * 60000; const autoShown = new Set();
-  function quietAhead(ms){
-    const until = Date.now() + ms, next = [...held.values()].filter(e => e.t <= until);
-    return !queue.length && next.every(e => !(e.lines||[]).length && !e.with && (e.location||'apartment') === actor.loc);
-  }
+  let SHOW_AUTO = false; const autoShown = new Set();
   setInterval(() => {
     if (forceLoc || PREVIEW || showOn || studioOn || callOn || !SHOW || autoShown.has(SHOW.id)) return;
-    if (Date.now() - lastAutoShow < autoGap) return;                                      // 30-60 minutes between studio breaks
-    const h = hourNow(); if (h < 8 || h >= 23.5 || actor.action === 'sleeping') return;
-    if (actor.with || actor.pending || actor.travelling || actor.switching || SPEAKING || typing) return;
-    if (Date.now() - LAST_TALK < 90000) return;                                           // quiet for 1.5 minutes already
-    if (!quietAhead(3 * 60000)) return;                                                   // and nothing coming in the next 3 minutes
-    autoShown.add(SHOW.id); lastAutoShow = Date.now(); autoGap = (30 + Math.random() * 30) * 60000; SHOW_AUTO = true;
-    playShow().then(() => { SHOW_AUTO = false; });
-  }, 5000);
+    const at = showStart(SHOW); if (at === undefined) return;
+    if (at === null){ autoShown.add(SHOW.id); return; }
+    const m = momentAt(at), cut = [...TL.values()].find(x => x.start > at && ((x.ev.lines||[]).length || x.ev.with || (x.ev.location||'apartment') !== (m.ev.location||'apartment')));
+    autoShown.add(SHOW.id);
+    if (NOW() >= Math.min(at + SHOW_TIMES(SHOW.lines).ms, cut ? cut.start : Infinity)) return;     // already over
+    SHOW_AUTO = true; playShow(at).then(() => { SHOW_AUTO = false; });
+  }, 1000);
   let castSig = '';
   setInterval(()=>{ if ($('castPanel').hidden) return; const sig = actor.loc + '|' + [...settledOnCamera()].join(',') + '|' + UNLOCKED.has('dog'); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
@@ -2901,8 +3146,8 @@
   function demoTick(){
     if (demoIdx % DEMO.length === 0) UNLOCKED = new Set();
     const [loc,a,w,text,lines,unlocks,comm] = DEMO[demoIdx % DEMO.length];
-    if (w){ const c = DEMO_CAST.find(x=>x.id===w); if (c){ c.lastSeen = Date.now(); c.scenes = (c.scenes||0)+1; } setCast(DEMO_CAST.map(c=>({...c}))); }
-    ingest([{id:'demo-'+demoIdx, t:Date.now(), location:loc, action:a, with:w, text, unlocks: unlocks||null, lines:lines.map(([who,say])=>({who,say})), commentary:(comm||[]).map(([who,say])=>({who,say}))}], !demoStarted); demoStarted = true; demoIdx++;
+    if (w){ const c = DEMO_CAST.find(x=>x.id===w); if (c){ c.lastSeen = NOW(); c.scenes = (c.scenes||0)+1; } setCast(DEMO_CAST.map(c=>({...c}))); }
+    ingest([{id:'demo-'+demoIdx, t:NOW(), location:loc, action:a, with:w, text, unlocks: unlocks||null, lines:lines.map(([who,say])=>({who,say})), commentary:(comm||[]).map(([who,say])=>({who,say}))}], !demoStarted); demoStarted = true; demoIdx++;
   }
   function startDemo(){
     if (demoMode) return; demoMode = true;
@@ -2916,7 +3161,7 @@
   function offerUpdate(){
     if (updating) return; updating = true;
     // never reload more than once every 2 minutes (in case old and new versions overlap briefly)
-    try { const last = +sessionStorage.getItem('ishaiReload') || 0; if (Date.now() - last < 120000) return; sessionStorage.setItem('ishaiReload', Date.now()); } catch(e){}
+    try { const last = +sessionStorage.getItem('ishaiReload') || 0; if (NOW() - last < 120000) return; sessionStorage.setItem('ishaiReload', NOW()); } catch(e){}
     // reload once the current line has finished typing (sound resumes on the next tap)
     const go = () => { if (typing || queue.length) return setTimeout(go, 1500); location.reload(); };
     setTimeout(go, 1500);
@@ -2951,7 +3196,7 @@
       if (s.world) { WORLD = s.world; $('stNext').textContent = weatherLabel(); }
       if (Array.isArray(s.dream)) DREAM = s.dream;
       // items appear when the moment that brings them is shown, not before (broadcast delay)
-      const future = new Set(s.events.filter(e=>e.unlocks && !shown.has(e.id) && e.t > Date.now()).map(e=>e.unlocks));
+      const future = new Set(s.events.filter(e=>e.unlocks && !shown.has(e.id) && startOf(e) > NOW()).map(e=>e.unlocks));
       (s.unlocked||[]).forEach(u=>{ if (!future.has(u)) UNLOCKED.add(u); });
       ingest(s.events, !loaded); loaded = true;
     } catch(e){ console.error('feed render error', e); loaded = true; }
@@ -2964,12 +3209,15 @@
   if (params.get('unlock')) params.get('unlock').split(',').forEach(u=>UNLOCKED.add(u));
   if (forceLoc){ setCast(DEMO_CAST); setState(forceLoc, forcePose || 'idle', true, params.get('with')); }
   else setState('apartment','sleeping',true);
-  if (params.has('delivery')) actor.delivery = {at: Date.now() - (+params.get('delivery') || 12) * 1000};   // preview an ateBite delivery (seconds into it)
+  if (params.has('delivery')) actor.delivery = {at: NOW() - (+params.get('delivery') || 12) * 1000};   // preview an ateBite delivery (seconds into it)
   requestAnimationFrame(loop);
   if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }
   else if (params.has('preview')) startPreview();
   else if (location.protocol === 'file:' || params.has('demo')) { if (params.has('dev')) enableDev(); startDemo(); }
-  else { poll(); setInterval(()=>{ if (!demoMode) poll(); }, POLL_MS); }
+  else {
+    syncClock().finally(() => { poll(); setInterval(()=>{ if (!demoMode) poll(); }, POLL_MS); });
+    setInterval(syncClock, 15 * 60000); document.addEventListener('visibilitychange', () => { if (!document.hidden) syncClock(); });
+  }
 })();
 </script>
 </body>

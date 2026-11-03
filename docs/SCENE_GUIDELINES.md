@@ -27,6 +27,8 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 | Market | Everything Else door (4, left) | Store | door (4, left) |
 | Store | door (4) | Market | Everything Else door (4) |
 | Street | bus stop (128) | Off camera | — by bus (day) or taxi (night / rain) |
+| Street, Market | bus stop (128) | Bus (CAM-12) or Taxi (CAM-13) | seated, after the camera switch |
+| Bus, Taxi | a stop | Street, Market (bus stop 128) or Off camera | the vehicle pulls in and he steps off |
 | Street | Herzl Gym door (64, blue building) | Gym | door (4, left) |
 | Gym | door (4) | Street | Herzl Gym door (64) |
 | Street | The Black Candle door (101, next to the bench) | Bar | door (4, left) |
@@ -52,6 +54,7 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
   - Park: right edge (path to the street), left edge (further into the park).
   - Shops (CAM-09, Herzl St. east): left edge (back to Ishai's block), right edge (the café corner). Herzl Hardware, Tahini Tower Savings Bank + ATM, a flower shop, a pedestrian crossing with lights, Kfar Kofi billboard.
   - Café: the entrance on the left.
+  - Bus (CAM-12, line 88) and Taxi (CAM-13): no doors of their own; he boards at a stop on the street camera and the switch finds him seated. Every ride between places shows here for `RIDE_MS` (75 s), or longer when the story puts a moment on board. Taxi at night, in the rain and on Shabbat. No `ERRANDS`: he stays in his seat. The city outside (`cityDrive()`) is currently the only route; it runs on the real clock with a red light every 52 s, and handles any hour and weather.
   - Market (CAM-10, Shuk Shalom): the bus stop (128) and the Everything Else door (left). Food stalls with striped awnings, vendors, a banner and string lights; open 07:00-19:00, Fri until 14:00, closed Shabbat.
   - Store (CAM-11, Everything Else): its door on the left. A wall of TVs, shelves of home goods, a clothes rack, a cashier; everything except food; open 09:00-21:00, Fri until 14:00, closed Shabbat.
   - Gym (CAM-07, Herzl Gym): the glass door on the left. Treadmills under a wall TV (Channel 9, sound on); "exercising" = on the treadmill. Open 06:00-23:00.
