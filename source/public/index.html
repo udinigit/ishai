@@ -2045,7 +2045,8 @@
     return NEXT_RIDE || (hf >= 21 || hf < 6 || rainy() || shabbat ? 'taxi' : 'bus');
   }
   function startRide(mode, kind){ actor.ride = { mode, kind: kind || rideKind(), t0: performance.now() }; }
-  const RIDE_MS = 75000;   // how long a ride shows from inside when the story just says he goes somewhere
+  const RIDE_LEAD = 12000, RIDE_LAND = 7000;   // about how long boarding and getting off take
+  const RIDE_MS = 150000;  // how long a ride shows from inside when the story just says he goes somewhere; the city keeps looping past
   const RIDE = { come: 2600, stop: 1600, go: 2000 };
   function rideX(r, now){ // the vehicle's left x on the road
     const stopX = r.kind === 'bus' ? 98 : 116, e = now - r.t0;
@@ -2480,7 +2481,12 @@
       const entry = TL.get(ev.id), start = startOf(ev); ev._late = Math.max(0, NOW() - start);
       // already over with more waiting (tab came back): no walking through old moments; well into this one: be where he is by now
       NEXT_RIDE = ev.ride || null;
-      if (!forceLoc && !(queue.length && entry && NOW() >= entry.end)) setState(ev.location||'apartment', ev.action, ev._late > 20000, ev.with||null);
+      if (!forceLoc && entry && entry.ride && !queue.length && ev._late > 2000 && ev._late < RIDE_LEAD + RIDE_MS - 2000){   // tuned in during the ride: he is on board
+        const k = entry.ride.findIndex(x => VEH.has(x));
+        setState(entry.ride[k], 'idle', true, null);
+        actor.pending = {route: entry.ride.slice(k + 1), a: ev.action, w: ev.with || null}; actor.rideUntil = performance.now() + RIDE_LEAD + RIDE_MS - ev._late;
+      }
+      else if (!forceLoc && !(queue.length && entry && NOW() >= entry.end)) setState(ev.location||'apartment', ev.action, ev._late > 20000, ev.with||null);
       actor.delivery = ev.delivery && ev._late < 35000 ? {at: start} : null;   // an ateBite courier at the door
       enterScene(ev.location, ev.with);
       if (DEV){ addTalk(ev, true); await addLine(ev,true); }   // talk + hosts play in their own time (hosts wait for the picture)
@@ -2500,19 +2506,22 @@
   const lineMs = say => Math.max(typeMs('"' + say + '"'), 500 + say.length * 70);
   const untilT = at => { const ms = at - NOW(); return ms > 0 ? new Promise(r => setTimeout(r, ms)) : Promise.resolve(); };
   function talkPlan(ev, prevLoc){
-    const lines = ev.lines || [], hosts = ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines), plan = []; let t = 0;
+    const lines = ev.lines || [], hosts = ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines), plan = [];
+    // arriving by bus or taxi: the talk waits until he is there
+    const r = prevLoc && !PREVIEW && prevLoc !== (ev.location || 'apartment') ? route(prevLoc, ev.location || 'apartment') : [], onBoard = r.some(x => VEH.has(x)) && !VEH.has(prevLoc) && !VEH.has(ev.location);
+    const lead = onBoard ? RIDE_LEAD + RIDE_MS + RIDE_LAND : 0; let t = lead;
     lines.forEach((l, i) => { if (i) t += linePause(lines[i-1].say) + gap; const ms = lineMs(l.say); plan.push({at: t, ms, l, i}); t += ms; });
     if (hosts.length){   // the hosts react to what viewers can SEE: after Ishai has got there, then a short beat
-      t = Math.max(t + (lines.length ? 1200 : 0), prevLoc && prevLoc !== (ev.location || 'apartment') ? 17500 : 5000);
+      t = Math.max(t + (lines.length ? 1200 : 0), lead + (prevLoc && prevLoc !== (ev.location || 'apartment') ? 17500 : 5000));
       hosts.forEach((c, i) => { if (i) t += linePause(hosts[i-1].say); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i, host: true}); t += ms; });
     }
-    return {plan, ms: t};
+    return {plan, ms: t, ride: onBoard ? r : null};
   }
   function schedule(events){
     [...events].sort((a,b)=>a.t-b.t).forEach(e => {
       if (TL.has(e.id)) return;
       const p = talkPlan(e, tlLast && (tlLast.ev.location || 'apartment')), start = Math.max(e.t, tlLast ? tlLast.end : 0);   // a long talk finishes before the next moment starts
-      tlLast = {ev: e, start, end: start + p.ms, plan: p.plan}; TL.set(e.id, tlLast);
+      tlLast = {ev: e, start, end: start + p.ms, plan: p.plan, ride: p.ride}; TL.set(e.id, tlLast);
     });
     while (TL.size > 60) TL.delete(TL.keys().next().value);
   }
