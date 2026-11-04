@@ -14,7 +14,7 @@ Owner (the director): udinigit. Read `docs/SCENE_GUIDELINES.md` before adding or
 - Reality show of a real life ("The Truman Show"), not a sitcom: realistic people, physics and logistics. Ishai never knows he is filmed.
 - No teleportation: every place is on the world map (see the guidelines) with real exits, entries and ways to get there.
 - Follow `docs/SCENE_GUIDELINES.md` for anything visual.
-- Fictional brands only (Cooola, HummusPrime, Wee Laddie Virgin Scotch, A Butcher Is Born, Tahini Tower Savings Bank, Yalla Yoga, FluffNap, Herzl Hardware, Kfar Kofi, Radio Herzl 88.2, ateBite (food delivery), Everything Else (store), Shuk Shalom (market), …). Never real brands or their look-alike trade dress.
+- Fictional brands only (Cooola, HummusPrime, Wee Laddie Virgin Scotch, A Butcher Is Born, Tahini Tower Savings Bank, Yalla Yoga, FluffNap, Herzl Hardware, Kfar Kofi, Radio Herzl 88.2, ateBite (food delivery), Everything Else (store), Shuk Shalom (market), NESflicks (streaming), 8bitTV (Channel 8), Boolify (music station), …). Never real brands or their look-alike trade dress.
 - Narration (`text`) is dev-only; viewers see the picture, spoken lines and the hosts (Zohar, Oren).
 - Keep the free tiers in mind: Workers AI ~10k neurons/day, KV 1k writes/day.
 

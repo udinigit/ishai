@@ -91,6 +91,8 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 - Only fictional brands, with their own visual identity (Cooola = purple + lime, blocky letters, lightning bolt). Never imitate a real brand's colors/logo.
 - Product placement must sit naturally in the world (billboards, kiosk banners, buses, vending machines, cans on counters, neon in windows).
 
+- NESflicks is grey and gold like an old game box, never red on black. Boolify is pink, with no round green logo. 8bitTV is bright pixel colours. The home TV faces away from the camera, so its picture appears in a small inset while he watches; `ev.media` picks the channel, otherwise the clock does (the gym stays on Channel 9).
+
 ## 8. New art workflow
 - If the story needs something that cannot be drawn yet, it goes on the missing-art list or into a director goal with `art` — the beat waits until the art is live.
 - Before pushing new art: preview it with the page's `?loc=…&pose=…&with=…&hour=…` parameters, check day and night, and check it against every rule above.

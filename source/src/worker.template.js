@@ -76,6 +76,9 @@ const HOSTS = {
 
 // Fictional "sponsors" the hosts plug shamelessly now and then (never real brands)
 const SPONSORS = [
+  { name: "NESflicks", pitch: "a streaming service where you spend the whole evening choosing; 'Still there?'" },
+  { name: "8bitTV", pitch: "Channel 8, a TV channel where everything is in sixteen colours, even the weather" },
+  { name: "Boolify", pitch: "a music station that only answers true or false; the free tier lets you skip a song in 2031" },
   { name: "Cooola", pitch: "an absurdly strong cola; 'if you really want to wake up'" },
   { name: "HummusPrime", pitch: "a hummus subscription delivered by drone, 'because chickpeas deserve wings'" },
   { name: "FluffNap", pitch: "pillows with 'military-grade softness'; sleep so deep the neighbors check on you" },
@@ -102,7 +105,7 @@ function sponsorUsed(s, sp, lines, storyMs) {
   s.spJokes = [...(s.spJokes || []), ...said].slice(-12);
 }
 // fictional show that also airs on Ishai's TV once he has one
-const TV_SHOW = "On Channel 9 the hit fictional reality show 'A Butcher Is Born' airs at 21:00 (contestants Rami 'The Cleaver', Shuli Two-Knives, Grandpa Moti); the hosts are obsessed with it.";
+const TV_SHOW = "Besides Channel 9, the TV has 8bitTV on Channel 8 (blocky pixel shows) and NESflicks, a streaming service with endless menus that keeps asking 'Still there?'. The radio has Radio Herzl 88.2 and Boolify, a music station that only says true or false. " + "On Channel 9 the hit fictional reality show 'A Butcher Is Born' airs at 21:00 (contestants Rami 'The Cleaver', Shuli Two-Knives, Grandpa Moti); the hosts are obsessed with it.";
 const AD_EVERY_MIN = 75; // at most one plug per this many minutes
 
 const PERSONA =
@@ -334,7 +337,7 @@ function publicState(s, dev) {
   return {
     day: showDay(s.startedAt, Date.now()),
     build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
-    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined })),
+    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, media: /\bnesflicks\b/i.test(e.text || "") ? "nesflicks" : /\b8bittv\b|\bchannel 8\b/i.test(e.text || "") ? "8bittv" : /\bboolify\b/i.test(e.text || "") ? "boolify" : /\bchannel 9\b/i.test(e.text || "") ? "ch9" : /\bradio herzl\b/i.test(e.text || "") ? "herzl" : undefined, ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined })),
     talk: (s.talk || []).slice(-80), dev: !!dev,
     studio: s.studio || null, show: s.show || null, call: s.call || null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },

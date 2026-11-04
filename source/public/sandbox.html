@@ -62,6 +62,8 @@
         <div><label for="with">With</label><select id="with"></select></div>
         <div><label for="ride">Vehicle, if he rides</label><select id="ride"><option value="">Automatic</option><option value="bus">Bus</option><option value="taxi">Taxi</option></select></div>
       </div>
+      <label for="media">On the TV or radio</label>
+      <select id="media"><option value="">By the clock</option><option value="ch9">Channel 9</option><option value="8bittv">8bitTV (Channel 8)</option><option value="nesflicks">NESflicks</option><option value="herzl">Radio Herzl</option><option value="boolify">Boolify</option></select>
       <div class="chips" style="margin-top:8px"><label><input type="checkbox" id="delivery"> ateBite courier arrives</label></div>
       <div id="lines"></div>
       <div class="bar">
@@ -158,11 +160,11 @@ Back to the cameras.</textarea>
   function actions(){ fill($('act'), M.locations[$('loc').value].map(a => [a, a])); }
   function moment(){
     const said = lines.filter(l => l.say.trim()), hosts = ['zohar','oren'];
-    return {location: $('loc').value, action: $('act').value, with: $('with').value || null, ride: $('ride').value || null, delivery: $('delivery').checked,
+    return {location: $('loc').value, action: $('act').value, with: $('with').value || null, ride: $('ride').value || null, delivery: $('delivery').checked, media: $('media').value || null,
       lines: said.filter(l => !hosts.includes(l.who)).map(l => ({who: l.who, say: l.say})), commentary: said.filter(l => hosts.includes(l.who)).map(l => ({who: l.who, say: l.say}))};
   }
   function open(m){
-    $('loc').value = m.location; actions(); $('act').value = m.action; $('with').value = m.with || ''; $('ride').value = m.ride || ''; $('delivery').checked = !!m.delivery;
+    $('loc').value = m.location; actions(); $('act').value = m.action; $('with').value = m.with || ''; $('ride').value = m.ride || ''; $('media').value = m.media || ''; $('delivery').checked = !!m.delivery;
     lines = [...m.lines, ...m.commentary].map(l => ({...l})); drawLines();
   }
   const label = m => { const c = cast().find(x => x.id === m.with), n = m.lines.length + m.commentary.length; return `${m.location} · ${m.action}${c ? ' · ' + c.name : ''}${n ? ' · ' + n + (n > 1 ? ' lines' : ' line') : ''}`; };

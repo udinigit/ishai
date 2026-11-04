@@ -263,6 +263,7 @@
     bathroom:  ['bathroom','showering'] // page-only room: the story says apartment/bathroom|showering
   };
   let TUNING = false;   // the live feed hasn't answered yet
+  let CUR_MEDIA = null; // 'ch9', '8bittv', 'nesflicks', 'herzl' or 'boolify' when the story's moment says which
   let NEXT_RIDE = null; // 'bus' or 'taxi' when the story's moment says which
   let UNLOCKED = new Set(); // items the story has brought in (tv, radio)
   const BATH = new Set(['bathroom','showering']); // he disappears behind the bathroom door
@@ -1023,7 +1024,7 @@
       R(13,11,32,30,C.frame); const s = drawSky(15,13,28,26,hf,t);
       if (s.night){ if (!cloudy()) { R(35,27,4,4,'#f2efd0'); R(36,27,3,1,s.c); } } else if (!s.dawn && !s.overcast && !s.noSun){ R(34,16,5,5,'#ffe27a'); R(18,26,8,2,'#fff'); R(20,25,4,1,'#fff'); }
       R(28,13,2,26,C.frame); R(15,25,28,2,C.frame); R(11,40,36,2,C.frame);
-      if (UNLOCKED.has('radio')){ markHead('radio', 14, 34);
+      if (UNLOCKED.has('radio')){ markHead('radio', 14, 34); if (a==='listening' && boolifyOn()) drawLater = t2 => { R(20,35,4,2,'#1a0a1a'); for (let i=0;i<4;i++) R(20+i,35,1,2,(Math.floor(t2/400)+i)%2?'#ff7ad9':'#7a2a6a'); };
         R(14,34,11,6,'#8a4a2a'); R(14,34,11,1,'#a65d36'); R(15,35,4,4,'#5a2f1a'); R(16,36,1,1,'#3a1e10'); R(18,37,1,1,'#3a1e10'); R(16,38,1,1,'#3a1e10');
         R(20,35,4,2,'#e0c060'); R(21,38,2,1,'#2a2a2a'); line(23,33,27,27,'#bbbbbb');
         if (settled && a==='listening') for (let i=0;i<3;i++){ const ph=(t/1600+i/3)%1; const nx=22+Math.floor(ph*14)+(i%2)*3, ny=31-Math.floor(ph*18);
@@ -1485,6 +1486,35 @@
   function treadmill(x, t, on){
     R(x,86,40,6,'#2a2a2a'); R(x+2,84,36,3,'#1a1a1a'); if (on) for (let k=0;k<5;k++) R(x+2+((k*8 + Math.floor(t/60))%36),85,2,1,'#3d3d3d');
     R(x+34,62,3,24,'#555'); R(x+29,64,8,2,'#666'); R(x+30,58,10,5,'#3a3a3a'); R(x+31,59,8,2, on ? '#ff5a3a' : '#552222'); R(x,92,3,4,'#222'); R(x+37,92,3,4,'#222');
+  }
+  // ---------- what's on: Channel 9, 8bitTV (Channel 8) and NESflicks. The story can pick one (ev.media); otherwise the clock does ----------
+  const pickTv = () => { if (NOW() < MEDIA_UNTIL || CUR_MEDIA === 'ch9') return 'ch9'; if (CUR_MEDIA === '8bittv' || CUR_MEDIA === 'nesflicks') return CUR_MEDIA;
+    return ['ch9','8bittv','ch9','nesflicks'][Math.floor(NOW() / 600000) % 4]; };
+  function eightBitTv(x, y, t){       // 34 x 20: a blocky little hero, the channel's own show
+    const ph = Math.floor(t / 15000) % 4;
+    if (ph === 3){ R(x,y,34,20,'#1b1464'); ['#ff4f79','#ffd23f','#3bceac','#4d8bff'].forEach((c,i) => R(x+3+i*7,y+3,6,3,c)); word('8',x+6,y+10,'#ffd23f'); word('BIT',x+12,y+10,'#ffffff'); R(x+6,y+16,23,1,'#3bceac'); return; }
+    const scroll = Math.floor(t / 70), hx = x+9, jump = Math.abs(Math.sin(t / 420)) * 7 | 0;
+    R(x,y,34,20, ph === 2 ? '#3a1d6e' : '#5cc8ff');
+    for (let i=0;i<3;i++) R(x + ((i*14 - Math.floor(scroll/3)) % 42 + 42) % 42 - 4, y+3+i*2, 7, 2, ph === 2 ? '#7a5ab8' : '#ffffff');
+    R(x,y+16,34,4,'#3a9a4a'); for (let i=0;i<7;i++) R(x + ((i*6 - scroll) % 36 + 36) % 36 - 1, y+16, 3, 1, '#2a7a3a');
+    const blk = ((26 - scroll) % 40 + 40) % 40 - 3; R(x+Math.min(30,Math.max(0,blk)), y+13, 3, 3, '#ffd23f');
+    R(hx,y+11-jump,4,5,'#ff4f79'); R(hx+1,y+12-jump,2,1,'#ffffff');
+    R(x+28,y+1,5,7,'#1b1464'); word('8',x+29,y+2,'#ffd23f');
+  }
+  function nesflicksTv(x, y, t){       // 34 x 20: a grey cartridge-box look with a gold label; the same four screens for everyone
+    const e = t % 120000;
+    if (e < 8000){ R(x,y,34,20,'#26303b'); R(x+3,y+2,28,16,'#8d97a3'); R(x+3,y+2,28,2,'#b6bec7'); R(x+5,y+5,24,11,'#e0b03a'); word('NES',x+11,y+6,'#26303b'); R(x+7,y+13,20,1,'#26303b'); }
+    else if (e < 20000){ R(x,y,34,20,'#26303b'); const pick = Math.floor(e / 2000) % 4;
+      ['#3bceac','#c2527a','#4d8bff','#d98a2b'].forEach((c,i) => { const tx = x+2+i*8, ty = y+3; R(tx,ty,6,6,c); R(tx,ty+7,6,6,['#6a7a4a','#7a4fa0','#c9543a','#3a7a9a'][i]); if (i === pick){ R(tx-1,ty-1,8,1,'#ffd36a'); R(tx-1,ty+6,8,1,'#ffd36a'); } }); R(x+2,y+17,14,1,'#8d97a3'); }
+    else if (e < 112000){ R(x,y,34,20,'#000000'); R(x,y+3,34,14,'#e8805a'); R(x,y+3,34,4,'#6b3a78'); R(x+22,y+7,5,5,'#ffe27a');
+      R(x,y+13,34,4,'#2a2030'); const w = (t / 120) % 40 - 3; R(x+w,y+9,3,4,'#141018'); R(x+w+1,y+8,1,1,'#141018'); }
+    else { R(x,y,34,20,'#26303b'); word('STILL',x+7,y+3,'#ffd36a'); word('THERE',x+7,y+9,'#ffd36a'); R(x+12,y+15,10,3,'#e0b03a'); R(x+15,y+16,4,1,'#26303b'); }
+  }
+  function drawHomeTv(x, y, t){       // the home TV faces away from the camera: viewers see its picture in a small inset
+    const ch = pickTv();
+    R(x-2,y-2,38,24,'#141418');
+    if (ch === '8bittv') eightBitTv(x, y, t); else if (ch === 'nesflicks') nesflicksTv(x, y, t);
+    else { R(x,y,34,20,'#1d3557'); R(x+12,y+3,6,6,'#d9a87c'); R(x+10,y+9,10,7,'#2a2a3a'); R(x+2,y+15,30,3,'#a0a6b0'); R(x+26,y+1,6,7,'#c23b3b'); word('9',x+28,y+2,'#ffffff'); R(x,y+18,34,2,'#c23b3b'); }
   }
   function gymTv(t){
     R(116,4,2,6,'#333'); R(98,10,38,24,'#141418');
@@ -2104,6 +2134,7 @@
     }
   }
 
+  let drawLater = null;
   function render(t){
     HEADS = {};
     const hf = hourNow();
@@ -2120,11 +2151,14 @@
       $('nosig').style.display='flex'; $('nosigText').textContent = next ? `[ SWITCHING TO ${next.cam} ]` : '[ ... ]';
       return;
     }
+    drawLater = null;
     const settled = !actor.travelling && !actor.hidden && !actor.err && !actor.viaUntil && actor.viaFinal == null;
     const outdoor = OUTSIDE.has(actor.loc);
     UMB = rainy() && outdoor;
     SCENES[actor.loc].draw(t, hf, actor.action, settled, actor);
     UMB = false;
+    if (drawLater) drawLater(t);
+    if (actor.loc === 'apartment' && actor.action === 'watching' && UNLOCKED.has('tv') && !actor.travelling && !DREAMING){ drawHomeTv(152, 8, t); }
 
     if (rainy() && outdoor) drawRain(0,0,W,H,t, stormy() ? 140 : 90);
     if (stormy() && actor.loc!=='offscreen' && actor.loc!=='bathroom' && lightning(t)) alpha(outdoor ? .55 : .18, () => R(0,0,W,H,'#eef4ff'));
@@ -2475,8 +2509,8 @@
   };
   function speaker(id){
     if (HOSTS[id]) return {name:HOSTS[id].name, color:HOSTS[id].color};
-    if (id==='radio') return {name:'RADIO HERZL 88.2', color:'#ffd36a'};
-    if (id==='tv') return {name:'CHANNEL 9', color:'#9fd0ff'};
+    if (id==='radio') return boolifyOn() ? {name:'BOOLIFY', color:'#ff7ad9'} : {name:'RADIO HERZL 88.2', color:'#ffd36a'};
+    if (id==='tv') return {name: pickTv() === '8bittv' ? '8BITTV' : pickTv() === 'nesflicks' ? 'NESFLICKS' : 'CHANNEL 9', color:'#9fd0ff'};
     if (id==='ishai') return {name:'ISHAI', color:tint(CLOTH.teal,.45)};
     const c = CAST[id]; return {name:(c?c.name:id).toUpperCase(), color: tint(CLOTH[c?.look?.shirt]||CLOTH.gray,.45)};
   }
@@ -2527,7 +2561,7 @@
       if (queue.length && !(ev.lines || []).length){ shown.add(ev.id); if (DEV) addLine(ev, false); continue; }
       const entry = TL.get(ev.id), start = startOf(ev); ev._late = Math.max(0, NOW() - start);
       // already over with more waiting (tab came back): no walking through old moments; well into this one: be where he is by now
-      NEXT_RIDE = ev.ride || null;
+      NEXT_RIDE = ev.ride || null; CUR_MEDIA = ev.media || null;
       if (!forceLoc && !ev._joined && !(queue.length && entry && NOW() >= entry.end)) setState(ev.location||'apartment', ev.action, ev._late > 20000, ev.with||null);
       actor.delivery = ev.delivery && ev._late < 35000 ? {at: start} : null;   // an ateBite courier at the door
       enterScene(ev.location, ev.with);
@@ -2634,7 +2668,7 @@
     const tag = document.createElement('span'); tag.textContent = '· ' + fmtHM.format(new Date(m.t)); hn.appendChild(tag);
     const line = document.createElement('div'); line.className = 'hl';
     body.append(hn, line); card.append(faceCanvas(m.who), body); booth.appendChild(card);
-    card.classList.toggle('ad', /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga/i.test(m.say));
+    card.classList.toggle('ad', /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga|nesflicks|8bittv|boolify/i.test(m.say));
     while (booth.querySelectorAll('.host').length > 8) booth.removeChild(booth.querySelector('.host'));
     if (!animate){ line.textContent = m.say; boothScroll(); return Promise.resolve(); }
     const full = m.say, b = budget || {at: NOW(), ms: 0}, into = Math.max(0, NOW() - b.at); let i = charsAt(full, into);
@@ -2658,7 +2692,7 @@
     if (m.loc && m.loc !== lastScene.split('|')[0]){ const d = document.createElement('div'); d.className = 'scene'; d.textContent = `— ${PLACE_NAME[m.loc]||m.loc.toUpperCase()} · ${fmtHM.format(new Date(m.t))} —`; talkEl.appendChild(d); }
     lastScene = scene;
     const sp = speaker(m.who);
-    const isAd = m.host && /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga/i.test(m.say);
+    const isAd = m.host && /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga|nesflicks|8bittv|boolify/i.test(m.say);
     const row = document.createElement('div'); row.className = 'msg' + (m.host ? ' host' : '') + (isAd ? ' ad' : '');
     const body = document.createElement('div');
     const who = document.createElement('div'); who.className = 'who'; who.style.color = sp.color; who.textContent = sp.name;
@@ -2800,6 +2834,8 @@
     ['The Second Floor','Elevator Out of Order'],['DJ Kettle','Steam'],['Moshe and the Roots','Thirsty'],['Night Bus 5','Last Stop Jaffa'],
     ['The Sunscreen Boys','Factor Fifty'],["Grandma's Wi-Fi",'Password Is on the Fridge'],['Mediterranean Static','Signal Lost']];
   const ADS = [
+    'NESflicks: a thousand films, and you will spend the evening choosing. Still there?',
+    'Tonight on 8bitTV, Channel 8: the news, in sixteen colours.',
     'Hungry? ateBite. The whole of Shuk Shalom at your door in thirty minutes. Tip your courier. Seriously.',
     'Everything Else: the store for everything else. Food? Next door, at the shuk.',
     'Tired? Cooola. Very tired? Two Cooolas. Cooola: wake up, aggressively.',
@@ -2814,9 +2850,14 @@
     'Kfar Kofi instant coffee. Ninety seconds from kettle to personality.'];
   const BRAND_TAGS = ['Cooola','ateBite','HummusPrime','Tahini Tower Savings Bank','FluffNap pillows','Kfar Kofi','Herzl Hardware'];
   const QUIPS = ['Big if true.','I will read the rest after my coffee.','Good news, for once.','My producer says that is a real story.','Science, everybody.','Wild times.'];
-  function dj(){ const h = hourNow(); return h >= 6 && h < 12 ? {id:'dj_benny', name:'Benny Boom', show:'the Wake-Up Call'}
+  // Boolify takes over on the half hours unless the story has picked a station: a station that only knows two answers
+  const boolifyOn = () => CUR_MEDIA === 'boolify' || (CUR_MEDIA !== 'herzl' && Math.floor(NOW() / 1800000) % 2 === 1);
+  const BOOLIFY_LINES = ['Boolify. Is this song good? True. The next one? Also true. We have never said false.', 'You are on the free tier of Boolify. Your next skip is available in 2031.',
+    'Boolify asks: do you like this song? Yes or no. Maybe is a premium feature.', 'Because you listened to one song, Boolify made you a playlist of that song.', 'Boolify. All of your music, in ones and zeros. Mostly zeros.', 'This hour on Boolify: love songs, if and only if you are in love.'];
+  function dj(){ if (boolifyOn()) return {id:'dj_bool', name:'Boolify', show:'Boolify'}; const h = hourNow(); return h >= 6 && h < 12 ? {id:'dj_benny', name:'Benny Boom', show:'the Wake-Up Call'}
     : h >= 12 && h < 19 ? {id:'dj_shira', name:'Shira Gold', show:'the Afternoon Drive'} : {id:'dj_yoni', name:'Night Owl Yoni', show:'Night Owls'}; }
   function djLine(seg){
+    if (boolifyOn()) return BOOLIFY_LINES[Math.floor(hash(seg * 37 + 5) * BOOLIFY_LINES.length)];
     const d = dj(), r = k => hash(seg * 31 + k), pickOf = (arr, k) => arr[Math.floor(r(k) * arr.length)];
     const song = BANDS[seg % BANDS.length], nextSong = BANDS[(seg + 1) % BANDS.length], live = Sound.streaming();
     const W8 = WORLD || {}, wx = W8.weather, heads = (W8.headlines || []).filter(Boolean), sh = W8.shabbat;
@@ -2842,7 +2883,7 @@
     if (!RADIO.on){ RADIO.on = true; RADIO.seg = seg; }
     if (seg !== RADIO.seg){ RADIO.seg = seg; if (!live) Sound.newSong(); }
     const want = radioPick(); if (live && want && want.url !== live.url) Sound.restartAmb();   // station change
-    $('hudAction').textContent = 'RADIO HERZL 88.2';
+    $('hudAction').textContent = boolifyOn() ? 'BOOLIFY' : 'RADIO HERZL 88.2';
     $('stMusic').textContent = live ? `\u266A ${live.name} (via radio-browser.info)` : '';
     if (into >= talkAt && into < talkAt + 14 && RADIO.spoken !== seg && NOW() > MEDIA_UNTIL){
       RADIO.spoken = seg; const d = dj(), text = djLine(seg);
@@ -3185,7 +3226,7 @@
     setState('apartment', 'idle', true);
     let n = 0;
     const reset = () => { TL.forEach(e => { e.dead = true; }); TL.clear(); tlLast = null; held.clear(); queue.length = 0; [...WAITS].forEach(f => f()); setSpeaking(null); SAY.who = null; Sound.hush(); if (SHOW_STOP) SHOW_STOP(); };
-    const event = m => ({id: 'sb-' + (++n), t: NOW(), location: m.location, action: m.action, with: m.with || null, ride: m.ride || undefined, delivery: m.delivery || undefined, text: '', lines: m.lines || [], commentary: m.commentary || []});
+    const event = m => ({id: 'sb-' + (++n), t: NOW(), location: m.location, action: m.action, with: m.with || null, ride: m.ride || undefined, delivery: m.delivery || undefined, media: m.media || undefined, text: '', lines: m.lines || [], commentary: m.commentary || []});
     window.__sandbox = {
       menus: () => ({locations: Object.fromEntries(Object.entries(LOCATIONS).filter(([k]) => k !== 'bathroom')), hair: ['short','long','bald','bun','curly','cap'], hairColor: Object.keys(HAIRC), skin: Object.keys(SKINC), cloth: Object.keys(CLOTH), extras: ['glasses','beard','mustache','earring','apron','scarf']}),
       cast: () => Object.values(CAST), setCast: list => setCast([...base, ...list]), reset,
