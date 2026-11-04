@@ -313,7 +313,9 @@ export default {
     if (url.pathname === "/api/push" && (req.method === "POST" || req.method === "DELETE")) {
       const b = await req.json().catch(() => ({})), ep = String(b.endpoint || ""), key = ep.length < 700 && pushAllowed(ep) ? await pushKey(ep) : null;
       if (!key) return json({ error: "not a push address" }, {}, 400);
-      if (req.method === "DELETE") await env.ISHAI.delete(key); else if (!(await env.ISHAI.get(key))) await env.ISHAI.put(key, ep);
+      const num = (v, lo, hi, d) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= lo && n <= hi ? n : d; };
+      const dev = JSON.stringify({ ep, from: num(b.from, 0, 23, 8), to: num(b.to, 0, 24, 23), max: num(b.max, 1, ALERTS_A_DAY, ALERTS_A_DAY) });
+      if (req.method === "DELETE") await env.ISHAI.delete(key); else if ((await env.ISHAI.get(key)) !== dev) await env.ISHAI.put(key, dev);
       return json({ ok: true }, { "cache-control": "no-store" });
     }
     if (url.pathname === "/sandbox") return new Response(SANDBOX_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
@@ -1581,11 +1583,17 @@ function alertText(s, ev, last) {
   return null;
 }
 function maybeAlert(s, ev, last, hour, now) {
-  if (hour < 8 || hour >= 23) return;
   const text = alertText(s, ev, last); if (!text) return;
   const day = new Date(now + 7200000).toISOString().slice(0, 10), log = s.alertLog && s.alertLog.day === day ? s.alertLog : { day, n: 0, at: 0 };
   if (log.n >= ALERTS_A_DAY || now - log.at < ALERT_GAP_MIN * 60000) return;
-  s.alertLog = { day, n: log.n + 1, at: now }; s.alert = { title: "Watching Ishai", body: text + " In 5 minutes.", at: now }; s.alertSend = { cursor: null, sent: 0 };
+  s.alertLog = { day, n: log.n + 1, at: now }; s.alert = { title: "Watching Ishai", body: text + " In 5 minutes.", at: now, hour, n: log.n + 1 }; s.alertSend = { cursor: null, sent: 0 };
+}
+// each device has its own hours (Israel time; "from" later than "to" runs past midnight) and its own limit: it gets the day's first "max" alerts
+function deviceWants(d, a) {
+  if (a.test) return true;
+  if (a.n > d.max) return false;
+  if (d.from === d.to) return true;
+  return d.from < d.to ? a.hour >= d.from && a.hour < d.to : a.hour >= d.from || a.hour < d.to;
 }
 // a batch at each run: the free plan allows only so many requests at a time
 async function sendAlerts(env, s) {
@@ -1593,7 +1601,8 @@ async function sendAlerts(env, s) {
   if (Date.now() - s.alert.at > 20 * 60000) { s.alertSend = null; return 0; }
   const page = await env.ISHAI.list({ prefix: "push:", limit: PUSH_BATCH, cursor: job.cursor || undefined }), auth = {};
   const rs = await Promise.allSettled(page.keys.map(async k => {
-    const ep = await env.ISHAI.get(k.name); if (!ep) return 0;
+    const raw = await env.ISHAI.get(k.name); if (!raw) return 0;
+    const dev = JSON.parse(raw), ep = dev.ep; if (!deviceWants(dev, s.alert)) return 0;
     const origin = new URL(ep).origin; auth[origin] = auth[origin] || await vapidHeader(env, origin);
     const r = await fetch(ep, { method: "POST", headers: { authorization: auth[origin], ttl: "300", urgency: "high", "content-length": "0" } });
     if (r.status === 404 || r.status === 410) await env.ISHAI.delete(k.name);     // that device has gone
@@ -1704,7 +1713,7 @@ async function directorApi(req, env) {
       const g = s.director.find(d => d.id === b.id && d.status !== "done");
       if (g) { g.status = "done"; g.how = "cancelled"; g.doneAt = now; }
     } else if (b.action === "testAlert") {
-      s.alert = { title: "Watching Ishai", body: "This is a test alert from the director.", at: now }; s.alertSend = { cursor: null, sent: 0 };
+      s.alert = { title: "Watching Ishai", body: "This is a test alert from the director.", at: now, test: true }; s.alertSend = { cursor: null, sent: 0 };
       const sent = await sendAlerts(env, s); await saveState(env, s); return json({ ok: true, sent });
     } else if (b.action === "tick") {
       await saveState(env, s); await tick(env, true);

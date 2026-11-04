@@ -161,6 +161,18 @@
 </style>
 </head>
 <body>
+<div class="bugf" id="alertF" hidden><div class="in">
+  <div>KEY MOMENT ALERTS</div>
+  <div style="font-size:15px;opacity:.75">A short heads-up about 5 minutes before something important happens. Saved on this device.</div>
+  <label style="display:flex;gap:8px;align-items:center;font-size:18px"><input type="checkbox" id="alertOn"> Send me alerts</label>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:16px">
+    <label>From <select id="alertFrom" class="snd" style="width:100%"></select></label>
+    <label>Until <select id="alertTo" class="snd" style="width:100%"></select></label>
+    <label style="grid-column:1/-1">At most <select id="alertMax" class="snd" style="width:100%"><option value="1">1 a day</option><option value="2">2 a day</option><option value="3">3 a day</option><option value="4">4 a day</option></select></label>
+  </div>
+  <div style="font-size:14px;opacity:.75">Times are Israel time.</div>
+  <div class="row"><span id="alertM" style="font-size:15px"></span><button id="alertC" class="snd">CANCEL</button><button id="alertS" class="snd">SAVE</button></div>
+</div></div>
 <div class="bugf" id="bugF" hidden><div class="in">
   <div>REPORT A BUG</div>
   <div style="font-size:15px;opacity:.75">What went wrong? The time and what is on screen right now are added automatically.</div>
@@ -3416,20 +3428,31 @@
   const ALERT_KEY = 'BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI';
   (async () => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || forceLoc || params.has('sandbox') || params.has('preview') || params.has('demo') || location.protocol !== 'https:' && location.hostname !== '127.0.0.1') return;
-    const bell = $('bell'); bell.hidden = false;
-    const show = on => { bell.textContent = on ? '\u{1F514}' : '\u{1F515}'; bell.setAttribute('aria-label', on ? 'Alerts are on' : 'Alerts are off'); bell.title = on ? 'Alerts are on. Tap to turn them off' : 'Tell me before key moments'; };
+    const bell = $('bell'), DEF = {from: 8, to: 23, max: 4}, PK = 'ishaiAlerts'; bell.hidden = false;
+    const load = () => { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(PK)) || {}); } catch(e){ return {...DEF}; } };
+    const keep = p => { try { localStorage.setItem(PK, JSON.stringify(p)); } catch(e){} };
+    const hh = h => String(h).padStart(2, '0') + ':00';
+    for (let h = 0; h < 24; h++) $('alertFrom').add(new Option(hh(h), h));
+    for (let h = 1; h <= 24; h++) $('alertTo').add(new Option(h === 24 ? '24:00' : hh(h), h));
+    const show = on => { bell.textContent = on ? '\u{1F514}' : '\u{1F515}'; bell.setAttribute('aria-label', on ? 'Alerts are on' : 'Alerts are off'); bell.title = 'Alert settings'; };
     const key = () => Uint8Array.from(atob(ALERT_KEY.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
-    const send = (method, sub) => fetch('/api/push', {method, headers: {'content-type': 'application/json'}, body: JSON.stringify({endpoint: sub.endpoint})});
-    try { const reg = await navigator.serviceWorker.getRegistration('/'); const sub = reg && await reg.pushManager.getSubscription(); show(!!sub); if (sub) send('POST', sub).catch(() => {}); } catch(e){}
-    bell.onclick = async e => { e.stopPropagation(); bell.disabled = true;
+    const send = (method, sub, p) => fetch('/api/push', {method, headers: {'content-type': 'application/json'}, body: JSON.stringify({endpoint: sub.endpoint, ...p})});
+    const current = async () => { const reg = await navigator.serviceWorker.getRegistration('/'); return reg ? reg.pushManager.getSubscription() : null; };
+    try { const sub = await current(); show(!!sub); if (sub) send('POST', sub, load()).catch(() => {}); } catch(e){}
+    const close = () => { $('alertF').hidden = true; };
+    bell.onclick = async e => { e.stopPropagation(); const p = load(); let on = false; try { on = !!(await current()); } catch(err){}
+      $('alertOn').checked = on; $('alertFrom').value = p.from; $('alertTo').value = p.to; $('alertMax').value = p.max; $('alertM').textContent = ''; $('alertF').hidden = false; };
+    $('alertC').onclick = close;
+    $('alertS').onclick = async () => {
+      const p = {from: +$('alertFrom').value, to: +$('alertTo').value, max: +$('alertMax').value}, msg = $('alertM'); keep(p); $('alertS').disabled = true; msg.textContent = '';
       try {
         const reg = await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready;
-        const sub = await reg.pushManager.getSubscription();
-        if (sub){ await send('DELETE', sub); await sub.unsubscribe(); show(false); }
-        else if ((await Notification.requestPermission()) === 'granted'){ const fresh = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: key()}); await send('POST', fresh); show(true); }
-        else bell.title = 'Your browser is blocking alerts for this site';
-      } catch(err){ console.error('alerts', err); }
-      bell.disabled = false; };
+        let sub = await reg.pushManager.getSubscription();
+        if (!$('alertOn').checked){ if (sub){ await send('DELETE', sub, {}); await sub.unsubscribe(); } show(false); close(); }
+        else if (sub || (await Notification.requestPermission()) === 'granted'){ if (!sub) sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: key()}); const r = await send('POST', sub, p); if (!r.ok) throw new Error('server'); show(true); close(); }
+        else msg.textContent = 'Your browser is blocking alerts for this site. Allow them in its settings.';
+      } catch(err){ console.error('alerts', err); msg.textContent = 'That did not work. Try again.'; }
+      $('alertS').disabled = false; };
   })();
   if (params.has('syncdebug')) window.__ishaiSync = () => ({loc: actor.loc, x: actor.x, a: actor.action, hidden: actor.hidden, comp: comp.id ? comp.x : null, dog: dog.loc ? dog.x : null, cam: SCENES[actor.loc].cam, ride: !!actor.ride, sw: !!actor.switching, sim: simT});
   requestAnimationFrame(loop);
