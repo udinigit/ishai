@@ -261,6 +261,7 @@
     offscreen: ['away'],
     bathroom:  ['bathroom','showering'] // page-only room: the story says apartment/bathroom|showering
   };
+  let TUNING = false;   // the live feed hasn't answered yet
   let NEXT_RIDE = null; // 'bus' or 'taxi' when the story's moment says which
   let UNLOCKED = new Set(); // items the story has brought in (tv, radio)
   const BATH = new Set(['bathroom','showering']); // he disappears behind the bathroom door
@@ -2105,6 +2106,7 @@
   function render(t){
     HEADS = {};
     const hf = hourNow();
+    if (TUNING){ drawStatic(1); $('nosig').style.display='flex'; $('nosigText').textContent = '[ TUNING IN ]'; return; }   // no picture until we know where he really is
     if (actor.switching){
       const next = actor.pending && actor.pending.route.length ? SCENES[actor.pending.route[0]] : null;
       if (actor.bumper){ // "this camera switch is brought to you by Cooola"
@@ -2562,6 +2564,7 @@
   }
   setInterval(release, 1000);   // the picture loop does this every frame; this keeps background tabs going
   function ingest(events, firstLoad){
+    TUNING = false;
     const now = NOW();
     if (firstLoad && !params.has('sleptMin')){ // when did this sleep start? (the run of sleeping moments at the end)
       const past = events.filter(e => e.t <= now).sort((a,b) => a.t - b.t); let i = past.length - 1, since = null;
@@ -2975,7 +2978,7 @@
   // ================= preview of the planned day (/?preview): plays the planner's beats in order =================
   let PREVIEW = null;
   async function startPreview(){
-    demoMode = true;
+    demoMode = true; TUNING = false;
     $('stLink').innerHTML = '<span class="warn">PREVIEW OF THE PLAN</span>';
     let p; try { p = await (await fetch('/api/plan', {cache:'no-store'})).json(); } catch(e){ $('stLink').textContent = 'PREVIEW: could not load the plan'; return; }
     setCast((p.cast||[]).map(c => ({...c, lastSeen: NOW()})));
@@ -3239,7 +3242,7 @@
       const future = new Set(s.events.filter(e=>e.unlocks && !shown.has(e.id) && startOf(e) > NOW()).map(e=>e.unlocks));
       (s.unlocked||[]).forEach(u=>{ if (!future.has(u)) UNLOCKED.add(u); });
       ingest(s.events, !loaded); loaded = true;
-    } catch(e){ console.error('feed render error', e); loaded = true; }
+    } catch(e){ console.error('feed render error', e); loaded = true; TUNING = false; }
   }
 
   if (params.has('rain') || params.has('cloudy') || params.has('storm')) WORLD = {weather:{temp:19, code: params.has('storm') ? 95 : params.has('rain') ? 61 : 3,
@@ -3256,6 +3259,7 @@
   else if (params.has('preview')) startPreview();
   else if (location.protocol === 'file:' || params.has('demo')) { if (params.has('dev')) enableDev(); startDemo(); }
   else {
+    TUNING = true; $('cam').textContent = 'CAM-??'; $('place').textContent = 'ISHAI // ...'; $('hudAction').textContent = '--';
     syncClock().finally(() => { poll(); setInterval(()=>{ if (!demoMode) poll(); }, POLL_MS); });
     setInterval(syncClock, 15 * 60000); document.addEventListener('visibilitychange', () => { if (!document.hidden) syncClock(); });
   }
