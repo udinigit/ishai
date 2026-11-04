@@ -198,6 +198,7 @@ const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => !NEEDS[a] || unloc
 
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
+const SANDBOX_HTML = __SANDBOX_HTML__;
 const BUILD = "__BUILD__";
 // The story plan (story/plan.json in the repository), written ahead by the daily planner.
 const PLAN = __PLAN__;
@@ -274,6 +275,7 @@ export default {
       await env.ISHAI.put("bugs", JSON.stringify(list.slice(-60)));
       return json({ ok: true });
     }
+    if (url.pathname === "/sandbox") return new Response(SANDBOX_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
     if (url.pathname === "/director")
       return new Response(DIRECTOR_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
     if (url.pathname === "/api/director") {

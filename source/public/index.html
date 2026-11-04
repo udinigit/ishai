@@ -2546,7 +2546,8 @@
   const charsAt = (full, ms) => { let i = 0; while (ms > 0 && i < full.length){ ms -= charDelay(full[i]); i++; } return i; };
   // each line gets the same slot on every device: long enough for the typing and for a voice to say it
   const lineMs = say => Math.max(typeMs('"' + say + '"'), 500 + say.length * 70);
-  const untilT = at => { const ms = at - NOW(); return ms > 0 ? new Promise(r => setTimeout(r, ms)) : Promise.resolve(); };
+  const WAITS = new Set();    // the sandbox can cut waits short
+  const untilT = at => { const ms = at - NOW(); if (ms <= 0) return Promise.resolve(); return new Promise(r => { const f = () => { WAITS.delete(f); clearTimeout(id); r(); }, id = setTimeout(f, ms); WAITS.add(f); }); };
   function talkPlan(ev, prevLoc){
     const lines = ev.lines || [], hosts = ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines), plan = [];
     // arriving by bus or taxi: the talk waits until he is there
@@ -2706,7 +2707,7 @@
     for (let k = 0; k < entry.plan.length; k++){
       const p = entry.plan[k], l = p.l;
       if (p.host && k && !entry.plan[k-1].host) setSpeaking(null);
-      await untilT(entry.start + p.at);
+      await untilT(entry.start + p.at); if (entry.dead) break;
       const at = entry.start + p.at, past = NOW() >= at + p.ms;
       if (!past && k) Sound.hush();
       if (p.host){ await addMsg({id: ev.id + ':c' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, host: true}, true, {at, ms: p.ms}); await untilT(at + p.ms); continue; }
@@ -2714,7 +2715,7 @@
       const air = l.who==='radio' || l.who==='tv';   // a live line from the radio / TV the story reacts to
       if (air){ MEDIA_UNTIL = at + 240000; if (l.who==='radio' && !past) Sound.duck(true); }
       await addMsg({id: ev.id + ':' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location}, true, {at, ms: p.ms});
-      await untilT(at + p.ms);
+      await untilT(at + p.ms); if (entry.dead) break;
       if (air && l.who==='radio' && !past) Sound.duck(false);
     }
     setSpeaking(null);
@@ -3177,6 +3178,32 @@
     $('pipBtn').hidden = false;
     $('pipBtn').onclick = (e) => { e.stopPropagation(); if (POP.on){ if (document.pictureInPictureElement) document.exitPictureInPicture().catch(()=>{}); popClose(); } else popOpen().catch(err => { console.error('pop out', err); popClose(); }); };
   }
+  // ================= sandbox (/sandbox): the director's own test stage. No live feed, no AI; moments go through the same path as the story's =================
+  function startSandbox(){
+    demoMode = true; TUNING = false; $('stLink').textContent = 'SANDBOX'; $('pipBtn').hidden = true;
+    const base = DEMO_CAST.map(c => ({...c, lastSeen: NOW()})); setCast(base);
+    setState('apartment', 'idle', true);
+    let n = 0;
+    const reset = () => { TL.forEach(e => { e.dead = true; }); TL.clear(); tlLast = null; held.clear(); queue.length = 0; [...WAITS].forEach(f => f()); setSpeaking(null); SAY.who = null; Sound.hush(); if (SHOW_STOP) SHOW_STOP(); };
+    const event = m => ({id: 'sb-' + (++n), t: NOW(), location: m.location, action: m.action, with: m.with || null, ride: m.ride || undefined, delivery: m.delivery || undefined, text: '', lines: m.lines || [], commentary: m.commentary || []});
+    window.__sandbox = {
+      menus: () => ({locations: Object.fromEntries(Object.entries(LOCATIONS).filter(([k]) => k !== 'bathroom')), hair: ['short','long','bald','bun','curly','cap'], hairColor: Object.keys(HAIRC), skin: Object.keys(SKINC), cloth: Object.keys(CLOTH), extras: ['glasses','beard','mustache','earring','apron','scarf']}),
+      cast: () => Object.values(CAST), setCast: list => setCast([...base, ...list]), reset,
+      play(m){ const e = event(m); ingest([e], false); },
+      go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(e.location, e.action, true, e.with); },
+      busy: () => !!actor.pending || actor.travelling || !!actor.ride || !!actor.switching || !!actor.rideUntil || held.size > 0 || queue.length > 0 || (!!tlLast && NOW() < tlLast.end),
+      state: () => ({loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
+      world(o){ forceHour = o.hour; const code = {clear: 0, cloudy: 3, rain: 61, storm: 95}[o.weather]; const t = NOW();
+        WORLD = {weather: {temp: o.temp, code, desc: o.weather, rain: o.weather === 'rain' || o.weather === 'storm', cloudy: o.weather !== 'clear'}, shabbat: o.shabbat ? {start: t - 3600000, end: t + 86400000, startLabel: '17:00', endLabel: '18:00'} : null};
+        $('stNext').textContent = weatherLabel(); },
+      unlock(list){ UNLOCKED = new Set(list); },
+      drawLook(c, look){ const x = c.getContext('2d'), prev = g; x.clearRect(0, 0, c.width, c.height); g = x; try { person(look, 5, 4, 0, {face: 0, seed: 9}); } finally { g = prev; } },
+      call(lines){ if (!callOn) playCall({id: 'sb-call' + (++n), t: NOW(), caller: {name: 'Test caller', from: 'Sandbox'}, lines}, NOW()); },
+      recap(lines){ if (!studioOn) playStudio({id: 'sb-st' + (++n), t: NOW(), lines}, NOW()); },
+      show(lines){ if (showOn) return; SHOW = {id: 'sb-sh' + (++n), t: NOW(), lines}; playShow(); SHOW = null; },
+      dream(){ reset(); setState('apartment', 'sleeping', true); SLEEP_SINCE = NOW() - 20 * 60000; DREAM = [{t: NOW(), loc: 'park', a: 'idle', w: null}, {t: NOW(), loc: 'cafe', a: 'drinking', w: null}, {t: NOW(), loc: 'bus', a: 'idle', w: null}]; }
+    };
+  }
   let SHOW_AUTO = false; const autoShown = new Set();
   setInterval(() => {
     if (forceLoc || PREVIEW || showOn || studioOn || callOn || !SHOW || autoShown.has(SHOW.id)) return;
@@ -3301,6 +3328,7 @@
   requestAnimationFrame(loop);
   if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }
   else if (params.has('preview')) startPreview();
+  else if (params.has('sandbox')) startSandbox();
   else if (location.protocol === 'file:' || params.has('demo')) { if (params.has('dev')) enableDev(); startDemo(); }
   else {
     TUNING = true; $('cam').textContent = 'CAM-??'; $('place').textContent = 'ISHAI // ...'; $('hudAction').textContent = '--';

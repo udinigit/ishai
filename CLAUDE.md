@@ -4,7 +4,7 @@ Live AI-written pixel-art reality feed on a free Cloudflare Worker. Pushing to `
 Owner (the director): udinigit. Read `docs/SCENE_GUIDELINES.md` before adding or changing any scenery, characters, props or animations.
 
 ## Repository
-- `source/public/index.html` — the page (all drawing, animation, sound). `source/public/director.html` — director page.
+- `source/public/index.html` — the page (all drawing, animation, sound). `source/public/director.html` — director page. `source/public/sandbox.html` — test stage.
 - `source/src/worker.template.js` — story engine (AI prompt, validation, director goals, plan merge, real-world data).
 - `story/season.md`, `story/plan.json` — season arcs and the day's beats (written by the daily planner).
 - `src/index.js` — generated. Build with `cd source && node build.mjs`. Never edit `src/index.js` by hand.
@@ -43,6 +43,9 @@ Workers AI output costs ~6.5x input, so the engine avoids AI calls where it can 
 
 ## Pop out (picture-in-picture)
 `⧉ POP OUT` copies the scene into a hidden video (`POP`, `popDraw()`), with the last lines drawn in as captions because the HTML doesn't reach the small window. While the page is hidden a worker's timer calls `frame()`, and the page's sound runs through the video (`Sound.popAudio()`). Works from the button on Android Chrome; automatic opening on leaving didn't.
+
+## Sandbox
+`/sandbox` (`source/public/sandbox.html`, linked from the director page) is a test stage around the real page in `/?sandbox` mode (`startSandbox()`, `window.__sandbox`): no live feed, no AI, no writes. Moments go through `ingest()` like the story's. Saved moments and characters stay in the browser's `localStorage`. New places, actions and special events should get a control here too.
 
 ## Health check and quick fixes
 - `GET /api/health` (public): recent moments, retry rate, recent rule problems, stuck counter, current scene, last AI error, art requests.

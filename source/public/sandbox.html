@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Ishai Sandbox</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#050705;--phos:#4dff7a;--dim:#2a9a4c;--faint:#123d20;--amber:#ffb84d;--red:#ff6b6b}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg)}
+  body{color:var(--phos);font:20px/1.2 'VT323',ui-monospace,monospace}
+  .app{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:14px;padding:14px;max-width:1500px;margin:0 auto}
+  .stage{position:sticky;top:14px;align-self:start;min-width:0}
+  iframe{display:block;width:100%;height:calc(100vh - 80px);border:2px solid var(--faint);border-radius:10px;background:#000}
+  .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px}
+  h1{font-size:28px;margin:0;font-weight:normal}
+  h2{font-size:22px;margin:0 0 6px;font-weight:normal;color:var(--amber)}
+  a{color:var(--phos)}
+  .side{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .box{border:2px solid var(--faint);border-radius:10px;padding:10px 12px;background:#020502}
+  label{display:block;color:var(--dim);font-size:18px;margin-top:6px}
+  input,select,textarea{width:100%;font:inherit;background:#071007;color:var(--phos);border:1px solid var(--faint);border-radius:6px;padding:5px 7px}
+  input[type=checkbox]{width:auto;accent-color:var(--phos)}
+  input[type=range]{padding:0;accent-color:var(--phos)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+  button{font:inherit;background:var(--faint);color:var(--phos);border:1px solid var(--dim);border-radius:6px;padding:5px 11px;cursor:pointer}
+  button:hover{background:#1b5a2f}
+  button.ghost{background:transparent}
+  button.on{background:var(--phos);color:#031}
+  button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+  .line{display:grid;grid-template-columns:110px minmax(0,1fr) 34px;gap:6px;margin-top:6px}
+  .item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center;padding:5px 0;border-top:1px dashed var(--faint)}
+  .item.now .t{color:var(--amber)}
+  .item .t{overflow-wrap:anywhere}
+  .item button{padding:2px 7px}
+  .muted{color:var(--dim);font-size:18px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chips label{display:flex;gap:4px;align-items:center;margin:0;color:var(--phos)}
+  .face{width:60px;height:90px;image-rendering:pixelated;border:1px solid var(--faint);background:#111}
+  .who{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px}
+  #status{color:var(--amber)}
+  @media (max-width:900px){.app{grid-template-columns:minmax(0,1fr);padding:10px}.stage{position:sticky;top:0;z-index:2;background:var(--bg);padding-bottom:6px}iframe{height:52vh}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="stage">
+    <div class="top"><h1>&gt; SANDBOX // ISHAI</h1><a href="/director">Director</a></div>
+    <iframe id="stage" src="/?sandbox" title="Sandbox picture"></iframe>
+  </div>
+  <div class="side">
+    <div class="muted">Nothing here reaches the live show or uses the AI. <span id="status"></span></div>
+
+    <div class="box">
+      <h2>Moment</h2>
+      <div class="row">
+        <div><label for="loc">Place</label><select id="loc"></select></div>
+        <div><label for="act">Ishai does</label><select id="act"></select></div>
+        <div><label for="with">With</label><select id="with"></select></div>
+        <div><label for="ride">Vehicle, if he rides</label><select id="ride"><option value="">Automatic</option><option value="bus">Bus</option><option value="taxi">Taxi</option></select></div>
+      </div>
+      <div class="chips" style="margin-top:8px"><label><input type="checkbox" id="delivery"> ateBite courier arrives</label></div>
+      <div id="lines"></div>
+      <div class="bar">
+        <button id="addLine" class="ghost">Add line</button>
+        <button id="play">Play</button>
+        <button id="jump" class="ghost">Jump there</button>
+        <button id="save" class="ghost">Add to list</button>
+      </div>
+    </div>
+
+    <div class="box">
+      <h2>List of moments</h2>
+      <div id="list"></div>
+      <div class="muted" id="listEmpty">No moments yet. Build one above and choose Add to list.</div>
+      <div class="bar">
+        <button id="runList">Play list</button>
+        <button id="stop" class="ghost">Stop</button>
+        <label for="gap" style="margin:0">Pause</label><input id="gap" type="number" min="0" max="120" value="3" style="width:70px"><span class="muted">s</span>
+      </div>
+    </div>
+
+    <div class="box">
+      <h2>World</h2>
+      <label for="hour">Time of day: <span id="hourT">Real time</span></label>
+      <input id="hour" type="range" min="0" max="24" step=".25" value="12">
+      <div class="bar"><button id="realTime" class="ghost">Use real time</button></div>
+      <div class="row">
+        <div><label for="wx">Weather</label><select id="wx"><option value="clear">Clear</option><option value="cloudy">Cloudy</option><option value="rain">Rain</option><option value="storm">Storm</option></select></div>
+        <div><label for="temp">Temperature (°C)</label><input id="temp" type="number" value="22"></div>
+      </div>
+      <div class="chips" id="things" style="margin-top:8px"></div>
+    </div>
+
+    <div class="box">
+      <h2>Characters</h2>
+      <div id="people"></div>
+      <div class="who" style="margin-top:8px">
+        <canvas id="face" class="face" width="20" height="30"></canvas>
+        <div class="row">
+          <div><label for="cName">Name</label><input id="cName" value="Dudi"></div>
+          <div><label for="cHair">Hair</label><select id="cHair"></select></div>
+          <div><label for="cHairC">Hair colour</label><select id="cHairC"></select></div>
+          <div><label for="cSkin">Skin</label><select id="cSkin"></select></div>
+          <div><label for="cShirt">Shirt</label><select id="cShirt"></select></div>
+          <div><label for="cPants">Trousers</label><select id="cPants"></select></div>
+        </div>
+      </div>
+      <div class="chips" id="cExtras" style="margin-top:8px"></div>
+      <div class="bar"><button id="addPerson">Add character</button></div>
+    </div>
+
+    <div class="box">
+      <h2>Special events</h2>
+      <label for="evText">Lines, one on each row</label>
+      <textarea id="evText" rows="3">Good evening, this is a test of the studio.
+Back to the cameras.</textarea>
+      <div class="bar">
+        <button id="evCall">Phone call</button>
+        <button id="evRecap">Small recap</button>
+        <button id="evShow">Studio break</button>
+        <button id="evDream">Dream</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id), KEY = 'ishaiSandbox';
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } };
+  const saved = load(), D = {list: saved.list || [], people: saved.people || []};
+  const store = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch(e){} };
+  const fill = (el, items, pick) => { const v = el.value; el.textContent = ''; items.forEach(([val, txt]) => { const o = document.createElement('option'); o.value = val; o.textContent = txt; el.appendChild(o); }); if (items.some(x => x[0] === v)) el.value = v; else if (pick) el.value = pick; };
+  let api = null, M = null, lines = [], editing = -1, running = 0;
+
+  function cast(){ return api.cast(); }
+  function refreshWho(){
+    fill($('with'), [['', 'Nobody'], ...cast().map(c => [c.id, c.name])]);
+    document.querySelectorAll('.lineWho').forEach(sel => fill(sel, whoList()));
+    const box = $('people'); box.textContent = '';
+    D.people.forEach((c, i) => { const r = document.createElement('div'); r.className = 'item';
+      const t = document.createElement('div'); t.className = 't'; t.textContent = c.name;
+      const x = document.createElement('button'); x.className = 'ghost'; x.textContent = 'Remove'; x.onclick = () => { D.people.splice(i, 1); store(); api.setCast(D.people); refreshWho(); };
+      r.append(t, x); box.appendChild(r); });
+  }
+  const whoList = () => [['ishai','Ishai'], ...cast().map(c => [c.id, c.name]), ['zohar','Zohar (host)'], ['oren','Oren (host)'], ['radio','Radio'], ['tv','TV']];
+  function drawLines(){
+    const box = $('lines'); box.textContent = '';
+    lines.forEach((l, i) => { const r = document.createElement('div'); r.className = 'line';
+      const s = document.createElement('select'); s.className = 'lineWho'; s.setAttribute('aria-label', 'Who says this'); fill(s, whoList()); s.value = l.who; s.onchange = () => { l.who = s.value; };
+      const t = document.createElement('input'); t.value = l.say; t.placeholder = 'What they say'; t.setAttribute('aria-label', 'Line'); t.oninput = () => { l.say = t.value; };
+      const x = document.createElement('button'); x.className = 'ghost'; x.textContent = 'x'; x.setAttribute('aria-label', 'Remove line'); x.onclick = () => { lines.splice(i, 1); drawLines(); };
+      r.append(s, t, x); box.appendChild(r); });
+  }
+  function actions(){ fill($('act'), M.locations[$('loc').value].map(a => [a, a])); }
+  function moment(){
+    const said = lines.filter(l => l.say.trim()), hosts = ['zohar','oren'];
+    return {location: $('loc').value, action: $('act').value, with: $('with').value || null, ride: $('ride').value || null, delivery: $('delivery').checked,
+      lines: said.filter(l => !hosts.includes(l.who)).map(l => ({who: l.who, say: l.say})), commentary: said.filter(l => hosts.includes(l.who)).map(l => ({who: l.who, say: l.say}))};
+  }
+  function open(m){
+    $('loc').value = m.location; actions(); $('act').value = m.action; $('with').value = m.with || ''; $('ride').value = m.ride || ''; $('delivery').checked = !!m.delivery;
+    lines = [...m.lines, ...m.commentary].map(l => ({...l})); drawLines();
+  }
+  const label = m => { const c = cast().find(x => x.id === m.with), n = m.lines.length + m.commentary.length; return `${m.location} · ${m.action}${c ? ' · ' + c.name : ''}${n ? ' · ' + n + (n > 1 ? ' lines' : ' line') : ''}`; };
+  function drawList(now){
+    const box = $('list'); box.textContent = ''; $('listEmpty').hidden = D.list.length > 0;
+    D.list.forEach((m, i) => { const r = document.createElement('div'); r.className = 'item' + (i === now ? ' now' : '');
+      const t = document.createElement('div'); t.className = 't'; t.textContent = (i + 1) + '. ' + label(m);
+      const b = document.createElement('div'); b.className = 'bar'; b.style.marginTop = 0;
+      const btn = (txt, name, fn) => { const x = document.createElement('button'); x.className = 'ghost'; x.textContent = txt; x.setAttribute('aria-label', name); x.onclick = fn; b.appendChild(x); };
+      btn('Play', 'Play from here', () => runFrom(i));
+      btn('Edit', 'Edit moment', () => { open(m); editing = i; $('save').textContent = 'Save moment'; });
+      btn('Up', 'Move up', () => { if (i){ D.list.splice(i - 1, 0, D.list.splice(i, 1)[0]); store(); drawList(); } });
+      btn('Del', 'Delete moment', () => { D.list.splice(i, 1); store(); drawList(); });
+      r.append(t, b); box.appendChild(r); });
+  }
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  async function runFrom(i){
+    const me = ++running; api.reset();
+    for (let k = i; k < D.list.length; k++){
+      if (me !== running) return; drawList(k); api.play(D.list[k]);
+      await wait(600); while (me === running && api.busy()) await wait(300);
+      await wait(Math.max(0, +$('gap').value || 0) * 1000);
+    }
+    if (me === running) drawList();
+  }
+  function world(){
+    const real = $('hourT').textContent === 'Real time';
+    api.world({hour: real ? null : +$('hour').value, weather: $('wx').value, temp: +$('temp').value || 22,
+      shabbat: !!document.querySelector('#things [data-k=shabbat]:checked')});
+    api.unlock([...document.querySelectorAll('#things [data-k]:checked')].map(x => x.dataset.k).filter(k => k !== 'shabbat'));
+  }
+  const look = () => ({hair: $('cHair').value, hairColor: $('cHairC').value, skin: $('cSkin').value, shirt: $('cShirt').value, pants: $('cPants').value,
+    extras: [...document.querySelectorAll('#cExtras input:checked')].map(x => x.value)});
+  const evLines = () => $('evText').value.split('\n').map(x => x.trim()).filter(Boolean);
+  const hostTurns = () => evLines().map((say, i) => ({who: i % 2 ? 'oren' : 'zohar', say}));
+
+  function ready(){
+    api = $('stage').contentWindow.__sandbox; M = api.menus();
+    api.setCast(D.people);
+    fill($('loc'), Object.keys(M.locations).map(x => [x, x])); $('loc').value = 'street'; actions(); $('act').value = 'idle';
+    [['cHair',M.hair],['cHairC',M.hairColor],['cSkin',M.skin],['cShirt',M.cloth],['cPants',M.cloth]].forEach(([id, l]) => fill($(id), l.map(x => [x, x])));
+    $('cShirt').value = 'teal'; $('cPants').value = 'navy';
+    M.extras.forEach(e => { const l = document.createElement('label'); l.innerHTML = `<input type="checkbox" value="${e}"> ${e}`; $('cExtras').appendChild(l); });
+    [['shabbat','Shabbat'],['dog','Falafel the dog'],['tv','TV'],['radio','Radio'],['stray','Stray cat']].forEach(([k, n]) => { const l = document.createElement('label'); l.innerHTML = `<input type="checkbox" data-k="${k}"> ${n}`; $('things').appendChild(l); });
+    refreshWho(); lines = [{who:'ishai', say:''}]; drawLines(); drawList();
+    const face = () => api.drawLook($('face'), look());
+    document.querySelector('.who').addEventListener('change', face); $('cExtras').addEventListener('change', face); face();
+
+    $('loc').onchange = actions;
+    $('addLine').onclick = () => { lines.push({who: lines.length ? lines[lines.length - 1].who : 'ishai', say:''}); drawLines(); };
+    $('play').onclick = () => { running++; api.reset(); api.play(moment()); };
+    $('jump').onclick = () => { running++; api.go(moment()); };
+    $('save').onclick = () => { if (editing >= 0) D.list[editing] = moment(); else D.list.push(moment()); editing = -1; $('save').textContent = 'Add to list'; store(); drawList(); };
+    $('runList').onclick = () => runFrom(0);
+    $('stop').onclick = () => { running++; api.reset(); drawList(); };
+    $('hour').oninput = () => { const h = +$('hour').value, m = Math.round((h % 1) * 60); $('hourT').textContent = String(Math.floor(h)).padStart(2, '0') + ':' + String(m).padStart(2, '0'); world(); };
+    $('realTime').onclick = () => { $('hourT').textContent = 'Real time'; world(); };
+    ['wx','temp'].forEach(id => { $(id).onchange = world; }); $('things').addEventListener('change', world);
+    $('addPerson').onclick = () => { const name = $('cName').value.trim(); if (!name) return; D.people.push({id: 'x' + name.toLowerCase().replace(/[^a-z0-9]/g, '') + Date.now().toString(36), name, role: 'sandbox', personality: '', memory: '', relationship: 0, lastSeen: Date.now(), scenes: 0, look: look()}); store(); api.setCast(D.people); refreshWho(); };
+    $('evCall').onclick = () => { const l = evLines(); api.call((l.length ? l : ['Hello?']).map((say, i) => ({who: i % 2 ? 'oren' : 'caller', say}))); };
+    $('evRecap').onclick = () => api.recap(hostTurns());
+    $('evShow').onclick = () => api.show(hostTurns());
+    $('evDream').onclick = () => { running++; api.dream(); };
+    setInterval(() => { const s = api.state(); $('status').textContent = `${s.loc} · ${s.action}${s.moving ? ' · on the way' : ''}`; }, 500);
+  }
+  $('stage').addEventListener('load', () => { if (!$('stage').contentWindow.__sandbox) { $('status').textContent = 'The picture did not load.'; return; } ready(); });
+})();
+</script>
+</body>
+</html>
