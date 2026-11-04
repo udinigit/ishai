@@ -277,7 +277,7 @@
     bathroom:  ['bathroom','showering'] // page-only room: the story says apartment/bathroom|showering
   };
   let TUNING = false;   // the live feed hasn't answered yet
-  let CUR_MEDIA = null; // 'ch9', '8bittv', 'nesflicks', 'herzl' or 'boolify' when the story's moment says which
+  let CUR_MEDIA = null; // 'ch9', '8bittv', 'nesflicks', 'rgbeat', 'herzl' or 'boolify' when the story's moment says which
   let NEXT_RIDE = null; // 'bus' or 'taxi' when the story's moment says which
   let UNLOCKED = new Set(); // items the story has brought in (tv, radio)
   const BATH = new Set(['bathroom','showering']); // he disappears behind the bathroom door
@@ -1007,6 +1007,11 @@
     {name:['HERZL HARDWARE'], slogan:'WE HAVE IT', bg:'#c23b3b', fg:'#ffffff', sub:'#ffd9d0', icon(x,y,t){ R(x+2,y+1,4,3,'#c9ced4'); R(x+3,y+4,2,7,'#8a6a4a'); R(x+9,y+2,2,9,'#c9ced4'); R(x+8,y+1,4,2,'#c9ced4'); R(x+9,y+1,2,1,'#c23b3b'); }},
     {name:['YALLA YOGA'], slogan:'NAMASTE', bg:'#2a9d8f', fg:'#ffffff', sub:'#c8f2ea', icon(x,y,t){ const s2 = Math.round(Math.sin(t/900)); R(x+6,y,3,3,'#f2d5b5'); R(x+7,y+3,1,5,'#ffffff'); R(x+4+s2,y+1,2,1,'#ffffff'); R(x+9-s2,y+1,2,1,'#ffffff'); R(x+7,y+8,1,4,'#ffffff'); R(x+8,y+9,2,1,'#ffffff'); R(x+9,y+8,1,1,'#ffffff'); }},
     {name:['WEE LADDIE','VIRGIN SCOTCH'], slogan:'', bg:'#2d4a2b', fg:'#f2d16b', sub:'#e8c98a', icon(x,y,t){ R(x+6,y,2,3,'#7a5232'); R(x+5,y+3,4,2,'#c98a3a'); R(x+4,y+5,6,7,'#c98a3a'); R(x+4,y+7,6,3,'#b03a3a'); R(x+5,y+7,1,3,'#2d4a2b'); R(x+8,y+7,1,3,'#2d4a2b'); R(x+4,y+8,6,1,'#f2d16b'); }},
+    {name:['RGBEAT'], slogan:'CHANNEL 6', bg:'#0a0a12', fg:'#ffffff', sub:'#3bdc6a', icon(x,y,t){ const b = Math.floor(t/300); ['#ff3b4e','#3bdc6a','#3b7bff'].forEach((c,i) => { const h = 4 + (b + i*2) % 3 * 3; R(x+1+i*5,y+11-h,4,h,c); }); }},
+    {name:['PICSELL'], slogan:'WE PRINT IT', bg:'#ffd23f', fg:'#1a1a1a', sub:'#2b2b33', icon(x,y,t){ R(x+3,y+2,10,9,'#ffffff'); R(x+1,y+2,2,4,'#ffffff'); R(x+13,y+2,2,4,'#ffffff'); R(x+6,y+4,4,4,['#ff5a7a','#3b7bff'][Math.floor(t/500)%2]); R(x+7,y+1,2,1,'#555'); }},
+    {name:['NESFLICKS'], slogan:'STILL THERE', bg:'#26303b', fg:'#e0b03a', sub:'#b6bec7', icon(x,y,t){ R(x+2,y,12,12,'#8d97a3'); R(x+2,y,12,2,'#b6bec7'); R(x+4,y+3,8,6,'#e0b03a'); if (Math.floor(t/500)%2) R(x+7,y+5,2,2,'#26303b'); }},
+    {name:['8BITTV'], slogan:'CHANNEL 8', bg:'#1b1464', fg:'#ffd23f', sub:'#3bceac', icon(x,y,t){ const j = Math.abs(Math.sin(t/420))*4|0; R(x+1,y+10,14,2,'#3a9a4a'); R(x+6,y+5-j,4,5,'#ff4f79'); R(x+7,y+6-j,2,1,'#ffffff'); }},
+    {name:['BOOLIFY'], slogan:'TRUE OR FALSE', bg:'#ff7ad9', fg:'#2a0a2a', sub:'#ffffff', icon(x,y,t){ const b = Math.floor(t/400); for (let i=0;i<4;i++){ const h = 3 + (b + i) % 2 * 6; R(x+1+i*4,y+11-h,3,h,'#2a0a2a'); } }},
     {name:['A BUTCHER','IS BORN'], slogan:'', bg:'#1a1a1a', fg:'#ff6a5a', sub:'#f4f1ea', icon(x,y,t){ const sh = Math.floor(t/200)%5===0; R(x+2,y+2,9,6,sh?'#ffffff':'#c9ced4'); R(x+2,y+2,9,1,'#e8eaee'); R(x+10,y+3,1,1,'#1a1a1a'); R(x+11,y+4,4,2,'#7a5232'); }}
   ];
   function drawAd(bx, by, t, i){
@@ -1373,9 +1378,14 @@
       // Kfar Kofi billboard on the roof
       R(118,14,1,4,'#444'); R(146,14,1,4,'#444'); R(112,3,40,12,'#6b3f22'); R(112,3,40,1,'#4a2a16'); word('KFAR KOFI',115,6,'#ffd9a0');
       // Herzl Hardware
-      R(2,40,58,32,'#6a2a2a'); R(2,40,58,7,'#c23b3b'); word('HERZL HARDWARE',3,41,'#ffffff');
-      R(5,49,36,17,'#9fc3d8'); R(10,55,2,9,'#8a6a4a'); R(8,54,6,2,'#c9ced4'); R(17,58,12,3,'#c9ced4'); R(28,57,3,5,'#7a5232'); R(33,60,4,6,'#3b7bc2'); R(37,61,3,5,'#e0b04a');
-      R(44,49,13,23,'#3a2020'); R(46,51,9,10,'#9fc3d8');
+      R(2,40,32,32,'#6a2a2a'); R(2,40,32,13,'#c23b3b'); word('HERZL',8,41,'#ffffff'); word('HARDWARE',3,47,'#ffffff');
+      R(4,54,17,12,'#9fc3d8'); R(7,58,2,7,'#8a6a4a'); R(5,57,6,2,'#c9ced4'); R(13,60,3,5,'#3b7bc2'); R(17,61,3,4,'#e0b04a');
+      R(23,54,10,18,'#3a2020'); R(25,56,6,7,'#9fc3d8');
+      // PicSell: pictures, posters and printed shirts
+      R(34,40,28,32,'#2b2b33'); R(34,40,28,7,'#ffd23f'); word('PICSELL',35,41,'#1a1a1a');
+      R(36,49,14,17,'#dfe6ea'); R(37,50,5,7,'#3b7bc2'); R(38,53,3,3,'#ffe27a'); R(43,50,5,7,'#ff5a7a'); R(44,52,3,1,'#ffffff'); R(44,54,3,1,'#ffffff');   // two posters
+      R(40,58,8,7,'#ffffff'); R(38,58,2,3,'#ffffff'); R(48,58,2,3,'#ffffff'); R(43,60,2,2,'#ff5a7a'); R(43,57,2,1,'#555');   // a printed shirt on a hanger
+      R(51,49,10,23,'#17171c'); R(53,51,6,9,'#9fc3d8'); R(58,62,1,2,'#ffd23f');
       // Tahini Tower Savings Bank + ATM
       R(62,38,46,34,'#cfc6b4'); R(62,38,46,8,'#1f3d5a'); word('TAHINI BANK',64,40,'#e8d9a8'); R(64,46,3,26,'#e8e2d6'); R(103,46,3,26,'#e8e2d6');
       R(74,50,14,22,'#3a4a5a'); R(76,52,10,10,'#8fb0c8'); R(92,52,9,13,'#4a4a4a'); R(93,53,7,4, (Math.floor(t/900)%2) ? '#5ab0ff' : '#4a9ae8'); R(94,58,5,4,'#2a2a2a'); R(95,63,3,1,'#111');
@@ -1555,7 +1565,7 @@
   }
   // ---------- 8bitTV (Channel 8) and NESflicks ----------
   // the gym's second screen plays what Channel 9 doesn't: the story can pick (ev.media), otherwise the clock does
-  const gym2 = () => CUR_MEDIA === '8bittv' || CUR_MEDIA === 'nesflicks' ? CUR_MEDIA : ['8bittv','nesflicks'][Math.floor(NOW() / 600000) % 2];
+  const GYM2 = ['8bittv','nesflicks','rgbeat'], gym2 = () => GYM2.includes(CUR_MEDIA) ? CUR_MEDIA : GYM2[Math.floor(NOW() / 600000) % GYM2.length];
   function eightBitTv(x, y, t){       // 34 x 20: a blocky little hero, the channel's own show
     const ph = Math.floor(t / 15000) % 4;
     if (ph === 3){ R(x,y,34,20,'#1b1464'); ['#ff4f79','#ffd23f','#3bceac','#4d8bff'].forEach((c,i) => R(x+3+i*7,y+3,6,3,c)); word('8',x+6,y+10,'#ffd23f'); word('BIT',x+12,y+10,'#ffffff'); R(x+6,y+16,23,1,'#3bceac'); return; }
@@ -1576,10 +1586,24 @@
       R(x,y+13,34,4,'#2a2030'); const w = (t / 120) % 40 - 3; R(x+w,y+9,3,4,'#141018'); R(x+w+1,y+8,1,1,'#141018'); }
     else { R(x,y,34,20,'#26303b'); word('STILL',x+7,y+3,'#ffd36a'); word('THERE',x+7,y+9,'#ffd36a'); R(x+12,y+15,10,3,'#e0b03a'); R(x+15,y+16,4,1,'#26303b'); }
   }
+  const RGB = ['#ff3b4e','#3bdc6a','#3b7bff'];
+  function rgbeatLogo(x, y){ R(x,y,2,2,RGB[0]); R(x+3,y,2,2,RGB[1]); R(x+6,y,2,2,RGB[2]); }
+  function rgbeatTv(x, y, t){          // 34 x 20: music clips, a stage and a three-colour video, and the channel's ident between them
+    const ph = Math.floor(t / 12000) % 4, b = Math.floor(t / 300), up = b % 2;
+    if (ph === 3){ R(x,y,34,20,'#0a0a12'); ['R','G','B'].forEach((c,i) => word(c,x+6+i*4,y+4,RGB[i])); word('EAT',x+18,y+4,'#ffffff');
+      for (let i=0;i<11;i++){ const h = 1 + Math.floor(hash(b*3 + i) * 6); R(x+6+i*2,y+17-h,1,h,RGB[i%3]); } return; }
+    const band = (cx, c, k) => { const u = (b + k) % 2; R(cx+1,y+6+u,3,3,'#f2d5b5'); R(cx+1,y+5+u,3,1,'#14101f'); R(cx,y+9+u,5,5,c); R(cx-1,y+8+u*3,1,4,c); R(cx+5,y+8+(1-u)*3,1,4,c); R(cx+1,y+14,1,3,'#14101f'); R(cx+3,y+14,1,3,'#14101f'); };
+    if (ph === 1){ RGB.forEach((c,i) => R(x+i*11+(i>1?1:0),y,i===1?12:11,20, (b + i) % 3 === 0 ? c : shade(c,.45))); RGB.forEach((c,i) => band(x+3+i*11,'#14101f',i)); }
+    else { R(x,y,34,16,'#14101f'); R(x,y+16,34,4,'#2a2440');
+      for (let i=0;i<3;i++) alpha(.4,()=>R(x+4+i*12+((b+i)%3)*2,y,3,16,RGB[(b+i)%3]));
+      band(x+14,'#e8e8f0',0); R(x+20,y+9,1,8,'#c9ced4'); R(x+19,y+8,3,1,'#c9ced4');
+      for (let i=0;i<17;i++){ const h = 1 + Math.floor(hash(b*3 + i) * 3); R(x+i*2,y+20-h,1,h,RGB[i%3]); } }
+    rgbeatLogo(x+25,y+1);
+  }
   function onScreen(x, y, w, h, fn){ g.save(); g.beginPath(); g.rect(x,y,w,h); g.clip(); fn(); g.restore(); }   // what's on a screen stays inside it
   function gymTv2(t){
     R(160,4,2,6,'#333'); R(142,10,38,24,'#141418');
-    onScreen(144, 12, 34, 20, () => { if (gym2() === '8bittv') eightBitTv(144, 12, t); else nesflicksTv(144, 12, t); });
+    onScreen(144, 12, 34, 20, () => { const m = gym2(); if (m === '8bittv') eightBitTv(144, 12, t); else if (m === 'rgbeat') rgbeatTv(144, 12, t); else nesflicksTv(144, 12, t); });
     alpha(.08,()=>R(138,8,46,44,'#9fd0ff'));
   }
   function gymTv(t){
@@ -2587,7 +2611,7 @@
   function speaker(id){
     if (HOSTS[id]) return {name:HOSTS[id].name, color:HOSTS[id].color};
     if (id==='radio') return boolifyOn() ? {name:'BOOLIFY', color:'#ff7ad9'} : {name:'RADIO HERZL 88.2', color:'#ffd36a'};
-    if (id==='tv') return {name: CUR_MEDIA === '8bittv' ? '8BITTV' : CUR_MEDIA === 'nesflicks' ? 'NESFLICKS' : 'CHANNEL 9', color:'#9fd0ff'};
+    if (id==='tv') return {name: CUR_MEDIA === '8bittv' ? '8BITTV' : CUR_MEDIA === 'nesflicks' ? 'NESFLICKS' : CUR_MEDIA === 'rgbeat' ? 'RGBEAT' : 'CHANNEL 9', color:'#9fd0ff'};
     if (id==='ishai') return {name:'ISHAI', color:tint(CLOTH.teal,.45)};
     const c = CAST[id]; return {name:(c?c.name:id).toUpperCase(), color: tint(CLOTH[c?.look?.shirt]||CLOTH.gray,.45)};
   }
@@ -2745,7 +2769,7 @@
     const tag = document.createElement('span'); tag.textContent = '· ' + fmtHM.format(new Date(m.t)); hn.appendChild(tag);
     const line = document.createElement('div'); line.className = 'hl';
     body.append(hn, line); card.append(faceCanvas(m.who), body); booth.appendChild(card);
-    card.classList.toggle('ad', /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga|nesflicks|8bittv|boolify/i.test(m.say));
+    card.classList.toggle('ad', /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga|nesflicks|8bittv|boolify|rgbeat|picsell/i.test(m.say));
     while (booth.querySelectorAll('.host').length > 8) booth.removeChild(booth.querySelector('.host'));
     if (!animate){ line.textContent = m.say; boothScroll(); return Promise.resolve(); }
     const full = m.say, b = budget || {at: NOW(), ms: 0}, into = Math.max(0, NOW() - b.at); let i = charsAt(full, into);
@@ -2769,7 +2793,7 @@
     if (m.loc && m.loc !== lastScene.split('|')[0]){ const d = document.createElement('div'); d.className = 'scene'; d.textContent = `— ${PLACE_NAME[m.loc]||m.loc.toUpperCase()} · ${fmtHM.format(new Date(m.t))} —`; talkEl.appendChild(d); }
     lastScene = scene;
     const sp = speaker(m.who);
-    const isAd = m.host && /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga|nesflicks|8bittv|boolify/i.test(m.say);
+    const isAd = m.host && /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga|nesflicks|8bittv|boolify|rgbeat|picsell/i.test(m.say);
     const row = document.createElement('div'); row.className = 'msg' + (m.host ? ' host' : '') + (isAd ? ' ad' : '');
     const body = document.createElement('div');
     const who = document.createElement('div'); who.className = 'who'; who.style.color = sp.color; who.textContent = sp.name + (m.via ? ' \u00b7 ' + String(m.via).toUpperCase() : '');
@@ -2913,6 +2937,9 @@
   const ADS = [
     'NESflicks: a thousand films, and you will spend the evening choosing. Still there?',
     'Tonight on 8bitTV, Channel 8: the news, in sixteen colours.',
+    'RGBeat, Channel 6: music clips all day. Red, green, blue, repeat.',
+    'Boolify: is this song good? True. Can you skip it? Ask again in 2031.',
+    'PicSell on Herzl Street: pictures, posters and printed shirts. If it holds still, we print it.',
     'Hungry? ateBite. The whole of Shuk Shalom at your door in thirty minutes. Tip your courier. Seriously.',
     'Everything Else: the store for everything else. Food? Next door, at the shuk.',
     'Tired? Cooola. Very tired? Two Cooolas. Cooola: wake up, aggressively.',
@@ -2925,7 +2952,7 @@
     'FluffNap pillows. Sleep so deep your neighbors will check on you. FluffNap!',
     'Herzl Hardware: if it squeaks, leaks or creaks, we have the thing. Probably.',
     'Kfar Kofi instant coffee. Ninety seconds from kettle to personality.'];
-  const BRAND_TAGS = ['Cooola','ateBite','HummusPrime','Tahini Tower Savings Bank','FluffNap pillows','Kfar Kofi','Herzl Hardware'];
+  const BRAND_TAGS = ['Cooola','ateBite','HummusPrime','Tahini Tower Savings Bank','FluffNap pillows','Kfar Kofi','Herzl Hardware','RGBeat','PicSell'];
   const QUIPS = ['Big if true.','I will read the rest after my coffee.','Good news, for once.','My producer says that is a real story.','Science, everybody.','Wild times.'];
   // Boolify takes over on the half hours unless the story has picked a station: a station that only knows two answers
   const boolifyOn = () => CUR_MEDIA === 'boolify' || (CUR_MEDIA !== 'herzl' && Math.floor(NOW() / 1800000) % 2 === 1);
@@ -3090,7 +3117,17 @@
     {bg:'#3a2a10', fg:'#ffd36a', title:'Wee Laddie Virgin Scotch', sub:"For kids. You won't believe it's not alcohol.", draw(t){ R(0,0,40,20,'#1e1408');
       R(16,4,8,14,'#b07a2a'); R(18,1,4,3,'#b07a2a'); R(17,9,6,4,'#f2e6c0'); R(19,10,2,2,'#c23b3b'); }},
     {bg:'#e8e0f0', fg:'#3a2a5a', title:'FluffNap pillows', sub:'Sleep so deep your neighbors will check on you.', draw(t){ R(0,0,40,20,'#c9c0dc');
-      const p = Math.floor(t/800)%2; R(8,7-p,24,8+p,'#ffffff'); R(8,7-p,24,1,'#f0e8ff'); R(10,9,1,1,'#c9c0dc'); }}
+      const p = Math.floor(t/800)%2; R(8,7-p,24,8+p,'#ffffff'); R(8,7-p,24,1,'#f0e8ff'); R(10,9,1,1,'#c9c0dc'); }},
+    {bg:'#0a0a12', fg:'#3bdc6a', title:'RGBeat · Channel 6', sub:'Music clips all day. Red, green, blue, repeat.', draw(t){ R(0,0,40,20,'#14101f'); const b = Math.floor(t/300);
+      RGB.forEach((c,i) => { const h = 6 + (b + i*2) % 3 * 5; R(7+i*9,19-h,7,h,c); }); }},
+    {bg:'#ffd23f', fg:'#1a1a1a', title:'PicSell · Herzl St.', sub:'Pictures, posters, printed shirts. If it holds still, we print it.', draw(t){ R(0,0,40,20,'#2b2b33'); const c = ['#ff5a7a','#3b7bff','#3bdc6a'][Math.floor(t/700)%3];
+      R(4,3,12,15,'#f4f1ea'); R(6,5,8,8,c); R(8,8,4,3,'#ffe27a'); R(24,6,10,12,'#ffffff'); R(21,6,3,5,'#ffffff'); R(34,6,3,5,'#ffffff'); R(27,9,4,4,c); R(28,4,2,2,'#c9ced4'); }},
+    {bg:'#26303b', fg:'#e0b03a', title:'NESflicks', sub:'A thousand films, and a whole evening of choosing. Still there?', draw(t){ R(0,0,40,20,'#141a21');
+      R(10,2,20,16,'#8d97a3'); R(10,2,20,2,'#b6bec7'); R(13,6,14,9,'#e0b03a'); R(15,10,10,1,'#26303b'); if (Math.floor(t/500)%2) R(19,7,2,2,'#26303b'); }},
+    {bg:'#1b1464', fg:'#ffd23f', title:'8bitTV · Channel 8', sub:'The news, in sixteen colours. Tomorrow: blue.', draw(t){ R(0,0,40,20,'#5cc8ff'); R(0,15,40,5,'#3a9a4a'); R(26,12,3,3,'#ffd23f');
+      const j = Math.abs(Math.sin(t/420))*7|0; R(14,10-j,4,5,'#ff4f79'); R(15,11-j,2,1,'#ffffff'); }},
+    {bg:'#ff7ad9', fg:'#2a0a2a', title:'Boolify', sub:'Is this song good? True. Can you skip it? Ask again in 2031.', draw(t){ R(0,0,40,20,'#2a0a2a'); const b = Math.floor(t/400);
+      for (let i=0;i<6;i++){ const h = (b + i) % 2 ? 15 : 4; R(5+i*5,18-h,3,h,'#ff7ad9'); } }}
   ];
   const AD_EVERY = 6 * 60000, AD_SHOW = 9000; let adOn = null;
   function adTick(){

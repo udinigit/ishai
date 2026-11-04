@@ -78,6 +78,8 @@ const HOSTS = {
 const SPONSORS = [
   { name: "NESflicks", pitch: "a streaming service where you spend the whole evening choosing; 'Still there?'" },
   { name: "8bitTV", pitch: "Channel 8, a TV channel where everything is in sixteen colours, even the weather" },
+  { name: "RGBeat", pitch: "Channel 6, a TV channel of music clips all day, every clip lit only in red, green or blue: 'red, green, blue, repeat'" },
+  { name: "PicSell", pitch: "the shop on Herzl Street for pictures, posters and printed shirts: 'if it holds still, we print it'" },
   { name: "Boolify", pitch: "a music station that only answers true or false; the free tier lets you skip a song in 2031" },
   { name: "Cooola", pitch: "an absurdly strong cola; 'if you really want to wake up'" },
   { name: "HummusPrime", pitch: "a hummus subscription delivered by drone, 'because chickpeas deserve wings'" },
@@ -105,7 +107,7 @@ function sponsorUsed(s, sp, lines, storyMs) {
   s.spJokes = [...(s.spJokes || []), ...said].slice(-12);
 }
 // fictional show that also airs on Ishai's TV once he has one
-const TV_SHOW = "Besides Channel 9, there is 8bitTV on Channel 8 (blocky pixel shows, a little hero jumping over blocks) and NESflicks, a streaming service with endless menus that keeps asking 'Still there?'. At home the viewers cannot see the TV screen, so when he watches, say which channel and let him comment out loud on what he sees. The gym has two wall screens side by side: Channel 9, and 8bitTV or NESflicks on the other. The radio has Radio Herzl 88.2 and Boolify, a music station that only says true or false. " + "On Channel 9 the hit fictional reality show 'A Butcher Is Born' airs at 21:00 (contestants Rami 'The Cleaver', Shuli Two-Knives, Grandpa Moti); the hosts are obsessed with it.";
+const TV_SHOW = "Besides Channel 9, there is 8bitTV on Channel 8 (blocky pixel shows, a little hero jumping over blocks), RGBeat on Channel 6 (music clips all day, lit in red, green and blue) and NESflicks, a streaming service with endless menus that keeps asking 'Still there?'. At home the viewers cannot see the TV screen, so when he watches, say which channel and let him comment out loud on what he sees. The gym has two wall screens side by side: Channel 9, and 8bitTV, NESflicks or RGBeat on the other. The radio has Radio Herzl 88.2 and Boolify, a music station that only says true or false. " + "On Channel 9 the hit fictional reality show 'A Butcher Is Born' airs at 21:00 (contestants Rami 'The Cleaver', Shuli Two-Knives, Grandpa Moti); the hosts are obsessed with it.";
 const AD_EVERY_MIN = 75; // at most one plug per this many minutes
 
 const PERSONA =
@@ -188,12 +190,12 @@ const PLACES = {
   apartment: "his one-room flat: bed, desk with laptop, armchair, small kitchen, a bathroom door (the camera never sees inside; use bathroom/showering), window with Moshe the basil",
   corridor:  "the building hallway outside his door",
   street:    "Herzl Street outside his building (west end): Avi's falafel kiosk, a bus stop bench, the doors of Herzl Gym and The Black Candle bar, traffic",
-  shops:     "the SIDEWALK of Herzl Street east, the next block toward the cafe (the camera only sees the sidewalk and the shop windows; he cannot be inside a shop here - shopping for electronics, clothes or home stuff happens at the Everything Else store - bus from the street to the market, then walk in): Herzl Hardware, the Tahini Tower Savings Bank with an ATM, a flower shop with buckets of flowers on the sidewalk, a pedestrian crossing with traffic lights, ficus trees; Cafe Nahat is on the corner at the end",
+  shops:     "the SIDEWALK of Herzl Street east, the next block toward the cafe (the camera only sees the sidewalk and the shop windows; he cannot be inside a shop here - shopping for electronics, clothes or home stuff happens at the Everything Else store - bus from the street to the market, then walk in): Herzl Hardware, PicSell (a small shop selling pictures, posters and printed shirts), the Tahini Tower Savings Bank with an ATM, a flower shop with buckets of flowers on the sidewalk, a pedestrian crossing with traffic lights, ficus trees; Cafe Nahat is on the corner at the end",
   park:      "a small park nearby: a bench, a pond with one duck, a big tree",
   cafe:      "Cafe Nahat, a corner cafe (soft pop and soft rock on the radio, quietly)",
   market:    "Shuk Shalom, an open-air food market a short bus ride away (bus or taxi from the stop on Herzl Street; it has its own bus stop): stalls of tomatoes, cucumbers, oranges, bananas, spices, fresh pita, olives and fresh juice, vendors calling out prices, crowds. Food only. He can eat a snack or drink a fresh juice there. Open 07:00-19:00 (Friday until 14:00, closed on Shabbat). Its vendors also deliver through ateBite",
   store:     "Everything Else, the big store next to Shuk Shalom (walk in from the market): everything except food - a wall of TVs and electronics, phones, clothes, kitchenware, lamps, cleaning stuff; a cashier at the checkout. He browses (\"idle\") or talks to a salesperson. Open 09:00-21:00 (Friday until 14:00, closed on Shabbat)",
-  gym:       "Herzl Gym, a small neighborhood gym on Herzl Street, two doors from his building: treadmills facing two wall screens, Channel 9 with the sound on and 8bitTV or NESflicks next to it, a mirror wall with dumbbells, a water cooler. Here \"exercising\" means he walks or jogs on the treadmill watching the TV. Open 06:00-23:00",
+  gym:       "Herzl Gym, a small neighborhood gym on Herzl Street, two doors from his building: treadmills facing two wall screens, Channel 9 with the sound on and 8bitTV, NESflicks or RGBeat next to it, a mirror wall with dumbbells, a water cooler. Here \"exercising\" means he walks or jogs on the treadmill watching the TV. Open 06:00-23:00",
   bar:       "The Black Candle, a small dark rock bar on Herzl Street next to his building: black brick, red neon, candles on the tables, band posters, a bearded bartender, rock and alternative music on the radio all night. He sits at a candle-lit table (drinking a beer, eating bar snacks). Opens 17:00, closes 02:00",
   bus:       "inside the city bus, line 88 (camera on board): he sits by the window with the city going past, a few other passengers around him",
   taxi:      "the back seat of a taxi (camera on board): the driver in front, the meter running, the city going past the window",
@@ -376,7 +378,7 @@ function showDay(start, now) {
 // which channel a moment talks about, so the page can show or name it
 function mediaOf(e) {
   const t = (e.text || "") + " " + (e.lines || []).map(l => l.say).join(" ");
-  return /\bnesflicks\b/i.test(t) ? "nesflicks" : /\b8bittv\b|\bchannel 8\b/i.test(t) ? "8bittv" : /\bboolify\b/i.test(t) ? "boolify" : /\bchannel 9\b/i.test(t) ? "ch9" : /\bradio herzl\b/i.test(t) ? "herzl" : undefined;
+  return /\bnesflicks\b/i.test(t) ? "nesflicks" : /\brgbeat\b|\bchannel 6\b/i.test(t) ? "rgbeat" : /\b8bittv\b|\bchannel 8\b/i.test(t) ? "8bittv" : /\bboolify\b/i.test(t) ? "boolify" : /\bchannel 9\b/i.test(t) ? "ch9" : /\bradio herzl\b/i.test(t) ? "herzl" : undefined;
 }
 function publicState(s, dev) {
   const last = s.events[s.events.length - 1];
@@ -1379,7 +1381,7 @@ const pageHash = n => { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n 
 function onAirFor(s, kind, storyMs, hour) {
   const w = s.world || {}, aired = s.aired || [], heads = (w.headlines || []).filter(h => !aired.includes(h.title)), r = Math.random(), radio = kind === "radio";
   const pickHead = () => heads[Math.floor(Math.random() * Math.min(5, heads.length))];
-  if (!radio && Math.random() < .3) { const shows = ["8bitTV, Channel 8: tonight's hero has jumped over the same block for the ninth time.", "8bitTV, Channel 8: the weather, in sixteen colours. Tomorrow: blue.", "NESflicks: Still there?", "NESflicks: because you watched four seconds of this, here are forty more like it."];
+  if (!radio && Math.random() < .3) { const shows = ["8bitTV, Channel 8: tonight's hero has jumped over the same block for the ninth time.", "8bitTV, Channel 8: the weather, in sixteen colours. Tomorrow: blue.", "NESflicks: Still there?", "NESflicks: because you watched four seconds of this, here are forty more like it.", "RGBeat, Channel 6: next up, the same song, but in blue.", "RGBeat, Channel 6: non-stop music clips. Red, green, blue, repeat."];
     return { kind: "show", who: "tv", say: shows[Math.floor(Math.random() * shows.length)] }; }
   if (heads.length && r < .5) { const h = pickHead(); return { kind: "news", who: kind, title: h.title,
     say: radio ? `${DJ_NAME(hour)} on Radio Herzl, the news: ${h.title}.` : `Channel 9 News: ${h.title}.` }; }
