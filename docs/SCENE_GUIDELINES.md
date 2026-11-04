@@ -57,7 +57,7 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
   - Bus (CAM-12, line 88) and Taxi (CAM-13): no doors of their own; he boards at a stop on the street camera and the switch finds him seated. Every ride between places shows here for `RIDE_MS` (2.5 minutes, the city keeps looping past), or longer when the story puts a moment on board. Dialogue in a moment that arrives by ride waits until he is there, and a viewer who tunes in mid-ride joins him on board. Taxi at night, in the rain and on Shabbat. No `ERRANDS`: he stays in his seat. The city outside (`cityDrive()`) is currently the only route; it runs on the real clock with a red light every 52 s, and handles any hour and weather.
   - Market (CAM-10, Shuk Shalom): the bus stop (128) and the Everything Else door (left). Food stalls with striped awnings, vendors, a banner and string lights; open 07:00-19:00, Fri until 14:00, closed Shabbat.
   - Store (CAM-11, Everything Else): its door on the left. A wall of TVs, shelves of home goods, a clothes rack, a cashier; everything except food; open 09:00-21:00, Fri until 14:00, closed Shabbat.
-  - Gym (CAM-07, Herzl Gym): the glass door on the left. Treadmills under a wall TV (Channel 9, sound on); "exercising" = on the treadmill. Open 06:00-23:00.
+  - Gym (CAM-07, Herzl Gym): the glass door on the left. Treadmills under two wall screens (Channel 9 with sound on, and 8bitTV or NESflicks); "exercising" = on the treadmill. Open 06:00-23:00.
   - Bar (CAM-08, The Black Candle): the heavy door on the left. Dark rock bar: black brick, red neon, candles, fictional band posters (Grave Tahini, Iron Falafel). Opens 17:00, closes 02:00.
 - A new scene must define its exit points in `MAP` (Ishai's routes) and `exitX()` (companions) before it ships.
 
@@ -91,7 +91,7 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 - Only fictional brands, with their own visual identity (Cooola = purple + lime, blocky letters, lightning bolt). Never imitate a real brand's colors/logo.
 - Product placement must sit naturally in the world (billboards, kiosk banners, buses, vending machines, cans on counters, neon in windows).
 
-- NESflicks is grey and gold like an old game box, never red on black. Boolify is pink, with no round green logo. 8bitTV is bright pixel colours. The home TV faces away from the camera, so its picture appears in a small inset while he watches; `ev.media` picks the channel, otherwise the clock does (the gym stays on Channel 9).
+- NESflicks is grey and gold like an old game box, never red on black. Boolify is pink, with no round green logo. 8bitTV is bright pixel colours. The home TV faces away from the camera and its screen is never shown: Ishai names the channel and comments on what he sees. The gym has two wall screens: Channel 9, and next to it 8bitTV or NESflicks (`ev.media`, otherwise the clock).
 
 ## 8. New art workflow
 - If the story needs something that cannot be drawn yet, it goes on the missing-art list or into a director goal with `art` — the beat waits until the art is live.

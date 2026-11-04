@@ -105,7 +105,7 @@ function sponsorUsed(s, sp, lines, storyMs) {
   s.spJokes = [...(s.spJokes || []), ...said].slice(-12);
 }
 // fictional show that also airs on Ishai's TV once he has one
-const TV_SHOW = "Besides Channel 9, the TV has 8bitTV on Channel 8 (blocky pixel shows) and NESflicks, a streaming service with endless menus that keeps asking 'Still there?'. The radio has Radio Herzl 88.2 and Boolify, a music station that only says true or false. " + "On Channel 9 the hit fictional reality show 'A Butcher Is Born' airs at 21:00 (contestants Rami 'The Cleaver', Shuli Two-Knives, Grandpa Moti); the hosts are obsessed with it.";
+const TV_SHOW = "Besides Channel 9, there is 8bitTV on Channel 8 (blocky pixel shows, a little hero jumping over blocks) and NESflicks, a streaming service with endless menus that keeps asking 'Still there?'. At home the viewers cannot see the TV screen, so when he watches, say which channel and let him comment out loud on what he sees. The gym has two wall screens side by side: Channel 9, and 8bitTV or NESflicks on the other. The radio has Radio Herzl 88.2 and Boolify, a music station that only says true or false. " + "On Channel 9 the hit fictional reality show 'A Butcher Is Born' airs at 21:00 (contestants Rami 'The Cleaver', Shuli Two-Knives, Grandpa Moti); the hosts are obsessed with it.";
 const AD_EVERY_MIN = 75; // at most one plug per this many minutes
 
 const PERSONA =
@@ -166,7 +166,7 @@ const PLACES = {
   cafe:      "Cafe Nahat, a corner cafe (soft pop and soft rock on the radio, quietly)",
   market:    "Shuk Shalom, an open-air food market a short bus ride away (bus or taxi from the stop on Herzl Street; it has its own bus stop): stalls of tomatoes, cucumbers, oranges, bananas, spices, fresh pita, olives and fresh juice, vendors calling out prices, crowds. Food only. He can eat a snack or drink a fresh juice there. Open 07:00-19:00 (Friday until 14:00, closed on Shabbat). Its vendors also deliver through ateBite",
   store:     "Everything Else, the big store next to Shuk Shalom (walk in from the market): everything except food - a wall of TVs and electronics, phones, clothes, kitchenware, lamps, cleaning stuff; a cashier at the checkout. He browses (\"idle\") or talks to a salesperson. Open 09:00-21:00 (Friday until 14:00, closed on Shabbat)",
-  gym:       "Herzl Gym, a small neighborhood gym on Herzl Street, two doors from his building: treadmills facing a wall TV on Channel 9 with the sound on, a mirror wall with dumbbells, a water cooler. Here \"exercising\" means he walks or jogs on the treadmill watching the TV. Open 06:00-23:00",
+  gym:       "Herzl Gym, a small neighborhood gym on Herzl Street, two doors from his building: treadmills facing two wall screens, Channel 9 with the sound on and 8bitTV or NESflicks next to it, a mirror wall with dumbbells, a water cooler. Here \"exercising\" means he walks or jogs on the treadmill watching the TV. Open 06:00-23:00",
   bar:       "The Black Candle, a small dark rock bar on Herzl Street next to his building: black brick, red neon, candles on the tables, band posters, a bearded bartender, rock and alternative music on the radio all night. He sits at a candle-lit table (drinking a beer, eating bar snacks). Opens 17:00, closes 02:00",
   bus:       "inside the city bus, line 88 (camera on board): he sits by the window with the city going past, a few other passengers around him",
   taxi:      "the back seat of a taxi (camera on board): the driver in front, the meter running, the city going past the window",
@@ -332,12 +332,17 @@ function showDay(start, now) {
   const d = t => { const [y, m, dd] = new Date(t).toLocaleDateString("en-CA", { timeZone: TZ }).split("-").map(Number); return Date.UTC(y, m - 1, dd); };
   return Math.round((d(now) - d(start)) / 86400000) + 1;
 }
+// which channel a moment talks about, so the page can show or name it
+function mediaOf(e) {
+  const t = (e.text || "") + " " + (e.lines || []).map(l => l.say).join(" ");
+  return /\bnesflicks\b/i.test(t) ? "nesflicks" : /\b8bittv\b|\bchannel 8\b/i.test(t) ? "8bittv" : /\bboolify\b/i.test(t) ? "boolify" : /\bchannel 9\b/i.test(t) ? "ch9" : /\bradio herzl\b/i.test(t) ? "herzl" : undefined;
+}
 function publicState(s, dev) {
   const last = s.events[s.events.length - 1];
   return {
     day: showDay(s.startedAt, Date.now()),
     build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
-    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, media: /\bnesflicks\b/i.test(e.text || "") ? "nesflicks" : /\b8bittv\b|\bchannel 8\b/i.test(e.text || "") ? "8bittv" : /\bboolify\b/i.test(e.text || "") ? "boolify" : /\bchannel 9\b/i.test(e.text || "") ? "ch9" : /\bradio herzl\b/i.test(e.text || "") ? "herzl" : undefined, ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined })),
+    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined })),
     talk: (s.talk || []).slice(-80), dev: !!dev,
     studio: s.studio || null, show: s.show || null, call: s.call || null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
@@ -1325,6 +1330,8 @@ const pageHash = n => { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n 
 function onAirFor(s, kind, storyMs, hour) {
   const w = s.world || {}, aired = s.aired || [], heads = (w.headlines || []).filter(h => !aired.includes(h.title)), r = Math.random(), radio = kind === "radio";
   const pickHead = () => heads[Math.floor(Math.random() * Math.min(5, heads.length))];
+  if (!radio && Math.random() < .3) { const shows = ["8bitTV, Channel 8: tonight's hero has jumped over the same block for the ninth time.", "8bitTV, Channel 8: the weather, in sixteen colours. Tomorrow: blue.", "NESflicks: Still there?", "NESflicks: because you watched four seconds of this, here are forty more like it."];
+    return { kind: "show", who: "tv", say: shows[Math.floor(Math.random() * shows.length)] }; }
   if (heads.length && r < .5) { const h = pickHead(); return { kind: "news", who: kind, title: h.title,
     say: radio ? `${DJ_NAME(hour)} on Radio Herzl, the news: ${h.title}.` : `Channel 9 News: ${h.title}.` }; }
   if (w.weather && r < .68) return { kind: "weather", who: kind, say: radio

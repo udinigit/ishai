@@ -1487,9 +1487,9 @@
     R(x,86,40,6,'#2a2a2a'); R(x+2,84,36,3,'#1a1a1a'); if (on) for (let k=0;k<5;k++) R(x+2+((k*8 + Math.floor(t/60))%36),85,2,1,'#3d3d3d');
     R(x+34,62,3,24,'#555'); R(x+29,64,8,2,'#666'); R(x+30,58,10,5,'#3a3a3a'); R(x+31,59,8,2, on ? '#ff5a3a' : '#552222'); R(x,92,3,4,'#222'); R(x+37,92,3,4,'#222');
   }
-  // ---------- what's on: Channel 9, 8bitTV (Channel 8) and NESflicks. The story can pick one (ev.media); otherwise the clock does ----------
-  const pickTv = () => { if (NOW() < MEDIA_UNTIL || CUR_MEDIA === 'ch9') return 'ch9'; if (CUR_MEDIA === '8bittv' || CUR_MEDIA === 'nesflicks') return CUR_MEDIA;
-    return ['ch9','8bittv','ch9','nesflicks'][Math.floor(NOW() / 600000) % 4]; };
+  // ---------- 8bitTV (Channel 8) and NESflicks ----------
+  // the gym's second screen plays what Channel 9 doesn't: the story can pick (ev.media), otherwise the clock does
+  const gym2 = () => CUR_MEDIA === '8bittv' || CUR_MEDIA === 'nesflicks' ? CUR_MEDIA : ['8bittv','nesflicks'][Math.floor(NOW() / 600000) % 2];
   function eightBitTv(x, y, t){       // 34 x 20: a blocky little hero, the channel's own show
     const ph = Math.floor(t / 15000) % 4;
     if (ph === 3){ R(x,y,34,20,'#1b1464'); ['#ff4f79','#ffd23f','#3bceac','#4d8bff'].forEach((c,i) => R(x+3+i*7,y+3,6,3,c)); word('8',x+6,y+10,'#ffd23f'); word('BIT',x+12,y+10,'#ffffff'); R(x+6,y+16,23,1,'#3bceac'); return; }
@@ -1510,11 +1510,10 @@
       R(x,y+13,34,4,'#2a2030'); const w = (t / 120) % 40 - 3; R(x+w,y+9,3,4,'#141018'); R(x+w+1,y+8,1,1,'#141018'); }
     else { R(x,y,34,20,'#26303b'); word('STILL',x+7,y+3,'#ffd36a'); word('THERE',x+7,y+9,'#ffd36a'); R(x+12,y+15,10,3,'#e0b03a'); R(x+15,y+16,4,1,'#26303b'); }
   }
-  function drawHomeTv(x, y, t){       // the home TV faces away from the camera: viewers see its picture in a small inset
-    const ch = pickTv();
-    R(x-2,y-2,38,24,'#141418');
-    if (ch === '8bittv') eightBitTv(x, y, t); else if (ch === 'nesflicks') nesflicksTv(x, y, t);
-    else { R(x,y,34,20,'#1d3557'); R(x+12,y+3,6,6,'#d9a87c'); R(x+10,y+9,10,7,'#2a2a3a'); R(x+2,y+15,30,3,'#a0a6b0'); R(x+26,y+1,6,7,'#c23b3b'); word('9',x+28,y+2,'#ffffff'); R(x,y+18,34,2,'#c23b3b'); }
+  function gymTv2(t){
+    R(160,4,2,6,'#333'); R(142,10,38,24,'#141418');
+    if (gym2() === '8bittv') eightBitTv(144, 12, t); else nesflicksTv(144, 12, t);
+    alpha(.08,()=>R(138,8,46,44,'#9fd0ff'));
   }
   function gymTv(t){
     R(116,4,2,6,'#333'); R(98,10,38,24,'#141418');
@@ -1545,7 +1544,7 @@
       for (let i=0;i<6;i++){ const x = 28+i*8; R(x,77,6,3,'#222'); R(x+1,78,4,1,['#c23b3b','#3b7bc2','#e0b04a'][i%3]); }
       // water cooler
       R(84,56,8,10,'#9fd3f0'); R(85,55,6,1,'#7fb4d0'); R(83,66,10,30,'#e8e8e8'); R(86,70,4,2,'#3b7bc2');
-      gymTv(t);
+      gymTv(t); gymTv2(t);
       // someone at the mirror now and then
       if (Math.floor(t/80000) % 2) crowdStill(t, 5, 40, 74, {face:-1}, .75 * fadeWin(t, 80000));
       // treadmill 1 (Ishai's, right under the TV) and treadmill 2
@@ -2158,7 +2157,6 @@
     SCENES[actor.loc].draw(t, hf, actor.action, settled, actor);
     UMB = false;
     if (drawLater) drawLater(t);
-    if (actor.loc === 'apartment' && actor.action === 'watching' && UNLOCKED.has('tv') && !actor.travelling && !DREAMING){ drawHomeTv(152, 8, t); }
 
     if (rainy() && outdoor) drawRain(0,0,W,H,t, stormy() ? 140 : 90);
     if (stormy() && actor.loc!=='offscreen' && actor.loc!=='bathroom' && lightning(t)) alpha(outdoor ? .55 : .18, () => R(0,0,W,H,'#eef4ff'));
@@ -2510,7 +2508,7 @@
   function speaker(id){
     if (HOSTS[id]) return {name:HOSTS[id].name, color:HOSTS[id].color};
     if (id==='radio') return boolifyOn() ? {name:'BOOLIFY', color:'#ff7ad9'} : {name:'RADIO HERZL 88.2', color:'#ffd36a'};
-    if (id==='tv') return {name: pickTv() === '8bittv' ? '8BITTV' : pickTv() === 'nesflicks' ? 'NESFLICKS' : 'CHANNEL 9', color:'#9fd0ff'};
+    if (id==='tv') return {name: CUR_MEDIA === '8bittv' ? '8BITTV' : CUR_MEDIA === 'nesflicks' ? 'NESFLICKS' : 'CHANNEL 9', color:'#9fd0ff'};
     if (id==='ishai') return {name:'ISHAI', color:tint(CLOTH.teal,.45)};
     const c = CAST[id]; return {name:(c?c.name:id).toUpperCase(), color: tint(CLOTH[c?.look?.shirt]||CLOTH.gray,.45)};
   }
