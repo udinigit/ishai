@@ -265,6 +265,7 @@
     corridor:  ['walking','idle','talking','phoning'],
     street:    ['walking','idle','talking','eating','drinking','phoning'],
     shops:     ['walking','idle','talking','eating','drinking','phoning'],
+    west1:     ['walking','idle'], west2: ['walking','idle'], west3: ['walking','idle'],   // walk-through blocks, page only: the story never stops here
     park:      ['walking','idle','talking','reading','eating','drinking','exercising','phoning'],
     cafe:      ['idle','eating','drinking','working','reading','talking','phoning'],
     gym:       ['exercising','idle','talking','drinking','phoning'],
@@ -284,7 +285,7 @@
   let WORLD = null; // real weather / Shabbat from the Worker
   let DREAM = []; // today's highlights {t, loc, a, w}: replayed in a thought bubble while he sleeps
   let DREAMING = false;
-  const OUTSIDE = new Set(['street','park','shops','market']);
+  const OUTSIDE = new Set(['street','park','shops','market','west1','west2','west3']);
   let MEDIA_UNTIL = 0;
   let TALK_AT = 0;       // last time a character of anyone's speech was typed (music fades under it)   // the story just put a live line on the radio/TV: our own DJ keeps quiet for a while
   let UMB = false;   // Ishai is outdoors (street/park) in the rain: he holds an umbrella
@@ -1367,6 +1368,105 @@
         if (night) R(cx+25,97,2,2,'#fff3b0'); if (stopped) R(cx,97,1,2,'#ff3b3b'); }   // brake lights while waiting
     }
   }
+  // ---------- Herzl St. west: three blocks between his building and the park ----------
+  // Page only: the story still goes street > park and route() walks him through them. Nobody stops here, so they have no ERRANDS or story text.
+  const WEST = new Set(['west1','west2','west3']);
+  function westBlock(scene, cam, place){
+    return Object.assign(scene, {cam, place, walkY:66, entry:W+8, exit:-14, stand:{idle:96, walking:96},
+      draw(t,hf,a,settled,actor){
+        drawSky(0,0,W,52,hf,t); const night = isNight(hf);
+        scene.bld.forEach(([x,y,w,c],bi)=>{ R(x,y,w,72-y,c); R(x,y,w,2,'#00000033');
+          for (let wy=y+6; wy<34; wy+=9) for (let wx=x+4; wx<x+w-5; wx+=8){ const lit = night && ((wx*7+wy*3+bi)%5<3); R(wx,wy,4,5, lit ? '#ffd36a' : (night?'#1a2238':'#a9c8dc')); } });
+        scene.fronts(t, night);
+        R(0,72,W,20,'#8d8d8d'); for (let x=0;x<W;x+=16) R(x,72,1,20,'#7a7a7a'); R(0,82,W,1,'#7a7a7a');
+        R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=0;x<W;x+=20) R(x+4,101,10,1,'#e8e8a0');
+        zOn();
+        scene.props(t, night);
+        crowdWalk(t, scene.seed, 31000, scene.seed*3000, 61, 1, .7); crowdWalk(t, scene.seed+2, 39000, scene.seed*5000, 63, -1, .7); crowdWalk(t, scene.seed+4, 47000, scene.seed*7000, 67, 1, .85);
+        drawFloor(t,a,settled,actor,this);
+        zAdd(200, () => { ateRideBy(t + scene.seed*20000, 99);
+          const off = scene.seed*2100, cx = (((t+off)/12) % 520) - 60, lap = Math.floor((t+off)/6240);
+          if (lap % 3 === 2 && cx < W+10) drawBus(cx, night, false);
+          else if (cx < W+10){ const col = ['#c23b3b','#3b7bc2','#e0b04a','#dcdcdc'][lap%4];
+            R(cx,96,26,6,col); R(cx+5,92,14,4,col); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0'); R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111'); if (night) R(cx+25,97,2,2,'#fff3b0'); } });
+        liveLayer(t, this); zFlush();
+        if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
+      }});
+  }
+  const lampPost = (x, night) => zAdd(87, () => { R(x,34,2,54,'#3a3a3a'); R(x-4,32,10,3,'#3a3a3a'); R(x-3,35,8,1, night ? '#fff3b0' : '#777'); });
+  const ficus = (x, base) => zAdd(base, () => { R(x+3,38,3,base-40,'#5e4027'); R(x-6,26,20,14,'#2f7d3a'); R(x-3,22,14,6,'#3f9a48'); R(x-4,34,6,4,'#256b30'); R(x-1,base-4,11,5,'#7a7a7a'); });
+  const roofAd = (x, y, w, h, legs) => { legs.forEach(lx => R(lx,y+h,1,5,'#444')); R(x,y,w,h,'#0a0a12'); };
+  // the block next to his building: PicSell, the pharmacy, the launderette; RGBeat on the roof
+  SCENES.west1 = westBlock({seed:1, bld:[[0,12,70,'#7f8a78'],[70,20,62,'#a08e7c'],[132,10,60,'#8a7f94']],
+    fronts(t, night){
+      // RGBeat billboard
+      roofAd(78,4,46,13,[86,116]); ['R','G','B'].forEach((c,i) => word(c,82+i*4,6,RGB[i])); word('EAT',94,6,'#ffffff');
+      for (let i=0;i<8;i++){ const h = 1 + Math.floor(hash(Math.floor(t/300)*3 + i) * 4); R(108+i*2,15-h,1,h,RGB[i%3]); } R(82,12,23,1,RGB[(Math.floor(t/300))%3]);
+      // PicSell: pictures, posters and printed shirts
+      R(2,38,66,34,'#2b2b33'); R(2,38,66,9,'#ffd23f'); R(2,46,66,1,'#c9a02a'); word('PICSELL',22,40,'#1a1a1a');
+      R(5,49,27,17,night ? '#f2e6c0' : '#dfe6ea');
+      R(7,51,7,9,'#7a5232'); R(8,52,5,7,'#3b7bc2'); R(9,55,3,3,'#ffe27a');                     // a framed picture
+      R(16,50,6,11,'#ff5a7a'); R(17,52,4,1,'#ffffff'); R(17,54,4,1,'#ffffff'); R(18,56,2,3,'#ffffff');   // a poster
+      R(24,51,7,8,'#7a5232'); R(25,52,5,6,'#3bdc6a'); R(26,54,3,2,'#2f7d3a');                   // a framed picture
+      R(34,49,11,23,'#17171c'); R(36,51,7,10,'#9fc3d8'); R(43,62,1,2,'#ffd23f');
+      R(47,49,19,17,night ? '#f2e6c0' : '#dfe6ea'); R(47,50,19,1,'#555');
+      [[48,'#ffffff','#ff5a7a'],[57,'#3b7bff','#ffd23f']].forEach(([x,c,m]) => { R(x+2,52,6,10,c); R(x,52,2,3,c); R(x+8,52,2,3,c); R(x+4,50,2,2,'#555'); R(x+4,55,2,2,m); });   // printed shirts on hangers
+      // pharmacy
+      R(72,40,56,32,'#e8e8e2'); R(72,40,56,7,'#2f7d3a'); word('PHARMACY',80,41,'#ffffff');
+      R(75,49,26,17,'#9fc3d8'); for (let i=0;i<5;i++){ R(77+i*5,51,3,3,['#f4f4f4','#e0605a','#9fd3f0','#ffd36a','#f4f4f4'][i]); R(77+i*5,58,3,5,['#7fbf6a','#f4f4f4','#e0605a','#f4f4f4','#9fd3f0'][i]); }
+      R(103,49,12,23,'#4a5a5a'); R(105,51,8,10,'#9fc3d8'); R(118,50,8,8,'#2f7d3a'); R(121,51,2,6,'#ffffff'); R(119,53,6,2,'#ffffff');   // the green cross
+      // launderette
+      R(134,40,56,32,'#3b6f9a'); R(134,40,56,7,'#e8f4fa'); word('SOAP OPERA',143,41,'#2a5a80');
+      R(137,49,35,17,'#cfe3ee'); [141,152,163].forEach((x,i) => { R(x-1,54,9,10,'#f4f4f4'); R(x+1,56,5,6,'#5a7a90'); if ((Math.floor(t/350)+i)%2) R(x+2,57,3,3,'#9fd3f0'); else R(x+3,58,2,3,'#e0605a'); });
+      R(175,49,12,23,'#2a4a68'); R(177,51,8,10,'#9fc3d8');
+    },
+    props(t, night){ lampPost(128, night); zAdd(87, () => { R(30,75,8,2,'#c23b3b'); R(29,77,3,3,'#111'); R(37,77,3,3,'#111'); }); }
+  }, 'CAM-14', 'HERZL ST. // WEST');
+  // the middle block: the barber, a building like his, the makolet, the bakery; Boolify on the roof
+  SCENES.west2 = westBlock({seed:2, bld:[[0,16,54,'#94806e'],[54,26,46,'#7d8a96'],[100,8,50,'#a89a86'],[150,18,42,'#8a7a6a']],
+    fronts(t, night){
+      // Boolify billboard
+      roofAd(55,7,44,14,[62,92]); R(55,7,44,14,'#ff7ad9'); word('BOOLIFY',64,9,'#2a0a2a'); const b = Math.floor(t/400);
+      for (let i=0;i<14;i++) R(62+i*2,18-((b+i)%2)*2,1,1+((b+i)%2)*2,'#2a0a2a');
+      // barber: a turning pole
+      R(3,40,47,32,'#e8e0d0'); R(3,40,47,7,'#3a3a44'); word('BARBER',15,41,'#f4f4f4');
+      R(6,49,24,17,'#9fc3d8'); R(10,56,8,3,'#7a2a2a'); R(12,59,4,7,'#333'); R(21,51,6,8,'#dfeaf2');
+      R(32,49,11,23,'#4a3a2c'); R(34,51,7,10,'#9fc3d8');
+      R(45,49,3,15,'#f4f4f4'); for (let y=0;y<15;y++) if ((y + Math.floor(t/220)) % 5 < 2) R(45,49+y,3,1, (y + Math.floor(t/220)) % 10 < 5 ? '#c23b3b' : '#3b5bb5');
+      // a residential entrance, like his own
+      R(64,50,22,22,'#5a4c3f'); R(67,53,16,19,'#3a2d22'); R(74,53,2,19,'#2a2018'); R(68,46,14,4,'#c9b37a'); digit(3,72,47,'#3a2d22'); digit(5,77,47,'#3a2d22'); R(87,56,3,5,'#c9ced4');
+      R(90,64,8,8,C.terracotta); R(91,57,2,7,C.leaf); R(94,59,3,5,C.leafDark);
+      // the makolet: crates out on the sidewalk
+      R(102,42,46,30,'#c9b88e'); for (let i=0;i<10;i++) R(101+i*5,42,5,5, i%2 ? '#f4f4f4' : '#2f6fb5'); R(109,34,31,7,'#2f6fb5'); word('MAKOLET',111,35,'#ffffff');
+      R(105,49,22,13,'#2a2a2a'); R(107,51,18,2,'#c9ced4'); R(107,56,18,2,'#c9ced4'); for (let i=0;i<6;i++){ R(108+i*3,48+1,2,2,['#e0605a','#ffd36a','#7fbf6a'][i%3]); R(108+i*3,54,2,2,['#9fd3f0','#e0b04a','#f4f4f4'][i%3]); }
+      R(130,49,14,23,'#3a4a5a'); R(132,51,10,12,'#9fc3d8');
+      // bakery
+      R(152,40,38,32,'#6b3f22'); R(152,40,38,7,'#f2e6c0'); word('BAKERY',159,41,'#6b3f22');
+      R(155,49,22,15,'#f0d090'); for (let i=0;i<3;i++){ R(158+i*6,52,5,3,'#c98a3a'); R(158+i*6,59,5,3,'#e0b04a'); } R(155,56,22,1,'#a06a3a'); R(179,49,9,23,'#3a2212'); R(181,51,5,9,'#f0d090');
+    },
+    props(t, night){ lampPost(52, night); ficus(150, 87);
+      zAdd(85, () => { [104,114,124].forEach((x,i) => { R(x,67,9,5,'#8a6a4a'); R(x+1,66,7,2,['#e0605a','#7fbf6a','#ffa040'][i]); R(x+2,65,2,1,['#e0605a','#7fbf6a','#ffa040'][i]); R(x+1,72,1,1,'#5a4432'); R(x+7,72,1,1,'#5a4432'); }); });
+      zAdd(87, () => { R(92,74,7,9,'#2f6a44'); R(91,73,9,2,'#25583a'); R(92,83,2,1,'#111'); R(97,83,2,1,'#111'); }); }   // a bin
+  }, 'CAM-15', 'HERZL ST. // WEST');
+  // the park end: the street's last two shops, then the park's wall, hedge and trees
+  SCENES.west3 = westBlock({seed:3, bld:[[84,14,54,'#8f7f6c'],[138,22,54,'#7d8a7a']],
+    fronts(t, night){
+      // the park begins: trees over a low wall and a hedge (he walks on along the sidewalk, into the park off the left edge)
+      [[6,20],[34,14],[60,22]].forEach(([x,y]) => { R(x+5,y+12,4,42,'#5e4027'); R(x-6,y,26,16,'#2f7d3a'); R(x-3,y-5,20,7,'#3f9a48'); R(x-4,y+10,8,5,'#256b30'); R(x+10,y+4,7,5,'#3f9a48'); });
+      R(0,54,84,10,'#3f8a48'); for (let x=2;x<84;x+=7) R(x,53,4,2,'#4fa358'); R(0,64,84,8,'#b5ab96'); for (let x=0;x<84;x+=10) R(x,64,1,8,'#9a917e'); R(0,64,84,1,'#cfc6b4');
+      R(50,50,1,22,'#555'); R(38,44,26,8,'#2f7d3a'); word('PARK',43,46,'#ffffff');
+      // 8bitTV billboard
+      roofAd(88,1,46,12,[96,126]); R(88,1,46,12,'#1b1464'); word('8',92,4,'#ffd23f'); word('BIT',97,4,'#ffffff'); word('TV',110,4,'#3bceac'); R(122,5+(Math.abs(Math.sin(t/420))*2|0),3,4,'#ff4f79'); R(120,11,12,1,'#3a9a4a');
+      // second-hand books
+      R(86,40,50,32,'#4a5a3a'); R(86,40,50,7,'#f2e6c0'); word('BOOKS',101,41,'#3a4a2c');
+      R(89,49,28,17,'#e8dcc0'); for (let r=0;r<2;r++){ R(90,57+r*8,26,1,'#6b4a2a'); for (let i=0;i<8;i++) R(91+i*3,51+r*8-(i%3===0?1:0),2,6+(i%3===0?1:0),['#c23b3b','#2c3a66','#d8b43a','#4f9a3f'][(i+r)%4]); }
+      R(120,49,13,23,'#2a3220'); R(122,51,9,10,'#9fc3d8');
+      // bicycle shop
+      R(138,42,52,30,'#c9c0ae'); R(138,42,52,7,'#c27a3b'); word('CYCLES',152,43,'#ffffff'); R(141,51,30,15,'#9fc3d8'); R(174,51,13,21,'#4a3a2c'); R(176,53,9,9,'#9fc3d8');
+      [146,158].forEach(x => { R(x,61,3,3,'#222'); R(x+7,61,3,3,'#222'); R(x+2,59,6,1,'#c23b3b'); R(x+6,57,1,3,'#c23b3b'); R(x+2,58,3,1,'#222'); });
+    },
+    props(t, night){ lampPost(70, night); ficus(136, 87); zAdd(85, () => { R(14,68,20,2,'#7a5534'); R(14,71,20,2,'#5e4027'); R(16,73,2,5,'#333'); R(30,73,2,5,'#333'); }); }
+  }, 'CAM-16', 'HERZL ST. // PARK END');
   // ---------- Herzl St. east: the shops between his block and the café ----------
   SCENES.shops = {
     cam:'CAM-09', place:'HERZL ST. // SHOPS', walkY:66, entry:-14, exit:W+8,
@@ -1378,14 +1478,9 @@
       // Kfar Kofi billboard on the roof
       R(118,14,1,4,'#444'); R(146,14,1,4,'#444'); R(112,3,40,12,'#6b3f22'); R(112,3,40,1,'#4a2a16'); word('KFAR KOFI',115,6,'#ffd9a0');
       // Herzl Hardware
-      R(2,40,32,32,'#6a2a2a'); R(2,40,32,13,'#c23b3b'); word('HERZL',8,41,'#ffffff'); word('HARDWARE',3,47,'#ffffff');
-      R(4,54,17,12,'#9fc3d8'); R(7,58,2,7,'#8a6a4a'); R(5,57,6,2,'#c9ced4'); R(13,60,3,5,'#3b7bc2'); R(17,61,3,4,'#e0b04a');
-      R(23,54,10,18,'#3a2020'); R(25,56,6,7,'#9fc3d8');
-      // PicSell: pictures, posters and printed shirts
-      R(34,40,28,32,'#2b2b33'); R(34,40,28,7,'#ffd23f'); word('PICSELL',35,41,'#1a1a1a');
-      R(36,49,14,17,'#dfe6ea'); R(37,50,5,7,'#3b7bc2'); R(38,53,3,3,'#ffe27a'); R(43,50,5,7,'#ff5a7a'); R(44,52,3,1,'#ffffff'); R(44,54,3,1,'#ffffff');   // two posters
-      R(40,58,8,7,'#ffffff'); R(38,58,2,3,'#ffffff'); R(48,58,2,3,'#ffffff'); R(43,60,2,2,'#ff5a7a'); R(43,57,2,1,'#555');   // a printed shirt on a hanger
-      R(51,49,10,23,'#17171c'); R(53,51,6,9,'#9fc3d8'); R(58,62,1,2,'#ffd23f');
+      R(2,40,58,32,'#6a2a2a'); R(2,40,58,7,'#c23b3b'); word('HERZL HARDWARE',3,41,'#ffffff');
+      R(5,49,36,17,'#9fc3d8'); R(10,55,2,9,'#8a6a4a'); R(8,54,6,2,'#c9ced4'); R(17,58,12,3,'#c9ced4'); R(28,57,3,5,'#7a5232'); R(33,60,4,6,'#3b7bc2'); R(37,61,3,5,'#e0b04a');
+      R(44,49,13,23,'#3a2020'); R(46,51,9,10,'#9fc3d8');
       // Tahini Tower Savings Bank + ATM
       R(62,38,46,34,'#cfc6b4'); R(62,38,46,8,'#1f3d5a'); word('TAHINI BANK',64,40,'#e8d9a8'); R(64,46,3,26,'#e8e2d6'); R(103,46,3,26,'#e8e2d6');
       R(74,50,14,22,'#3a4a5a'); R(76,52,10,10,'#8fb0c8'); R(92,52,9,13,'#4a4a4a'); R(93,53,7,4, (Math.floor(t/900)%2) ? '#5ab0ff' : '#4a9ae8'); R(94,58,5,4,'#2a2a2a'); R(95,63,3,1,'#111');
@@ -2079,13 +2174,16 @@
     bathroom:  { apartment: {exit:9, entry:9} },                                      // bathroom door -> apartment
     corridor:  { apartment: {exit:40, entry:40}, street: {exit:178, entry:178} },     // apt 4 door, stairs
     street:    { corridor: {exit:26, entry:26},                                       // building entrance
-                 park: {exit:-14, entry:-14},                                         // left edge -> park
+                 west1: {exit:-14, entry:-14},                                        // left edge -> Herzl St. west, on the way to the park
                  shops: {exit:W+8, entry:W+8},                                        // right edge -> Herzl St. east (the shops)
                  gym: {exit:64, entry:64},                                            // Herzl Gym door (blue building)
                  bar: {exit:101, entry:101},                                          // The Black Candle door (next to the bench)
                  market: {exit:128, entry:128, ride:true},                            // bus stop: the bus (or a taxi) to Shuk Shalom
                  offscreen: {exit:128, entry:128, ride:true} },                       // bus stop: bus or taxi
-    park:      { street: {exit:W+8, entry:W+8} },                                     // right edge -> street
+    park:      { west3: {exit:W+8, entry:W+8} },                                      // right edge -> the park end of Herzl St.
+    west3:     { park: {exit:-14, entry:-14}, west2: {exit:W+8, entry:W+8} },         // three blocks you walk through, on the way between the park and his building
+    west2:     { west3: {exit:-14, entry:-14}, west1: {exit:W+8, entry:W+8} },
+    west1:     { west2: {exit:-14, entry:-14}, street: {exit:W+8, entry:W+8} },
     shops:     { street: {exit:-14, entry:-14}, cafe: {exit:W+8, entry:W+8} },        // left edge -> street, right edge (the café corner) -> café
     cafe:      { shops: {exit:4, entry:4} },                                          // entrance door -> Herzl St. east
     gym:       { street: {exit:4, entry:4} },                                         // gym door -> street
@@ -2445,7 +2543,7 @@
       } else if (loc === 'corridor'){ bed(brown,'lowpass',300,.07); hum(100,.008); }
       else if (loc === 'bus'){ bed(brown,'lowpass',170,.16); hum(62,.014); }                   // the engine, and the road under the floor
       else if (loc === 'taxi'){ bed(brown,'lowpass',210,.1); hum(84,.006); }
-      else if (loc === 'street' || loc === 'shops'){
+      else if (loc === 'street' || loc === 'shops' || WEST.has(loc)){
         bed(brown,'lowpass',700,.14);
         if (loc === 'shops') loop(20000, 0, () => { if (Math.floor(NOW()/20000) % 2) for (let i=0;i<6;i++) tone(1800,.03,'square',.012,i*.5,dest); });   // the crossing beeps on green
         loop(5000, 6000, () => noise(2.6,{vol:.16,type:'lowpass',freq:250,sweep:[1500,250],buf:brown,dest}));
@@ -2743,7 +2841,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', market:'SHUK SHALOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', market:'SHUK SHALOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
