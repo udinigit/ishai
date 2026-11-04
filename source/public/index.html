@@ -722,7 +722,7 @@
     });
   }
   const dog = { x:0, loc:null, last:0, lastBark:0 };
-  function liveLayer(t, scene){ if (DREAMING) return; compUpdate(t, scene); dogUpdate(t, scene); courierUpdate(t); }
+  function liveLayer(t, scene){ if (DREAMING) return; zAdd(scene.walkY + 22.1, () => { compUpdate(t, scene); dogUpdate(t, scene); courierUpdate(t); }); }
   // ---- ateBite: the (fake) food delivery app. Orange, a round logo with a bite taken out of it ----
   const ATE = {o:'#ff6a2a', d:'#c94e18', w:'#fff4ea'};
   function ateHelmet(x, y){ R(x+1,y-1,8,3,ATE.o); R(x+2,y-2,6,1,ATE.o); R(x+7,y+1,2,1,ATE.d); }
@@ -739,7 +739,7 @@
     const e = (NOW() - d.at) / 1000; if (e < 0 || e > 40) return;
     if (!d.rang){ d.rang = true; Sound.bell(); }
     const x = e < 5 ? 135 - e * 3 : e < 34 ? 120 : 120 + (e - 34) * 3, y = 74;
-    alpha(.95, () => { person(EXTRA.courier, x, y, t, {walk: e < 5 || e > 34, face: e < 34 ? -1 : 1}); ateHelmet(x, y); ateBox(e < 34 ? x + 9 : x - 5, y + 8);
+    alpha(1, () => { person(EXTRA.courier, x, y, t, {walk: e < 5 || e > 34, face: e < 34 ? -1 : 1}); ateHelmet(x, y); ateBox(e < 34 ? x + 9 : x - 5, y + 8);
       if (e > 8 && e < 30) R(x - 2, y + 12, 4, 4, '#e8dcc0'); });
   }
   // now and then an ateBite courier rides past on the road (same clock for everyone)
@@ -887,16 +887,23 @@
     person(comp.look, comp.x, scene.walkY, t+300, {walk:true, face: Math.sign(d)||1});
   }
   // a walker crossing between x0 and x1 every `period` ms; returns x or null when off screen
+  // depth: while a scene draws, anything that can overlap goes into a queue with the height of its base, and the queue draws back to front
+  let ZQ = null;
+  const zOn = () => { ZQ = []; };
+  const zAdd = (y, fn) => { if (ZQ) ZQ.push([y, fn]); else fn(); };
+  function zFlush(){ const q = ZQ || []; ZQ = null; q.map((e, i) => [e, i]).sort((a, b) => a[0][0] - b[0][0] || a[1] - b[1]).forEach(([e]) => e[1]()); }
+  // people are solid: only someone appearing or leaving in place fades, briefly
+  const solid = f => Math.min(1, f / .6);
   function walkerX(t, period, offset, x0, x1, dir){
     const ph = ((t + offset) % period) / period; const x = x0 + (x1 - x0) * ph;
     return dir < 0 ? x1 - (x - x0) : x;
   }
   function crowdWalk(t, idx, period, offset, y, dir, fade=.8){
     const x = walkerX(t, period, offset, -14, W+4, dir);
-    alpha(fade, () => person(CROWD[idx % CROWD.length], x, y, t + offset, {walk:true, face:dir, muted:true}));
+    zAdd(y + 22, () => person(CROWD[idx % CROWD.length], x, y, t + offset, {walk:true, face:dir, muted:true}));
   }
   function crowdStill(t, idx, x, y, o={}, fade=.8){
-    alpha(fade, () => person(CROWD[idx % CROWD.length], x, y, t + idx*977, Object.assign({face:0, muted:true}, o)));
+    zAdd(y + 22, () => alpha(solid(fade), () => person(CROWD[idx % CROWD.length], x, y, t + idx*977, Object.assign({face:0, muted:true}, o))));
   }
   const ISHAI_LOOK = {hair:'short',hairColor:'brown',skin:'fair',shirt:'teal',pants:'navy',extras:[]};
   // fallback looks for unnamed passers-by / staff
@@ -940,7 +947,7 @@
   function regular(id, x, y, t, o={}){
     if (DREAMING || !regHere(id)) return false;
     if (comp.id === id || actor.with === id) return true;
-    markHead(id, x, y); alpha(.9, () => person(REG[id].look, x, y, t, Object.assign({muted:true, seed: strHash(id) % 90}, o))); return true;
+    markHead(id, x, y); zAdd(y + 22, () => person(REG[id].look, x, y, t, Object.assign({muted:true, seed: strHash(id) % 90}, o))); return true;
   }
   function postLook(loc, fallback){ return lookOf(POST[loc]) || fallback; }
   const withIsPost = () => actor.with && POST[actor.loc] === actor.with;
@@ -1116,12 +1123,13 @@
       if (S('watching')) drawIshai('watching',111,62,t);
       R(104,80,24,8,C.armDark); R(102,72,4,17,C.armLight); R(126,72,4,17,C.armLight);
       R(102,72,4,1,'#6d8c55'); R(126,72,4,1,'#6d8c55'); R(104,88,2,4,C.woodDark); R(126,88,2,4,C.woodDark);
-      if (UNLOCKED.has('tv')){ // TV on a low stand, seen from behind (screen faces the armchair)
+      zOn();
+      if (UNLOCKED.has('tv')) zAdd(100, () => { // TV on a low stand, seen from behind (screen faces the armchair): people walk between it and the armchair
         R(105,93,26,2,C.woodDark); R(107,95,2,5,C.woodDark); R(127,95,2,5,C.woodDark);
         R(108,82,20,11,'#2b2b31'); R(109,83,18,1,'#3a3a42'); R(112,86,12,1,'#232328'); R(112,88,12,1,'#232328'); R(117,93,2,1,'#3a3a42');
         if (S('watching')){ const c = ['#9fd0ff','#ffd36a','#ff9a9a','#a0ffb0'][Math.floor(t/1500)%4];
           alpha(.5,()=>{ R(107,82,1,11,c); R(128,82,1,11,c); R(108,81,20,1,c); }); }
-      }
+      });
       // kitchen island
       if (S('eating')) drawIshai('eating',158,70,t);
       if (S('drinking')) drawIshai('drinking',158,70,t);
@@ -1144,7 +1152,7 @@
       // floor
       drawFloor(t,a,settled,actor,this);
       // light
-      liveLayer(t, this);
+      liveLayer(t, this); zFlush();
       let dark = 0; if (isNight(hf)) dark = S('sleeping') ? .62 : .28; else if (hf<7||hf>=18) dark=.12;
       if (dark) alpha(dark,()=>R(0,0,W,H,'#050a1e'));
       if (S('sleeping') && !DREAMING && sleepPhase() >= 2) drawDream(t);
@@ -1294,10 +1302,12 @@
         drawDog(sx, 88, t, scratch ? 'walk' : 'sit', Math.sin(t/9000) > 0 ? 1 : -1);
       }
       // bystanders: a far lane of pedestrians, someone waiting on the bench
+      zOn();
       crowdWalk(t, 0, 26000, 0, 61, 1, .7); crowdWalk(t, 1, 33000, 9000, 61, -1, .7); crowdWalk(t, 5, 41000, 20000, 63, 1, .75);
-      if (Math.floor(t/90000) % 3 !== 0) crowdStill(t, 3 + Math.floor(t/90000) % 4, 124, 48, {legs:'sit'}, .8 * fadeWin(t, 90000));
+      if (Math.floor(t/90000) % 3 !== 0) crowdStill(t, 3 + Math.floor(t/90000) % 4, 124, 48, {legs:'sit'}, fadeWin(t, 90000));
       crowdWalk(t, 6, 57000, 31000, 67, -1, .85);
       drawFloor(t,a,settled,actor,this);
+      zAdd(200, () => {
       ateRideBy(t, 99);
       // car
       const cx = ((t/12) % 520) - 60;
@@ -1311,7 +1321,8 @@
       } else if (cx < W+10){ const col = ['#c23b3b','#3b7bc2','#e0b04a','#dcdcdc'][lap%4];
         R(cx,96,26,6,col); R(cx+5,92,14,4,col); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0');
         R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111'); if (night) R(cx+25,97,2,2,'#fff3b0'); }
-      liveLayer(t, this);
+      });
+      liveLayer(t, this); zFlush();
       if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
     }
   };
@@ -1367,15 +1378,16 @@
       R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=0; x<W; x+=20) if (x < 56 || x > 100) R(x+4,101,10,1,'#e8e8a0');
       for (let i=0;i<4;i++) R(60,96+i*3,36,2,'#e8e8e8');   // zebra crossing: pedestrians cross from the sidewalk down over the road
       const green = Math.floor(NOW()/20000) % 2 === 1;   // pedestrians' green (same for everyone)
-      R(107,40,2,48,'#333'); R(104,26,8,14,'#222'); R(106,28,4,3, green ? '#4a1a1a' : '#ff3b3b'); R(106,34,4,3, green ? '#3bff6a' : '#1a3a1a');
-      R(140,84,10,2,'#c23b3b'); R(139,86,3,3,'#111'); R(148,86,3,3,'#111'); R(146,80,1,4,'#444'); R(144,79,4,1,'#444');   // a parked scooter
+      zOn();
+      zAdd(87, () => { R(107,40,2,48,'#333'); R(104,26,8,14,'#222'); R(106,28,4,3, green ? '#4a1a1a' : '#ff3b3b'); R(106,34,4,3, green ? '#3bff6a' : '#1a3a1a'); });
+      zAdd(89, () => { R(140,84,10,2,'#c23b3b'); R(139,86,3,3,'#111'); R(148,86,3,3,'#111'); R(146,80,1,4,'#444'); R(144,79,4,1,'#444'); });   // a parked scooter
       // passers-by; someone at the ATM now and then
       crowdWalk(t, 3, 29000, 4000, 61, 1, .7); crowdWalk(t, 0, 37000, 15000, 63, -1, .7); crowdWalk(t, 6, 45000, 27000, 67, 1, .85);
-      if (Math.floor(t/75000) % 3 === 1) crowdStill(t, 2, 91, 66, {face:0}, .8 * fadeWin(t, 75000));
+      if (Math.floor(t/75000) % 3 === 1) crowdStill(t, 2, 91, 66, {face:0}, fadeWin(t, 75000));
       drawFloor(t,a,settled,actor,this);
       // traffic: cars stop in a queue before the crossing while pedestrians have green, and all drive on when it turns red for them
-      shopsTraffic(NOW(), night); ateRideBy(t + 30000, 99);
-      liveLayer(t, this);
+      zAdd(200, () => { shopsTraffic(NOW(), night); ateRideBy(t + 30000, 99); });
+      liveLayer(t, this); zFlush();
       if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
       if (night){ alpha(.22,()=>{ R(5,49,36,17,'#ffe8a0'); R(114,50,24,14,'#ffe8a0'); R(162,49,26,15,'#ffd890'); }); }
     }
@@ -1431,41 +1443,41 @@
       // pond + duck
       R(150,58,40,14,'#3f7fbf'); R(152,57,36,1,'#3f7fbf'); R(154,60,10,1,'#7fb4e0');
       const dx = 156 + Math.round((Math.sin(t/3000)+1)*12); R(dx,62,4,2,'#f4f4f4'); R(dx+3,60,2,2,'#2f8f3f'); R(dx+5,61,1,1,'#e0a030');
+      zOn();
       // big tree
-      R(26,30,6,40,'#5e4027'); R(10,8,38,26,'#2f7d3a'); R(14,4,30,6,'#3f9a48'); R(16,14,10,6,'#3f9a48'); R(34,20,10,6,'#256b30');
+      zAdd(70, () => { R(26,30,6,40,'#5e4027'); R(10,8,38,26,'#2f7d3a'); R(14,4,30,6,'#3f9a48'); R(16,14,10,6,'#3f9a48'); R(34,20,10,6,'#256b30'); drawCrow(30, 6, t, 1, false); });
       // lamp
-      R(96,40,2,40,'#333'); R(93,37,8,4,'#333'); R(94,41,6,1, night?'#fff3b0':'#777');
-      if (night) alpha(.18,()=>R(86,42,22,40,'#fff3b0'));
+      zAdd(80, () => { R(96,40,2,40,'#333'); R(93,37,8,4,'#333'); R(94,41,6,1, night?'#fff3b0':'#777'); drawCrow(94, 37, t, 0, false);
+        if (night) alpha(.18,()=>R(86,42,22,40,'#fff3b0')); });
       // crows: one on the lamp, one in the tree, now and then one flies over
-      { drawCrow(94, 37, t, 0, false); drawCrow(30, 6, t, 1, false);
-        const fp = (NOW() % 47000) / 47000; if (fp < .5) drawCrow(Math.round(fp * 2 * (W + 40)) - 20, 16 + Math.round(Math.sin(fp*20)*3), t, 2, true); }
+      { const fp = (NOW() % 47000) / 47000; if (fp < .5) zAdd(300, () => drawCrow(Math.round(fp * 2 * (W + 40)) - 20, 16 + Math.round(Math.sin(fp*20)*3), t, 2, true)); }
       // bystanders on the far lawn, and joggers on the path
       crowdWalk(t, 2, 38000, 5000, 50, 1, .6); crowdWalk(t, 7, 47000, 21000, 52, -1, .6);
       const jx = [walkerX(t, 11000, 3000, -14, W+4, 1), walkerX(t, 13500, 7000, -14, W+4, -1), walkerX(t, 17000, 1000, -14, W+4, 1)];
-      jx.forEach((x, i) => { if (i === 2 && Math.floor(t/60000) % 2) return; alpha(.8, () => person(JOGGERS[i], x, 70 - (Math.floor(t/150)%2), t * 1.8 + i*300, {walk:true, face: i===1 ? -1 : 1, muted:true})); });
+      jx.forEach((x, i) => { if (i === 2 && Math.floor(t/60000) % 2) return; zAdd(92, () => person(JOGGERS[i], x, 70 - (Math.floor(t/150)%2), t * 1.8 + i*300, {walk:true, face: i===1 ? -1 : 1, muted:true})); });
       // street cats: one curled up under the tree, one washing by the vending machine, one strolling across the far lawn
-      drawCat(36, 72, t, 'sleep', 0, 1);
+      zAdd(72, () => drawCat(36, 72, t, 'sleep', 0, 1));
       const eating = settled && a==='eating';
-      drawCat(eating ? 104 : 76, 80, t, 'sit', 2, eating ? 1 : -1);
-      { const cp = (NOW() % 70000) / 70000; if (cp < .6) drawCat(Math.round(cp / .6 * (W + 30)) - 15, 60, t, 'walk', 1, 1); }
-      if (!regular('zelig', 156 + Math.round(Math.sin(t/9000)*9), 66, t, {face: Math.cos(t/9000) > 0 ? 1 : -1, walk: Math.floor(t/18000) % 3 === 0, talking: SAY.who === 'zelig'}) && Math.floor(t/120000) % 2) crowdStill(t, 1, 156, 66, {face:1}, .75 * fadeWin(t, 120000)); // someone watching the duck, on the path
+      zAdd(80.5, () => drawCat(eating ? 104 : 76, 80, t, 'sit', 2, eating ? 1 : -1));
+      { const cp = (NOW() % 70000) / 70000; if (cp < .6) zAdd(60, () => drawCat(Math.round(cp / .6 * (W + 30)) - 15, 60, t, 'walk', 1, 1)); }
+      if (!regular('zelig', 156 + Math.round(Math.sin(t/9000)*9), 66, t, {face: Math.cos(t/9000) > 0 ? 1 : -1, walk: Math.floor(t/18000) % 3 === 0, talking: SAY.who === 'zelig'}) && Math.floor(t/120000) % 2) crowdStill(t, 1, 156, 66, {face:1}, fadeWin(t, 120000)); // someone watching the duck, on the path
       // Cooola vending machine
-      R(60,52,12,28,COOOLA.bg); R(61,54,10,10,'#2a1240'); for (let i=0;i<3;i++) cooolaCan(62+i*3,57);
-      R(61,66,10,1,COOOLA.fg); bolt(64,69,COOOLA.bolt); R(62,76,8,2,'#111'); if (night) alpha(.25,()=>R(58,50,16,32,COOOLA.fg));
+      zAdd(80, () => { R(60,52,12,28,COOOLA.bg); R(61,54,10,10,'#2a1240'); for (let i=0;i<3;i++) cooolaCan(62+i*3,57);
+        R(61,66,10,1,COOOLA.fg); bolt(64,69,COOOLA.bolt); R(62,76,8,2,'#111'); if (night) alpha(.25,()=>R(58,50,16,32,COOOLA.fg)); });
       // bench back
-      R(110,64,34,2,'#7a5534'); R(110,68,34,2,'#7a5534'); R(112,70,2,12,'#333'); R(140,70,2,12,'#333');
-      const sit = settled && (a==='reading'||a==='eating');
-      if (settled && a==='reading') drawIshai('reading',122,62,t,{legs:'sit'});
-      if (settled && a==='eating') drawIshai('eating',122,62,t,{legs:'sit',food:'#e0c060'});
-      const pl = sit && companionLook(a); if (pl && wantComp({id: actor.with || 'stranger', look: pl, x: 134, kind:'seat'})){ markHead(actor.with, 134, 62); person(pl,134,62,t,{legs:'sit',face:-1,talkPhase:true}); }
-      R(108,77,38,3,'#9a7048'); R(110,80,2,6,'#333'); R(142,80,2,6,'#333');
+      const sit = settled && (a==='reading'||a==='eating'), pl = sit && companionLook(a), seated = pl && wantComp({id: actor.with || 'stranger', look: pl, x: 134, kind:'seat'});
+      zAdd(86, () => { R(110,64,34,2,'#7a5534'); R(110,68,34,2,'#7a5534'); R(112,70,2,12,'#333'); R(140,70,2,12,'#333');
+        if (settled && a==='reading') drawIshai('reading',122,62,t,{legs:'sit'});
+        if (settled && a==='eating') drawIshai('eating',122,62,t,{legs:'sit',food:'#e0c060'});
+        if (seated){ markHead(actor.with, 134, 62); person(pl,134,62,t,{legs:'sit',face:-1,talkPhase:true}); }
+        R(108,77,38,3,'#9a7048'); R(110,80,2,6,'#333'); R(142,80,2,6,'#333'); });
       // pigeons on the path: they peck, and flutter off when someone comes close (crumbs by the bench when he eats there)
       { const near = x => (!actor.hidden && OUTSIDE.has(actor.loc) && Math.abs(actor.x + 5 - x) < 14) || jx.some(j => Math.abs(j + 5 - x) < 12);
         for (let i = 0; i < 6; i++){
           const px = sit && a==='eating' && i < 3 ? 112 + i*9 : 8 + Math.floor(hash(Math.floor(NOW()/40000)*11 + i) * 170), scared = !(sit && a==='eating' && i < 3) && near(px);
-          drawPigeon(scared ? px + (i%2 ? 9 : -9) : px, scared ? 76 - (i%3)*3 : 91, t, i, scared); } }
+          zAdd(93, () => drawPigeon(scared ? px + (i%2 ? 9 : -9) : px, scared ? 76 - (i%3)*3 : 91, t, i, scared)); } }
       if (!sit) drawFloor(t,a,settled,actor,this);
-      liveLayer(t, this);
+      liveLayer(t, this); zFlush();
       if (night) alpha(.38,()=>R(0,0,W,H,'#050a1e'));
     }
   };
@@ -1495,16 +1507,19 @@
       for (let i=0;i<3;i++){ const ph=(t/700+i*.33)%1; alpha(1-ph,()=>R(176+i,54-Math.floor(ph*8),1,1,'#f2f2f2')); }
       R(126,62,6,4,'#e0b04a'); R(134,62,6,4,'#c27a3b'); // pastries
       cooolaCan(143,61); cooolaCan(147,61); cooolaCan(160,61);
+      zOn();
       // other customers
-      crowdStill(t, 3, 24, 66, {legs:false, face:1}); if (!regular('lior', 40, 66, t, {legs:false, face:-1}) && Math.floor(t/150000) % 3) crowdStill(t, 5, 40, 66, {legs:false, face:-1}, .8 * fadeWin(t, 150000));
-      R(20,80,34,2,'#9a7048'); R(35,82,4,16,'#5e4027'); R(30,79,3,3,'#e8e4d8'); R(44,79,3,3,'#e8e4d8');
-      if (Math.floor(t/70000) % 2) crowdStill(t, 6, 100, 74, {}, .85 * fadeWin(t, 70000));
+      crowdStill(t, 3, 24, 66, {legs:false, face:1}); if (!regular('lior', 40, 66, t, {legs:false, face:-1}) && Math.floor(t/150000) % 3) crowdStill(t, 5, 40, 66, {legs:false, face:-1}, fadeWin(t, 150000));
+      zAdd(98, () => { R(20,80,34,2,'#9a7048'); R(35,82,4,16,'#5e4027'); R(30,79,3,3,'#e8e4d8'); R(44,79,3,3,'#e8e4d8'); });
+      if (Math.floor(t/70000) % 2) crowdStill(t, 6, 100, 74, {}, fadeWin(t, 70000));
       // plant & lamp
       R(100,8,1,14,'#222'); R(96,22,9,4,'#e0b04a'); alpha(.12,()=>R(86,26,30,50,'#ffe8a0'));
       // table (Ishai sits behind it)
-      R(66,60,22,14,'#3a3a46'); // chair back
       const atTable = settled && ['eating','drinking','working','reading','talking'].includes(a) && !withIsPost();
-      const cl = atTable && companionLook(a); if (cl && wantComp({id: actor.with || 'stranger', look: cl, x: 90, kind:'seat'})){ markHead(actor.with, 90, 68); person(cl,90,68,t,{legs:false,face:-1,talkPhase:true}); }
+      const cl = atTable && companionLook(a), seated = cl && wantComp({id: actor.with || 'stranger', look: cl, x: 90, kind:'seat'});
+      zAdd(102, () => {
+      R(66,60,22,14,'#3a3a46'); // chair back
+      if (seated){ markHead(actor.with, 90, 68); person(cl,90,68,t,{legs:false,face:-1,talkPhase:true}); }
       if (atTable){
         if (a==='talking') drawIshai('talking',72,68,t,{face:1});
         else drawIshai(a,72,68,t,{food:'#e0b04a'});
@@ -1512,8 +1527,9 @@
       R(58,82,44,2,'#9a7048'); R(78,84,4,18,'#5e4027'); R(70,102,20,2,'#5e4027');
       R(66,78,4,4,'#e8e4d8'); R(70,79,1,2,'#e8e4d8'); // cup
       if (settled && a==='working'){ R(74,76,8,6,C.metal); R(73,81,10,1,C.metalDark); }
+      });
       if (!atTable) drawFloor(t,a,settled,actor,this);
-      liveLayer(t, this);
+      liveLayer(t, this); zFlush();
       if (isNight(hf)) alpha(.15,()=>R(0,0,W,H,'#050a1e'));
     }
   };
@@ -1582,7 +1598,7 @@
       R(84,56,8,10,'#9fd3f0'); R(85,55,6,1,'#7fb4d0'); R(83,66,10,30,'#e8e8e8'); R(86,70,4,2,'#3b7bc2');
       gymTv(t); gymTv2(t);
       // someone at the mirror now and then
-      if (!regular('michal', 30, 74, t, {face:-1, talking: SAY.who === 'michal'}) && Math.floor(t/80000) % 2) crowdStill(t, 5, 40, 74, {face:-1}, .75 * fadeWin(t, 80000));
+      if (!regular('michal', 30, 74, t, {face:-1, talking: SAY.who === 'michal'}) && Math.floor(t/80000) % 2) crowdStill(t, 5, 40, 74, {face:-1}, fadeWin(t, 80000));
       // treadmill 1 (Ishai's, right under the TV) and treadmill 2
       const onMill = settled && a==='exercising';
       treadmill(98, t, onMill);
@@ -1591,7 +1607,7 @@
       treadmill(144, t, !!friendMill || regHere('sivan') || Math.floor(t/100000) % 2 === 1);
       if (friendMill){ markHead(actor.with, 150, 62); person(cl, 150, 62, t + 300, {walk:true, face:-1, talkPhase:true}); }
       else if (regular('sivan', 150, 62, t + 500, {walk:true, face:1})) {}
-      else if (Math.floor(t/100000) % 2) alpha(.75 * fadeWin(t, 100000), () => person(CROWD[2], 150, 62, t + 500, {walk:true, face:1, muted:true}));
+      else if (Math.floor(t/100000) % 2) alpha(fadeWin(t, 100000), () => person(CROWD[2], 150, 62, t + 500, {walk:true, face:1, muted:true}));
       if (onMill) drawIshai('walk', 108, 62, t);
       else drawFloor(t,a,settled,actor,this);
       liveLayer(t, this);
@@ -1623,23 +1639,27 @@
       alpha(.16,()=>R(112,18,80,36,'#6a1a8a'));
       R(112,30,80,2,'#3a2a22'); R(112,44,80,2,'#3a2a22');
       for (let i=0;i<17;i++){ const x = 114+i*4.6|0, c = ['#3a6a3a','#8a5a2a','#c9c9d0','#6a2a2a','#2a2a6a'][i%5]; R(x,24,2,6,c); R(x,23,1,1,c); R(x+1,38,2,6,c); R(x+1,37,1,1,c); }
-      markHead('bartender', 152, 46); alpha(.9, () => person(EXTRA.bartender, 152, 46, t, {legs:false, face:-1, muted:true}));
+      markHead('bartender', 152, 46); alpha(1, () => person(EXTRA.bartender, 152, 46, t, {legs:false, face:-1, muted:true}));
       R(112,62,80,3,'#5a3a2a'); R(112,65,80,31,'#2e1f19'); R(112,72,80,1,'#24160f'); R(130,56,2,6,'#c9c9c9'); R(136,56,2,6,'#c9c9c9');
       R(170,58,4,4,'#d9a03a'); R(170,57,4,1,'#f4f1ea');
       // regulars on stools at the bar (backs to us), and one headbanger by the speaker
+      zOn();
       [120,142,172].forEach(x=>{ R(x,86,8,2,'#111'); R(x+3,88,2,8,'#333'); });
       { const st = drunk(), sway = st ? Math.round(Math.sin(t/(st > 1 ? 700 : 1300)) * st) : 0; if (!regular('kobi', 118 + sway, 70 + (st > 1 ? 1 : 0), t, {legs:'sit', face:1, talking: SAY.who === 'kobi'})) crowdStill(t, 7, 118, 70, {legs:'sit', face:1}, .7); }
-      if (Math.floor(t/110000) % 3) crowdStill(t, 0, 170, 70, {legs:'sit', face:1}, .7 * fadeWin(t, 110000));
-      if (Math.floor(t/95000) % 2) alpha(.65 * fadeWin(t, 95000), () => person(CROWD[4], 104, 74 + (Math.floor(t/240)%2), t, {face:1, muted:true}));
+      if (Math.floor(t/110000) % 3) crowdStill(t, 0, 170, 70, {legs:'sit', face:1}, fadeWin(t, 110000));
+      if (Math.floor(t/95000) % 2) zAdd(96, () => alpha(fadeWin(t, 95000), () => person(CROWD[4], 104, 74 + (Math.floor(t/240)%2), t, {face:1, muted:true})));
       // Ishai's candle-lit table (he sits behind it)
-      R(54,60,22,14,'#2a1c1c');
       const atTable = settled && ['drinking','eating','talking'].includes(a);
-      const tl = atTable && companionLook(a); if (tl && wantComp({id: actor.with || 'stranger', look: tl, x: 78, kind:'seat'})){ markHead(actor.with, 78, 68); person(tl,78,68,t,{legs:false,face:-1,talkPhase:true}); }
+      const tl = atTable && companionLook(a), seated = tl && wantComp({id: actor.with || 'stranger', look: tl, x: 78, kind:'seat'});
+      zAdd(104, () => {
+      R(54,60,22,14,'#2a1c1c');
+      if (seated){ markHead(actor.with, 78, 68); person(tl,78,68,t,{legs:false,face:-1,talkPhase:true}); }
       if (atTable){ if (a==='talking') drawIshai('talking',60,68,t,{face:1}); else drawIshai(a,60,68,t,{food: a==='drinking' ? '#d9a03a' : '#e0c060'}); }
       R(46,82,44,2,'#3a2418'); R(66,84,4,18,'#2a1810'); R(58,102,20,2,'#2a1810');
       R(72,77,4,5,'#d9a03a'); R(72,76,4,1,'#f4f1ea'); R(61,76,3,6,'#e8e0d0');                    // a beer, the candle
+      });
       if (!atTable) drawFloor(t,a,settled,actor,this);
-      liveLayer(t, this);
+      liveLayer(t, this); zFlush();
       // dark, red-lit room; then the lights that glow through it
       alpha(.32,()=>R(0,0,W,H,'#08000a')); alpha(.07,()=>R(0,0,W,H,'#ff2020'));
       const fl = 1 + Math.sin(t/120) * .25 + (Math.floor(t/90)%3 ? 0 : .2);
@@ -1677,19 +1697,22 @@
       stall(146, 36, t, '#7a4a9a', '#f4f4f4', x => { for (let i=0;i<4;i++){ R(x+3+i*8,61-((i%2)*2),7,3,'#e8c890'); R(x+3+i*8,60-((i%2)*2),7,1,'#d4a860'); } });
       // vendors behind their stalls, calling out
       [[34,0],[74,5],[114,3],[156,4]].forEach(([x,k],i) => { const shout = (Math.floor(t/1400) + i) % 4 === 0;
-        alpha(.85, () => person(CROWD[k], x, 46, t + i*500, {legs:false, face: i%2 ? -1 : 1, muted:true, talking: shout})); });
+        alpha(1, () => person(CROWD[k], x, 46, t + i*500, {legs:false, face: i%2 ? -1 : 1, muted:true, talking: shout})); });
       // stone pavement, curb, road with the market's bus stop
       R(0,76,W,16,'#b8ab92'); for (let x=0;x<W;x+=12) R(x,76,1,16,'#a89a80'); R(0,84,W,1,'#a89a80');
       R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=0;x<W;x+=20) R(x+4,101,10,1,'#e8e8a0');
-      R(146,58,1,34,'#555'); R(143,54,8,7,'#2f6fb5'); R(144,55,6,1,'#f2f2f2'); R(145,57,4,2,'#f2f2f2');
+      zOn();
+      zAdd(92, () => { R(146,58,1,34,'#555'); R(143,54,8,7,'#2f6fb5'); R(144,55,6,1,'#f2f2f2'); R(145,57,4,2,'#f2f2f2'); });
       // shoppers; an ateBite courier waiting for an order now and then
       crowdWalk(t, 1, 24000, 2000, 61, 1, .75); crowdWalk(t, 5, 31000, 11000, 63, -1, .75); crowdWalk(t, 7, 27000, 19000, 67, 1, .85); crowdWalk(t, 3, 35000, 5000, 65, -1, .8);
-      if (Math.floor(t/60000) % 2){ const f = fadeWin(t, 60000); alpha(.85 * f, () => { person(EXTRA.courier, 176, 66, t, {face:-1, muted:true}); ateHelmet(176, 66); ateBox(185, 74); }); }
+      if (Math.floor(t/60000) % 2){ const f = fadeWin(t, 60000); alpha(f, () => { person(EXTRA.courier, 176, 66, t, {face:-1, muted:true}); ateHelmet(176, 66); ateBox(185, 74); }); }
       drawFloor(t,a,settled,actor,this);
+      zAdd(200, () => {
       if (actor.ride && !DREAMING){ const vx = rideX(actor.ride, NOW());
         if (actor.ride.kind === 'bus') drawBus(vx+10, night, (NOW()-actor.ride.t0) > RIDE.come && (NOW()-actor.ride.t0) < RIDE.come + RIDE.stop); else drawTaxi(vx, night); }
       else ateRideBy(t + 50000, 99);
-      liveLayer(t, this);
+      });
+      liveLayer(t, this); zFlush();
       if (night) alpha(.35,()=>R(0,0,W,H,'#050a1e'));
     }
   };
@@ -1717,10 +1740,10 @@
       R(156,38,34,2,'#666'); R(158,40,1,36,'#666'); R(187,40,1,36,'#666');
       for (let i=0;i<6;i++){ const c = ['#c23b3b','#2c3a66','#f4f4f4','#4f9a3f','#2a2a2a','#d8b43a'][i]; R(160+i*5,41,4,12,c); R(160+i*5,41,4,1,'#444'); }
       // checkout with the cashier
-      alpha(.9, () => person(EXTRA.cashier, 128, 50, t, {legs:false, face:-1, muted:true}));
+      alpha(1, () => person(EXTRA.cashier, 128, 50, t, {legs:false, face:-1, muted:true}));
       R(112,64,40,4,'#d6d0c4'); R(112,68,40,18,'#4a5a6a'); R(120,58,8,6,'#2a2a2a'); R(121,59,6,2, (Math.floor(t/700)%2) ? '#7fff7f' : '#3fbf3f');
       // shoppers
-      if (Math.floor(t/50000) % 3) crowdStill(t, 6, 168, 74, {face:-1}, .8 * fadeWin(t, 50000));
+      if (Math.floor(t/50000) % 3) crowdStill(t, 6, 168, 74, {face:-1}, fadeWin(t, 50000));
       crowdWalk(t, 2, 33000, 8000, 74, 1, .7);
       drawFloor(t,a,settled,actor,this);
       liveLayer(t, this);
@@ -1837,7 +1860,7 @@
       const tt = t + DRIVE.stop + 0, BL = DRIVE_P*3, block = Math.floor(tt/BL), SX = [28,76,144], sy = 54 + bump;
       const seat = x => { R(x-2,70,16,3,'#b33f3f'); R(x+1,73,12,5,'#7f2c2c'); R(x+12,48,4,25,'#b33f3f'); R(x+13,49,2,3,'#d98a8a'); };
       SX.forEach(seat); seat(108);
-      SX.forEach((x, i) => { if (hash(block*5 + i*3 + 1) > .68) return; alpha((.6 + hash(i)*.2) * fadeWin(tt, BL), () => sitter(CROWD[(block + i*3) % CROWD.length], x, sy, t + i*700, {seed: 40 + i})); });
+      SX.forEach((x, i) => { if (hash(block*5 + i*3 + 1) > .68) return; alpha(fadeWin(tt, BL), () => sitter(CROWD[(block + i*3) % CROWD.length], x, sy, t + i*700, {seed: 40 + i})); });
       // Ishai's seat, and a friend on the seat next to his
       const m = rideMate(actor);
       if (m && m.look){ seat(92); markHead(m.id, 92, sy); person(m.look, 92, sy, t+300, {legs:false, face:1, talkPhase:true}); R(93,sy+16,8,2,'#3f4650'); R(93,sy+18,2,4,'#3f4650'); R(93,sy+22,3,1,'#222'); }
@@ -1864,7 +1887,7 @@
       const sw = D.brake ? -3 : D.pull ? 3 : Math.round(Math.sin(t/500)*1.5); R(38,14,1,6,'#d8d4c4'); R(37+sw,20,4,6,'#e2c23c'); R(38+sw,22,2,1,'#2f7f6f');
       // front seat and driver
       R(79,27,12,36,'#3a3530'); R(81,20,8,9,'#3a3530'); R(82,21,6,1,'#55504a');
-      markHead('driver', 62, y); alpha(.9, () => person(CROWD[(Math.floor(t/21600000)) % CROWD.length], 62, y, t, {legs:false, face:-1, muted:true, seed:61}));
+      markHead('driver', 62, y); alpha(1, () => person(CROWD[(Math.floor(t/21600000)) % CROWD.length], 62, y, t, {legs:false, face:-1, muted:true, seed:61}));
       R(0,48,48,16,'#2c2925'); R(0,47,46,2,'#3f3b35');
       for (let i=0;i<14;i++) R(46+i*.45,36+i,3,1,'#16181a'); R(45,47,12,2,'#16181a');      // the wheel, seen from the side
       // back seat
@@ -1888,7 +1911,8 @@
     draw(){ drawStatic(.55); } };
 
   // floor-level figure for a scene (walking / idle / talking / exercising / travelling)
-  function drawFloor(t,a,settled,actor,scene){
+  function drawFloor(t,a,settled,actor,scene){ zAdd(scene.walkY + 22, () => drawFloorNow(t,a,settled,actor,scene)); }
+  function drawFloorNow(t,a,settled,actor,scene){
     if (actor.hidden) return;
     const y = scene.walkY;
     if (actor.wash > 1){ drawIshai('idle', actor.x, y, t); return; }

@@ -72,9 +72,12 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 - People stand on the floor line of their scene (`walkY`), sit on actual seats, and never overlap water, walls or furniture tops.
 - Signs and lights may flicker, but never vanish completely.
 
+## 3b. Depth
+- What stands closer to the camera covers what stands behind it. In a scene, anything that can overlap goes through `zAdd(baseY, fn)` between `zOn()` and `zFlush()`, where `baseY` is where it meets the ground; the queue draws back to front. `drawFloor`, `liveLayer`, `crowdWalk`, `crowdStill` and `regular` do this by themselves. Add new props, street furniture and vehicles the same way.
+
 ## 4. Focus: main characters vs. bystanders
 - Ishai and the cast: full saturation, thin dark outline (`outlined()`), speech bubbles.
-- Bystanders: muted palette (`muted:true`), slightly faded (alpha 0.6–0.85), no outline, no dialogue, never block the main action.
+- Bystanders: muted palette (`muted:true`), solid (never see-through, apart from a brief fade when appearing or leaving in place), no outline, no dialogue, never block the main action.
 - New cast members are drawn only from the look menu (hair, colors, extras) so they stay consistent forever.
 
 ## 4b. Regulars
