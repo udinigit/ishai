@@ -198,6 +198,7 @@
     <div class="ctrls">
       <button id="studioBtn" class="snd" title="Watch the hosts recap the day">📺 STUDIO</button>
       <button id="snd" class="snd" title="Tap to change sound">SOUND: OFF</button>
+      <button id="pipBtn" class="snd" title="Keep watching in a small window" hidden>⧉ POP OUT</button>
       <button id="bugBtn" class="snd" title="Report a bug" aria-label="Report a bug" hidden>🐞</button>
     </div>
   </div>
@@ -2159,7 +2160,7 @@
     }
     simT = sim; SIM = null; e.ev._joined = true; window.__ishaiJoinMs = performance['now']() - t0;
   }
-  function loop(){
+  function frame(){
     const grid = stepTo(NOW());
     if (simT === null) simT = grid;
     if (grid - simT > 3000){
@@ -2167,8 +2168,10 @@
       if (e) joinMoment(e, grid); else simT = grid;
     }
     advance(grid);
-    render(wall()); placeSay(); Sound.setAmbience(ambienceKey()); requestAnimationFrame(loop);
+    render(wall()); placeSay(); Sound.setAmbience(ambienceKey());
   }
+  // animation frames stop on a hidden page; while the pop-out window is open a worker's timer takes over
+  function loop(){ if (!POP.on || !document.hidden) frame(); requestAnimationFrame(loop); }
   // ---- speech bubble above whoever is talking ----
   const SAY = { who:null, text:'', until:0 };
   function showSay(who, text){ SAY.who = who; SAY.text = text; SAY.until = NOW() + 60000; }
@@ -2441,7 +2444,15 @@
     // anyone speaking right now (a voice still talking, or one queued)? sound effects wait for it
     const busy = () => saying > 0 || ('speechSynthesis' in window && (speechSynthesis.speaking || speechSynthesis.pending));
     function hush(){ try { if ('speechSynthesis' in window && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); } catch(e){} }   // a slow voice never runs into the next scheduled line
-    return { blip, key, say, hush, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
+    // the pop-out window plays the page's sound, which keeps it running in the background; a faint tone holds the track open when nothing else plays
+    function popAudio(){
+      if (!init()) return null; try { ac.resume(); } catch(e){}
+      const dest = ac.createMediaStreamDestination(), o = ac.createOscillator(), keep = ac.createGain();
+      o.frequency.value = 40; keep.gain.value = .002; o.connect(keep); keep.connect(dest); o.start();
+      out.connect(dest); out.disconnect(ac.destination);
+      return {stream: dest.stream, stop(){ try { o.stop(); out.disconnect(dest); out.connect(ac.destination); } catch(e){} }};
+    }
+    return { blip, key, say, hush, popAudio, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -3069,7 +3080,7 @@
   // ================= full screen: tap the picture (works for the live picture and the Studio); the last lines stay visible =================
   const camEl = $('scene').parentElement, FS = [];
   function fsPush(who, say, nm, col){
-    const sp = nm ? {name: nm, color: col || '#ffd36a'} : speaker(who); FS.push({name: sp.name, color: sp.color, say}); if (FS.length > 2) FS.shift();
+    const sp = nm ? {name: nm, color: col || '#ffd36a'} : speaker(who); FS.push({name: sp.name, color: sp.color, say, at: NOW()}); if (FS.length > 2) FS.shift();
     const el = $('fsCap'); el.textContent = '';
     FS.forEach(x => { const d = document.createElement('div'); const b = document.createElement('b'); b.style.color = x.color; b.textContent = x.name + ': '; d.append(b, document.createTextNode(x.say)); el.appendChild(d); });
   }
@@ -3133,6 +3144,39 @@
   }, 1000);
   // ================= dead air -> the Studio comes on by itself =================
   // Thanks to the broadcast delay the page already holds the next moments, so it knows when nothing will happen for a while.
+  // ================= pop out: the picture in a small window that stays on when he leaves the browser =================
+  // Video picture-in-picture shows only the video, so the words are drawn into the copied picture.
+  const POP = {on: false, cv: document.createElement('canvas'), video: null, ticker: null, audio: null};
+  POP.cv.width = 640; POP.cv.height = 360;
+  function popDraw(){
+    const c = POP.cv.getContext('2d'); c.imageSmoothingEnabled = false; c.drawImage(cv, 0, 0, 640, 360);
+    const lines = FS.filter(x => NOW() - x.at < 12000).slice(-2); if (!lines.length) return;
+    c.font = '24px monospace'; c.textBaseline = 'top';
+    const wrap = t => { const out = []; let l = ''; t.split(' ').forEach(w => { if (c.measureText(l + w).width > 610){ out.push(l); l = ''; } l += w + ' '; }); out.push(l); return out; };
+    const rows = lines.flatMap(x => wrap(x.name + ': ' + x.say).slice(0, 3).map((r, i) => ({r, i, x}))).slice(-4), top = 360 - rows.length * 28 - 12;
+    c.globalAlpha = .82; c.fillStyle = '#080808'; c.fillRect(0, top, 640, 360 - top); c.globalAlpha = 1;
+    rows.forEach((o, k) => { c.fillStyle = o.i ? '#f2f2f2' : o.x.color; c.fillText(o.r, 14, top + 6 + k * 28); });
+  }
+  function popTick(){ if (!POP.on) return; if (document.hidden) frame(); popDraw(); }
+  async function popOpen(){
+    if (!POP.video){ const v = POP.video = document.createElement('video'); v.playsInline = true; v.style.cssText = 'position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none';
+      document.body.appendChild(v); v.addEventListener('leavepictureinpicture', popClose); }
+    popDraw(); const stream = POP.cv.captureStream(15); POP.audio = Sound.popAudio();
+    if (POP.audio) POP.audio.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+    POP.video.srcObject = stream; POP.on = true;
+    POP.ticker = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),66)'], {type:'text/javascript'}))); POP.ticker.onmessage = popTick;
+    await POP.video.play(); await POP.video.requestPictureInPicture();
+    $('pipBtn').textContent = '⧉ BACK';
+  }
+  function popClose(){
+    POP.on = false; if (POP.ticker) POP.ticker.terminate(); POP.ticker = null; if (POP.audio) POP.audio.stop(); POP.audio = null;
+    if (POP.video){ POP.video.pause(); POP.video.srcObject = null; }
+    $('pipBtn').textContent = '⧉ POP OUT';
+  }
+  if (document.pictureInPictureEnabled && cv.captureStream && window.Worker && !forceLoc){
+    $('pipBtn').hidden = false;
+    $('pipBtn').onclick = (e) => { e.stopPropagation(); if (POP.on){ if (document.pictureInPictureElement) document.exitPictureInPicture().catch(()=>{}); popClose(); } else popOpen().catch(err => { console.error('pop out', err); popClose(); }); };
+  }
   let SHOW_AUTO = false; const autoShown = new Set();
   setInterval(() => {
     if (forceLoc || PREVIEW || showOn || studioOn || callOn || !SHOW || autoShown.has(SHOW.id)) return;

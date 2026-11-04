@@ -41,6 +41,9 @@ Workers AI output costs ~6.5x input, so the engine avoids AI calls where it can 
 - Sound effects are picked from the 25 s clock slot, not at random.
 - Can't match exactly: voices finishing, the room-sound loops, real radio streams. `?syncdebug` adds `window.__ishaiSync()` with the positions, and `window.__ishaiJoinMs` shows the last replay's time.
 
+## Pop out (picture-in-picture)
+`⧉ POP OUT` copies the scene into a hidden video (`POP`, `popDraw()`), with the last lines drawn in as captions because the HTML doesn't reach the small window. While the page is hidden a worker's timer calls `frame()`, and the page's sound runs through the video (`Sound.popAudio()`). Works from the button on Android Chrome; automatic opening on leaving didn't.
+
 ## Health check and quick fixes
 - `GET /api/health` (public): recent moments, retry rate, recent rule problems, stuck counter, current scene, last AI error, art requests.
 - Quick fixes without touching code: add to `story/plan.json` a `"fixes": [{"id": "fix-<date>-<hhmm>", "endScene": true, "note": "...", "minutes": 60}]` and bump `"version"`. `endScene` wraps up the running scene with a goodbye; `note` is a director note the story follows for `minutes`. Each fix id runs once.
