@@ -65,7 +65,7 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 - Main characters always **walk in** from an exit point to their spot, and **walk out** to an exit point when they leave — even from a seat (table, bench, counter). Use the companion controller (`wantComp` / `compUpdate`); never draw a companion directly at their spot without it.
 - Ishai walks to an exit before every camera switch, and walks in from the matching entry after it.
 - Hiding is only allowed behind something real: the bathroom door, the camera switch, or off-camera locations ("CAM-??").
-- Background people who sit or stand still may **fade** in/out (never blink); walking bystanders enter and leave off the screen edges.
+- Nobody fades. Background people who come for a while walk in from an exit and walk out again (`crowdVisit()`, `visitAt()`); walking bystanders enter and leave off the screen edges.
 
 ## 3. Nothing floats
 - Every prop sits on a surface or hangs from something visible (signs on wires/brackets, posters on walls, cans on counters).
@@ -77,7 +77,7 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 
 ## 4. Focus: main characters vs. bystanders
 - Ishai and the cast: full saturation, thin dark outline (`outlined()`), speech bubbles.
-- Bystanders: muted palette (`muted:true`), solid (never see-through, apart from a brief fade when appearing or leaving in place), no outline, no dialogue, never block the main action.
+- Bystanders: muted palette (`muted:true`), solid (never see-through), no outline, no dialogue, never block the main action.
 - New cast members are drawn only from the look menu (hair, colors, extras) so they stay consistent forever.
 
 ## 4b. Regulars
