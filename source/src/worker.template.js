@@ -1567,7 +1567,8 @@ function cleanScript(a) {
   if (!Array.isArray(a)) return null;
   const sc = a.filter(m => m && typeof m === "object" && String(m.text || "").length > 8).slice(0, 8)
     .map(m => ({ location: m.location, action: m.action, with: m.with || null, text: String(m.text).slice(0, 260),
-      lines: Array.isArray(m.lines) ? m.lines.slice(0, 14) : [], commentary: Array.isArray(m.commentary) ? m.commentary.slice(0, 2) : [] }));
+      lines: Array.isArray(m.lines) ? m.lines.slice(0, 14) : [], commentary: Array.isArray(m.commentary) ? m.commentary.slice(0, 2) : [],
+      delivery: m.delivery === true || undefined, message: m.message && typeof m.message === "object" ? m.message : undefined }));
   return sc.length ? sc : null;
 }
 function activeGoal(s, now) {
