@@ -229,6 +229,8 @@ const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => !NEEDS[a] || unloc
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
 const SANDBOX_HTML = __SANDBOX_HTML__;
+const SW_JS = __SW_JS__;
+const VAPID_PUBLIC = "BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI";
 const BUILD = "__BUILD__";
 // The story plan (story/plan.json in the repository), written ahead by the daily planner.
 const PLAN = __PLAN__;
@@ -304,6 +306,15 @@ export default {
       list.push({ id: now.toString(36), at: now, text, build: BUILD, page: str(b.page, 300), screen: str(b.screen, 300), ua: str(req.headers.get("user-agent"), 120), status: "new" });
       await env.ISHAI.put("bugs", JSON.stringify(list.slice(-60)));
       return json({ ok: true });
+    }
+    if (url.pathname === "/sw.js") return new Response(SW_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } });
+    if (url.pathname === "/manifest.json") return json({ name: "Watching Ishai", short_name: "Ishai", start_url: "/", display: "standalone", background_color: "#050705", theme_color: "#050705" });
+    if (url.pathname === "/api/alert") { const s = await loadState(env); return json(s.alert ? { title: s.alert.title, body: s.alert.body } : {}, { "cache-control": "no-store" }); }
+    if (url.pathname === "/api/push" && (req.method === "POST" || req.method === "DELETE")) {
+      const b = await req.json().catch(() => ({})), ep = String(b.endpoint || ""), key = ep.length < 700 && pushAllowed(ep) ? await pushKey(ep) : null;
+      if (!key) return json({ error: "not a push address" }, {}, 400);
+      if (req.method === "DELETE") await env.ISHAI.delete(key); else if (!(await env.ISHAI.get(key))) await env.ISHAI.put(key, ep);
+      return json({ ok: true }, { "cache-control": "no-store" });
     }
     if (url.pathname === "/sandbox") return new Response(SANDBOX_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
     if (url.pathname === "/director")
@@ -572,6 +583,7 @@ async function tick(env, force) {
     u.calls += USE.calls; u.inTok += USE.inTok; u.outTok += USE.outTok; USE.calls = USE.inTok = USE.outTok = 0;
     u.gemini = { calls: (u.gemini?.calls || 0) + USE_G.calls, inTok: (u.gemini?.inTok || 0) + USE_G.inTok, outTok: (u.gemini?.outTok || 0) + USE_G.outTok }; USE_G.calls = USE_G.inTok = USE_G.outTok = 0; }
   if (GEMINI_SEEN) s.geminiModel = GEMINI_SEEN;
+  try { maybeAlert(s, ev, last, clock.hour, now); await sendAlerts(env, s); } catch (e) { console.log("alert", e && e.message); }   // never let an alert stop the show
   await saveState(env, s);
   return s;
 }
@@ -1546,6 +1558,52 @@ async function refreshWorld(s, now) {
   await refreshStations(s, now).catch(() => {});
 }
 
+// ---------- key-moment alerts (web push) ----------
+// A push carries no data: the device's background script asks /api/alert what to show. The story is written 5 minutes
+// ahead, so the alert goes out as the moment is written. Alerts are few on purpose.
+const ALERTS_A_DAY = 4, ALERT_GAP_MIN = 90, PUSH_BATCH = 30;
+function pushAllowed(ep) { try { const u = new URL(ep); return u.protocol === "https:" && /(^|\.)(fcm\.googleapis\.com|push\.services\.mozilla\.com|notify\.windows\.com|push\.apple\.com)$/.test(u.hostname); } catch { return false; } }
+async function pushKey(ep) { const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ep)); return "push:" + [...new Uint8Array(h)].slice(0, 16).map(b => b.toString(16).padStart(2, "0")).join(""); }
+const b64u = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function vapidHeader(env, origin) {
+  const key = await crypto.subtle.importKey("jwk", JSON.parse(env.VAPID_JWK), { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]), te = new TextEncoder();
+  const part = o => b64u(te.encode(JSON.stringify(o))), head = part({ typ: "JWT", alg: "ES256" }) + "." + part({ aud: origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: "https://ishai.udiabunil.workers.dev/" });
+  const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, te.encode(head));
+  return `vapid t=${head}.${b64u(sig)}, k=${VAPID_PUBLIC}`;
+}
+// what makes a moment key; a short teaser that gives nothing away
+function alertText(s, ev, last) {
+  const c = ev.with && s.cast[ev.with], fresh = ev.with && ev.with !== last.with;
+  if (ev.unlocks) return "Something new is about to come into Ishai's life.";
+  if (ev.newCard) return "Someone new is about to walk into Ishai's life.";
+  if (fresh && c && !c.regular && !c.phoneOnly && (c.scenes || 0) <= 1) return `${c.name} is about to appear for the first time.`;
+  if (fresh && c && ev.scene && ev.scene.type === "plot") return ev.action === "phoning" ? `${c.name} is about to call. It matters.` : `${c.name} and Ishai are about to talk. It matters.`;
+  return null;
+}
+function maybeAlert(s, ev, last, hour, now) {
+  if (hour < 8 || hour >= 23) return;
+  const text = alertText(s, ev, last); if (!text) return;
+  const day = new Date(now + 7200000).toISOString().slice(0, 10), log = s.alertLog && s.alertLog.day === day ? s.alertLog : { day, n: 0, at: 0 };
+  if (log.n >= ALERTS_A_DAY || now - log.at < ALERT_GAP_MIN * 60000) return;
+  s.alertLog = { day, n: log.n + 1, at: now }; s.alert = { title: "Watching Ishai", body: text + " In 5 minutes.", at: now }; s.alertSend = { cursor: null, sent: 0 };
+}
+// a batch at each run: the free plan allows only so many requests at a time
+async function sendAlerts(env, s) {
+  const job = s.alertSend; if (!job || !env.VAPID_JWK) return 0;
+  if (Date.now() - s.alert.at > 20 * 60000) { s.alertSend = null; return 0; }
+  const page = await env.ISHAI.list({ prefix: "push:", limit: PUSH_BATCH, cursor: job.cursor || undefined }), auth = {};
+  const rs = await Promise.allSettled(page.keys.map(async k => {
+    const ep = await env.ISHAI.get(k.name); if (!ep) return 0;
+    const origin = new URL(ep).origin; auth[origin] = auth[origin] || await vapidHeader(env, origin);
+    const r = await fetch(ep, { method: "POST", headers: { authorization: auth[origin], ttl: "300", urgency: "high", "content-length": "0" } });
+    if (r.status === 404 || r.status === 410) await env.ISHAI.delete(k.name);     // that device has gone
+    return r.ok ? 1 : 0;
+  }));
+  const n = rs.reduce((a, r) => a + (r.status === "fulfilled" ? r.value : 0), 0);
+  job.sent += n; if (page.list_complete) s.alertSend = null; else job.cursor = page.cursor;
+  return n;
+}
+
 // ---------- director ----------
 function newGoal(d, now) {
   const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -1645,6 +1703,9 @@ async function directorApi(req, env) {
     } else if (b.action === "cancel") {
       const g = s.director.find(d => d.id === b.id && d.status !== "done");
       if (g) { g.status = "done"; g.how = "cancelled"; g.doneAt = now; }
+    } else if (b.action === "testAlert") {
+      s.alert = { title: "Watching Ishai", body: "This is a test alert from the director.", at: now }; s.alertSend = { cursor: null, sent: 0 };
+      const sent = await sendAlerts(env, s); await saveState(env, s); return json({ ok: true, sent });
     } else if (b.action === "tick") {
       await saveState(env, s); await tick(env, true);
       return json(directorView(await loadState(env), JSON.parse(await env.ISHAI.get("bugs") || "[]")));

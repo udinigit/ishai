@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Watching Ishai</title>
+<link rel="manifest" href="/manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
@@ -16,6 +17,7 @@
   html,body{margin:0;background:var(--bg);color:var(--phos);font-family:'VT323',ui-monospace,Menlo,monospace}
   body{min-height:100vh;display:flex;justify-content:center;padding:16px}
   .wrap{width:100%;max-width:760px;display:flex;flex-direction:column;gap:10px}
+  .titleR{display:inline-flex;align-items:baseline;gap:10px} #bell{margin:0;padding:0 6px;line-height:1.2}
   .title{display:flex;justify-content:space-between;align-items:baseline;padding:0 4px;
     font-size:clamp(22px,5.5vw,32px);letter-spacing:1px;text-shadow:0 0 8px rgba(77,255,122,.45)}
   .title small{font-size:.55em;color:var(--phos-dim)}
@@ -166,7 +168,7 @@
   <div class="row"><span id="bugM" style="font-size:15px"></span><button id="bugC" class="snd">CANCEL</button><button id="bugS" class="snd">SEND</button></div>
 </div></div>
 <div class="wrap">
-  <div class="title"><span>&gt; WATCHING_ISHAI</span><small id="day">DAY --</small></div>
+  <div class="title"><span>&gt; WATCHING_ISHAI</span><span class="titleR"><button id="bell" class="snd" title="Tell me before key moments" aria-label="Alerts are off" hidden>🔕</button><small id="day">DAY --</small></span></div>
 
   <div class="cam">
     <div class="hud top"><span class="rec"><span class="dot"></span>REC <span id="cam">CAM-01</span></span><span id="clock">--:--:--</span></div>
@@ -3410,6 +3412,25 @@
   if (forceLoc){ setCast(DEMO_CAST); setState(forceLoc, forcePose || 'idle', true, params.get('with')); }
   else setState('apartment','sleeping',true);
   if (params.has('delivery')) actor.delivery = {at: NOW() - (+params.get('delivery') || 12) * 1000};   // preview an ateBite delivery (seconds into it)
+  // key-moment alerts: a bell for each viewer, off until they turn it on
+  const ALERT_KEY = 'BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI';
+  (async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || forceLoc || params.has('sandbox') || params.has('preview') || params.has('demo') || location.protocol !== 'https:' && location.hostname !== '127.0.0.1') return;
+    const bell = $('bell'); bell.hidden = false;
+    const show = on => { bell.textContent = on ? '\u{1F514}' : '\u{1F515}'; bell.setAttribute('aria-label', on ? 'Alerts are on' : 'Alerts are off'); bell.title = on ? 'Alerts are on. Tap to turn them off' : 'Tell me before key moments'; };
+    const key = () => Uint8Array.from(atob(ALERT_KEY.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+    const send = (method, sub) => fetch('/api/push', {method, headers: {'content-type': 'application/json'}, body: JSON.stringify({endpoint: sub.endpoint})});
+    try { const reg = await navigator.serviceWorker.getRegistration('/'); const sub = reg && await reg.pushManager.getSubscription(); show(!!sub); if (sub) send('POST', sub).catch(() => {}); } catch(e){}
+    bell.onclick = async e => { e.stopPropagation(); bell.disabled = true;
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub){ await send('DELETE', sub); await sub.unsubscribe(); show(false); }
+        else if ((await Notification.requestPermission()) === 'granted'){ const fresh = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: key()}); await send('POST', fresh); show(true); }
+        else bell.title = 'Your browser is blocking alerts for this site';
+      } catch(err){ console.error('alerts', err); }
+      bell.disabled = false; };
+  })();
   if (params.has('syncdebug')) window.__ishaiSync = () => ({loc: actor.loc, x: actor.x, a: actor.action, hidden: actor.hidden, comp: comp.id ? comp.x : null, dog: dog.loc ? dog.x : null, cam: SCENES[actor.loc].cam, ride: !!actor.ride, sw: !!actor.switching, sim: simT});
   requestAnimationFrame(loop);
   if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }

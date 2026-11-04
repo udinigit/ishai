@@ -46,6 +46,7 @@
       <div class="bar" style="justify-content:space-between">
         <span>Unlocked items: <b id="unlocked">—</b></span>
         <button id="tick">Run next moment now</button>
+        <button id="testAlert" class="ghost">Send test alert</button>
       </div>
       <div class="muted" style="margin-top:6px">Latest moment written: <span id="last">—</span></div>
       <div class="muted" style="font-size:16px">New moments appear on the page after the 5-minute delay. "Run now" uses AI budget.</div>
@@ -175,6 +176,11 @@
       render(await api({action:'add', goal:$('goal').value, startAfterH:+$('start').value, deadlineH:+$('deadline').value, unlock:$('unlock').value||null, forceText:$('force').value, art:$('art').value, with:$('with').value, brief:$('brief').value, briefLines:+$('blines').value||0}));
       $('goal').value = ''; $('force').value = ''; $('art').value = ''; $('with').value = ''; $('brief').value = ''; $('blines').value = ''; $('addMsg').className='ok'; $('addMsg').textContent = 'Added.';
     } catch(e){ $('addMsg').className='err'; $('addMsg').textContent = e.message; }
+  };
+  $('testAlert').onclick = async () => {
+    $('tickMsg').className = 'muted'; $('tickMsg').textContent = 'Sending…';
+    try { const r = await fetch('/api/director', {method:'POST', headers:{'x-admin-key':KEY,'content-type':'application/json'}, body: JSON.stringify({action:'testAlert'})}); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'failed'); $('tickMsg').className = 'ok'; $('tickMsg').textContent = `Sent to ${j.sent} device(s).`; }
+    catch(e){ $('tickMsg').className = 'err'; $('tickMsg').textContent = String(e.message); }
   };
   $('tick').onclick = async () => {
     $('tick').disabled = true; $('tickMsg').className='muted'; $('tickMsg').textContent = 'Writing…';
