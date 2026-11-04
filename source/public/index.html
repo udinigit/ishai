@@ -3448,6 +3448,11 @@
   if (forceLoc){ setCast(DEMO_CAST); setState(forceLoc, forcePose || 'idle', true, params.get('with')); }
   else setState('apartment','sleeping',true);
   if (params.has('delivery')) actor.delivery = {at: NOW() - (+params.get('delivery') || 12) * 1000};   // preview an ateBite delivery (seconds into it)
+  // keep the screen on while the page is open and showing; the browser lets go when the tab is hidden, so ask again on return
+  if ('wakeLock' in navigator){ let lock = null;
+    const stayAwake = async () => { if (lock || document.hidden) return; try { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } catch(e){} };
+    stayAwake(); document.addEventListener('visibilitychange', stayAwake); document.addEventListener('pointerdown', stayAwake);   // some browsers need a tap first
+  }
   // key-moment alerts: a bell for each viewer, off until they turn it on
   const ALERT_KEY = 'BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI';
   (async () => {
