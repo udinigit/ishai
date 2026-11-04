@@ -138,7 +138,34 @@ const SEED_CAST = [
     speech: "few words, deadpan",
     hangouts: ["cafe"],
     look: { hair: "short", hairColor: "black", skin: "light", shirt: "black", pants: "black", extras: ["apron"] },
-    memory: "Has started drawing tiny basil leaves on Ishai's cups. He hasn't noticed yet.", relationship: 1 }
+    memory: "Has started drawing tiny basil leaves on Ishai's cups. He hasn't noticed yet.", relationship: 1 },
+  { id: "tomer", name: "Tomer", role: "Ishai's friend since school, an electrician",
+    personality: "loud, loyal, always has a plan that goes wrong, competitive about old video games",
+    speech: "fast and excited, calls him 'Ishai habibi', turns everything into a bet",
+    hangouts: ["bar", "gym", "street"],
+    look: { hair: "short", hairColor: "brown", skin: "tan", shirt: "green", pants: "navy", extras: ["beard"] },
+    memory: "Owes Ishai a rematch and forty shekels.", relationship: 4 },
+  { id: "gadi", name: "Gadi", role: "runs Sababa Creative, the small ad agency that gives Ishai most of his work; Ishai's boss in all but name",
+    personality: "cheerful, always in a hurry, says 'small change' about big changes",
+    speech: "'just one small thing', 'by tomorrow', never says thank you first",
+    hangouts: [], phoneOnly: true,
+    look: { hair: "bald", hairColor: "gray", skin: "fair", shirt: "gray", pants: "black", extras: ["glasses"] },
+    memory: "Thinks Ishai is talented and always available.", relationship: 1 },
+  { id: "michal", name: "Michal", role: "a regular at Herzl Gym, usually by the mirror (mornings and evenings)", regular: "gym",
+    personality: "friendly, disciplined about everything except her promises", speech: "short, out of breath, encouraging",
+    hangouts: ["gym"], look: { hair: "long", hairColor: "blonde", skin: "tan", shirt: "pink", pants: "black", extras: [] }, memory: "", relationship: 0 },
+  { id: "sivan", name: "Sivan", role: "a regular at Herzl Gym, on the treadmill next to his (early mornings and evenings)", regular: "gym",
+    personality: "dry, competitive, watches the second screen", speech: "deadpan, one-liners",
+    hangouts: ["gym"], look: { hair: "bun", hairColor: "black", skin: "fair", shirt: "teal", pants: "gray", extras: [] }, memory: "", relationship: 0 },
+  { id: "zelig", name: "Mr. Zelig", role: "a strange old man who walks the park by day and talks to himself and the pigeons", regular: "park",
+    personality: "harmless, convinced small things are changing when nobody looks", speech: "riddles, counts things, addresses pigeons and trees",
+    hangouts: ["park"], look: { hair: "curly", hairColor: "white", skin: "fair", shirt: "orange", pants: "brown", extras: ["beard", "scarf"] }, memory: "", relationship: 0 },
+  { id: "kobi", name: "Kobi", role: "a regular at The Black Candle: sober at 19:00, tipsy by 21:00, properly drunk by midnight", regular: "bar",
+    personality: "a former bass player, sentimental, repeats himself the later it gets", speech: "the later the hour, the more slurred and the less finished his sentences",
+    hangouts: ["bar"], look: { hair: "short", hairColor: "gray", skin: "tan", shirt: "red", pants: "navy", extras: ["mustache"] }, memory: "", relationship: 0 },
+  { id: "lior", name: "Lior", role: "a regular at Cafe Nahat who has been writing the same novel for years (daytime)", regular: "cafe",
+    personality: "anxious, kind, looks for any excuse to stop writing", speech: "apologizes, then asks for an opinion",
+    hangouts: ["cafe"], look: { hair: "curly", hairColor: "brown", skin: "light", shirt: "blue", pants: "gray", extras: ["glasses"] }, memory: "", relationship: 0 }
 ];
 
 // ---------- world (must match the page) ----------
@@ -308,6 +335,7 @@ async function loadState(env) {
     dirty = true;
   }
   if (!s.cast) { s.cast = Object.fromEntries(SEED_CAST.map(c => [c.id, { ...c, lastSeen: null, scenes: 0 }])); dirty = true; }
+  SEED_CAST.forEach(c => { if (!s.cast[c.id]) { s.cast[c.id] = { ...c, lastSeen: null, scenes: 0 }; dirty = true; } });   // new people join a running show
   if (!s.unlocked) { s.unlocked = []; dirty = true; }
   if (!s.director) { s.director = []; dirty = true; }
   if (!s.done) { const n = Date.now(); s.done = { eat: n - 2 * 3600000, drink: n - 3600000, bathroom: n - 2 * 3600000, shower: n - 12 * 3600000 }; dirty = true; }
@@ -353,7 +381,7 @@ function publicState(s, dev) {
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
     artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, goal: g.goal, art: g.art, createdAt: g.createdAt })),
     cast: Object.values(s.cast).map(c => ({ id: c.id, name: c.name, role: c.role, personality: c.personality,
-      look: c.look, memory: c.memory, relationship: c.relationship, lastSeen: c.lastSeen, scenes: c.scenes || 0 })),
+      look: c.look, memory: c.memory, relationship: c.relationship, lastSeen: c.lastSeen, scenes: c.scenes || 0, remote: c.phoneOnly || undefined })),
     location: last?.location, action: last?.action
   };
 }
@@ -681,7 +709,9 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - If he is AT a place without a camera, use location "offscreen" with action "away". Never use "offscreen" for being on the way or for arriving somewhere that has a camera.
 - Things he owns at home: laptop, books, game console${owned.length ? ", " + owned.join(", ") : ""}.${dogLine} Do not invent other big objects. When he watches TV or listens to the radio, mention what is on (make up shows and stations). ${TV_SHOW}
 - "with" is the id of ONE person with him in this moment (a visitor at home counts), or the person on the other end when the action is "phoning"; otherwise null.
-- He is social: about one in four moments should involve another person, in person or by phone. People visit him, call him, text him to meet up.
+- He is social: at least one moment in two involves another person: in person, a phone call, or a text or email. Friends visit and call, strangers start conversations, regulars say something. ${(() => { let n = 0; for (let i = s.events.length - 1; i >= 0 && n < 8; i--) { const e = s.events[i]; if (e.with || (e.lines || []).length > 1 || e.action === "sleeping") break; n++; } return n >= 3 ? `He has been alone for ${n} moments: in THIS moment someone calls, texts or talks to him.` : ""; })()}
+- GADI, his boss in all but name, is NEVER seen in person. He only phones (action "phoning", "with": "gadi") or sends a text or email: add "message":{"from":"gadi","kind":"text"|"email","say":"max 25 words"} and Ishai reacts out loud in "lines", alone or with whoever is there. Friends can text the same way. A message needs no "with".
+- REGULARS are people he doesn't know well yet, usually found in one place: ${SEED_CAST.filter(c => c.regular).map(c => `${c.name} ("${c.id}", ${c.regular})`).join(", ")}. If he is there at their hours, they can start a short exchange (use "with"), and he gets to know them over time. Kobi at the bar gets drunker with the hour; Mr. Zelig also talks to himself.
 - "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of 8 to 14 lines (each max 25 words) that fills these 4 minutes: small talk, questions and follow-up questions, stories, teasing, short answers ("yeah", "wait, what?"), interruptions, a topic that drifts to another, a pause filled by someone. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
 - EVERY CONVERSATION IS A SCENE WITH A PURPOSE. When a conversation with someone STARTS (their "with" differs from the last moment), fill "scene":
   {"type":"small talk"|"practical"|"plot","why":"the real reason they are talking now (who started it and why)","ishaiWants":"...","theyWant":"...","beats":"3-5 short steps the conversation goes through","ending":"how it ends","lines":12-60 total lines across moments}
@@ -906,11 +936,16 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     ev.with = hit.id;
   }
   if (ev.newCard && ev.with !== ev.newCard.id) ev.with = ev.newCard.id;
+  // some people are only ever on the phone
+  if (ev.with && s.cast[ev.with]?.phoneOnly) { if (LOCATIONS[ev.location]?.includes("phoning")) ev.action = "phoning"; else ev.with = null; }
   // dialogue
   const who = x => { const k = str(x, 40).toLowerCase(); if (k === "ishai") return "ishai";
     const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || "").toLowerCase() === k); return c ? ev.with : null; };
   ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: who(l?.who), say: str(l?.say, 200).replace(/^["']|["']$/g, "") }))
     .filter(l => l.who && l.say).slice(0, 14);
+  // a text or an email: read out first, then he reacts in "lines"
+  if (o.message && typeof o.message === "object") { const id = str(o.message.from, 20).toLowerCase(), say = str(o.message.say, 160), via = str(o.message.kind, 10).toLowerCase() === "email" ? "email" : "text";
+    if (s.cast[id] && say) ev.lines.unshift({ who: id, say, via }); }
   ev.commentary = (Array.isArray(o.commentary) ? o.commentary : [])
     .map(c => ({ who: str(c?.who, 10).toLowerCase(), say: str(c?.say, 160).replace(/^["']|["']$/g, "") }))
     .filter(c => (c.who === "zohar" || c.who === "oren") && c.say).slice(0, 2);

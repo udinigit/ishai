@@ -64,6 +64,10 @@
       </div>
       <label for="media">On the TV or radio</label>
       <select id="media"><option value="">By the clock</option><option value="ch9">Channel 9</option><option value="8bittv">8bitTV (Channel 8)</option><option value="nesflicks">NESflicks</option><option value="herzl">Radio Herzl</option><option value="boolify">Boolify</option></select>
+      <div class="row">
+        <div><label for="msgKind">Message from Gadi</label><select id="msgKind"><option value="">None</option><option value="text">Text</option><option value="email">Email</option></select></div>
+        <div><label for="msgText">It says</label><input id="msgText" value="Need the logo by tomorrow."></div>
+      </div>
       <div class="chips" style="margin-top:8px"><label><input type="checkbox" id="delivery"> ateBite courier arrives</label></div>
       <div id="lines"></div>
       <div class="bar">
@@ -161,11 +165,12 @@ Back to the cameras.</textarea>
   function moment(){
     const said = lines.filter(l => l.say.trim()), hosts = ['zohar','oren'];
     return {location: $('loc').value, action: $('act').value, with: $('with').value || null, ride: $('ride').value || null, delivery: $('delivery').checked, media: $('media').value || null,
-      lines: said.filter(l => !hosts.includes(l.who)).map(l => ({who: l.who, say: l.say})), commentary: said.filter(l => hosts.includes(l.who)).map(l => ({who: l.who, say: l.say}))};
+      lines: [...($('msgKind').value ? [{who:'gadi', say: $('msgText').value, via: $('msgKind').value}] : []), ...said.filter(l => !hosts.includes(l.who)).map(l => ({who: l.who, say: l.say}))], commentary: said.filter(l => hosts.includes(l.who)).map(l => ({who: l.who, say: l.say}))};
   }
   function open(m){
     $('loc').value = m.location; actions(); $('act').value = m.action; $('with').value = m.with || ''; $('ride').value = m.ride || ''; $('media').value = m.media || ''; $('delivery').checked = !!m.delivery;
-    lines = [...m.lines, ...m.commentary].map(l => ({...l})); drawLines();
+    const msg = m.lines.find(l => l.via); $('msgKind').value = msg ? msg.via : ''; if (msg) $('msgText').value = msg.say;
+    lines = [...m.lines.filter(l => !l.via), ...m.commentary].map(l => ({...l})); drawLines();
   }
   const label = m => { const c = cast().find(x => x.id === m.with), n = m.lines.length + m.commentary.length; return `${m.location} · ${m.action}${c ? ' · ' + c.name : ''}${n ? ' · ' + n + (n > 1 ? ' lines' : ' line') : ''}`; };
   function drawList(now){

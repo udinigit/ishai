@@ -77,6 +77,11 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 - Bystanders: muted palette (`muted:true`), slightly faded (alpha 0.6–0.85), no outline, no dialogue, never block the main action.
 - New cast members are drawn only from the look menu (hair, colors, extras) so they stay consistent forever.
 
+## 4b. Regulars
+- Regulars (`REG` in the page, `regular` in the worker's cast) are in-between: muted like bystanders, but with a name, a place, hours and a spot. Michal and Sivan at the gym, Mr. Zelig in the park, Kobi at the bar (drunker with the hour), Lior at the café. Each takes the spot of the usual crowd when present and misses a day now and then.
+- They say short lines to themselves or the room on the clock (`MUTTER`, no AI), and the story can talk to them with `with`: they walk over from their spot and go back to it.
+- Gadi is never drawn: he only phones, texts or emails.
+
 ## 5. Same picture for every viewer
 - Animations, bystanders, traffic and sponsored camera switches are driven by the shared clock (`NOW()`), not by page load or the device clock, and movement advances in fixed steps on it.
 - A viewer who tunes in mid-moment joins it where it is: conversations, and people mid-walk or on a ride (`joinMoment()` replays the moment unseen).
