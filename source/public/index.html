@@ -198,7 +198,7 @@
     <div class="ctrls">
       <button id="studioBtn" class="snd" title="Watch the hosts recap the day">📺 STUDIO</button>
       <button id="snd" class="snd" title="Tap to change sound">SOUND: OFF</button>
-      <button id="bugBtn" class="snd" title="Report a bug" aria-label="Report a bug">🐞</button>
+      <button id="bugBtn" class="snd" title="Report a bug" aria-label="Report a bug" hidden>🐞</button>
     </div>
   </div>
 
@@ -3153,7 +3153,7 @@
     if (which==='talk') talkEl.scrollTop = talkEl.scrollHeight;
   }
   $('tabTalk').onclick = ()=>showTab('talk'); $('tabFeed').onclick = ()=>showTab('feed'); $('tabCast').onclick = ()=>showTab('cast'); $('tabSum').onclick = ()=>showTab('sum');
-  function enableDev(){ if (DEV) return; DEV = true; $('tabFeed').hidden = false; }
+  function enableDev(){ if (DEV) return; DEV = true; $('tabFeed').hidden = false; $('bugBtn').hidden = false; }
 
   // ================= data: live Worker or demo =================
   const DEMO_CAST = [
