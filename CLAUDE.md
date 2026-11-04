@@ -46,6 +46,9 @@ Workers AI output costs ~6.5x input, so the engine avoids AI calls where it can 
 ## Pop out (picture-in-picture)
 `⧉ POP OUT` copies the scene into a hidden video (`POP`, `popDraw()`), with the last lines drawn in as captions because the HTML doesn't reach the small window. While the page is hidden a worker's timer calls `frame()`, and the page's sound runs through the video (`Sound.popAudio()`). Works from the button on Android Chrome; automatic opening on leaving didn't.
 
+## Screen awake
+The eye button next to the bell keeps the phone's screen on while the page shows (`navigator.wakeLock`). On by default, saved on the device.
+
 ## Key-moment alerts
 Web push for any viewer who taps the bell (`/sw.js`, `/api/push`, one KV key `push:<hash>` per device). `maybeAlert()` in `tick()` picks key moments (`alertText()`): a new item, a new person, a first appearance, a plot conversation. At most `ALERTS_A_DAY` (4) a day, `ALERT_GAP_MIN` (90) apart. The bell opens settings for each device: on or off, hours (default 08:00-23:00) and a daily limit, kept in its KV entry and checked in `deviceWants()`. Pushes carry no data; the device reads `/api/alert`. `sendAlerts()` sends `PUSH_BATCH` (30) per run, because of the free plan's request limit. The private key is the `VAPID_JWK` secret. The director page has a test button.
 

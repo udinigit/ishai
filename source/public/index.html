@@ -17,7 +17,7 @@
   html,body{margin:0;background:var(--bg);color:var(--phos);font-family:'VT323',ui-monospace,Menlo,monospace}
   body{min-height:100vh;display:flex;justify-content:center;padding:16px}
   .wrap{width:100%;max-width:760px;display:flex;flex-direction:column;gap:10px}
-  .titleR{display:inline-flex;align-items:baseline;gap:10px} #bell{margin:0;padding:0 6px;line-height:1.2}
+  .titleR{display:inline-flex;align-items:baseline;gap:10px} #bell,#eye{margin:0;padding:0 6px;line-height:1.2} #eye[aria-pressed=false]{opacity:.4}
   .title{display:flex;justify-content:space-between;align-items:baseline;padding:0 4px;
     font-size:clamp(22px,5.5vw,32px);letter-spacing:1px;text-shadow:0 0 8px rgba(77,255,122,.45)}
   .title small{font-size:.55em;color:var(--phos-dim)}
@@ -180,7 +180,7 @@
   <div class="row"><span id="bugM" style="font-size:15px"></span><button id="bugC" class="snd">CANCEL</button><button id="bugS" class="snd">SEND</button></div>
 </div></div>
 <div class="wrap">
-  <div class="title"><span>&gt; WATCHING_ISHAI</span><span class="titleR"><button id="bell" class="snd" title="Tell me before key moments" aria-label="Alerts are off" hidden>🔕</button><small id="day">DAY --</small></span></div>
+  <div class="title"><span>&gt; WATCHING_ISHAI</span><span class="titleR"><button id="eye" class="snd" title="Keep the screen on" aria-label="Keep the screen on" aria-pressed="true" hidden>👁</button><button id="bell" class="snd" title="Tell me before key moments" aria-label="Alerts are off" hidden>🔕</button><small id="day">DAY --</small></span></div>
 
   <div class="cam">
     <div class="hud top"><span class="rec"><span class="dot"></span>REC <span id="cam">CAM-01</span></span><span id="clock">--:--:--</span></div>
@@ -3458,8 +3458,12 @@
   else setState('apartment','sleeping',true);
   if (params.has('delivery')) actor.delivery = {at: NOW() - (+params.get('delivery') || 12) * 1000};   // preview an ateBite delivery (seconds into it)
   // keep the screen on while the page is open and showing; the browser lets go when the tab is hidden, so ask again on return
-  if ('wakeLock' in navigator){ let lock = null;
-    const stayAwake = async () => { if (lock || document.hidden) return; try { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } catch(e){} };
+  if ('wakeLock' in navigator){ let lock = null, on = true; const eye = $('eye');
+    try { on = localStorage.getItem('ishaiAwake') !== '0'; } catch(e){}
+    const stayAwake = async () => { if (!on || lock || document.hidden) return; try { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } catch(e){} };
+    const show = () => { eye.setAttribute('aria-pressed', String(on)); eye.title = on ? 'The screen stays on. Tap to let it turn off' : 'Keep the screen on'; };
+    eye.hidden = false; show();
+    eye.onclick = e => { e.stopPropagation(); on = !on; try { localStorage.setItem('ishaiAwake', on ? '1' : '0'); } catch(err){} show(); if (on) stayAwake(); else if (lock) lock.release().catch(() => {}); };
     stayAwake(); document.addEventListener('visibilitychange', stayAwake); document.addEventListener('pointerdown', stayAwake);   // some browsers need a tap first
   }
   // key-moment alerts: a bell for each viewer, off until they turn it on
