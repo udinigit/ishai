@@ -1576,14 +1576,16 @@
       R(x,y+13,34,4,'#2a2030'); const w = (t / 120) % 40 - 3; R(x+w,y+9,3,4,'#141018'); R(x+w+1,y+8,1,1,'#141018'); }
     else { R(x,y,34,20,'#26303b'); word('STILL',x+7,y+3,'#ffd36a'); word('THERE',x+7,y+9,'#ffd36a'); R(x+12,y+15,10,3,'#e0b03a'); R(x+15,y+16,4,1,'#26303b'); }
   }
+  function onScreen(x, y, w, h, fn){ g.save(); g.beginPath(); g.rect(x,y,w,h); g.clip(); fn(); g.restore(); }   // what's on a screen stays inside it
   function gymTv2(t){
     R(160,4,2,6,'#333'); R(142,10,38,24,'#141418');
-    if (gym2() === '8bittv') eightBitTv(144, 12, t); else nesflicksTv(144, 12, t);
+    onScreen(144, 12, 34, 20, () => { if (gym2() === '8bittv') eightBitTv(144, 12, t); else nesflicksTv(144, 12, t); });
     alpha(.08,()=>R(138,8,46,44,'#9fd0ff'));
   }
   function gymTv(t){
     R(116,4,2,6,'#333'); R(98,10,38,24,'#141418');
     const news = NOW() < MEDIA_UNTIL, ph = news ? 0 : Math.floor(NOW()/12000) % 3;
+    onScreen(100, 12, 34, 20, () => {
     if (ph === 0){ R(100,12,34,20,'#1d3557'); R(112,14,6,2,'#3a2a1a'); R(112,15,6,6,'#d9a87c'); R(113,17,1,1,'#222'); R(116,17,1,1,'#222'); R(110,21,10,6,'#2a2a3a'); R(114,21,2,3,'#c23b3b');
       R(102,27,30,3,'#a0a6b0'); R(126,13,6,7,'#c23b3b'); word('9',128,14,'#ffffff'); R(100,30,34,2,'#c23b3b');
       for (let k=0;k<4;k++) R(100 + (((k*9 - Math.floor(t/40)) % 34) + 34) % 34, 30, 3, 1, '#ffffff'); }
@@ -1591,6 +1593,7 @@
       if (rainy()){ R(116,15,10,3,'#e8e8e8'); for (let k=0;k<4;k++) R(117+k*2, 19 + (Math.floor(t/200)+k)%3, 1, 1, '#ffffff'); } else { R(118,14,5,5,'#ffe27a'); }
       const tp = WORLD && WORLD.weather ? String(Math.round(WORLD.weather.temp)) : '24'; word(tp,118,24,'#ffffff'); R(126,24,1,1,'#ffffff'); }
     else { R(100,12,34,20,'#1a1a1a'); R(106,16,10,6,'#c9ced4'); R(116,18,5,2,'#7a5232'); R(124,17,4,10,'#d9a87c'); R(124,15,4,2,'#888'); word('LIVE',108,25,'#e04848'); }
+    });
     alpha(.1,()=>R(94,8,46,44,'#9fd0ff'));
   }
   SCENES.gym = {
