@@ -74,6 +74,7 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 
 ## 3b. Depth
 - What stands closer to the camera covers what stands behind it. In a scene, anything that can overlap goes through `zAdd(baseY, fn)` between `zOn()` and `zFlush()`, where `baseY` is where it meets the ground; the queue draws back to front. `drawFloor`, `liveLayer`, `crowdWalk`, `crowdStill` and `regular` do this by themselves. Add new props, street furniture and vehicles the same way.
+- Tables stand nearer the camera than the walking line (`walkY + 22`): people walk behind them, and behind whoever sits at them. Standing spots in `stand` stay clear of tables, so conversations aren't hidden.
 
 ## 4. Focus: main characters vs. bystanders
 - Ishai and the cast: full saturation, thin dark outline (`outlined()`), speech bubbles.

@@ -1066,7 +1066,7 @@
   // ---------- apartment ----------
   SCENES.apartment = {
     cam:'CAM-01', place:'ISHAI // APARTMENT 4', walkY:74, entry:135, exit:135,
-    stand:{bathroom:48, showering:48, drinking:158, idle:58, walking:58, working:75, gaming:75, reading:111, watching:111, exercising:52, eating:158, cooking:159, waking:30, sleeping:30, listening:30},
+    stand:{bathroom:48, showering:48, drinking:158, idle:34, walking:58, working:75, gaming:75, reading:111, watching:111, exercising:52, eating:158, cooking:159, waking:30, sleeping:30, listening:30},
     draw(t,hf,a,settled,actor){
       R(0,0,W,80,C.wall); for (let x=0;x<W;x+=16) R(x,0,1,78,C.wallDark);
       R(0,78,W,2,C.trim); R(0,80,W,28,C.floor);
@@ -1108,8 +1108,7 @@
       if (UNLOCKED.has('dog')){ R(50,90,16,6,'#8a3b3b'); R(51,91,14,3,'#c96a5a'); R(134,93,7,2,'#3b7bc2'); R(135,92,5,1,'#c9a26a'); }
       // bed back
       R(3,60,6,32,C.woodDark); R(4,58,4,2,C.woodDark); R(9,76,40,8,C.sheet); R(10,72,9,5,C.pillow); R(10,76,9,1,'#cfc8b6');
-      // desk chair back, armchair back
-      R(73,63,14,13,C.chair); R(74,64,12,1,'#4a4a58');
+      // armchair back
       R(104,64,24,17,C.arm); R(106,66,20,1,C.armLight);
 
       const S = (p)=>settled && a===p;
@@ -1121,30 +1120,35 @@
       else if (S('waking')){ R(20,76,29,8,C.blanket); R(20,76,29,1,C.blanketDark); }
       else { R(19,75,30,9,C.blanket); R(19,75,30,1,C.blanketDark); R(19,79,30,1,C.blanketDark); }
       R(8,84,42,8,C.wood); R(8,84,42,1,C.woodLight); R(9,92,2,4,C.woodDark); R(47,92,2,4,C.woodDark);
-      // desk
-      if (S('working')||S('gaming')) drawIshai(a,75,70,t);
-      R(60,84,40,2,C.woodLight); R(60,86,40,10,C.wood); R(61,96,2,6,C.woodDark); R(97,96,2,6,C.woodDark); R(64,88,10,1,C.woodDark);
-      const lx = a==='gaming' ? 88 : 77;
-      R(lx,78,7,6,C.metal); R(lx,78,7,1,'#c4cbd3'); R(lx-1,83,9,1,C.metalDark); R(lx+3,80,1,1,'#d0d6dc');
-      R(64,80,3,4,'#e8e4d8'); R(67,81,1,2,'#e8e4d8'); cooolaCan(92,79);
       // armchair
       if (S('reading')) drawIshai('reading',111,62,t);
       if (S('watching')) drawIshai('watching',111,62,t);
       R(104,80,24,8,C.armDark); R(102,72,4,17,C.armLight); R(126,72,4,17,C.armLight);
       R(102,72,4,1,'#6d8c55'); R(126,72,4,1,'#6d8c55'); R(104,88,2,4,C.woodDark); R(126,88,2,4,C.woodDark);
       zOn();
+      // desk: its base is nearer the camera than the walking line, so people walk behind it (and behind whoever sits there)
+      zAdd(102, () => {
+      R(73,63,14,13,C.chair); R(74,64,12,1,'#4a4a58');
+      if (S('working')||S('gaming')) drawIshai(a,75,70,t);
+      R(60,84,40,2,C.woodLight); R(60,86,40,10,C.wood); R(61,96,2,6,C.woodDark); R(97,96,2,6,C.woodDark); R(64,88,10,1,C.woodDark);
+      const lx = a==='gaming' ? 88 : 77;
+      R(lx,78,7,6,C.metal); R(lx,78,7,1,'#c4cbd3'); R(lx-1,83,9,1,C.metalDark); R(lx+3,80,1,1,'#d0d6dc');
+      R(64,80,3,4,'#e8e4d8'); R(67,81,1,2,'#e8e4d8'); cooolaCan(92,79);
+      });
       if (UNLOCKED.has('tv')) zAdd(100, () => { // TV on a low stand, seen from behind (screen faces the armchair): people walk between it and the armchair
         R(105,93,26,2,C.woodDark); R(107,95,2,5,C.woodDark); R(127,95,2,5,C.woodDark);
         R(108,82,20,11,'#2b2b31'); R(109,83,18,1,'#3a3a42'); R(112,86,12,1,'#232328'); R(112,88,12,1,'#232328'); R(117,93,2,1,'#3a3a42');
         if (S('watching')){ const c = ['#9fd0ff','#ffd36a','#ff9a9a','#a0ffb0'][Math.floor(t/1500)%4];
           alpha(.5,()=>{ R(107,82,1,11,c); R(128,82,1,11,c); R(108,81,20,1,c); }); }
       });
-      // kitchen island
-      if (S('eating')) drawIshai('eating',158,70,t);
-      if (S('drinking')) drawIshai('drinking',158,70,t);
       // a guest at the kitchen island (Shabbat dinner, coffee with a friend)
       const guest = settled && ['eating','drinking','cooking'].includes(a) ? companionLook(a) : null;
-      if (guest && wantComp({id: actor.with || 'stranger', look: guest, x: 172, kind:'seat'})){ markHead(actor.with, 172, 70); person(guest, 172, 70, t + 400, {legs:false, face:-1, talkPhase:true}); }
+      const seatedGuest = guest && wantComp({id: actor.with || 'stranger', look: guest, x: 172, kind:'seat'});
+      // kitchen island: same depth as the desk, people walk behind it to the fridge and the counter
+      zAdd(102, () => {
+      if (S('eating')) drawIshai('eating',158,70,t);
+      if (S('drinking')) drawIshai('drinking',158,70,t);
+      if (seatedGuest){ markHead(actor.with, 172, 70); person(guest, 172, 70, t + 400, {legs:false, face:-1, talkPhase:true}); }
       if (S('cooking')) drawIshai('cooking',159,70,t);
       R(148,84,42,2,C.top); R(148,86,42,10,C.island); R(150,88,38,1,'#52616e');
       if (isShabbatEve()){
@@ -1158,6 +1162,7 @@
       if (S('cooking')){ R(170,79,9,5,C.pot); R(169,79,11,1,'#5a5a5a');
         for (let i=0;i<3;i++){ const ph=(t/600+i*.33)%1; alpha(1-ph,()=>R(172+i*2+(Math.floor(ph*4)%2),78-Math.floor(ph*9),1,1,'#f2f2f2')); } }
       if (S('eating')){ R(158,83,10,1,'#f2f2f2'); R(160,82,6,1,'#d98c4a'); R(162,81,2,1,'#7fbf6a'); R(170,81,2,3,'#9fd3f0'); }
+      });
       // floor
       drawFloor(t,a,settled,actor,this);
       // light
