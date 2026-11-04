@@ -221,15 +221,16 @@
   // ================= one clock for everybody: the server's =================
   // Device clocks can be seconds apart, so every timed thing on this page uses NOW(), not the device clock.
   let CLOCK_OFFSET = 0, clockRtt = Infinity;
-  const NOW = () => Date['now']() + CLOCK_OFFSET;
+  let SIM = null;   // while movement is stepped or replayed, the time it is working on
+  const NOW = () => SIM !== null ? SIM : Date['now']() + CLOCK_OFFSET;
   async function syncClock(){
     let best = null;
     for (let i = 0; i < 3; i++){
       try {
-        const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 1500), a = performance.now();
+        const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 1500), a = performance['now']();
         const r = await fetch('/api/time', {cache:'no-store', signal: ctl.signal}); clearTimeout(to);
         if (!r.ok) break;
-        const j = await r.json(), rtt = performance.now() - a;
+        const j = await r.json(), rtt = performance['now']() - a;
         if (typeof j.now === 'number' && (!best || rtt < best.rtt)) best = {rtt, off: j.now + rtt/2 - Date['now']()};
       } catch(e){ break; }
     }
@@ -758,7 +759,7 @@
     }
     else if (actor.loc==='cafe' && settled && ['eating','drinking','working','reading','talking'].includes(a)) target = 96; // under the table
     else if ((actor.loc==='gym' || actor.loc==='bar' || actor.loc==='store') && settled) target = 22;                // lies by the door
-    const n = performance.now(), dts = Math.min(.1, (n - (dog.last||n))/1000); dog.last = n;
+    const n = NOW(), dts = Math.min(.1, (n - (dog.last||n))/1000); dog.last = n;
     const d = target - dog.x, step = (moving ? 26 : 45) * dts;
     dog.x += Math.abs(d) <= step ? d : Math.sign(d)*step;
     const arrived = Math.abs(target - dog.x) < 1;
@@ -794,7 +795,7 @@
     const near = (x) => Math.abs(x + 5 - cx) < 9;
     // a door opens only for someone who is going through it, never for someone walking past it
     const leaving = actor.pending && Math.abs(actor.targetX + 5 - cx) < 9;
-    const arriving = actor.travelling && performance.now() - (actor.arrivedAt || 0) < 2500;
+    const arriving = actor.travelling && NOW() - (actor.arrivedAt || 0) < 2500;
     if (!actor.hidden && (leaving || arriving) && near(actor.x)) return true;
     const compDoor = comp.id && Math.abs(exitX(actor.loc, comp.id, comp.x) + 5 - cx) < 9;
     if (compDoor && (comp.mode === 'out' || (comp.mode === 'in' && comp.fromDoor)) && near(comp.x)) return true;
@@ -822,7 +823,7 @@
   }
   function wantComp(w){ compWant = w; return comp.mode==='here' && comp.id===w.id; } // true = draw them in place now
   function compUpdate(t, scene){
-    const n = performance.now(), dts = Math.min(.1, (n - (comp.last||n))/1000); comp.last = n;
+    const n = NOW(), dts = Math.min(.1, (n - (comp.last||n))/1000); comp.last = n;
     if (comp.loc !== actor.loc || actor.switching){
       if (comp.id && comp.loc === 'apartment' && comp.mode !== 'out') comp.parked = {id: comp.id, look: comp.look, x: comp.x, until: NOW() + 20 * 60000}; // waits while he is in the bathroom
       if (actor.loc !== 'bathroom' && actor.loc !== 'apartment' && !actor.switching) comp.parked = null;
@@ -840,9 +841,9 @@
     if (w && comp.id !== w.id){
       if (comp.id && comp.mode !== 'out'){ comp.mode = 'out'; }                       // current friend leaves first
       else if (!comp.id){ const pk = comp.parked && comp.parked.id === w.id && actor.loc === 'apartment' && NOW() < comp.parked.until ? comp.parked : null; comp.parked = null;
-        const already = pk || performance.now() < (comp.settleUntil || 0);   // tuned in mid-scene (or the page just updated): they are already here
+        const already = pk || NOW() < (comp.settleUntil || 0);   // tuned in mid-scene (or the page just updated): they are already here
         // came in together with Ishai: through the same door he just used, right behind him
-        const withHim = actor.fromLoc && performance.now() - (actor.arrivedAt || 0) < 8000 && (w.id === actor.with || (actor.pending && actor.pending.w === w.id)) ? (MAP[actor.loc] || {})[actor.fromLoc] : null;
+        const withHim = actor.fromLoc && NOW() - (actor.arrivedAt || 0) < 8000 && (w.id === actor.with || (actor.pending && actor.pending.w === w.id)) ? (MAP[actor.loc] || {})[actor.fromLoc] : null;
         const startX = pk ? pk.x : already ? w.x : withHim && withHim.entry !== undefined ? withHim.entry : exitX(actor.loc, w.id, w.x);
         Object.assign(comp, {id:w.id, look:w.look, mode: already ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: startX, tx: w.x, fromDoor: !already}); }
     }
@@ -1125,7 +1126,7 @@
     entryFrom:{apartment:9}, exitTo:{apartment:9},
     stand:{bathroom:45, showering:150},
     draw(t,hf,a,settled,actor){
-      const inside = actor.hidden && BATH.has(a), justMoved = performance.now() - (actor.hiddenAt||0) < 700;
+      const inside = actor.hidden && BATH.has(a), justMoved = NOW() - (actor.hiddenAt||0) < 700;
       const shower = inside && a==='showering', toilet = inside && a==='bathroom';
       // tiles
       R(0,0,W,80,'#dfe8ec'); for (let x=0;x<W;x+=8) R(x,0,1,80,'#c9d5db'); for (let y=4;y<80;y+=8) R(0,y,W,1,'#c9d5db');
@@ -1263,8 +1264,8 @@
       const cx = ((t/12) % 520) - 60;
       const lap = Math.floor(t/6240);
       if (actor.ride){ // Ishai's bus or taxi at the stop
-        const vx = rideX(actor.ride, performance.now());
-        if (actor.ride.kind === 'bus') drawBus(vx+10, night, (performance.now()-actor.ride.t0) > RIDE.come && (performance.now()-actor.ride.t0) < RIDE.come + RIDE.stop);
+        const vx = rideX(actor.ride, NOW());
+        if (actor.ride.kind === 'bus') drawBus(vx+10, night, (NOW()-actor.ride.t0) > RIDE.come && (NOW()-actor.ride.t0) < RIDE.come + RIDE.stop);
         else drawTaxi(vx, night);
       } else if (lap % 3 === 2 && cx < W+10){ // the Cooola bus
         drawBus(cx, night, false);
@@ -1617,8 +1618,8 @@
       crowdWalk(t, 1, 24000, 2000, 61, 1, .75); crowdWalk(t, 5, 31000, 11000, 63, -1, .75); crowdWalk(t, 7, 27000, 19000, 67, 1, .85); crowdWalk(t, 3, 35000, 5000, 65, -1, .8);
       if (Math.floor(t/60000) % 2){ const f = fadeWin(t, 60000); alpha(.85 * f, () => { person(EXTRA.courier, 176, 66, t, {face:-1, muted:true}); ateHelmet(176, 66); ateBox(185, 74); }); }
       drawFloor(t,a,settled,actor,this);
-      if (actor.ride && !DREAMING){ const vx = rideX(actor.ride, performance.now());
-        if (actor.ride.kind === 'bus') drawBus(vx+10, night, (performance.now()-actor.ride.t0) > RIDE.come && (performance.now()-actor.ride.t0) < RIDE.come + RIDE.stop); else drawTaxi(vx, night); }
+      if (actor.ride && !DREAMING){ const vx = rideX(actor.ride, NOW());
+        if (actor.ride.kind === 'bus') drawBus(vx+10, night, (NOW()-actor.ride.t0) > RIDE.come && (NOW()-actor.ride.t0) < RIDE.come + RIDE.stop); else drawTaxi(vx, night); }
       else ateRideBy(t + 50000, 99);
       liveLayer(t, this);
       if (night) alpha(.35,()=>R(0,0,W,H,'#050a1e'));
@@ -1980,7 +1981,7 @@
     a = fixAction(loc, a);
     if (instant){
       Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null, rideUntil:0});
-      actor.x = standX(loc,a,w); actor.settledAt = NOW(); comp.settleUntil = performance.now() + 2500; updateLabels(); return;
+      actor.x = standX(loc,a,w); actor.settledAt = NOW(); comp.settleUntil = NOW() + 2500; updateLabels(); return;
     }
     if (loc !== actor.loc || (actor.pending && actor.pending.route.length)){
       const r = route(actor.loc, loc);
@@ -2008,7 +2009,7 @@
   function startLeg(){
     const next = actor.pending.route[0];
     const wasToilet = actor.loc==='bathroom' && actor.action==='bathroom';
-    if (actor.hidden && BATH.has(actor.action)){ actor.hidden = false; actor.x = standX(actor.loc, actor.action); actor.hiddenAt = performance.now(); actor.leftBath = actor.action; }
+    if (actor.hidden && BATH.has(actor.action)){ actor.hidden = false; actor.x = standX(actor.loc, actor.action); actor.hiddenAt = NOW(); actor.leftBath = actor.action; }
     if (actor.loc === 'offscreen' || actor.hidden || VEH.has(actor.loc)){ beginSwitch(); return; }
     const link = (MAP[actor.loc]||{})[next] || {exit: SCENES[actor.loc].exit};
     if (wasToilet){ actor.action = 'walking'; actor.targetX = 86; actor.travelling = true; actor.wash = 1; actor.washExit = link.exit; actor.pending.ride = false; updateLabels(); return; } // sink first
@@ -2018,17 +2019,17 @@
   function beginSwitch(){
     // about one switch in four is "sponsored"; the choice comes from the clock so all viewers see the same thing
     actor.bumper = Math.floor(NOW()/60000) % 4 === 0;
-    actor.switching = performance.now() + (actor.bumper ? 2200 : 900); actor.hidden = true;
+    actor.switching = NOW() + (actor.bumper ? 2200 : 900); actor.hidden = true;
   }
   function finishSwitch(){
     const p = actor.pending; actor.switching = 0;
     if (!p || !p.route.length){ actor.pending = null; actor.hidden = actor.loc==='offscreen'; return; }
     const from = actor.loc, hop = p.route.shift(), last = !p.route.length;
-    actor.loc = hop; actor.fromLoc = from; actor.arrivedAt = performance.now();
-    if (hop === 'offscreen'){ actor.hidden = true; if (last){ actor.action = p.a; actor.with = p.w; actor.pending = null; updateLabels(); } else { updateLabels(); setTimeout(()=>{ if (actor.loc==='offscreen' && actor.pending) beginSwitch(); }, 3000); } return; }
+    actor.loc = hop; actor.fromLoc = from; actor.arrivedAt = NOW();
+    if (hop === 'offscreen'){ actor.hidden = true; if (last){ actor.action = p.a; actor.with = p.w; actor.pending = null; updateLabels(); } else { updateLabels(); actor.rideUntil = NOW() + 3000; } return; }
     if (VEH.has(hop)){   // the camera comes back on inside: he has taken his seat
       actor.hidden = false; actor.travelling = false; actor.x = SCENES[hop].entry;
-      if (last){ actor.action = fixAction(hop, p.a); actor.with = p.w; actor.pending = null; } else { actor.action = 'idle'; actor.rideUntil = performance.now() + RIDE_MS; }
+      if (last){ actor.action = fixAction(hop, p.a); actor.with = p.w; actor.pending = null; } else { actor.action = 'idle'; actor.rideUntil = NOW() + RIDE_MS; }
       updateLabels(); return; }
     const link = (MAP[hop]||{})[from] || {entry: SCENES[hop].entry};
     actor.x = link.entry;
@@ -2044,7 +2045,7 @@
     const hf = hourNow(), sh = WORLD && WORLD.shabbat, n = NOW(), shabbat = !!sh && !!sh.start && !!sh.end && n > sh.start && n < sh.end;
     return NEXT_RIDE || (hf >= 21 || hf < 6 || rainy() || shabbat ? 'taxi' : 'bus');
   }
-  function startRide(mode, kind){ actor.ride = { mode, kind: kind || rideKind(), t0: performance.now() }; }
+  function startRide(mode, kind){ actor.ride = { mode, kind: kind || rideKind(), t0: NOW() }; }
   const RIDE_LEAD = 12000, RIDE_LAND = 7000;   // about how long boarding and getting off take
   const RIDE_MS = 150000;  // how long a ride shows from inside when the story just says he goes somewhere; the city keeps looping past
   const RIDE = { come: 2600, stop: 1600, go: 2000 };
@@ -2129,17 +2130,50 @@
     if (off) $('nosigText').textContent = '[ SUBJECT OUT OF CAMERA COVERAGE ]';
   }
 
-  let last = performance.now();
   // animations run on the real clock, so every viewer (and every refresh) sees the same frame
   const wall = () => NOW() % 86400000;
-  function loop(now){ const dt = Math.min(.1,(now-last)/1000); last = now; if (held.size) release(); update(dt,now); render(wall()); placeSay(); Sound.setAmbience(ambienceKey()); requestAnimationFrame(loop); }
+  // movement runs in fixed steps on the shared clock, so every page works out the same positions
+  const STEP = 33; let simT = null;
+  const stepTo = n => Math.floor(n / STEP) * STEP;
+  function advance(to){
+    while (simT < to){ simT += STEP; SIM = simT; if (held.size) release(); update(STEP/1000, simT); }
+    SIM = null;
+  }
+  const rideQuiet = () => !actor.pending && !actor.travelling && !actor.ride && !actor.switching && !actor.rideUntil && actor.viaFinal == null && !actor.viaUntil && !actor.wash;
+  // joining (a refresh, or a tab that comes back): play the current moment from its start, fast and unseen, up to now.
+  // Long quiet stretches are skipped: a ride, or a settled scene apart from its last seconds.
+  function joinMoment(e, real){
+    if (!e) return;
+    const t0 = performance['now'](), list = [...TL.values()], p = list[list.indexOf(e) - 1], where = x => [x.ev.location || 'apartment', x.ev.action];
+    let sim = Math.min(stepTo(real), Math.ceil(e.start / STEP) * STEP), n = 0; const begin = sim; SIM = sim;
+    // the moment before, settled: a few seconds of it put him where he really was (pacing, on an errand)
+    if (p){ sim -= 12000; SIM = sim; NEXT_RIDE = p.ev.ride || null; setState(...where(p), true, p.ev.with || null); render(wall());
+      while (sim < begin){ sim += STEP; SIM = sim; update(STEP/1000, sim); if (++n % 3 === 0) render(wall()); } }
+    NEXT_RIDE = e.ev.ride || null; setState(...where(e), !p, e.ev.with || null);
+    while (sim < real && n < 15000){
+      if (actor.rideUntil && actor.rideUntil - 2*STEP > sim) sim = Math.min(stepTo(real), stepTo(actor.rideUntil) - STEP);
+      else if (rideQuiet() && sim < real - 8000) sim = stepTo(real - 8000);
+      sim += STEP; SIM = sim; update(STEP/1000, sim); if (++n % 3 === 0) render(wall());
+    }
+    simT = sim; SIM = null; e.ev._joined = true; window.__ishaiJoinMs = performance['now']() - t0;
+  }
+  function loop(){
+    const grid = stepTo(NOW());
+    if (simT === null) simT = grid;
+    if (grid - simT > 3000){
+      const e = !forceLoc && !PREVIEW && !demoMode ? momentAt(grid) : null;
+      if (e) joinMoment(e, grid); else simT = grid;
+    }
+    advance(grid);
+    render(wall()); placeSay(); Sound.setAmbience(ambienceKey()); requestAnimationFrame(loop);
+  }
   // ---- speech bubble above whoever is talking ----
   const SAY = { who:null, text:'', until:0 };
-  function showSay(who, text){ SAY.who = who; SAY.text = text; SAY.until = performance.now() + 60000; }
-  function holdSay(ms){ SAY.until = performance.now() + ms; }
+  function showSay(who, text){ SAY.who = who; SAY.text = text; SAY.until = NOW() + 60000; }
+  function holdSay(ms){ SAY.until = NOW() + ms; }
   function placeSay(){
     const el = $('say');
-    if (!SAY.who || performance.now() > SAY.until || actor.switching){ el.hidden = true; return; }
+    if (!SAY.who || NOW() > SAY.until || actor.switching){ el.hidden = true; return; }
     const sp = speaker(SAY.who), head = HEADS[SAY.who];
     if (!head && !(SAY.who === 'radio' || SAY.who === 'tv' || (actor.action === 'phoning' && actor.with === SAY.who))){ el.hidden = true; return; }
     $('sayWho').textContent = head ? '' : (SAY.who==='radio' ? '\u{1F4FB} ' : SAY.who==='tv' ? '\u{1F4FA} ' : '\u260E ') + sp.name + ':'; $('sayWho').style.color = sp.color;
@@ -2481,12 +2515,7 @@
       const entry = TL.get(ev.id), start = startOf(ev); ev._late = Math.max(0, NOW() - start);
       // already over with more waiting (tab came back): no walking through old moments; well into this one: be where he is by now
       NEXT_RIDE = ev.ride || null;
-      if (!forceLoc && entry && entry.ride && !queue.length && ev._late > 2000 && ev._late < RIDE_LEAD + RIDE_MS - 2000){   // tuned in during the ride: he is on board
-        const k = entry.ride.findIndex(x => VEH.has(x));
-        setState(entry.ride[k], 'idle', true, null);
-        actor.pending = {route: entry.ride.slice(k + 1), a: ev.action, w: ev.with || null}; actor.rideUntil = performance.now() + RIDE_LEAD + RIDE_MS - ev._late;
-      }
-      else if (!forceLoc && !(queue.length && entry && NOW() >= entry.end)) setState(ev.location||'apartment', ev.action, ev._late > 20000, ev.with||null);
+      if (!forceLoc && !ev._joined && !(queue.length && entry && NOW() >= entry.end)) setState(ev.location||'apartment', ev.action, ev._late > 20000, ev.with||null);
       actor.delivery = ev.delivery && ev._late < 35000 ? {at: start} : null;   // an ateBite courier at the door
       enterScene(ev.location, ev.with);
       if (DEV){ addTalk(ev, true); await addLine(ev,true); }   // talk + hosts play in their own time (hosts wait for the picture)
@@ -2554,7 +2583,7 @@
       (TALK_HISTORY||[]).filter(m => m.t <= now && m.t >= sceneStart && !m.host && m.loc === newest.location && (m.w === undefined || (m.w||'') === (newest.with||'')) && !String(m.id).startsWith(nk)).forEach(m => addMsg(m, false));
       (TALK_HISTORY||[]).filter(m => m.host && m.t <= now && !String(m.id).startsWith(nk)).forEach(m => addMsg(m, false)); // the booth keeps the hosts' recent lines
       due.forEach((e, i)=>{ if (DEV) addLine(e,false); else shown.add(e.id); if (i >= start) addTalk(e,false); else (e.lines||[]).forEach((l,k)=>talkShown.add(e.id+':'+k)); });
-      if (!forceLoc) setState(newest.location||'apartment', newest.action, true, newest.with||null);
+      if (!forceLoc) joinMoment(TL.get(newest.id), stepTo(NOW()));
       // tune in live: join the newest moment as far into it as real time says
       queue.push(newest); pump();
     } else { due.forEach(e=>queue.push(e)); pump(); }
@@ -2812,17 +2841,19 @@
   const SFX = { working:['type','type','type','mouse','chair'], gaming:['game','game','type'], reading:['page','page','chair'], watching:['remote','chair'],
     listening:['chair'], cooking:['sizzle','clink'], eating:['clink','crunch'], drinking:['sip','clink'], walking:['steps'], idle:['steps','chair','phone'],
     sleeping:['snore'], waking:['chair'], exercising:['breath','steps'] };
-  let nextSfx = NOW() + 15000;
+  // one small sound in every 25 s slot; the slot picks when and which, so all viewers hear the same one
+  const SFX_SLOT = 25000; let sfxDone = 0;
   setInterval(() => {
-    const now = NOW(); if (now < nextSfx) return;
-    if (now - TALK_AT < 5000 || SPEAKING || Sound.busy() || SAY.who && performance.now() < SAY.until || actor.switching || (actor.hidden && !BATH.has(actor.action)) || actor.loc === 'offscreen' || studioOn || showOn || callOn){ nextSfx = now + 3000; return; }
-    nextSfx = now + 20000 + Math.random() * 10000;
+    const now = NOW(), slot = Math.floor(now / SFX_SLOT), at = slot * SFX_SLOT + hash(slot * 3 + 7) * 8000;
+    if (slot === sfxDone || now < at || now > at + 6000) return;
+    if (now - TALK_AT < 5000 || SPEAKING || Sound.busy() || SAY.who && NOW() < SAY.until || actor.switching || (actor.hidden && !BATH.has(actor.action)) || actor.loc === 'offscreen' || studioOn || showOn || callOn) return;
+    sfxDone = slot;
     const dogHere = UNLOCKED.has('dog') && dog.loc === actor.loc && actor.action !== 'sleeping';
     let list = actor.travelling ? ['steps'] : (SFX[actor.action] || []);
     if (actor.loc === 'bar') list = list.concat(['clink']);
-    if (dogHere && Math.random() < .25) list = ['bark'];
-    if (actor.action === 'sleeping' && Math.random() < .5) return;   // a quiet night now and then
-    if (list.length) Sound.sfx(list[Math.floor(Math.random() * list.length)]);
+    if (dogHere && hash(slot * 11 + 2) < .25) list = ['bark'];
+    if (actor.action === 'sleeping' && hash(slot * 13 + 3) < .5) return;   // a quiet night now and then
+    if (list.length) Sound.sfx(list[Math.floor(hash(slot * 5 + 1) * list.length)]);
   }, 1000);
   // the bar's and the café's music: show what is playing
   setInterval(() => { if (RADIO.on) return; const st = (actor.loc==='bar' || actor.loc==='cafe') ? Sound.streaming() : null;
@@ -2931,7 +2962,7 @@
   const AD_EVERY = 6 * 60000, AD_SHOW = 9000; let adOn = null;
   function adTick(){
     const now = NOW(), slot = Math.floor(now / AD_EVERY), e = now % AD_EVERY - 20000;
-    const quiet = !forceLoc && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !actor.switching && (SAY.who !== 'radio' || performance.now() > SAY.until)
+    const quiet = !forceLoc && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
       && (actor.action === 'sleeping' || !['talking','phoning'].includes(actor.action));
     const want = e >= 0 && e < AD_SHOW && quiet ? BANNERS[Math.floor(hash(slot * 5 + 11) * BANNERS.length)] : null;
     const el = $('adb');
@@ -3219,6 +3250,7 @@
   if (forceLoc){ setCast(DEMO_CAST); setState(forceLoc, forcePose || 'idle', true, params.get('with')); }
   else setState('apartment','sleeping',true);
   if (params.has('delivery')) actor.delivery = {at: NOW() - (+params.get('delivery') || 12) * 1000};   // preview an ateBite delivery (seconds into it)
+  if (params.has('syncdebug')) window.__ishaiSync = () => ({loc: actor.loc, x: actor.x, a: actor.action, hidden: actor.hidden, comp: comp.id ? comp.x : null, dog: dog.loc ? dog.x : null, cam: SCENES[actor.loc].cam, ride: !!actor.ride, sw: !!actor.switching, sim: simT});
   requestAnimationFrame(loop);
   if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }
   else if (params.has('preview')) startPreview();

@@ -37,7 +37,9 @@ Workers AI output costs ~6.5x input, so the engine avoids AI calls where it can 
 - The page never reads the device clock for timing: `NOW()` is the server's time (`/api/time`, `syncClock()`). Use `NOW()`, not `Date.now()`, and pass it to `new Date(...)`.
 - `schedule()` works out each moment's start and each line's slot from the moments alone (`TL`, `talkPlan()`, `lineMs()`): a line's slot fits its typing and its voice, and a long talk pushes the next moment back. Playback waits for those times (`untilT()`) and never for a device's speech. A viewer who arrives late joins by the clock, mid-line, and gets a voice only from the next line.
 - Studio recaps, the auto Studio break and callers start at times worked out from the moments, not from what one browser sees (`studioStart()`, `showStart()`, `callStart()`, `slotAfter()`). The picture-in-picture recap plays on even UTC hours, the full break on odd ones. Don't add `Math.random()` or per-browser checks to anything timed; the 📺 STUDIO button is the one personal exception.
-- Not synced yet: exact walking positions after a refresh, sound effects, voices finishing, real radio streams.
+- Movement runs in fixed 33 ms steps on that clock (`advance()`, `STEP`): anything that moves must take its time from `NOW()`, never `performance.now()` or `setTimeout`, because `NOW()` is the simulated time while steps run (`SIM`). A refresh or a returning tab replays the current moment fast and unseen (`joinMoment()`), starting 12 s before it. `update()` may not touch sound or anything a replay would repeat. Companions and the dog move during `render()`, so the replay renders every third step.
+- Sound effects are picked from the 25 s clock slot, not at random.
+- Can't match exactly: voices finishing, the room-sound loops, real radio streams. `?syncdebug` adds `window.__ishaiSync()` with the positions, and `window.__ishaiJoinMs` shows the last replay's time.
 
 ## Health check and quick fixes
 - `GET /api/health` (public): recent moments, retry rate, recent rule problems, stuck counter, current scene, last AI error, art requests.

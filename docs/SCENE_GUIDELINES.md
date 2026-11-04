@@ -78,8 +78,8 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 - New cast members are drawn only from the look menu (hair, colors, extras) so they stay consistent forever.
 
 ## 5. Same picture for every viewer
-- Animations, bystanders, traffic and sponsored camera switches are driven by the real clock (`Date.now()`), not by page load.
-- A viewer who tunes in mid-moment joins it where it is (typing, conversations), not from the start.
+- Animations, bystanders, traffic and sponsored camera switches are driven by the shared clock (`NOW()`), not by page load or the device clock, and movement advances in fixed steps on it.
+- A viewer who tunes in mid-moment joins it where it is: conversations, and people mid-walk or on a ride (`joinMoment()` replays the moment unseen).
 
 ## 6. Pixel style
 - Canvas 192×108 logical pixels, scaled up with `image-rendering: pixelated`. Figures are 10×22 px.
