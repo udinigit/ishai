@@ -290,7 +290,7 @@ export default {
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         usage: s.usage ? { ...s.usage, neuronsEst: Math.round(s.usage.inTok * 4625 / 1e6 + s.usage.outTok * 30475 / 1e6) } : null,
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null,
-        writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < geminiOutUntil ? geminiOutUntil : null, geminiLastError: geminiErr, hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
+        writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?") }, { "cache-control": "no-store" });
     }
     // quick story fix for the scheduled health check: /api/fix?token=...&endScene=1&note=...&minutes=45
@@ -511,6 +511,7 @@ async function tick(env, force) {
   else if (now - (s.world.wxAt || s.world.at) > 15 * 60000) await refreshWeather(s, now);
 
   HOSTS_APART = !!env.GEMINI_API_KEY;
+  geminiOutUntil = Math.max(geminiOutUntil, s.geminiOutUntil || 0);   // a pause set by another isolate still counts
   // director: activate the next goal, or force it if its deadline passed
   let goal = activeGoal(s, now);
   let ev = null;
@@ -614,7 +615,11 @@ async function tick(env, force) {
   { const d = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now)); const u = s.usage && s.usage.date === d ? s.usage : (s.usage = { date: d, calls: 0, inTok: 0, outTok: 0, moments: 0, noAI: 0 });
     u.calls += USE.calls; u.inTok += USE.inTok; u.outTok += USE.outTok; USE.calls = USE.inTok = USE.outTok = 0;
     u.jsonFixed = (u.jsonFixed || 0) + JSON_USE.fixed; u.jsonBad = (u.jsonBad || 0) + JSON_USE.bad; JSON_USE.fixed = JSON_USE.bad = 0;
-    u.gemini = { calls: (u.gemini?.calls || 0) + USE_G.calls, inTok: (u.gemini?.inTok || 0) + USE_G.inTok, outTok: (u.gemini?.outTok || 0) + USE_G.outTok }; USE_G.calls = USE_G.inTok = USE_G.outTok = 0; }
+    u.gemini = { calls: (u.gemini?.calls || 0) + USE_G.calls, inTok: (u.gemini?.inTok || 0) + USE_G.inTok, outTok: (u.gemini?.outTok || 0) + USE_G.outTok }; USE_G.calls = USE_G.inTok = USE_G.outTok = 0;
+    if (GEMINI_FAILS.length) { u.gemini.failed = (u.gemini.failed || 0) + GEMINI_FAILS.length; u.gemini.failedBy = u.gemini.failedBy || {};
+      GEMINI_FAILS.forEach(f => { const k = f.status || "other"; u.gemini.failedBy[k] = (u.gemini.failedBy[k] || 0) + 1; });
+      s.geminiErrs = [...(s.geminiErrs || []), ...GEMINI_FAILS].slice(-8); GEMINI_FAILS.length = 0; }
+    s.geminiOutUntil = geminiOutUntil; }
   if (GEMINI_SEEN) s.geminiModel = GEMINI_SEEN;
   try { maybeAlert(s, ev, last, clock.hour, now); await sendAlerts(env, s); } catch (e) { console.log("alert", e && e.message); }   // never let an alert stop the show
   await saveState(env, s);
@@ -821,7 +826,7 @@ Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..
       return out; };
     let arr = readHosts(await runModel(env, msgs, 300 + moments.length * 200, "hosts"));
     if (arr.filter(x => (x.commentary || []).length).length < Math.ceil(moments.length / 2) && env.GEMINI_API_KEY && Date.now() >= geminiOutUntil) {
-      try { const g = readHosts(await runGemini(env, msgs, 300 + moments.length * 200)); if (g.length > arr.length) arr = g; } catch (e) { geminiErr = { at: Date.now(), msg: String(e && e.message || e).slice(0, 240) }; }
+      try { const g = readHosts(await runGemini(env, msgs, 300 + moments.length * 200)); if (g.length > arr.length) arr = g; } catch (e) { noteGemini(e, "hosts"); }
     }
     const used = [...said];
     moments.forEach((m, i) => {
@@ -883,7 +888,10 @@ const USE = { calls: 0, inTok: 0, outTok: 0 };
 let HOSTS_APART = false;
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 const USE_G = { calls: 0, inTok: 0, outTok: 0 };
-let geminiModel = null, geminiOutUntil = 0, geminiErr = null, GEMINI_SEEN = null;
+let geminiModel = null, geminiOutUntil = 0, GEMINI_SEEN = null;
+// failures of this run: memory is per isolate and /api/health may be another one, so tick() saves these in the state (s.geminiErrs, s.geminiOutUntil)
+const GEMINI_FAILS = [];
+const noteGemini = (e, role) => { const msg = String(e && e.message || e).slice(0, 500), m = msg.match(/^gemini (\d{3})/); GEMINI_FAILS.push({ at: Date.now(), role, status: m ? +m[1] : null, msg }); };
 async function pickGemini(env) {
   if (env.GEMINI_MODEL) return env.GEMINI_MODEL;
   if (geminiModel) return geminiModel;
@@ -904,11 +912,11 @@ async function runGemini(env, messages, maxTokens) {
   let r = await call();
   if (r.status === 400) { delete body.response_format; r = await call(); }            // an older model without JSON mode
   if (!r.ok) {
-    const t = (await r.text()).slice(0, 220);
+    const full = await r.text(), t = full.slice(0, 220);
     if (r.status === 429) geminiOutUntil = /per ?day|daily|PerDay/i.test(t) ? nextPacificMidnight(Date.now()) : Date.now() + 90000;   // the free daily quota resets at midnight Pacific
     if (r.status === 404 && !env.GEMINI_MODEL) geminiModel = null;                    // that model is gone: pick again next time
     if (r.status === 401 || r.status === 403) geminiOutUntil = Date.now() + 3600000;  // bad key: try again in an hour
-    throw new Error(`gemini ${r.status} (${model}): ${t}`);
+    throw new Error(`gemini ${r.status} (${model}): ${full.slice(0, 460)}`);
   }
   const j = await r.json(), c = String(j?.choices?.[0]?.message?.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   USE_G.calls++; USE_G.inTok += j?.usage?.prompt_tokens || 0; USE_G.outTok += j?.usage?.completion_tokens || 0;
@@ -918,10 +926,10 @@ async function runGemini(env, messages, maxTokens) {
 }
 async function runModel(env, messages, maxTokens = 1000, role = "story") {
   const g = !!env.GEMINI_API_KEY && Date.now() >= geminiOutUntil;
-  if (g && role === "story") { try { return await runGemini(env, messages, maxTokens); } catch (e) { geminiErr = { at: Date.now(), msg: String(e && e.message || e).slice(0, 240) }; } }
+  if (g && role === "story") { try { return await runGemini(env, messages, maxTokens); } catch (e) { noteGemini(e, "story"); } }
   try { return await runCloudflare(env, messages, maxTokens); }
   catch (e) {
-    if (g && role !== "story") { try { return await runGemini(env, messages, maxTokens); } catch (e2) { geminiErr = { at: Date.now(), msg: String(e2 && e2.message || e2).slice(0, 240) }; } }
+    if (g && role !== "story") { try { return await runGemini(env, messages, maxTokens); } catch (e2) { noteGemini(e2, role); } }
     throw e;
   }
 }
