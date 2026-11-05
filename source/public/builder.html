@@ -34,7 +34,7 @@
   button.ghost{background:transparent}
   button.big{background:var(--phos);color:#031;width:100%}
   button:disabled{opacity:.4;cursor:default}
-  button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+  button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
   .chk{display:flex;gap:6px;align-items:center;color:var(--phos)}
   .add{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px;max-height:230px;overflow:auto;margin-top:6px}
   .add button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 3px;font-size:17px;line-height:1;background:#071007;border-color:var(--faint);min-width:0}
@@ -46,6 +46,10 @@
   .layer.off .n{text-decoration:line-through;color:var(--dim)}
   .layer .b{display:flex;gap:3px}
   .layer .b button{padding:1px 7px}
+  textarea{width:100%;min-height:70px;resize:vertical;font:inherit;background:#071007;color:var(--phos);border:1px solid var(--faint);border-radius:6px;padding:5px 7px}
+  input[type=color]{height:34px;padding:2px}
+  .add.txt{grid-template-columns:minmax(0,1fr)}
+  .add.txt button{align-items:flex-start;text-align:left;line-height:1.1;padding:5px 7px}
   .zoom{display:grid;grid-template-columns:40px 1fr 40px;gap:6px;align-items:center;text-align:center}
   .muted{color:var(--dim);font-size:18px}
   #status{color:var(--amber);min-height:22px}
@@ -85,6 +89,13 @@
         <label class="chk"><input type="checkbox" id="bgCrowd"> Passers-by</label>
         <label class="chk" id="bgFlashL"><input type="checkbox" id="bgFlash"> Lightning flash</label>
       </div>
+      <div id="pText">
+        <label for="tx">Text (Enter starts a new line)</label><textarea id="tx" maxlength="400"></textarea>
+        <label for="slogan">Use a prepared slogan</label><select id="slogan"></select>
+        <div class="row"><div><label for="tColor">Letters</label><input type="color" id="tColor"></div><div><label for="bColor">Box</label><input type="color" id="bColor"></div></div>
+        <div class="bar"><label class="chk" style="margin:0"><input type="checkbox" id="tLine"> Dark outline</label><label class="chk" style="margin:0"><input type="checkbox" id="tBox"> Box behind</label></div>
+        <div class="muted" id="tNote"></div>
+      </div>
       <div id="pLayer">
         <div class="row"><div id="poseW"><label for="pose">Pose</label><select id="pose"></select></div>
           <div id="outfitW"><label for="outfit">Outfit</label><select id="outfit"></select></div>
@@ -92,7 +103,7 @@
         <div class="bar"><label class="chk" style="margin:0"><input type="checkbox" id="flip"> Flip</label>
           <label class="chk" style="margin:0" id="rainL"><input type="checkbox" id="rain"> Rain gear</label></div>
       </div>
-      <label for="frame">Frame: <span id="frameV"></span></label><input type="range" id="frame" min="0" step="1">
+      <div id="frameW"><label for="frame">Frame: <span id="frameV"></span></label><input type="range" id="frame" min="0" step="1"></div>
       <label>Zoom</label><div class="zoom"><button id="zOut" aria-label="Zoom out">-</button><span id="zV"></span><button id="zIn" aria-label="Zoom in">+</button></div>
       <div class="row"><div><label for="px">X</label><input type="number" id="px" step="1"></div><div><label for="py">Y</label><input type="number" id="py" step="1"></div></div>
     </div>
@@ -125,9 +136,32 @@
   const store = d => { try { localStorage.setItem(KEY, JSON.stringify(d)); return true; } catch (e) { return false; } };
   const auto = () => { const d = load(); d.auto = P; store(d); };
 
+  // ---- text: a 5 x 7 pixel font with lower case, far easier to read than the show's tiny 3 x 5 letters ----
+  const GLYPHS = '000000000000005F00000007000700147F147F14242A7F2A12231308646236495620500008070300001C2241000041221C002A1C7F1C2A08083E080800807030000808080808000060600020100804023E5149453E00427F400072494949462141494D331814127F1027454545393C4A49493141211109073649494936464949291E0000140000004034000000081422411414141414004122140802015909063E415D594E7C1211127C7F494949363E414141227F4141413E7F494949417F090909013E414151737F0808087F00417F41002040413F017F081422417F404040407F021C027F7F0408107F3E4141413E7F090909063E4151215E7F09192946264949493203017F01033F4040403F1F2040201F3F4038403F631408146303047804036159494D43007F4141410204081020004141417F04020102044040404040000307080020545478407F284444383844444428384444287F385454541800087E090218A4A49C787F0804047800447D40002040403D007F1028440000417F40007C047804787C080404783844444438FC1824241818242418FC7C08040408485454542404043F44243C4040207C1C2040201C3C4030403C44281028444C9090907C4464544C440008364100000077000000413608000201020402', GW = 6, GH = 10;
+  const clean = t => String(t || '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u00B7/g, '-').replace(/\u2026/g, '...');
+  const unknown = t => [...new Set([...clean(t)].filter(c => c !== '\n' && (c < ' ' || c > '~')))];
+  function wrap(text, zoom){   // keeps every line on the stage
+    const max = Math.max(1, Math.floor((S - 4) / zoom / GW)), out = [];
+    for (const para of clean(text).split('\n')){ let line = '';
+      for (let w of para.split(' ')){ while (w.length > max){ if (line){ out.push(line); line = ''; } out.push(w.slice(0, max)); w = w.slice(max); }
+        if (!line) line = w; else if (line.length + 1 + w.length <= max) line += ' ' + w; else { out.push(line); line = w; } }
+      out.push(line); }
+    return out;
+  }
+  function textSprite(l){
+    const lines = wrap(l.text, l.zoom), pad = l.box ? 3 : l.outline ? 1 : 0, w = Math.max(1, ...lines.map(x => x.length)) * GW - 1, h = lines.length * GH - 2;
+    const c = document.createElement('canvas'); c.width = w + pad*2; c.height = h + pad*2; const x = c.getContext('2d', {willReadFrequently: true});
+    const put = (col, ox, oy) => { x.fillStyle = col; lines.forEach((ln, j) => { const lx = pad + Math.floor((w - (ln.length * GW - 1)) / 2) + ox, ly = pad + j * GH + oy;
+      [...ln].forEach((ch, i) => { const n = ch.charCodeAt(0) - 32, k = (n >= 0 && n < 95 ? n : 31) * 10;
+        for (let cx = 0; cx < 5; cx++){ const b = parseInt(GLYPHS.substr(k + cx*2, 2), 16); for (let r = 0; r < 8; r++) if (b >> r & 1) x.fillRect(lx + i*GW + cx, ly + r, 1, 1); } }); }); };
+    if (l.box){ x.fillStyle = l.boxColor; x.fillRect(0, 0, c.width, c.height); }
+    if (l.outline) for (const [a, b] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]]) put('#0b0b10', a, b);
+    put(l.color, 0, 0);
+    return {canvas: c, dx: -Math.floor(c.width/2), dy: -Math.floor(c.height/2), w: c.width, h: c.height};
+  }
   function spriteOf(l){
-    const key = JSON.stringify([l.kind, l.ref, l.pose, l.frame, l.outfit, l.face, !!l.rain]);
-    if (!sprites.has(key)){ const s = B.sprite(l); if (s){ const c = document.createElement('canvas'); c.width = s.w; c.height = s.h; const x = c.getContext('2d', {willReadFrequently: true}); x.drawImage(s.canvas, 0, 0); s.canvas = c; s.data = x.getImageData(0, 0, s.w, s.h).data; } sprites.set(key, s); if (sprites.size > 400) sprites.delete(sprites.keys().next().value); }
+    const key = JSON.stringify([l.kind, l.ref, l.pose, l.frame, l.outfit, l.face, !!l.rain, l.text, l.color, l.outline, l.box, l.boxColor, l.kind === 'text' ? l.zoom : 0]);
+    if (!sprites.has(key)){ const s = l.kind === 'text' ? textSprite(l) : B.sprite(l); if (s){ const c = document.createElement('canvas'); c.width = s.w; c.height = s.h; const x = c.getContext('2d', {willReadFrequently: true}); x.drawImage(s.canvas, 0, 0); s.canvas = c; s.data = x.getImageData(0, 0, s.w, s.h).data; } sprites.set(key, s); if (sprites.size > 400) sprites.delete(sprites.keys().next().value); }
     return sprites.get(key);
   }
   function background(){
@@ -155,18 +189,21 @@
   function fill(el, list, val){ el.innerHTML = ''; for (const o of list){ const op = document.createElement('option'); if (typeof o === 'object'){ op.value = o.id; op.textContent = o.name; } else { op.value = o; op.textContent = o; } el.append(op); } if (val != null) el.value = val; }
   function panel(){
     const l = cur(), b = P.bg, t = l || b;
-    $('pTitle').textContent = l ? nameOf(l) : 'Background'; $('pBg').hidden = !!l; $('pLayer').hidden = !l;
+    $('pTitle').textContent = l ? nameOf(l) : 'Background'; $('pBg').hidden = !!l; $('pLayer').hidden = !l || l.kind === 'text'; $('pText').hidden = !l || l.kind !== 'text'; $('frameW').hidden = !!l && l.kind === 'text';
     const ok = !l && !b.loc;
     $('frame').max = B.FRAMES - 1; $('frame').value = t.frame; $('frameV').textContent = t.frame + 1 + ' of ' + B.FRAMES; $('frame').disabled = ok;
     $('zV').textContent = 'x' + t.zoom; $('zOut').disabled = ok || t.zoom <= 1; $('zIn').disabled = ok || t.zoom >= 12;
     $('px').value = t.x; $('py').value = t.y; $('px').disabled = $('py').disabled = ok;
     if (!l){ $('bgLoc').value = b.loc || ''; $('bgWeather').value = b.weather; $('bgHour').value = b.hour; $('bgHourV').textContent = String(Math.floor(b.hour)).padStart(2, '0') + ':' + (b.hour % 1 ? '30' : '00'); $('bgFlash').checked = b.flash; $('bgCrowd').checked = b.crowd; $('bgFlashL').hidden = b.weather !== 'storm'; return; }
+    if (l.kind === 'text'){ if ($('tx').value !== l.text) $('tx').value = l.text; $('slogan').value = ''; $('tColor').value = l.color; $('bColor').value = l.boxColor; $('tLine').checked = l.outline; $('tBox').checked = l.box; note(l); return; }
     const poses = l.kind === 'ishai' ? M.ishai : l.kind === 'dog' ? M.dog : l.kind === 'person' ? M.person : (M.props.find(p => p.id === l.ref) || {}).poses || [];
     $('poseW').hidden = poses.length < 2; fill($('pose'), poses, l.pose);
     $('outfitW').hidden = l.kind !== 'ishai'; if (l.kind === 'ishai') fill($('outfit'), M.outfits, l.outfit);
     $('faceW').hidden = l.kind !== 'person'; if (l.kind === 'person') fill($('face'), M.faces, l.face);
     $('flip').checked = !!l.flip; $('rainL').hidden = !['ishai','person','dog'].includes(l.kind); $('rain').checked = !!l.rain;
   }
+  function note(l){ const bad = unknown(l.text); $('tNote').textContent = bad.length ? 'Not in this font, shown as ?: ' + bad.join(' ') : ''; }
+  const textName = t => clean(t).replace(/\s+/g, ' ').slice(0, 26) || 'Empty text';
   function layers(){
     const root = $('layers'); root.innerHTML = '';
     const row = (name, on, off, pick, btns) => { const d = document.createElement('div'); d.className = 'layer' + (on ? ' on' : '') + (off ? ' off' : '');
@@ -183,27 +220,35 @@
   function quick(){ panel(); draw(); auto(); }
 
   // ---- adding ----
-  const catalog = () => { const out = {Characters: [{kind: 'ishai', name: 'Ishai', pose: 'idle', outfit: 'everyday'}, {kind: 'dog', name: 'Falafel', pose: 'sit'}, ...M.people.map(p => ({kind: 'person', ref: p.id, name: p.name, look: p.look, pose: 'stand', face: 'left'}))]};
+  const textLayer = t => ({kind: 'text', name: textName(t), text: t, color: '#ffffff', outline: true, box: false, boxColor: '#1d1238'});
+  const catalog = () => { const out = {Characters: [{kind: 'ishai', name: 'Ishai', pose: 'idle', outfit: 'everyday'}, {kind: 'dog', name: 'Falafel', pose: 'sit'}, ...M.people.map(p => ({kind: 'person', ref: p.id, name: p.name, look: p.look, pose: 'stand', face: 'left'}))], Text: [{...textLayer('Your text'), label: 'Your own text'}, ...M.slogans.map(textLayer)]};
     for (const p of M.props) (out[p.group] = out[p.group] || []).push({kind: 'prop', ref: p.id, name: p.name, pose: p.poses[0]}); return out; };
   function addList(){
-    const root = $('add'); root.innerHTML = '';
+    const root = $('add'); root.innerHTML = ''; root.classList.toggle('txt', $('group').value === 'Text');
+    if ($('group').value === 'Text'){ for (const it of catalog().Text){ const b = document.createElement('button'); b.textContent = it.label || it.text; b.onclick = () => { const {label, ...t} = it, l = {...clone(t), id: nid++, frame: 0, zoom: it.text.length > 14 ? 1 : 2, flip: false, x: 54, y: 54}; P.layers.push(l); sel = l.id; changed(); say(''); if (label) { $('tx').focus(); $('tx').select(); } }; root.append(b); } return; }
     for (const it of catalog()[$('group').value] || []){ const b = document.createElement('button'), c = document.createElement('canvas'), s = spriteOf({...it, frame: 0}), side = Math.max(48, s ? Math.max(s.w, s.h) + 2 : 0); c.width = c.height = side;
       if (s){ const x = c.getContext('2d'), z = Math.max(1, Math.floor((side - 4) / Math.max(s.w, s.h))); x.imageSmoothingEnabled = false; x.drawImage(s.canvas, Math.floor((side - s.w*z)/2), Math.floor((side - s.h*z)/2), s.w*z, s.h*z); }
       const n = document.createElement('span'); n.textContent = it.name; b.append(c, n); b.onclick = () => { const l = {...clone(it), id: nid++, frame: 0, zoom: 2, flip: false, x: 54, y: 96}; if (l.kind === 'prop' && (spriteOf(l)?.w || 0) > 50) l.zoom = 1; P.layers.push(l); sel = l.id; changed(); say(''); }; root.append(b); }
   }
   // ---- dragging ----
   const at = e => { const r = stage.getBoundingClientRect(); return [Math.floor((e.clientX - r.left) / r.width * S), Math.floor((e.clientY - r.top) / r.height * S)]; };
-  function hit(px, py){ for (let i = P.layers.length - 1; i >= 0; i--){ const l = P.layers[i]; if (l.hidden) continue; const r = box(l); if (!r || px < r.x || py < r.y || px >= r.x + r.w || py >= r.y + r.h) continue;
+  function hit(px, py){ for (let i = P.layers.length - 1; i >= 0; i--){ const l = P.layers[i]; if (l.hidden) continue; const r = box(l); if (!r || px < r.x || py < r.y || px >= r.x + r.w || py >= r.y + r.h) continue; if (l.kind === 'text') return l;
       let ix = Math.floor((px - r.x) / l.zoom), iy = Math.floor((py - r.y) / l.zoom); if (l.flip) ix = r.s.w - 1 - ix; if (r.s.data[(iy * r.s.w + ix) * 4 + 3]) return l; } return null; }
   let drag = null;
   $('wrap').addEventListener('pointerdown', e => { const [x, y] = at(e), l = hit(x, y); if (l !== cur() || !l) pick(l ? l.id : null); const t = l || (P.bg.loc ? P.bg : null); if (!t) return; drag = {t, ox: t.x - x, oy: t.y - y}; $('wrap').setPointerCapture(e.pointerId); e.preventDefault(); });
   $('wrap').addEventListener('pointermove', e => { if (!drag) return; const [x, y] = at(e); drag.t.x = x + drag.ox; drag.t.y = y + drag.oy; if (drag.t === P.bg) clampBg(); $('px').value = drag.t.x; $('py').value = drag.t.y; draw(); });
   const end = () => { if (drag){ drag = null; auto(); } }; $('wrap').addEventListener('pointerup', end); $('wrap').addEventListener('pointercancel', end);
-  document.addEventListener('keydown', e => { if (/INPUT|SELECT/.test(e.target.tagName) && e.target.type !== 'range' && e.target.type !== 'checkbox') return; const d = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1]}[e.key], t = cur() || (P.bg.loc ? P.bg : null);
+  document.addEventListener('keydown', e => { if (e.target.tagName === 'TEXTAREA') return; if (/INPUT|SELECT/.test(e.target.tagName) && e.target.type !== 'range' && e.target.type !== 'checkbox') return; const d = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1]}[e.key], t = cur() || (P.bg.loc ? P.bg : null);
     if (d && t){ t.x += d[0]; t.y += d[1]; if (t === P.bg) clampBg(); quick(); e.preventDefault(); } else if ((e.key === 'Delete' || e.key === 'Backspace') && cur()){ rm(cur()); e.preventDefault(); } });
 
   // ---- controls ----
   const target = () => cur() || P.bg;
+  $('tx').oninput = e => { const l = cur(); l.text = e.target.value; l.name = textName(l.text); note(l); layers(); draw(); auto(); };
+  $('slogan').onchange = e => { const l = cur(); if (!e.target.value) return; l.text = e.target.value; l.name = textName(l.text); if (l.text.length > 14) l.zoom = 1; changed(); };
+  $('tColor').oninput = e => { cur().color = e.target.value; draw(); auto(); };
+  $('bColor').oninput = e => { cur().boxColor = e.target.value; draw(); auto(); };
+  $('tLine').onchange = e => { cur().outline = e.target.checked; draw(); auto(); };
+  $('tBox').onchange = e => { cur().box = e.target.checked; draw(); auto(); };
   $('bgLoc').onchange = e => { P.bg.loc = e.target.value || null; changed(); };
   $('bgWeather').onchange = e => { P.bg.weather = e.target.value; quick(); };
   $('bgHour').oninput = e => { P.bg.hour = +e.target.value; quick(); };
@@ -238,6 +283,7 @@
     M = B.menus();
     try { const r = await fetch('/api/state'), j = r.ok ? await r.json() : {}; const have = new Set(M.people.map(p => p.id)); for (const c of j.cast || []) if (c.look && c.id !== 'ishai' && !have.has(c.id)) M.people.push({id: c.id, name: c.name, look: c.look}); } catch (e) {}
     fill($('bgLoc'), [{id: '', name: 'None (transparent)'}, ...M.scenes], '');
+    fill($('slogan'), [{id: '', name: 'Choose...'}, ...M.slogans.map(t => ({id: t, name: t.slice(0, 60)}))], '');
     const groups = Object.keys(catalog()); fill($('group'), groups, groups[0]); $('group').onchange = addList; addList(); saved();
     use(load().auto || blank()); say('');
   }

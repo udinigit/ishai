@@ -20,6 +20,7 @@ Let the director animate a scene: choose exactly when each pose starts, move thi
 - PNG export keeps working, and exports the picture at the playhead.
 - Project format: `v: 1` has no keyframes. Bump to `v: 2`, and old projects must open unchanged, with their layer values as the first keyframe. Check `use()`, which fills in missing fields.
 - The live show must not change. `BUILDER` and `NO_CROWD` are off there, and the drawing functions are shared: no `Math.random()` or per-browser timing in anything the show plays (see "Everyone sees the same thing").
+- Text layers (`kind: 'text'`) are made in `builder.html` by `textSprite()`, not by the hidden page. Keyframes may change their position, zoom and colours; wrapping depends on zoom.
 - Sprites are cached by value in `spriteOf()`. Playback should reuse that cache; the 400 entry limit may need raising.
 - No AI and no KV writes. Fictional brands only. No new npm step: the repo has none (`src/vendor/` holds copied code).
 

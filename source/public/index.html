@@ -3565,7 +3565,8 @@
         scenes: Object.keys(SCENES).filter(k => k !== 'offscreen').map(id => ({id, name: SCENES[id].place.replace('ISHAI // ', '')})),
         ishai: ISHAI, outfits: Object.keys(OUTFIT), person: Object.keys(PERSON), faces: Object.keys(FACE), dog: ['sit','walk','sleep'],
         people: [...DEMO_CAST.filter(c => c.id !== 'ishai').map(c => ({id: c.id, name: c.name, look: c.look})), ...Object.keys(REG).map(id => ({id, name: id[0].toUpperCase() + id.slice(1), look: REG[id].look}))],
-        props: Object.entries(PROPS).map(([id, p]) => ({id, name: p.name, group: p.group, poses: p.poses}))
+        props: Object.entries(PROPS).map(([id, p]) => ({id, name: p.name, group: p.group, poses: p.poses})),
+        slogans: [...new Set(['WATCHING ISHAI', 'WATCH-ISHAI', ...BANNERS.flatMap(b => [b.title.replace(' · tonight 21:00', ''), b.sub]), ...AD_BRANDS.filter(a => a.slogan).map(a => a.name.join(' ') + ': ' + a.slogan), ...ADS])]
       }),
       scene(o){   // the picture of a place, with nobody in it but its usual passers-by
         const sc = SCENES[o.loc]; if (!sc) return null;
