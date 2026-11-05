@@ -1,3 +1,4 @@
+import { jsonrepair } from "./vendor/jsonrepair/regular/jsonrepair.js"; // copied from josdejong/jsonrepair 3.15.0 (ISC), repo has no npm step
 // ============================================================
 //  WATCHING ISHAI — Cloudflare Worker (single file)
 //  - Serves the page at "/"
@@ -480,7 +481,7 @@ Reply with ONLY JSON:
 "pip" is a 4-5 line quick version about the last hour only (first line greets: "Live from the studio...").` },
   { role: "user", content: `YESTERDAY (${s.yesterdaySum ? s.yesterdaySum.date : "none"}): ${s.yesterdaySum ? s.yesterdaySum.text : "(no summary)"}\n\nTODAY so far:\n${earlier.join("\n") || "(little)"}\n\nLAST HOUR:\n${lastHour.join("\n") || "(quiet)"}\n\nJSON only.` }];
   const raw = await runModel(env, messages, 1400, "hosts");
-  let o; try { o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch { return null; }
+  const o = parseAI(raw); if (!o) return null;
   const clean = arr => (Array.isArray(arr) ? arr : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 220) }))
     .filter(l => (l.who === "zohar" || l.who === "oren") && l.say.length > 3);
   const show = clean(o.show).slice(0, 12), pip = clean(o.pip).slice(0, 6), today = String(o.today || "").replace(/\s+/g, " ").trim().slice(0, 900);
@@ -607,6 +608,7 @@ async function tick(env, force) {
         if (s.studioTries >= 3 || now < (s.aiOutUntil || 0)) { s.studioKey = key; s.studioTries = 0; const b = basicRecap(s, day, storyMs); if (b) { s.daySum = { date: day, text: b.today, at: storyMs }; s.show = b.show; } } } } }   // try again on the next moments (max 3 per hour)
   { const d = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now)); const u = s.usage && s.usage.date === d ? s.usage : (s.usage = { date: d, calls: 0, inTok: 0, outTok: 0, moments: 0, noAI: 0 });
     u.calls += USE.calls; u.inTok += USE.inTok; u.outTok += USE.outTok; USE.calls = USE.inTok = USE.outTok = 0;
+    u.jsonFixed = (u.jsonFixed || 0) + JSON_USE.fixed; u.jsonBad = (u.jsonBad || 0) + JSON_USE.bad; JSON_USE.fixed = JSON_USE.bad = 0;
     u.gemini = { calls: (u.gemini?.calls || 0) + USE_G.calls, inTok: (u.gemini?.inTok || 0) + USE_G.inTok, outTok: (u.gemini?.outTok || 0) + USE_G.outTok }; USE_G.calls = USE_G.inTok = USE_G.outTok = 0; }
   if (GEMINI_SEEN) s.geminiModel = GEMINI_SEEN;
   try { maybeAlert(s, ev, last, clock.hour, now); await sendAlerts(env, s); } catch (e) { console.log("alert", e && e.message); }   // never let an alert stop the show
@@ -807,7 +809,7 @@ For EACH moment below write 0-2 short lines (max 20 words each). The viewers see
 Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..."}]}]} with exactly ${moments.length} entries, in order.` },
       { role: "user", content: `ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
     // read whatever came back, even a cut-off or slightly broken reply: every {"commentary":[...]} found, in order
-    const readHosts = raw => { try { const o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); if (Array.isArray(o.moments)) return o.moments; } catch (e) {}
+    const readHosts = raw => { const o = parseAI(raw); if (o && Array.isArray(o.moments)) return o.moments;
       const out = []; const re = /"commentary"\s*:\s*\[([\s\S]*?)\]/g; let m;
       while ((m = re.exec(raw))) { const items = []; const ri = /\{\s*"who"\s*:\s*"(zohar|oren)"\s*,\s*"say"\s*:\s*"((?:[^"\\]|\\.)*)"/gi; let k;
         while ((k = ri.exec(m[1]))) items.push({ who: k[1], say: k[2].replace(/\\"/g, '"') }); out.push({ commentary: items }); }
@@ -823,7 +825,7 @@ Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..
       c.forEach(x => used.push(x.say));
       if (c.length) m.commentary = c;
     });
-    s.hostsBy = lastWriter;
+    s.hostsBy = lastWriter; if (arr.some(x => (x.commentary || []).length)) s.hostsErr = null;   // the error shown is a current one
   } catch (e) { s.hostsErr = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   // nobody wrote anything for a moment with something going on: the hosts at least say what is happening (no AI)
   moments.forEach((m, i) => { if (!(m.commentary || []).length && (m.with || (m.lines || []).length || i === 0))
@@ -852,6 +854,21 @@ async function askStory(env, s, clock, now, goal, live) {
   return null;
 }
 
+// read an AI reply: strict first, then repaired (usage.jsonFixed / jsonBad count both).
+// Cutting at the last "}" means a reply stopped by max_tokens loses its unfinished item, so no half sentence goes on air.
+const JSON_USE = { fixed: 0, bad: 0 };
+function parseAI(raw) {
+  const t = String(raw || "").replace(/```(?:json)?/gi, "").trim(), arr = t.startsWith("[");
+  const i = arr ? 0 : t.indexOf("{"), j = arr ? Math.max(t.lastIndexOf("}"), t.lastIndexOf("]")) : t.lastIndexOf("}");
+  if (i < 0 || j <= i) { JSON_USE.bad++; return null; }
+  const body = t.slice(i, j + 1);
+  try { return JSON.parse(body); } catch (e) {}
+  try { const o = JSON.parse(jsonrepair(body)); if (o && typeof o === "object") { JSON_USE.fixed++; return o; } } catch (e) {}
+  JSON_USE.bad++; return null;
+}
+// why a written moment was thrown away, per day: usage.drops
+const dropKind = p => /valid JSON/.test(p) ? "json" : /is not possible in/.test(p) ? "action" : /known person|new people|newCharacter/.test(p) ? "person" : "other";
+function countDrop(s, problem, n = 0) { const u = s.usage; if (!u) return; u.drops = u.drops || {}; const k = dropKind(String(problem || "")); u.drops[k] = (u.drops[k] || 0) + 1; u.wasted = (u.wasted || 0) + n; }
 let lastWriter = null; // which model wrote the latest AI reply (shown to the director)
 let modelIdx = 0; // remembers the first model that works in this isolate
 // what the AI used this run (merged into s.usage in tick, shown in /api/health)
@@ -945,9 +962,11 @@ function fixRideLocation(ev, last) {
   else if (!off && /\b(bus|taxi|cab|ride|driver)\b/i.test(ev.text)) { ev.location = /\b(taxi|cab|driver)\b/i.test(ev.text) ? "taxi" : "bus"; ev.action = "idle"; }
 }
 function validate(raw, s, last, allowNew, goal, allowNoHosts) {
-  let o;
-  try { o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch { return { problem: "the reply was not valid JSON" }; }
+  const o = parseAI(raw); if (!o) return { problem: "the reply was not valid JSON" };
   const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+  // "walking with noa" put in the action: the action is "walking", and Noa goes in "with" if she is a known person
+  { const wa = str(o.action, 60).toLowerCase().match(/^(\S+)\s+with\s+(.+)$/);
+    if (wa) { o.action = wa[1]; const p = /^(null|none)?$/i.test(str(o.with, 40)) && Object.values(s.cast).find(c => c.id === wa[2] || c.name.toLowerCase() === wa[2] || c.name.toLowerCase().split(" ")[0] === wa[2]); if (p) o.with = p.id; } }
   const ev = {
     location: str(o.location, 20).toLowerCase(), action: str(o.action, 20).toLowerCase(),
     text: str(o.text, 260), notes: str(o.notes, 200), with: null, lines: [], update: null, newCard: null,
@@ -1375,7 +1394,7 @@ function queuedEvent(s, last, goal, now) {
   const r = validate(JSON.stringify(m), s, last, canAddPerson(s, now), goal, false);
   const minor = p => /"lines" must contain|fill "scene"|hosts are missing/.test(p || "");
   if (r.ev && r.problem && minor(r.problem)) { r.ev = repair(r.ev, s, last); r.problem = null; }
-  if (!r.ev || r.problem) { dropQueue(s, r.problem || "dropped"); return null; }
+  if (!r.ev || r.problem) { countDrop(s, r.problem); dropQueue(s, r.problem || "dropped"); return null; }
   q.items.shift();
   const ev = r.ev; ev.fromBlock = true; ev.src = `${q.writer} (block ${q.n - q.items.length}/${q.n}, written ahead)`;
   return ev;
@@ -1387,14 +1406,21 @@ async function askBlock(env, s, clock, now, goal) {
   const n = clamp(nextG ? Math.floor((nextG.startAfter - now) / (INTERVAL_MIN * 60000)) + 1 : BLOCK_N, 1, BLOCK_N);
   if (n === 1) return askAI(env, s, clock, now, goal);
   const raw = await runModel(env, buildMessages(s, clock, now, goal, { block: n }), 800 + n * 650);
-  let arr = null;
-  try { const t = raw.replace(/```(json)?/g, "").trim(), o = JSON.parse(t.startsWith("[") ? t : (t.match(/\{[\s\S]*\}/) || [""])[0]);
-    arr = Array.isArray(o) ? o : Array.isArray(o.moments) ? o.moments : o.location ? [o] : null; } catch {}
-  arr = (arr || []).filter(x => x && typeof x === "object").slice(0, n);
-  const r = arr.length ? validate(JSON.stringify(arr[0]), s, last, canAddPerson(s, now), goal, false) : { problem: "the block was not valid JSON" };
-  if (r.ev && r.problem && /"lines" must contain|fill "scene"|hosts are missing/.test(r.problem)) { r.ev = repair(r.ev, s, last); r.problem = null; }
-  s.diag = [...(s.diag || []), { at: now, model: lastWriter, attempt: "block", problem: r.problem || null, moments: arr.length, chars: raw.length }].slice(-16);
-  if (!r.ev || r.problem) { s.queueDrop = "block: " + (r.problem || "unusable"); s.queue = null; return askAI(env, s, clock, now, goal); }   // one moment the usual way
+  const o = parseAI(raw), parsed = Array.isArray(o) ? o : Array.isArray(o?.moments) ? o.moments : o?.location ? [o] : null;
+  let arr = (parsed || []).filter(x => x && typeof x === "object").slice(0, n);
+  const allowNew = canAddPerson(s, now), written = arr.length;
+  // a moment that breaks a rule costs only itself: the next one takes over, as validate checks it against where he is now
+  let r = { problem: "the block was not valid JSON" }, skip = 0;
+  for (let i = 0; i < arr.length; i++) {
+    r = validate(JSON.stringify(arr[i]), s, last, allowNew, goal, false);
+    if (r.ev && r.problem && /"lines" must contain|fill "scene"|hosts are missing/.test(r.problem)) { r.ev = repair(r.ev, s, last); r.problem = null; }
+    if (r.ev && !r.problem) { skip = i; break; }
+    countDrop(s, r.problem);
+    s.queueDrop = "block: moment " + (i + 1) + "/" + arr.length + " skipped: " + (r.problem || "unusable");
+  }
+  s.diag = [...(s.diag || []), { at: now, model: lastWriter, attempt: "block", problem: r.problem || null, moments: arr.length, skipped: skip, chars: raw.length }].slice(-16);
+  if (!r.ev || r.problem) { if (!written) countDrop(s, r.problem); if (s.usage) s.usage.wasted = (s.usage.wasted || 0) + written; s.queueDrop = "block: " + (r.problem || "unusable"); s.queue = null; return askAI(env, s, clock, now, goal); }   // one moment the usual way
+  if (skip) { arr = arr.slice(skip); if (s.usage) { s.usage.blockSaved = (s.usage.blockSaved || 0) + 1; s.usage.wasted = (s.usage.wasted || 0) + skip; } }
   const w = s.world && s.world.weather;
   s.queue = { items: arr.slice(1), n: arr.length, at: now, goal: goal ? goal.id : null, rain: !!(w && w.rain), fix: s.fixNote && now < s.fixNote.until ? s.fixNote.text : null, writer: lastWriter, afterId: null };
   r.ev.fromBlock = true; r.ev.src = `${lastWriter} (block 1/${arr.length}, written ahead)`;
@@ -1498,7 +1524,7 @@ Write 4-6 short lines (max 22 words each): first a host says "We've got ${caller
 Reply with ONLY JSON: {"lines":[{"who":"zohar"|"oren"|"caller","say":"..."}]}` },
   { role: "user", content: `Recent moments:\n${recent}\n\nJSON only.` }];
   const raw = await runModel(env, messages, 900, "hosts");
-  let o; try { o = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch { return null; }
+  const o = parseAI(raw); if (!o) return null;
   const lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 200) }))
     .filter(l => ["zohar", "oren", "caller"].includes(l.who) && l.say.length > 2).slice(0, 7);
   if (lines.length < 3 || !lines.some(l => l.who === "caller")) return null;

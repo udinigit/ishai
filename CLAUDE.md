@@ -7,6 +7,7 @@ Owner (the director): udinigit. Read `docs/SCENE_GUIDELINES.md` before adding or
 - `source/public/index.html` — the page (all drawing, animation, sound). `source/public/director.html` — director page. `source/public/sandbox.html` — test stage.
 - `source/src/worker.template.js` — story engine (AI prompt, validation, director goals, plan merge, real-world data).
 - `story/season.md`, `story/plan.json` — season arcs and the day's beats (written by the daily planner).
+- `src/vendor/` — third-party code the worker imports.
 - `src/index.js` — generated. Build with `cd source && node build.mjs`. Never edit `src/index.js` by hand.
 - Bump `VERSION` and commit with a clear message; Cloudflare deploys in ~30 s and open pages auto-reload.
 
@@ -25,7 +26,7 @@ Workers AI output costs ~6.5x input, so the engine avoids AI calls where it can 
 - Night (asleep, 22:00-06:00): `nightEvent()` picks a sleep moment from a list. No AI.
 - Planned beats: a beat's `preview.moments` (or `script`) are PLAYED AS WRITTEN once the beat starts (`scriptEvent()`): Ishai first walks there one place at a time (`travelEvent()`, no AI), then each moment plays in turn; the live AI then continues the scene and winds it down. The daily planner writes these moments as the finished scene.
 - Live moments (one AI call each, spontaneous): radio/TV on (`liveCue()` + `onAirFor()`: a real headline, the real weather or the real station's genre is read by the DJ / Channel 9 and Ishai reacts; otherwise the AI writes the on-air line in `onAir`), and the moment the rain starts or stops. The on-air line is put first in `lines` with `who: "radio"` or `"tv"`; the page plays it (and keeps its own DJ quiet for 4 minutes). Between live radio/TV moments he just listens (`quietMedia()`, no AI).
-- Everything else: blocks of up to 5 moments in one AI call (`askBlock()`, `s.queue`), shortened before the next planned beat. Each queued moment is validated when it plays; the block is dropped when anything else happens (a live moment, a beat starts, weather flips, a director note, stuck). A bad block falls back to one moment the old way.
+- Everything else: blocks of up to 5 moments in one AI call (`askBlock()`, `s.queue`), shortened before the next planned beat. Each queued moment is validated when it plays; the block is dropped when anything else happens (a live moment, a beat starts, weather flips, a director note, stuck). A moment that breaks a rule in a new block is skipped and the next one takes over; a block with no usable moment falls back to one moment the old way.
 - Places with music: the bar plays a real 24/7 rock station (Radio Paradise Rock Mix; backups from radio-browser in `s.world.barStations`), the café soft rock / pop at low volume (SomaFM Left Coast 70s, Radio Paradise Mellow Mix; backups `cafeStations`), the apartment radio as before. Every stream fades down quickly while anyone talks (`TALK_AT`, set by each typed character of speech) and comes back after; where the browser can't change the volume (iOS) it pauses and resumes instead.
 - Rides: `bus` and `taxi` are real places. A story hop like street > market passes through one by itself on the page (`route()`, `rideKind()`), so the AI only uses them when something happens on board (one moment, at most two). `ride` on a public event tells the page which vehicle the text mentions.
 - Planned moments may carry `delivery` and `message`, like the AI's.
@@ -34,7 +35,8 @@ Workers AI output costs ~6.5x input, so the engine avoids AI calls where it can 
 - Shopping: Shuk Shalom market (food, CAM-10) and the Everything Else store next to it (everything except food, CAM-11) are a bus/taxi ride from the Herzl Street stop (`MAP.street.market` is a ride; the market has its own stop). Opening hours are enforced in `validate()`.
 - ateBite food delivery: ordering is a moment on his phone/laptop; when the courier arrives the moment has `"delivery": true` (set by the AI, or detected from the text) and the page shows the orange-helmeted courier ringing, stepping in with the bag and leaving (`courierUpdate()`). Couriers also ride past on the roads now and then. Preview: `?loc=apartment&pose=idle&delivery=12`.
 - The gym TV is live like the home TV: when Ishai is on the treadmill (`gym/exercising`) Channel 9 news/weather lines are written live and he reacts.
-- `/api/health` shows `usage` (today's AI calls, tokens, estimated neurons, moments, no-AI moments, wasted block moments), `block`, `lastBlockDrop` and `writers` (who wrote the last 10 moments).
+- AI replies are read by `parseAI()`: strict JSON, then `jsonrepair` (copied into `src/vendor/jsonrepair`; there is no npm step). A cut-off reply is cut at its last `}`, so its unfinished item is lost and no half sentence airs. `validate()` also splits an action like "walking with noa".
+- `/api/health` shows `usage` (today's AI calls, tokens, estimated neurons, moments, no-AI moments, wasted block moments, `drops` by reason, `jsonFixed`, `jsonBad`, `blockSaved`), `block`, `lastBlockDrop` and `writers` (who wrote the last 10 moments).
 
 ## Everyone sees the same thing (sync)
 - The page never reads the device clock for timing: `NOW()` is the server's time (`/api/time`, `syncClock()`). Use `NOW()`, not `Date.now()`, and pass it to `new Date(...)`.
