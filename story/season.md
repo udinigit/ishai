@@ -13,17 +13,16 @@ You (the director) can edit anything here; changes go live with the next deploy.
 - 3-6 key beats per day, each with a time window. New props, places or animals need art first ("art" field).
 
 ## Arcs
-1. **Dana and the basil cups** — Dana, the deadpan barista, draws basil leaves on Ishai's cups. Slow, shy romance over 1-2 weeks. Stages: he notices (Sat) → he asks (Sun) → a real conversation → she visits Moshe → first date.
-2. **Saving Moshe** — Moshe the basil is wilting. Ishai tries everything (too much water, talking to him); Dana knows plants. Ends with Moshe thriving. *Now: Dana's tip — stop drowning him; Ishai is trying to water less. Sun night Moshe meets Falafel.*
-3. **The big client** — a client wants the logo "bigger but smaller". Paid work that pays for the TV; ends with a win or a funny disaster. *Now: 'bigger but smaller' email arrived Sat night; Sun night he sends version seven.*
-4. **Getting a TV** — Sunday morning: Avi's cousin offers an old TV (director goal "tv").
-5. **Mrs. Levi's old radio** — Tuesday Nov 3: she gives him her late husband's radio (director goal "radio").
-6. **Falafel the dog** — Sat: a scruffy sandy stray hangs around Avi's kiosk (Avi feeds it falafel balls). Sun: Ishai adopts him, names him Falafel. After that Falafel goes everywhere with Ishai; the hosts adore him; Oren worries about Moshe.
+1. **Dana and the basil cups** — Dana, the deadpan barista, draws basil leaves on Ishai's cups. Slow, shy romance. Stages: he notices → he asks → a real conversation → she visits Moshe → first date. *Now: stage 3; Thu Nov 5 she agrees to see Moshe after Shabbat.*
+2. **Saving Moshe** — Moshe the basil is wilting. Ends with Moshe thriving. *Now: watered less, but leaves are drying and Ishai plucks them. Dana's house call is Sat Nov 7, after havdalah.*
+3. **The chickpea** — Gadi's client wants the chickpea logo friendlier by Sunday morning; Ishai finally brings up his fee. Follows the earlier 'bigger but smaller' client, last seen when v7 was sent.
+4. **Noa** — best friend, keeps telling him to raise his prices. Missed the cafe and the bar on Nov 4; apologises Thu night, Shabbat dinner Fri Nov 6.
+5. **Falafel the dog** — adopted Nov 1, walks with Ishai and sleeps by the desk. The hosts adore him; Oren worries about Moshe.
+6. **The wider circle** — Tomer, Kobi and his lottery system, Mr. Zelig, Mrs. Levi, Lior, the gym regulars. Use the whole cast over the week.
+Done: the TV (Nov 1) and Mrs. Levi's radio (Nov 3) both arrived.
 
 ## Already scheduled — plan around these, do not overlap or move them
-- Sun Nov 1, 09:30–12:30 — `tv` (TV arrives).
-- Sun Nov 1, 13:30–18:00 — `1101-adopt`: Ishai adopts Falafel.
-- Tue Nov 3, 15:00 (+24h) — `radio` (Mrs. Levi's radio).
+- Sat Nov 7, after havdalah — Dana comes to see Moshe (promised on screen Nov 5; plan it Saturday).
 
 ## Day 1 — Friday, Oct 30 (planned by Claude, 14:30)
 Cafe with Dana (he notices the basil cup) → invites Noa for Shabbat → Mrs. Levi's challah in the hallway → candle lighting at home → Shabbat dinner with Noa.
@@ -35,3 +34,7 @@ Cafe with Dana (he notices the basil cup) → invites Noa for Shabbat → Mrs. L
 ## Day 3 — Sunday, Nov 1 (planned by Claude, 05:20; updated 07:20 with live data)
 **Previously:** Noa left around midnight; Ishai slept badly, partly on the bathroom floor. Shabbat: Mrs. Levi scolded him in the corridor about noise, he gave Moshe a pep talk while watering him, and he went for falafel at Avi's kiosk, where Avi mentioned a stray dog that's been hanging around. In the park Dana told him to stop overwatering Moshe. After havdalah he worked on the "bigger but smaller" logo, then called Noa and they agreed to meet Sunday. Several of yesterday's beats were forced by the engine.
 **Today:** Cafe with Dana (he asks how she knows plants) → TV from Avi's cousin → adopting Falafel → Noa meets Falafel → logo v7 with Falafel on his feet.
+
+## Day 7 — Thursday, Nov 5 (planned by Claude, 07:20; no plans were written for Nov 2-4)
+**Previously:** Wednesday Ishai worked on Gadi's chickpea logo and a bakery logo between walks with Falafel. Noa promised noon at Cafe Nahat but never came; he got ice water from Dana instead. Noa then dropped by the apartment with pastries and bourekas and made him promise the bar at nine, but at The Black Candle he ended up with a tipsy Kobi. He also bussed to Shuk Shalom and bought a red frying pan at Everything Else, then watched TV until midnight. /api/state returned stale data this run, so cast memories and weather came from the log.
+**Today:** Gadi calls about the chickpea and the fee → real talk with Dana, who agrees to see Moshe → Mr. Zelig's accidental logo advice → Mrs. Levi's soup in the corridor → the bar with Tomer, Noa's apology text, Kobi.
