@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-05a",
+  "version": "2026-11-05b",
   "written": "2026-11-05T07:36:00+02:00",
   "arcs": [
     {
@@ -445,8 +445,8 @@
     },
     {
       "id": "1105-levi-friday",
-      "startAt": "2026-11-05T16:45:00+02:00",
-      "deadlineAt": "2026-11-05T17:45:00+02:00",
+      "startAt": "2026-11-05T15:45:00+02:00",
+      "deadlineAt": "2026-11-05T16:30:00+02:00",
       "location": "corridor",
       "with": "Mrs. Levi (levi)",
       "goal": "Coming back up, Ishai meets Mrs. Levi in the corridor. She complains about crumbs and the dog's nails on the stairs, then asks if he is alone for Shabbat tomorrow, and hands him soup. She has seen Noa going up and down all week and has theories. He says a friend may come, and that someone is coming to look at the basil on Saturday night. She will now be watching the corridor.",
@@ -556,6 +556,340 @@
               {
                 "who": "zohar",
                 "say": "Soup from one woman, a house call from another. He's thriving."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "1105-improv-1",
+      "startAt": "2026-11-05T16:42:00+02:00",
+      "sceneAt": "2026-11-05T16:58:00+02:00",
+      "deadlineAt": "2026-11-05T17:20:00+02:00",
+      "location": "bar",
+      "with": "Yael (yael)",
+      "goal": "Ishai's first beginners' improv lesson with Yael at the back of The Black Candle, Thursdays at 17:00, paid for by Noa as four lessons. He is awkward and over-apologizes, says no to a made-up scene, and learns 'yes, and'. A pretend shop gets him to name a price and hold it, which echoes his fee with Gadi. Yael sets him one bit of homework.",
+      "forceAction": "talking",
+      "forceWith": "yael",
+      "forceText": "At the back of The Black Candle Yael stands the beginners' improv class in a circle, and Ishai takes his place.",
+      "forceLines": [
+        {
+          "who": "yael",
+          "say": "Ishai? Noa paid for four lessons. She said you'd ask for a refund."
+        },
+        {
+          "who": "ishai",
+          "say": "I was going to ask very politely."
+        }
+      ],
+      "forceCommentary": [
+        {
+          "who": "zohar",
+          "say": "He's been signed up by his own best friend. This is what friendship looks like."
+        },
+        {
+          "who": "oren",
+          "say": "Four lessons, prepaid. Noa has more faith in him than his clients do."
+        }
+      ],
+      "preview": {
+        "moments": [
+          {
+            "location": "bar",
+            "action": "talking",
+            "with": "yael",
+            "text": "Just before five Ishai steps into the back of The Black Candle, where chairs stand in a circle. Yael, the improv teacher, ticks his name off a list.",
+            "lines": [
+              {
+                "who": "yael",
+                "say": "Ishai? Noa paid for four lessons. She said you'd ask for a refund."
+              },
+              {
+                "who": "ishai",
+                "say": "I was going to ask very politely."
+              },
+              {
+                "who": "yael",
+                "say": "It's five o'clock, so no refunds. Bag down, phone away."
+              },
+              {
+                "who": "ishai",
+                "say": "What if a client calls?"
+              },
+              {
+                "who": "yael",
+                "say": "Then the client gets to wait. Have you ever done this?"
+              },
+              {
+                "who": "ishai",
+                "say": "I once said yes to a logo in the dark."
+              },
+              {
+                "who": "yael",
+                "say": "Good, that counts. First rule. Whatever your partner says is true."
+              },
+              {
+                "who": "ishai",
+                "say": "And if it's wrong?"
+              },
+              {
+                "who": "yael",
+                "say": "It's still true. You say yes, and you add something."
+              },
+              {
+                "who": "ishai",
+                "say": "I already say yes to everyone. That's my whole problem."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "He's been signed up by his own best friend. This is what friendship looks like."
+              },
+              {
+                "who": "oren",
+                "say": "Four lessons, prepaid. Noa has more faith in him than his clients do."
+              }
+            ]
+          },
+          {
+            "location": "bar",
+            "action": "talking",
+            "with": "yael",
+            "text": "The class stands in a circle for the warm-up. Yael claps, and they pass a sound around the ring; Ishai's turn arrives before he is ready.",
+            "lines": [
+              {
+                "who": "yael",
+                "say": "Pass the clap to whoever you're looking at. Don't plan it."
+              },
+              {
+                "who": "ishai",
+                "say": "Who am I looking at? Am I looking at you?"
+              },
+              {
+                "who": "yael",
+                "say": "You're looking at the floor."
+              },
+              {
+                "who": "ishai",
+                "say": "The floor and I have a good relationship."
+              },
+              {
+                "who": "yael",
+                "say": "Again. Eyes up. Don't apologize when it goes wrong."
+              },
+              {
+                "who": "ishai",
+                "say": "Sorry."
+              },
+              {
+                "who": "yael",
+                "say": "That's one. Every sorry costs you a push-up."
+              },
+              {
+                "who": "ishai",
+                "say": "Is that part of the method?"
+              },
+              {
+                "who": "yael",
+                "say": "No. I just made it up. That's the method."
+              },
+              {
+                "who": "ishai",
+                "say": "Sorry. No. Not sorry. How many is that?"
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "He apologized for apologizing. That's advanced work for a beginner."
+              },
+              {
+                "who": "oren",
+                "say": "Keep the push-ups going, he owes the gym anyway."
+              }
+            ]
+          },
+          {
+            "location": "bar",
+            "action": "talking",
+            "with": "yael",
+            "text": "Yael pairs up with Ishai for the first scene, two chairs facing the class. She decides they are astronauts and he has to go along with it.",
+            "lines": [
+              {
+                "who": "yael",
+                "say": "Commander, the ship is out of hummus."
+              },
+              {
+                "who": "ishai",
+                "say": "No, I think we have some left in the..."
+              },
+              {
+                "who": "yael",
+                "say": "Stop. Clap. What did you just do?"
+              },
+              {
+                "who": "ishai",
+                "say": "I checked the fridge. Sorry. That's two."
+              },
+              {
+                "who": "yael",
+                "say": "You said no. Try again. The hummus, Commander."
+              },
+              {
+                "who": "ishai",
+                "say": "Yes. And we've been eating the logo."
+              },
+              {
+                "who": "yael",
+                "say": "The logo? Which logo?"
+              },
+              {
+                "who": "ishai",
+                "say": "The chickpea. It was friendlier before we ate it."
+              },
+              {
+                "who": "yael",
+                "say": "There it is. Did you hear that? That came from somewhere."
+              },
+              {
+                "who": "ishai",
+                "say": "That came from Sunday morning."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "A chickpea in space. He cannot get away from that client."
+              },
+              {
+                "who": "oren",
+                "say": "He said no to a pretend astronaut. If only he'd try it on Gadi."
+              }
+            ]
+          },
+          {
+            "location": "bar",
+            "action": "talking",
+            "with": "yael",
+            "text": "One more scene: Yael plays a customer and Ishai a shopkeeper. She tells him he can only win by naming his price and not backing down.",
+            "lines": [
+              {
+                "who": "yael",
+                "say": "This chair is lovely. How much?"
+              },
+              {
+                "who": "ishai",
+                "say": "For you? Whatever you think is fair."
+              },
+              {
+                "who": "yael",
+                "say": "Clap. Name a price."
+              },
+              {
+                "who": "ishai",
+                "say": "Fifty shekels."
+              },
+              {
+                "who": "yael",
+                "say": "Fifty? That's a lot for a chair."
+              },
+              {
+                "who": "ishai",
+                "say": "You're right, forty. Thirty. Take it."
+              },
+              {
+                "who": "yael",
+                "say": "Clap. I said one word and you lost twenty shekels."
+              },
+              {
+                "who": "ishai",
+                "say": "You said it with a very convincing face."
+              },
+              {
+                "who": "yael",
+                "say": "Again. Fifty. Now what do you say?"
+              },
+              {
+                "who": "ishai",
+                "say": "Yes, it's fifty. And it's a good chair."
+              },
+              {
+                "who": "yael",
+                "say": "And?"
+              },
+              {
+                "who": "ishai",
+                "say": "And I'm not sorry. Is that three?"
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "Oh, that is the fee conversation with a chair in it. She has no idea."
+              },
+              {
+                "who": "oren",
+                "say": "Fifty shekels and he held on. Gadi, you may want to sit down."
+              }
+            ]
+          },
+          {
+            "location": "bar",
+            "action": "talking",
+            "with": "yael",
+            "text": "The class ends with the chairs back in place and the first evening customers at the bar. Yael hands Ishai a folded sheet with next week's exercise.",
+            "lines": [
+              {
+                "who": "yael",
+                "say": "Not bad. You're funny when you stop checking the fridge."
+              },
+              {
+                "who": "ishai",
+                "say": "I felt like a man falling down stairs."
+              },
+              {
+                "who": "yael",
+                "say": "That's the first lesson. Everyone falls. Next Thursday at five."
+              },
+              {
+                "who": "ishai",
+                "say": "Is there homework?"
+              },
+              {
+                "who": "yael",
+                "say": "Yes. Once this week, don't say sorry to someone who should be saying it to you."
+              },
+              {
+                "who": "ishai",
+                "say": "That's a very specific homework."
+              },
+              {
+                "who": "yael",
+                "say": "Noa told me a few things."
+              },
+              {
+                "who": "ishai",
+                "say": "Noa talks too much."
+              },
+              {
+                "who": "yael",
+                "say": "Yes, and?"
+              },
+              {
+                "who": "ishai",
+                "say": "Yes, and she's paying. See you Thursday."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "Homework that goes straight at Gadi. I love this teacher."
+              },
+              {
+                "who": "oren",
+                "say": "Three more lessons paid. Ishai, you may never be the same man."
               }
             ]
           }
@@ -715,5 +1049,11 @@
       }
     }
   ],
-  "overrides": []
+  "overrides": [
+    {
+      "id": "1105-levi-friday",
+      "startAt": "2026-11-05T15:45:00+02:00",
+      "deadlineAt": "2026-11-05T16:30:00+02:00"
+    }
+  ]
 }

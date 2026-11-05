@@ -19,10 +19,12 @@ You (the director) can edit anything here; changes go live with the next deploy.
 4. **Noa** — best friend, keeps telling him to raise his prices. Missed the cafe and the bar on Nov 4; apologises Thu night, Shabbat dinner Fri Nov 6.
 5. **Falafel the dog** — adopted Nov 1, walks with Ishai and sleeps by the desk. The hosts adore him; Oren worries about Moshe.
 6. **The wider circle** — Tomer, Kobi and his lottery system, Mr. Zelig, Mrs. Levi, Lior, the gym regulars. Use the whole cast over the week.
+7. **Improv on Thursdays** — Noa paid for four beginners' lessons with Yael at the back of The Black Candle. He over-apologizes and can't hold a price; "yes, and" slowly helps him say what he wants, including to Gadi. Keep it a real class: he is awkward, never a polished comic. *Now: lesson 1 on Thu Nov 5; homework: once this week, don't say sorry to someone who should be saying it to you.*
 Done: the TV (Nov 1) and Mrs. Levi's radio (Nov 3) both arrived.
 
 ## Already scheduled — plan around these, do not overlap or move them
 - Sat Nov 7, after havdalah — Dana comes to see Moshe (promised on screen Nov 5; plan it Saturday).
+- Every Thursday, 17:00 — improv class at The Black Candle (not during a holiday). Plan one beat: `startAt` 16:42, `sceneAt` 16:58 (the first moment then plays at 16:59 and the class starts at 17:00), `deadlineAt` 17:20, `location` bar, `forceWith` yael, and 5 `preview.moments` with Yael (about 30 minutes). Yael is the only other speaker. Keep 15:45-17:45 free of other beats.
 
 ## Day 1 — Friday, Oct 30 (planned by Claude, 14:30)
 Cafe with Dana (he notices the basil cup) → invites Noa for Shabbat → Mrs. Levi's challah in the hallway → candle lighting at home → Shabbat dinner with Noa.
@@ -37,4 +39,4 @@ Cafe with Dana (he notices the basil cup) → invites Noa for Shabbat → Mrs. L
 
 ## Day 7 — Thursday, Nov 5 (planned by Claude, 07:20; no plans were written for Nov 2-4)
 **Previously:** Wednesday Ishai worked on Gadi's chickpea logo and a bakery logo between walks with Falafel. Noa promised noon at Cafe Nahat but never came; he got ice water from Dana instead. Noa then dropped by the apartment with pastries and bourekas and made him promise the bar at nine, but at The Black Candle he ended up with a tipsy Kobi. He also bussed to Shuk Shalom and bought a red frying pan at Everything Else, then watched TV until midnight. /api/state returned stale data this run, so cast memories and weather came from the log.
-**Today:** Gadi calls about the chickpea and the fee → real talk with Dana, who agrees to see Moshe → Mr. Zelig's accidental logo advice → Mrs. Levi's soup in the corridor → the bar with Tomer, Noa's apology text, Kobi.
+**Today:** Gadi calls about the chickpea and the fee → real talk with Dana, who agrees to see Moshe → Mr. Zelig's accidental logo advice → Mrs. Levi's soup in the corridor → first improv lesson at 17:00 → the bar with Tomer, Noa's apology text, Kobi.

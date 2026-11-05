@@ -167,7 +167,11 @@ const SEED_CAST = [
     hangouts: ["bar"], look: { hair: "short", hairColor: "gray", skin: "tan", shirt: "red", pants: "navy", extras: ["mustache"] }, memory: "", relationship: 0 },
   { id: "lior", name: "Lior", role: "a regular at Cafe Nahat who has been writing the same novel for years (daytime)", regular: "cafe",
     personality: "anxious, kind, looks for any excuse to stop writing", speech: "apologizes, then asks for an opinion",
-    hangouts: ["cafe"], look: { hair: "curly", hairColor: "brown", skin: "light", shirt: "blue", pants: "gray", extras: ["glasses"] }, memory: "", relationship: 0 }
+    hangouts: ["cafe"], look: { hair: "curly", hairColor: "brown", skin: "light", shirt: "blue", pants: "gray", extras: ["glasses"] }, memory: "", relationship: 0 },
+  { id: "yael", name: "Yael", role: "teaches a beginners' improv class on Thursdays at 17:00 in the back of The Black Candle, before the evening crowd",
+    personality: "warm, sharp, patient, notices when people hide behind jokes", speech: "short encouraging notes, 'yes, and', stops a scene with one clap",
+    hangouts: ["bar"], look: { hair: "curly", hairColor: "black", skin: "tan", shirt: "yellow", pants: "black", extras: ["earring"] },
+    memory: "Noa paid for four lessons for Ishai and warned her he would try to get a refund.", relationship: 0 }
 ];
 
 // ---------- world (must match the page) ----------
@@ -1321,6 +1325,9 @@ function scriptEvent(s, last, g, now) {
   const busy = ["sleeping", "waking"].includes(last.action) || BATH_ACTIONS.includes(last.action) || (last.with && last.with !== String(m.with || "").toLowerCase());
   if (i === 0 && busy) return null;                                       // he finishes what he is doing first (the story wraps it up)
   if (to !== last.location && !NEXT[last.location].includes(to)) { const hop = pathStep(last.location, to); return hop ? travelEvent(s, last, hop, to) : null; }
+  // a scene with a fixed start (a class): he gets close, then waits for the story clock (no AI)
+  if (i === 0 && g.sceneAt && now + DELAY_MIN * 60000 < g.sceneAt) { g.held = (g.held || 0) + 1;
+    return { location: last.location, action: LOCATIONS[last.location].includes("idle") ? "idle" : last.action, text: g.held % 2 ? "Ishai checks the time; he has a few minutes yet." : "Ishai looks at his phone and waits a little longer.", with: null, lines: [], commentary: [], src: "on the way to the planned scene, waiting (no AI)" }; }
   const end = i === sc.length - 1;
   const r = validate(JSON.stringify({ ...m, location: to, scene: null, newCharacter: null, missing: null, complete: end ? g.id : null }), s, last, false, g, true);
   g.step = i + 1;
@@ -1628,7 +1635,8 @@ function newGoal(d, now) {
     forceAction: str(d.forceAction, 20) || null, forceLines: Array.isArray(d.forceLines) ? d.forceLines.slice(0, 14) : [],
     forceCommentary: Array.isArray(d.forceCommentary) ? d.forceCommentary.slice(0, 2) : [],
     status: str(d.art, 300) ? "needs-art" : "waiting", art: str(d.art, 300) || null,
-    activatedAt: null, doneAt: null, how: null, createdAt: now, script: cleanScript(d.script || (d.preview && d.preview.moments))
+    activatedAt: null, doneAt: null, how: null, createdAt: now, script: cleanScript(d.script || (d.preview && d.preview.moments)),
+    sceneAt: d.sceneAt ? Date.parse(d.sceneAt) : null
   };
 }
 // a planned beat's moments, played as written when the beat starts (the daily planner writes them)
