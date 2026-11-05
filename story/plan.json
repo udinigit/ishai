@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-05b",
+  "version": "2026-11-05c",
   "written": "2026-11-05T07:36:00+02:00",
   "arcs": [
     {
@@ -563,16 +563,16 @@
       }
     },
     {
-      "id": "1105-improv-1",
+      "id": "1105-improv-1b",
       "startAt": "2026-11-05T16:42:00+02:00",
       "sceneAt": "2026-11-05T16:58:00+02:00",
       "deadlineAt": "2026-11-05T17:20:00+02:00",
       "location": "bar",
       "with": "Yael (yael)",
       "goal": "Ishai's first beginners' improv lesson with Yael at the back of The Black Candle, Thursdays at 17:00, paid for by Noa as four lessons. He is awkward and over-apologizes, says no to a made-up scene, and learns 'yes, and'. A pretend shop gets him to name a price and hold it, which echoes his fee with Gadi. Yael sets him one bit of homework.",
-      "forceAction": "talking",
+      "forceAction": "improv",
       "forceWith": "yael",
-      "forceText": "At the back of The Black Candle Yael stands the beginners' improv class in a circle, and Ishai takes his place.",
+      "forceText": "At the back of The Black Candle the beginners' improv class sits in a half circle, and Ishai steps onto the cleared floor with Yael.",
       "forceLines": [
         {
           "who": "yael",
@@ -597,9 +597,9 @@
         "moments": [
           {
             "location": "bar",
-            "action": "talking",
+            "action": "improv",
             "with": "yael",
-            "text": "Just before five Ishai steps into the back of The Black Candle, where chairs stand in a circle. Yael, the improv teacher, ticks his name off a list.",
+            "text": "Just before five Ishai steps into The Black Candle. The table is against the wall and a half circle of folding chairs faces a cleared floor; Yael ticks his name off a list.",
             "lines": [
               {
                 "who": "yael",
@@ -655,9 +655,9 @@
           },
           {
             "location": "bar",
-            "action": "talking",
+            "action": "improv",
             "with": "yael",
-            "text": "The class stands in a circle for the warm-up. Yael claps, and they pass a sound around the ring; Ishai's turn arrives before he is ready.",
+            "text": "Yael keeps Ishai on the floor in front of the half circle for the warm-up, a clap passed around the class; his turn arrives before he is ready.",
             "lines": [
               {
                 "who": "yael",
@@ -713,9 +713,9 @@
           },
           {
             "location": "bar",
-            "action": "talking",
+            "action": "improv",
             "with": "yael",
-            "text": "Yael pairs up with Ishai for the first scene, two chairs facing the class. She decides they are astronauts and he has to go along with it.",
+            "text": "Yael stays on the floor with Ishai for the first scene, the class watching from the chairs. She decides they are astronauts and he has to go along with it.",
             "lines": [
               {
                 "who": "yael",
@@ -771,7 +771,7 @@
           },
           {
             "location": "bar",
-            "action": "talking",
+            "action": "improv",
             "with": "yael",
             "text": "One more scene: Yael plays a customer and Ishai a shopkeeper. She tells him he can only win by naming his price and not backing down.",
             "lines": [
@@ -836,10 +836,10 @@
             ]
           },
           {
-            "location": "bar",
+            "location": "street",
             "action": "talking",
             "with": "yael",
-            "text": "The class ends with the chairs back in place and the first evening customers at the bar. Yael hands Ishai a folded sheet with next week's exercise.",
+            "text": "The class is over. Ishai and Yael step out of The Black Candle onto Herzl Street as the first evening customers arrive, and she hands him a folded sheet.",
             "lines": [
               {
                 "who": "yael",
@@ -1054,6 +1054,10 @@
       "id": "1105-levi-friday",
       "startAt": "2026-11-05T15:45:00+02:00",
       "deadlineAt": "2026-11-05T16:30:00+02:00"
+    },
+    {
+      "id": "1105-improv-1",
+      "cancel": true
     }
   ]
 }

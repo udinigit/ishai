@@ -185,7 +185,7 @@ const LOCATIONS = {
   gym:       ["exercising","idle","talking","drinking","phoning"],
   market:    ["walking","idle","talking","eating","drinking","phoning"],
   store:     ["idle","talking","phoning"],
-  bar:       ["idle","drinking","eating","talking","phoning"],
+  bar:       ["idle","drinking","eating","talking","phoning","improv"],
   bus:       ["idle","talking","phoning","reading"],
   taxi:      ["idle","talking","phoning","reading"],
   offscreen: ["away"]
@@ -230,7 +230,7 @@ const LOOK = {
   extras: ["glasses","beard","mustache","earring","apron","scarf"]
 };
 
-const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => !NEEDS[a] || unlocked.includes(NEEDS[a]));
+const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" is only for the planned class
 
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
@@ -1008,6 +1008,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (ev.location === "market" && last.location !== "market" && shut(7, 19)) return { ev, problem: "Shuk Shalom market is closed now (07:00-19:00, Friday until 14:00, closed on Shabbat)" };
     if (ev.location === "store" && last.location !== "store" && shut(9, 21)) return { ev, problem: "Everything Else is closed now (09:00-21:00, Friday until 14:00, closed on Shabbat)" }; }
   if (!LOCATIONS[ev.location]) return { ev, problem: `"${ev.location}" is not a known location` };
+  if (ev.action === "improv" && !allowNoHosts) ev.action = "talking";     // the class layout comes from the plan only
   if (!LOCATIONS[ev.location].includes(ev.action)) {
     const A = { waiting: "idle", sitting: "idle", standing: "idle", relaxing: "idle", resting: "idle", thinking: "idle", cleaning: "idle", tidying: "idle", washing: "idle", shopping: "idle", browsing: "idle", looking: "idle", lounging: "idle", stretching: "idle",
       typing: "working", coding: "working", designing: "working", emailing: "working", texting: "phoning", calling: "phoning", chatting: "talking", speaking: "talking", greeting: "talking",
@@ -1111,7 +1112,7 @@ function cleanCard(c, s, loc) {
 function repair(ev, s, last) {
   let loc = LOCATIONS[ev.location] ? ev.location : last.location;
   if (loc !== last.location && !NEXT[last.location].includes(loc)) loc = last.location;
-  const legal = allowed(loc, s.unlocked);
+  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : allowed(loc, s.unlocked);
   const act = legal.includes(ev.action) ? ev.action : (legal.includes("idle") ? "idle" : legal[0]);
   const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with) && act !== "sleeping";
   return { ...ev, location: loc, action: act, with: ok ? ev.with : null,

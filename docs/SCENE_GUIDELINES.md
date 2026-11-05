@@ -121,6 +121,9 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 ## 9c. Park life
 - The park has street cats (one asleep under the tree, one by the vending machine that comes over when he eats on the bench, one strolling the far lawn), pigeons on the path that flutter off when someone comes close (and peck crumbs by the bench), crows on the lamp and in the tree (one flies over now and then), and joggers.
 
+## 9d. Improv class
+- The action `improv` (planned beats only) sets The Black Candle up for the class (`barLesson()`, `improvRoom()`): the table against the wall, six muted classmates on folding chairs in a half circle, Ishai and Yael standing on the cleared floor. The chairs stay until he has left, and the last moment plays outside, so nobody sees the room change. Preview: `?loc=bar&pose=improv&with=yael`.
+
 ## 10. Fidgets and idle life
 - Seated activities (working, gaming, reading, watching) never pop up for an errand: small breaks happen in the seat (`seatFid()`: a yawning stretch, a sip, rubbing eyes). Errands are for standing/idle moments only.
 - Standing or listening characters fidget every few seconds (`fid()`): foot tap, stomp, weight shift, stretch, look around, scratch head, turn around, cross arms, check phone. Talking adds gestures, nods and shrugs. Seated people nod, gesture and look around.
