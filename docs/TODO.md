@@ -7,3 +7,4 @@ Ideas and requests from the director. Newest at the bottom; mark done with the v
 - [x] Picture-in-picture "pop out" button: `⧉ POP OUT` opens the live picture with the words drawn in, and keeps running while he leaves the browser (tested on Android Chrome; not iPhone). No automatic opening on leaving, and browser voices may not play in the background. — v123
 - [x] A hobby for Ishai: improv lessons on Thursdays at 17:00 at The Black Candle, written in the daily plan so they use no live AI. — v136
 - [x] A proper class setup in the bar: chairs in a half circle, Ishai and Yael on their feet. — v137
+- [x] Sandbox buttons for the bar and the improv lesson, no music during the lesson, a dev-only Director link, and test pages blocked for everyone else. — v138

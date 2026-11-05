@@ -244,6 +244,16 @@ const PLAN = __PLAN__;
 const FIX_HASH = "b5c6aeba6f36ea21799c22ef3a0a75c2692b6d8f9018f76669af06fe84d7c505";
 
 // ============================================================
+// The director's browser gets a private cookie at login; test pages (sandbox, preview, demo, forced scenes) need it.
+const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+const devToken = async key => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("ishai-dev:" + key)));
+async function isDev(req, env) {
+  const key = env.ADMIN_KEY || env.TICK_SECRET; if (!key) return false;
+  const c = (req.headers.get("cookie") || "").match(/(?:^|;\s*)ishai_dev=([0-9a-f]{64})/);
+  return !!c && c[1] === await devToken(key);
+}
+const TEST_PARAMS = ["sandbox", "preview", "demo", "loc"];
+
 export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
@@ -324,16 +334,24 @@ export default {
       if (req.method === "DELETE") await env.ISHAI.delete(key); else if ((await env.ISHAI.get(key)) !== dev) await env.ISHAI.put(key, dev);
       return json({ ok: true }, { "cache-control": "no-store" });
     }
-    if (url.pathname === "/sandbox") return new Response(SANDBOX_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
+    if (url.pathname === "/sandbox") {
+      if (!await isDev(req, env)) return Response.redirect(url.origin + "/director", 302);
+      return new Response(SANDBOX_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+    }
     if (url.pathname === "/director")
       return new Response(DIRECTOR_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
     if (url.pathname === "/api/director") {
       const key = env.ADMIN_KEY || env.TICK_SECRET;
       if (!key || req.headers.get("x-admin-key") !== key) return json({ error: "wrong password (or ADMIN_KEY is not set)" }, {}, 403);
-      return directorApi(req, env);
+      const r = await directorApi(req, env);
+      if (r.ok) r.headers.append("set-cookie", `ishai_dev=${await devToken(key)}; Path=/; Max-Age=31536000; HttpOnly; Secure; SameSite=Strict`);
+      return r;
     }
-    if (url.pathname === "/" || url.pathname === "/index.html")
-      return new Response(HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
+    if (url.pathname === "/" || url.pathname === "/index.html") {
+      const test = TEST_PARAMS.some(p => url.searchParams.has(p));
+      if (test && !await isDev(req, env)) return Response.redirect(url.origin + "/", 302);
+      return new Response(HTML, { headers: { "content-type": "text/html; charset=utf-8", ...(test ? { "cache-control": "no-store" } : {}) } });
+    }
     return new Response("not found", { status: 404 });
   },
   async scheduled(event, env, ctx) { ctx.waitUntil(tick(env, false)); }

@@ -54,7 +54,10 @@ The eye button next to the bell keeps the phone's screen on while the page shows
 Web push for any viewer who taps the bell (`/sw.js`, `/api/push`, one KV key `push:<hash>` per device). `maybeAlert()` in `tick()` picks key moments (`alertText()`): a new item, a new person, a first appearance, a plot conversation. At most `ALERTS_A_DAY` (4) a day, `ALERT_GAP_MIN` (90) apart. The bell opens settings for each device: on or off, hours (default 08:00-23:00) and a daily limit, kept in its KV entry and checked in `deviceWants()`. Pushes carry no data; the device reads `/api/alert`. `sendAlerts()` sends `PUSH_BATCH` (30) per run, because of the free plan's request limit. The private key is the `VAPID_JWK` secret. The director page has a test button.
 
 ## Sandbox
-`/sandbox` (`source/public/sandbox.html`, linked from the director page) is a test stage around the real page in `/?sandbox` mode (`startSandbox()`, `window.__sandbox`): no live feed, no AI, no writes. Moments go through `ingest()` like the story's. Saved moments and characters stay in the browser's `localStorage`. New places, actions and special events should get a control here too.
+`/sandbox` (`source/public/sandbox.html`, linked from the director page, with Quick scenes buttons for the bar and the improv lesson) is a test stage around the real page in `/?sandbox` mode (`startSandbox()`, `window.__sandbox`): no live feed, no AI, no writes. Moments go through `ingest()` like the story's. Saved moments and characters stay in the browser's `localStorage`. New places, actions and special events should get a control here too.
+
+## Developer access
+Logging in at `/director` sets the private `ishai_dev` cookie (`isDev()`). `/sandbox` and the test views of the main page (`TEST_PARAMS`: `?sandbox`, `?preview`, `?demo`, `?loc`) need it; anyone else is redirected. The main page shows the 🎬 DIRECTOR link only when `enableDev()` runs.
 
 ## Health check and quick fixes
 - `GET /api/health` (public): recent moments, retry rate, recent rule problems, stuck counter, current scene, last AI error, art requests.

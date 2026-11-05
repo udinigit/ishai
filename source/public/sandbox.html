@@ -55,6 +55,15 @@
     <div class="muted">Nothing here reaches the live show or uses the AI. <span id="status"></span></div>
 
     <div class="box">
+      <h2>Quick scenes</h2>
+      <div class="bar">
+        <button id="qBar">The bar</button>
+        <button id="qImprov">Improv lesson</button>
+        <a href="/?preview" target="_blank" rel="noopener">Today's plan</a>
+      </div>
+    </div>
+
+    <div class="box">
       <h2>Moment</h2>
       <div class="row">
         <div><label for="loc">Place</label><select id="loc"></select></div>
@@ -195,6 +204,17 @@ Back to the cameras.</textarea>
     }
     if (me === running) drawList();
   }
+  const SAMPLE_LESSON = [
+    {location:'bar', action:'improv', with:'yael', lines:[{who:'yael', say:'First rule. Whatever your partner says is true.'}, {who:'ishai', say:'And if it\'s wrong?'}, {who:'yael', say:'It\'s still true. You say yes, and you add something.'}], commentary:[{who:'zohar', say:'He has finally found a rule he can follow.'}]},
+    {location:'bar', action:'improv', with:'yael', lines:[{who:'yael', say:'This chair is lovely. How much?'}, {who:'ishai', say:'Fifty shekels. And it\'s a good chair.'}], commentary:[{who:'oren', say:'He held his price. Somebody call Gadi.'}]},
+    {location:'street', action:'talking', with:'yael', lines:[{who:'yael', say:'Next Thursday at five.'}, {who:'ishai', say:'See you Thursday.'}], commentary:[]}
+  ];
+  async function lesson(){
+    let list = SAMPLE_LESSON;
+    try { const p = await (await fetch('/api/plan', {cache:'no-store'})).json(), b = (p.beats || []).find(x => /improv/.test(x.id) && x.preview && x.preview.moments); if (b) list = b.preview.moments; } catch(e){}
+    const me = ++running; api.go({location:'street', action:'idle'});
+    for (const m of list){ if (me !== running) return; api.play(m); await wait(600); while (me === running && api.busy()) await wait(300); }
+  }
   function world(){
     const real = $('hourT').textContent === 'Real time';
     api.world({hour: real ? null : +$('hour').value, weather: $('wx').value, temp: +$('temp').value || 22,
@@ -220,6 +240,8 @@ Back to the cameras.</textarea>
 
     $('loc').onchange = actions;
     $('addLine').onclick = () => { lines.push({who: lines.length ? lines[lines.length - 1].who : 'ishai', say:''}); drawLines(); };
+    $('qBar').onclick = () => { running++; api.go({location:'bar', action:'idle'}); };
+    $('qImprov').onclick = lesson;
     $('play').onclick = () => { running++; api.reset(); api.play(moment()); };
     $('jump').onclick = () => { running++; api.go(moment()); };
     $('save').onclick = () => { if (editing >= 0) D.list[editing] = moment(); else D.list.push(moment()); editing = -1; $('save').textContent = 'Add to list'; store(); drawList(); };

@@ -214,6 +214,7 @@
       <button id="snd" class="snd" title="Tap to change sound">SOUND: OFF</button>
       <button id="pipBtn" class="snd" title="Keep watching in a small window" hidden>⧉ POP OUT</button>
       <button id="bugBtn" class="snd" title="Report a bug" aria-label="Report a bug" hidden>🐞</button>
+      <a id="dirLink" class="snd" href="/director" title="Director page" aria-label="Director page" hidden style="text-decoration:none">🎬 DIRECTOR</a>
     </div>
   </div>
 
@@ -2586,9 +2587,9 @@
         loop(9000, 12000, () => { tone(170,.08,'square',.03,0,dest); noise(.15,{vol:.05,type:'lowpass',freq:900,dest}); });                            // a dumbbell clanks
         if (extra === 'walker') loop(420, 0, () => noise(.03,{vol:.035,type:'lowpass',freq:300,dest}));                                                // his steps on the belt
       } else if (loc === 'bar'){
-        bed(brown,'bandpass',420,.15);                                                                    // the crowd
+        bed(brown,'bandpass',420, extra === 'lesson' ? .05 : .15);                                        // the crowd
         loop(4000, 6000, () => tone(2600 + Math.random()*700, .25, 'sine', .018, 0, dest));                // glasses
-        if (!streamStart(a, 'bar')) music(a);
+        if (extra !== 'lesson' && !streamStart(a, 'bar')) music(a);                                        // no music during the improv class
       } else if (loc === 'cafe'){
         bed(brown,'bandpass',500,.25); streamStart(a, 'cafe');
         loop(2500, 5000, () => tone(2300 + Math.random()*900, .3, 'sine', .02, 0, dest));
@@ -2712,6 +2713,7 @@
     const settled = !actor.travelling && !actor.hidden;
     let extra = settled && actor.loc==='apartment' ? (actor.action==='watching' ? 'tv' : actor.action==='listening' ? 'radio' : '') : '';
     if (settled && actor.loc==='gym' && actor.action==='exercising') extra = 'walker';
+    if (actor.loc==='bar' && actor.action==='improv') extra = 'lesson';
     if (actor.loc==='bathroom' && actor.hidden && BATH.has(actor.action)) extra = actor.action==='showering' ? 'shower' : 'toilet';
     return `${actor.loc}|${extra}|${isNight(hourNow()) ? 'night' : 'day'}|${stormy() ? 'storm' : rainy() ? 'rain' : ''}`;
   }
@@ -3517,11 +3519,12 @@
     if (which==='talk') talkEl.scrollTop = talkEl.scrollHeight;
   }
   $('tabTalk').onclick = ()=>showTab('talk'); $('tabFeed').onclick = ()=>showTab('feed'); $('tabCast').onclick = ()=>showTab('cast'); $('tabSum').onclick = ()=>showTab('sum');
-  function enableDev(){ if (DEV) return; DEV = true; $('tabFeed').hidden = false; $('bugBtn').hidden = false; }
+  function enableDev(){ if (DEV) return; DEV = true; $('tabFeed').hidden = false; $('bugBtn').hidden = false; $('dirLink').hidden = false; }
 
   // ================= data: live Worker or demo =================
   const DEMO_CAST = [
     {id:'tomer',name:'Tomer',role:"Ishai's friend from school, an electrician",personality:'loud, loyal, always has a plan',look:{hair:'short',hairColor:'brown',skin:'tan',shirt:'green',pants:'navy',extras:['beard']},memory:'Owes Ishai a rematch.',relationship:4},
+    {id:'yael',name:'Yael',role:"teaches the Thursday improv class at The Black Candle",personality:'warm, sharp, patient',look:{hair:'curly',hairColor:'black',skin:'tan',shirt:'yellow',pants:'black',extras:['earring']},memory:'',relationship:0},
     {id:'gadi',name:'Gadi',role:'runs Sababa Creative, the agency that gives Ishai most of his work; only ever on the phone',personality:'cheerful, always in a hurry',look:{hair:'bald',hairColor:'gray',skin:'fair',shirt:'gray',pants:'black',extras:['glasses']},memory:'Needs it by tomorrow.',relationship:1,remote:true},
     ...Object.entries(REG).map(([id, r]) => ({id, name: id[0].toUpperCase() + id.slice(1), role: 'a regular at the ' + r.place, personality: '', look: r.look, memory: '', relationship: 0})),
     {id:'levi',name:'Mrs. Levi',role:'nosy 72-year-old neighbor from apartment 5',personality:'gossipy, dramatic, secretly very kind',
