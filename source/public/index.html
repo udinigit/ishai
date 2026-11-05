@@ -3145,12 +3145,13 @@
   // ================= live from the studio: an hourly recap by the hosts, picture-in-picture =================
   let STUDIO = null; const studioDone = new Set(); let studioOn = false, studioWho = null;
   const pipCv = $('pipCv'), pctx = pipCv.getContext('2d');
+  const studioScreen = () => { R(21,4,22,14,'#ff9ad0'); R(22,5,20,12,'#2a1f5a'); };   // the show's logo screen: an eye
+  const studioEye = () => { R(27,9,10,4,'#f4f1ff'); R(28,8,8,1,'#f4f1ff'); R(28,13,8,1,'#f4f1ff'); R(31,9,3,4,'#1d1238'); R(31,9,1,1,'#9fd0ff'); };
   function drawStudio(t, into){
     const prev = g; g = into || pctx;
     R(0,0,64,40,'#1d1238'); for (let x=2;x<64;x+=8) R(x,0,1,29,'#25174a');
     [10,32,54].forEach((x,i)=>{ R(x-2,0,4,2,'#444'); alpha(.12 + .05*((Math.floor(t/500)+i)%2),()=>R(x-6,2,12,26,'#fff6d8')); });
-    R(21,4,22,14,'#ff9ad0'); R(22,5,20,12,'#2a1f5a');                                 // the show's logo screen: an eye
-    R(27,9,10,4,'#f4f1ff'); R(28,8,8,1,'#f4f1ff'); R(28,13,8,1,'#f4f1ff'); R(31,9,3,4,'#1d1238'); R(31,9,1,1,'#9fd0ff');
+    studioScreen(); studioEye();
     person(HOSTS.zohar.look, 9, 11, t, {legs:false, face:1, talking: studioWho==='zohar', seed:21});
     person(HOSTS.oren.look, 45, 11, t + 700, {legs:false, face:-1, talking: studioWho==='oren', seed:22});
     R(0,29,64,1,'#c9b37a'); R(0,30,64,10,'#3a2a5a'); R(0,33,64,1,'#ff9ad0'); R(0,35,64,1,'#9fd0ff');
@@ -3495,6 +3496,14 @@
     const FACE = {left: -1, ahead: 0, right: 1};
     const FRUIT = x => { crate(x+2,62,'#e0403a','#c23030'); crate(x+13,62,'#4f9a3f','#3f7f33'); crate(x+24,62,'#e0b04a','#c27a3b'); };
     const P = (name, group, poses, draw) => ({name, group, poses, draw});
+    // a sign painted inside a scene: draw the place empty and keep only that rectangle
+    const crop = (loc, x, y, w, h) => (l, t) => { DREAMING = true; NO_CROWD = true; drawLater = null;
+      try { SCENES[loc].draw(t, 12, 'idle', false, {loc, action: 'idle', x: 0, targetX: 0, travelling: false, hidden: true, pending: null, with: null}); } finally { DREAMING = false; NO_CROWD = false; ZQ = null; }
+      ctx.globalCompositeOperation = 'destination-in'; ctx.fillStyle = '#000'; ctx.fillRect(x, y, w, h); ctx.globalCompositeOperation = 'source-over'; };
+    // Channel 9 picks its picture from the clock: stop the clock on the one asked for
+    const ch9 = (kind, t, x, y, w, h) => { const keepS = SIM, keepM = MEDIA_UNTIL; SIM = {news: 0, weather: 1, live: 2}[kind] * 12000; MEDIA_UNTIL = 0;
+      try { gymTv(t); } finally { SIM = keepS; MEDIA_UNTIL = keepM; }
+      ctx.globalCompositeOperation = 'destination-in'; ctx.fillStyle = '#000'; ctx.fillRect(x, y, w, h); ctx.globalCompositeOperation = 'source-over'; };
     const PROPS = {
       catOrange: P('Orange cat','Animals',['sit','walk','sleep'],(l,t)=>drawCat(90,62,t,l.pose,0,1)),
       catGrey: P('Grey cat','Animals',['sit','walk','sleep'],(l,t)=>drawCat(90,62,t,l.pose,1,1)),
@@ -3512,10 +3521,35 @@
       stall: P('Market stall','Objects',['fruit'],(l,t)=>stall(70,36,t,'#2f7d3a','#f4f4f4',FRUIT)),
       chair: P('Folding chair','Objects',['chair'],()=>foldChair(90,34,1)),
       treadmill: P('Treadmill','Objects',['off','on'],(l,t)=>treadmill(70,t,l.pose==='on')),
-      tv8: P('8bitTV screen','Objects',['on'],(l,t)=>onScreen(70,30,34,20,()=>eightBitTv(70,30,t))),
-      tvNes: P('NESflicks screen','Objects',['on'],(l,t)=>onScreen(70,30,34,20,()=>nesflicksTv(70,30,t))),
-      tvRgb: P('RGBeat screen','Objects',['on'],(l,t)=>onScreen(70,30,34,20,()=>rgbeatTv(70,30,t)))
+      ch9: P('Channel 9 screen','TV',['news','weather','live'],(l,t)=>ch9(l.pose,t,100,12,34,20)),
+      tv8: P('8bitTV screen','TV',['logo','day level','night level'],(l,t)=>onScreen(70,30,34,20,()=>eightBitTv(70,30,t%15000 + {logo:3,'day level':0,'night level':2}[l.pose]*15000))),
+      tvNes: P('NESflicks screen','TV',['logo','choosing','film','still there'],(l,t)=>onScreen(70,30,34,20,()=>nesflicksTv(70,30,t%6000 + {logo:0,choosing:8000,film:30000,'still there':112000}[l.pose]))),
+      tvRgb: P('RGBeat screen','TV',['logo','stage','video'],(l,t)=>onScreen(70,30,34,20,()=>rgbeatTv(70,30,t%12000 + {logo:3,stage:0,video:1}[l.pose]*12000))),
+      logo9: P('Channel 9 logo','Logos',['logo'],(l,t)=>ch9('news',t,126,13,6,7)),
+      logoRgb: P('RGBeat dots','Logos',['logo'],()=>rgbeatLogo(90,50)),
+      logoRgbW: P('RGBeat name','Logos',['name'],()=>{ ['R','G','B'].forEach((c,i)=>word(c,80+i*4,50,RGB[i])); word('EAT',92,50,'#ffffff'); }),
+      logo8: P('8bitTV name','Logos',['name'],()=>{ word('8',80,50,'#ffd23f'); word('BIT',85,50,'#ffffff'); word('TV',98,50,'#3bceac'); }),
+      eye: P('The show eye','Studio',['eye','small eye'],(l)=>l.pose==='eye'?studioEye():EYE(90,50)),
+      eyeScreen: P('Eye on the studio screen','Studio',['screen'],()=>{ studioScreen(); studioEye(); }),
+      studioSet: P('Studio with the hosts','Studio',['set'],(l,t)=>{ drawStudio(t, ctx); }),
+      bbRgb: P('RGBeat billboard','Signs',['sign'],crop('west1',78,4,46,13)), bbBool: P('Boolify billboard','Signs',['sign'],crop('west2',55,7,44,14)),
+      bb8: P('8bitTV billboard','Signs',['sign'],crop('west3',88,1,46,12)), bbKofi: P('Kfar Kofi billboard','Signs',['sign'],crop('shops',112,3,40,12)),
+      sPicsell: P('PicSell sign','Signs',['sign'],crop('west1',2,38,66,9)), sPharm: P('Pharmacy sign','Signs',['sign'],crop('west1',72,40,56,7)), sSoap: P('Soap Opera sign','Signs',['sign'],crop('west1',134,40,56,7)),
+      sBarber: P('Barber sign','Signs',['sign'],crop('west2',3,40,47,7)), sMako: P('Makolet sign','Signs',['sign'],crop('west2',109,34,31,7)), sBakery: P('Bakery sign','Signs',['sign'],crop('west2',155,40,35,7)),
+      sBooks: P('Books sign','Signs',['sign'],crop('west3',86,40,50,7)), sCycles: P('Cycles sign','Signs',['sign'],crop('west3',142,42,48,7)),
+      sHard: P('Herzl Hardware sign','Signs',['sign'],crop('shops',2,40,58,7)), sBank: P('Tahini Bank sign','Signs',['sign'],crop('shops',62,38,46,8)), sFlower: P('Flowers sign','Signs',['sign'],crop('shops',118,34,28,7)), sCafe: P('Cafe sign','Signs',['sign'],crop('shops',158,40,34,7)),
+      sGym: P('Herzl Gym sign','Signs',['sign'],crop('gym',22,8,60,9)), sCandle: P('Black Candle sign','Signs',['sign'],crop('bar',126,6,51,9)),
+      sElse: P('Everything Else sign','Signs',['sign'],crop('store',40,5,112,10)), sShuk: P('Shuk Shalom sign','Signs',['sign'],crop('market',84,6,80,9)),
+      pGrave: P('Grave Tahini poster','Signs',['poster'],crop('bar',22,14,28,32)), pIron: P('Iron Falafel poster','Signs',['poster'],crop('bar',54,14,30,32))
     };
+    // the dream commercials: the whole card, or just the brand's logo and name without a background
+    AD_BRANDS.forEach((a, i) => { const name = a.name.join(' ');
+      PROPS['ad' + i] = P(name, 'Brands', ['ad card','logo','name','logo and name'], (l, t) => {
+        if (l.pose === 'ad card') return drawAd(64, 36, t, i);
+        if (l.pose !== 'name') a.icon(88, l.pose === 'logo' ? 44 : 30, t);
+        if (l.pose !== 'logo') { let y = 46; a.name.forEach(n => { word(n, 96 - Math.floor(wordW(n)/2), y, a.fg); y += 6; }); } }); });
+    // the sliding banners under the feed: their pictures, with the show's merch
+    BANNERS.forEach((b, i) => { PROPS['ban' + i] = P(b.title.split(' · ')[0].replace('Sponsored by ', ''), 'Merch and banners', ['picture'], (l, t) => { ctx.save(); ctx.translate(76, 40); try { onScreen(0, 0, 40, 20, () => b.draw(t)); } finally { ctx.restore(); } }); });
     // everything is drawn on the page's own canvas, so main characters get their usual outline
     function trim(fixed){
       const d = ctx.getImageData(0, 0, W, H).data; let x0 = W, y0 = H, x1 = -1, y1 = -1;

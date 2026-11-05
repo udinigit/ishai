@@ -187,8 +187,8 @@
     for (const p of M.props) (out[p.group] = out[p.group] || []).push({kind: 'prop', ref: p.id, name: p.name, pose: p.poses[0]}); return out; };
   function addList(){
     const root = $('add'); root.innerHTML = '';
-    for (const it of catalog()[$('group').value] || []){ const b = document.createElement('button'), c = document.createElement('canvas'); c.width = c.height = 48; const s = spriteOf({...it, frame: 0});
-      if (s){ const x = c.getContext('2d'), z = Math.max(1, Math.floor(44 / Math.max(s.w, s.h))); x.imageSmoothingEnabled = false; x.drawImage(s.canvas, Math.floor((48 - s.w*z)/2), Math.floor((48 - s.h*z)/2), s.w*z, s.h*z); }
+    for (const it of catalog()[$('group').value] || []){ const b = document.createElement('button'), c = document.createElement('canvas'), s = spriteOf({...it, frame: 0}), side = Math.max(48, s ? Math.max(s.w, s.h) + 2 : 0); c.width = c.height = side;
+      if (s){ const x = c.getContext('2d'), z = Math.max(1, Math.floor((side - 4) / Math.max(s.w, s.h))); x.imageSmoothingEnabled = false; x.drawImage(s.canvas, Math.floor((side - s.w*z)/2), Math.floor((side - s.h*z)/2), s.w*z, s.h*z); }
       const n = document.createElement('span'); n.textContent = it.name; b.append(c, n); b.onclick = () => { const l = {...clone(it), id: nid++, frame: 0, zoom: 2, flip: false, x: 54, y: 96}; if (l.kind === 'prop' && (spriteOf(l)?.w || 0) > 50) l.zoom = 1; P.layers.push(l); sel = l.id; changed(); say(''); }; root.append(b); }
   }
   // ---- dragging ----
