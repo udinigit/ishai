@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Ishai Scene Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#050705;--phos:#4dff7a;--dim:#2a9a4c;--faint:#123d20;--amber:#ffb84d;--red:#ff6b6b}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg)}
+  body{color:var(--phos);font:20px/1.2 'VT323',ui-monospace,monospace}
+  .app{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:14px;padding:14px;max-width:1500px;margin:0 auto}
+  .left{position:sticky;top:14px;align-self:start;min-width:0}
+  .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px}
+  h1{font-size:28px;margin:0;font-weight:normal}
+  h2{font-size:22px;margin:0 0 6px;font-weight:normal;color:var(--amber)}
+  a{color:var(--phos)}
+  #wrap{position:relative;width:min(100%,calc(100vh - 110px));aspect-ratio:1;margin:0 auto;border:2px solid var(--faint);touch-action:none;cursor:default;
+    background:repeating-conic-gradient(#2a2a2a 0 25%,#3a3a3a 0 50%) 0 0/24px 24px}
+  #stage{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+  #sel{position:absolute;border:1px dashed var(--amber);pointer-events:none;box-shadow:0 0 0 1px #000a}
+  .side{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .box{border:2px solid var(--faint);border-radius:10px;padding:10px 12px;background:#020502}
+  label{display:block;color:var(--dim);font-size:18px;margin-top:6px}
+  input,select{width:100%;font:inherit;background:#071007;color:var(--phos);border:1px solid var(--faint);border-radius:6px;padding:5px 7px}
+  input[type=checkbox]{width:auto;accent-color:var(--phos)}
+  input[type=range]{padding:0;accent-color:var(--phos)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+  button{font:inherit;background:var(--faint);color:var(--phos);border:1px solid var(--dim);border-radius:6px;padding:5px 11px;cursor:pointer}
+  button:hover{background:#1b5a2f}
+  button.ghost{background:transparent}
+  button.big{background:var(--phos);color:#031;width:100%}
+  button:disabled{opacity:.4;cursor:default}
+  button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+  .chk{display:flex;gap:6px;align-items:center;color:var(--phos)}
+  .add{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px;max-height:230px;overflow:auto;margin-top:6px}
+  .add button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 3px;font-size:17px;line-height:1;background:#071007;border-color:var(--faint);min-width:0}
+  .add button:hover{border-color:var(--phos)}
+  .add canvas{width:48px;height:48px;image-rendering:pixelated;image-rendering:crisp-edges}
+  .layer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center;padding:3px 0;border-top:1px dashed var(--faint)}
+  .layer .n{background:none;border:none;text-align:left;padding:3px 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .layer.on .n{color:var(--amber)}
+  .layer.off .n{text-decoration:line-through;color:var(--dim)}
+  .layer .b{display:flex;gap:3px}
+  .layer .b button{padding:1px 7px}
+  .zoom{display:grid;grid-template-columns:40px 1fr 40px;gap:6px;align-items:center;text-align:center}
+  .muted{color:var(--dim);font-size:18px}
+  #status{color:var(--amber);min-height:22px}
+  #page{position:absolute;left:-9999px;top:0;width:640px;height:400px;border:0}
+  @media (max-width:900px){.app{grid-template-columns:minmax(0,1fr);padding:10px}.left{position:sticky;top:0;z-index:2;background:var(--bg);padding-bottom:6px}#wrap{width:min(100%,48vh)}}
+</style>
+</head>
+<body>
+<iframe id="page" src="/?builder" title="Drawing page" tabindex="-1" aria-hidden="true"></iframe>
+<div class="app">
+  <div class="left">
+    <div class="top"><h1>&gt; SCENE BUILDER</h1><span><a href="/sandbox">Sandbox</a> &nbsp; <a href="/director">Director</a></span></div>
+    <div id="wrap"><canvas id="stage" width="108" height="108" aria-label="Your scene"></canvas><div id="sel" hidden></div></div>
+    <div class="muted" style="text-align:center;margin-top:6px">Drag to place. Arrow keys move 1 pixel. Grey squares mean transparent.</div>
+  </div>
+  <div class="side">
+    <div id="status" role="status">Loading the show's art...</div>
+
+    <div class="box">
+      <h2>Add</h2>
+      <select id="group" aria-label="What to add"></select>
+      <div class="add" id="add"></div>
+    </div>
+
+    <div class="box">
+      <h2>Layers</h2>
+      <div class="muted">Top of the list is in front.</div>
+      <div id="layers"></div>
+    </div>
+
+    <div class="box" id="props">
+      <h2 id="pTitle">Background</h2>
+      <div id="pBg">
+        <label for="bgLoc">Place</label><select id="bgLoc"></select>
+        <div class="row"><div><label for="bgWeather">Weather</label><select id="bgWeather"><option value="clear">Clear</option><option value="cloudy">Cloudy</option><option value="rain">Rain</option><option value="storm">Storm</option></select></div>
+          <div><label for="bgHour">Time: <span id="bgHourV"></span></label><input type="range" id="bgHour" min="0" max="23.5" step="0.5"></div></div>
+        <label class="chk"><input type="checkbox" id="bgCrowd"> Passers-by</label>
+        <label class="chk" id="bgFlashL"><input type="checkbox" id="bgFlash"> Lightning flash</label>
+      </div>
+      <div id="pLayer">
+        <div class="row"><div id="poseW"><label for="pose">Pose</label><select id="pose"></select></div>
+          <div id="outfitW"><label for="outfit">Outfit</label><select id="outfit"></select></div>
+          <div id="faceW"><label for="face">Looking</label><select id="face"></select></div></div>
+        <div class="bar"><label class="chk" style="margin:0"><input type="checkbox" id="flip"> Flip</label>
+          <label class="chk" style="margin:0" id="rainL"><input type="checkbox" id="rain"> Rain gear</label></div>
+      </div>
+      <label for="frame">Frame: <span id="frameV"></span></label><input type="range" id="frame" min="0" step="1">
+      <label>Zoom</label><div class="zoom"><button id="zOut" aria-label="Zoom out">-</button><span id="zV"></span><button id="zIn" aria-label="Zoom in">+</button></div>
+      <div class="row"><div><label for="px">X</label><input type="number" id="px" step="1"></div><div><label for="py">Y</label><input type="number" id="py" step="1"></div></div>
+    </div>
+
+    <div class="box">
+      <h2>Export</h2>
+      <label for="size">PNG size</label>
+      <select id="size"><option value="10">1080 x 1080</option><option value="47" selected>5076 x 5076</option><option value="94">10152 x 10152 (big, may fail on phones)</option></select>
+      <div class="bar"><button class="big" id="export">Export PNG</button></div>
+      <div class="muted" style="margin-top:6px">With background set to None, the PNG is transparent.</div>
+    </div>
+
+    <div class="box">
+      <h2>Project</h2>
+      <label for="pName">Name</label><input id="pName" maxlength="40">
+      <div class="bar"><button id="save">Save</button><select id="open" style="flex:1;width:auto" aria-label="Open a saved project"></select></div>
+      <div class="bar"><button class="ghost" id="new">New</button><button class="ghost" id="dl">Download file</button><button class="ghost" id="ul">Open file</button><button class="ghost" id="del">Delete saved</button><input type="file" id="file" accept=".json,application/json" hidden></div>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id), S = 108, KEY = 'ishai-builder';
+  const stage = $('stage'), sx = stage.getContext('2d'); sx.imageSmoothingEnabled = false;
+  let B, M, P, sel = null, nid = 1, bgPic = null, bgKey = '';
+  const sprites = new Map(), say = t => { $('status').textContent = t; };
+  const blank = () => ({v: 1, name: 'My scene', bg: {loc: null, hour: 12, weather: 'clear', frame: 0, flash: false, crowd: true, zoom: 1, x: -42, y: 0}, layers: []});
+  const clone = x => JSON.parse(JSON.stringify(x));
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
+  const store = d => { try { localStorage.setItem(KEY, JSON.stringify(d)); return true; } catch (e) { return false; } };
+  const auto = () => { const d = load(); d.auto = P; store(d); };
+
+  function spriteOf(l){
+    const key = JSON.stringify([l.kind, l.ref, l.pose, l.frame, l.outfit, l.face, !!l.rain]);
+    if (!sprites.has(key)){ const s = B.sprite(l); if (s){ const c = document.createElement('canvas'); c.width = s.w; c.height = s.h; const x = c.getContext('2d', {willReadFrequently: true}); x.drawImage(s.canvas, 0, 0); s.canvas = c; s.data = x.getImageData(0, 0, s.w, s.h).data; } sprites.set(key, s); if (sprites.size > 400) sprites.delete(sprites.keys().next().value); }
+    return sprites.get(key);
+  }
+  function background(){
+    const b = P.bg, key = JSON.stringify([b.loc, b.hour, b.weather, b.frame, b.flash, b.crowd]);
+    if (!b.loc){ bgPic = null; bgKey = ''; return; }
+    if (key !== bgKey){ const c = B.scene(b); if (c){ bgPic = bgPic || document.createElement('canvas'); bgPic.width = B.W; bgPic.height = B.H; bgPic.getContext('2d').drawImage(c, 0, 0); bgKey = key; } }
+  }
+  const clampBg = () => { const b = P.bg, z = b.zoom; b.x = Math.min(0, Math.max(S - B.W*z, Math.round(b.x))); b.y = Math.min(0, Math.max(S - B.H*z, Math.round(b.y))); };
+  function box(l){ const s = spriteOf(l), z = l.zoom; if (!s) return null;
+    return {x: l.x + (l.flip ? -(s.dx + s.w) : s.dx) * z, y: l.y + s.dy * z, w: s.w * z, h: s.h * z, s}; }
+  function paint(x, k){   // the same picture at any whole size: k = 1 is the stage, k = 47 the export
+    x.imageSmoothingEnabled = false; x.clearRect(0, 0, S*k, S*k);
+    if (bgPic){ const b = P.bg; x.drawImage(bgPic, b.x*k, b.y*k, B.W*b.zoom*k, B.H*b.zoom*k); }
+    for (const l of P.layers){ if (l.hidden) continue; const r = box(l); if (!r) continue;
+      if (l.flip){ x.save(); x.translate((r.x + r.w)*k, r.y*k); x.scale(-1, 1); x.drawImage(r.s.canvas, 0, 0, r.w*k, r.h*k); x.restore(); }
+      else x.drawImage(r.s.canvas, r.x*k, r.y*k, r.w*k, r.h*k); }
+  }
+  function draw(){ background(); paint(sx, 1);
+    const l = cur(), e = $('sel'), r = l && !l.hidden && box(l);
+    e.hidden = !r; if (r){ e.style.left = r.x/S*100 + '%'; e.style.top = r.y/S*100 + '%'; e.style.width = r.w/S*100 + '%'; e.style.height = r.h/S*100 + '%'; } }
+  const cur = () => P.layers.find(l => l.id === sel) || null;
+  const nameOf = l => l.name;
+
+  // ---- side panels ----
+  function fill(el, list, val){ el.innerHTML = ''; for (const o of list){ const op = document.createElement('option'); if (typeof o === 'object'){ op.value = o.id; op.textContent = o.name; } else { op.value = o; op.textContent = o; } el.append(op); } if (val != null) el.value = val; }
+  function panel(){
+    const l = cur(), b = P.bg, t = l || b;
+    $('pTitle').textContent = l ? nameOf(l) : 'Background'; $('pBg').hidden = !!l; $('pLayer').hidden = !l;
+    const ok = !l && !b.loc;
+    $('frame').max = B.FRAMES - 1; $('frame').value = t.frame; $('frameV').textContent = t.frame + 1 + ' of ' + B.FRAMES; $('frame').disabled = ok;
+    $('zV').textContent = 'x' + t.zoom; $('zOut').disabled = ok || t.zoom <= 1; $('zIn').disabled = ok || t.zoom >= 12;
+    $('px').value = t.x; $('py').value = t.y; $('px').disabled = $('py').disabled = ok;
+    if (!l){ $('bgLoc').value = b.loc || ''; $('bgWeather').value = b.weather; $('bgHour').value = b.hour; $('bgHourV').textContent = String(Math.floor(b.hour)).padStart(2, '0') + ':' + (b.hour % 1 ? '30' : '00'); $('bgFlash').checked = b.flash; $('bgCrowd').checked = b.crowd; $('bgFlashL').hidden = b.weather !== 'storm'; return; }
+    const poses = l.kind === 'ishai' ? M.ishai : l.kind === 'dog' ? M.dog : l.kind === 'person' ? M.person : (M.props.find(p => p.id === l.ref) || {}).poses || [];
+    $('poseW').hidden = poses.length < 2; fill($('pose'), poses, l.pose);
+    $('outfitW').hidden = l.kind !== 'ishai'; if (l.kind === 'ishai') fill($('outfit'), M.outfits, l.outfit);
+    $('faceW').hidden = l.kind !== 'person'; if (l.kind === 'person') fill($('face'), M.faces, l.face);
+    $('flip').checked = !!l.flip; $('rainL').hidden = !['ishai','person','dog'].includes(l.kind); $('rain').checked = !!l.rain;
+  }
+  function layers(){
+    const root = $('layers'); root.innerHTML = '';
+    const row = (name, on, off, pick, btns) => { const d = document.createElement('div'); d.className = 'layer' + (on ? ' on' : '') + (off ? ' off' : '');
+      const n = document.createElement('button'); n.className = 'n'; n.textContent = name; n.onclick = pick; const w = document.createElement('div'); w.className = 'b'; btns.forEach(([t, lab, fn, dis]) => { const x = document.createElement('button'); x.textContent = t; x.title = lab; x.setAttribute('aria-label', lab + ' ' + name); x.disabled = !!dis; x.onclick = fn; w.append(x); }); d.append(n, w); root.append(d); };
+    [...P.layers].reverse().forEach(l => { const i = P.layers.indexOf(l);
+      row(nameOf(l), l.id === sel, l.hidden, () => pick(l.id), [['^', 'Move forward', () => mv(i, 1), i === P.layers.length - 1], ['v', 'Move back', () => mv(i, -1), i === 0], [l.hidden ? 'o' : '-', l.hidden ? 'Show' : 'Hide', () => { l.hidden = !l.hidden; changed(); }], ['+', 'Copy', () => dup(l)], ['x', 'Remove', () => rm(l)]]); });
+    row('Background: ' + (P.bg.loc ? (M.scenes.find(s => s.id === P.bg.loc) || {}).name : 'None'), sel === null, false, () => pick(null), []);
+  }
+  function mv(i, d){ const a = P.layers, j = i + d; [a[i], a[j]] = [a[j], a[i]]; changed(); }
+  function dup(l){ const c = clone(l); c.id = nid++; c.x += 6; c.y += 2; P.layers.splice(P.layers.indexOf(l) + 1, 0, c); sel = c.id; changed(); }
+  function rm(l){ P.layers.splice(P.layers.indexOf(l), 1); if (sel === l.id) sel = null; changed(); }
+  function pick(id){ sel = id; layers(); panel(); draw(); }
+  function changed(){ layers(); panel(); draw(); auto(); }
+  function quick(){ panel(); draw(); auto(); }
+
+  // ---- adding ----
+  const catalog = () => { const out = {Characters: [{kind: 'ishai', name: 'Ishai', pose: 'idle', outfit: 'everyday'}, {kind: 'dog', name: 'Falafel', pose: 'sit'}, ...M.people.map(p => ({kind: 'person', ref: p.id, name: p.name, look: p.look, pose: 'stand', face: 'left'}))]};
+    for (const p of M.props) (out[p.group] = out[p.group] || []).push({kind: 'prop', ref: p.id, name: p.name, pose: p.poses[0]}); return out; };
+  function addList(){
+    const root = $('add'); root.innerHTML = '';
+    for (const it of catalog()[$('group').value] || []){ const b = document.createElement('button'), c = document.createElement('canvas'); c.width = c.height = 48; const s = spriteOf({...it, frame: 0});
+      if (s){ const x = c.getContext('2d'), z = Math.max(1, Math.floor(44 / Math.max(s.w, s.h))); x.imageSmoothingEnabled = false; x.drawImage(s.canvas, Math.floor((48 - s.w*z)/2), Math.floor((48 - s.h*z)/2), s.w*z, s.h*z); }
+      const n = document.createElement('span'); n.textContent = it.name; b.append(c, n); b.onclick = () => { const l = {...clone(it), id: nid++, frame: 0, zoom: 2, flip: false, x: 54, y: 96}; if (l.kind === 'prop' && (spriteOf(l)?.w || 0) > 50) l.zoom = 1; P.layers.push(l); sel = l.id; changed(); say(''); }; root.append(b); }
+  }
+  // ---- dragging ----
+  const at = e => { const r = stage.getBoundingClientRect(); return [Math.floor((e.clientX - r.left) / r.width * S), Math.floor((e.clientY - r.top) / r.height * S)]; };
+  function hit(px, py){ for (let i = P.layers.length - 1; i >= 0; i--){ const l = P.layers[i]; if (l.hidden) continue; const r = box(l); if (!r || px < r.x || py < r.y || px >= r.x + r.w || py >= r.y + r.h) continue;
+      let ix = Math.floor((px - r.x) / l.zoom), iy = Math.floor((py - r.y) / l.zoom); if (l.flip) ix = r.s.w - 1 - ix; if (r.s.data[(iy * r.s.w + ix) * 4 + 3]) return l; } return null; }
+  let drag = null;
+  $('wrap').addEventListener('pointerdown', e => { const [x, y] = at(e), l = hit(x, y); if (l !== cur() || !l) pick(l ? l.id : null); const t = l || (P.bg.loc ? P.bg : null); if (!t) return; drag = {t, ox: t.x - x, oy: t.y - y}; $('wrap').setPointerCapture(e.pointerId); e.preventDefault(); });
+  $('wrap').addEventListener('pointermove', e => { if (!drag) return; const [x, y] = at(e); drag.t.x = x + drag.ox; drag.t.y = y + drag.oy; if (drag.t === P.bg) clampBg(); $('px').value = drag.t.x; $('py').value = drag.t.y; draw(); });
+  const end = () => { if (drag){ drag = null; auto(); } }; $('wrap').addEventListener('pointerup', end); $('wrap').addEventListener('pointercancel', end);
+  document.addEventListener('keydown', e => { if (/INPUT|SELECT/.test(e.target.tagName) && e.target.type !== 'range' && e.target.type !== 'checkbox') return; const d = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1]}[e.key], t = cur() || (P.bg.loc ? P.bg : null);
+    if (d && t){ t.x += d[0]; t.y += d[1]; if (t === P.bg) clampBg(); quick(); e.preventDefault(); } else if ((e.key === 'Delete' || e.key === 'Backspace') && cur()){ rm(cur()); e.preventDefault(); } });
+
+  // ---- controls ----
+  const target = () => cur() || P.bg;
+  $('bgLoc').onchange = e => { P.bg.loc = e.target.value || null; changed(); };
+  $('bgWeather').onchange = e => { P.bg.weather = e.target.value; quick(); };
+  $('bgHour').oninput = e => { P.bg.hour = +e.target.value; quick(); };
+  $('bgFlash').onchange = e => { P.bg.flash = e.target.checked; quick(); };
+  $('bgCrowd').onchange = e => { P.bg.crowd = e.target.checked; quick(); };
+  $('frame').oninput = e => { target().frame = +e.target.value; quick(); };
+  $('pose').onchange = e => { cur().pose = e.target.value; quick(); };
+  $('outfit').onchange = e => { cur().outfit = e.target.value; quick(); };
+  $('face').onchange = e => { cur().face = e.target.value; quick(); };
+  $('flip').onchange = e => { cur().flip = e.target.checked; quick(); };
+  $('rain').onchange = e => { cur().rain = e.target.checked; quick(); };
+  const zoom = d => { const t = target(), z = t.zoom + d; if (z < 1 || z > 12) return; if (t === P.bg){ const c = S / 2; t.x = Math.round(c - (c - t.x) * z / t.zoom); t.y = Math.round(c - (c - t.y) * z / t.zoom); t.zoom = z; clampBg(); } else t.zoom = z; quick(); };
+  $('zOut').onclick = () => zoom(-1); $('zIn').onclick = () => zoom(1);
+  const num = (id, k) => { $(id).onchange = e => { const t = target(); t[k] = Math.round(+e.target.value) || 0; if (t === P.bg) clampBg(); quick(); }; }; num('px', 'x'); num('py', 'y');
+
+  $('export').onclick = () => { const k = +$('size').value, c = document.createElement('canvas'); c.width = c.height = S * k; const x = c.getContext('2d'); if (!x){ say('This size is too big for this browser. Try a smaller one.'); return; } paint(x, k);
+    say('Making the PNG...'); c.toBlob(b => { if (!b){ say('This size is too big for this browser. Try a smaller one.'); return; } const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = (P.name || 'scene').replace(/[^\w-]+/g, '-') + '-' + S*k + '.png'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 30000); say('Exported ' + S*k + ' x ' + S*k + (bgPic ? '.' : ', transparent.')); }, 'image/png'); };
+  function use(p){ P = Object.assign(blank(), p); P.bg = Object.assign(blank().bg, p.bg); nid = Math.max(0, ...P.layers.map(l => l.id)) + 1; sel = null; bgKey = ''; $('pName').value = P.name; clampBg(); changed(); }
+  const saved = () => { const d = load().projects || {}; fill($('open'), [{id: '', name: 'Open saved...'}, ...Object.keys(d).sort().map(n => ({id: n, name: n}))], ''); };
+  $('pName').oninput = e => { P.name = e.target.value; auto(); };
+  $('save').onclick = () => { const d = load(); d.projects = d.projects || {}; d.projects[P.name || 'My scene'] = P; say(store(d) ? 'Saved in this browser.' : 'Could not save here. Use Download file instead.'); saved(); };
+  $('open').onchange = e => { const p = (load().projects || {})[e.target.value]; if (p){ use(p); say('Opened ' + p.name + '.'); } saved(); };
+  $('del').onclick = () => { const d = load(); if (d.projects && d.projects[P.name]){ delete d.projects[P.name]; store(d); saved(); say('Removed ' + P.name + ' from this browser.'); } else say('No saved project with this name.'); };
+  $('new').onclick = () => { use(blank()); say(''); };
+  $('dl').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(P, null, 1)], {type: 'application/json'})); a.download = (P.name || 'scene').replace(/[^\w-]+/g, '-') + '.json'; a.click(); };
+  $('ul').onclick = () => $('file').click();
+  $('file').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const p = JSON.parse(await f.text()); if (!p || !Array.isArray(p.layers)) throw 0; use(p); say('Opened ' + f.name + '.'); } catch (err) { say('That file is not a builder project.'); } e.target.value = ''; };
+
+  // ---- start: the hidden page holds the show's drawing code ----
+  async function start(){
+    B = $('page').contentWindow.__builder; if (!B){ setTimeout(start, 100); return; }
+    M = B.menus();
+    try { const r = await fetch('/api/state'), j = r.ok ? await r.json() : {}; const have = new Set(M.people.map(p => p.id)); for (const c of j.cast || []) if (c.look && c.id !== 'ishai' && !have.has(c.id)) M.people.push({id: c.id, name: c.name, look: c.look}); } catch (e) {}
+    fill($('bgLoc'), [{id: '', name: 'None (transparent)'}, ...M.scenes], '');
+    const groups = Object.keys(catalog()); fill($('group'), groups, groups[0]); $('group').onchange = addList; addList(); saved();
+    use(load().auto || blank()); say('');
+  }
+  $('page').addEventListener('load', start);
+  window.__builderTest = () => ({P, sel, B});
+})();
+</script>
+</body>
+</html>

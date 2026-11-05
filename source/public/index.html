@@ -286,6 +286,8 @@
   let WORLD = null; // real weather / Shabbat from the Worker
   let DREAM = []; // today's highlights {t, loc, a, w}: replayed in a thought bubble while he sleeps
   let DREAMING = false;
+  let BUILDER = false;  // /builder: this page only draws what the builder asks for
+  let NO_CROWD = false; // builder: a background without its passers-by
   const OUTSIDE = new Set(['street','park','shops','market','west1','west2','west3']);
   let MEDIA_UNTIL = 0;
   let TALK_AT = 0;       // last time a character of anyone's speech was typed (music fades under it)   // the story just put a live line on the radio/TV: our own DJ keeps quiet for a while
@@ -654,6 +656,7 @@
   function backHair(x,y,h){ R(x+1,y+1,8,7,h); R(x+2,y,6,1,h); }   // turned away: the back of the head
   // o: face (-1/0/1), legs ('stand'|'sit'|false), talkPhase, walk
   function person(L, x, y, t, o={}){
+    if (NO_CROWD && o.muted) return;
     if (!o.muted && !o._inner) return outlined(x-12, y-10, 36, 36, () => person(L, x, y, t, Object.assign({}, o, {_inner:true})));
     const pal = lookPal(L, o.muted), ex = L.extras||[];
     const keep = {hair:C.hair,skin:C.skin,skinShade:C.skinShade,shirt:C.shirt,shirtShade:C.shirtShade,pants:C.pants,inner:C.inner,pjs:C.pjs};
@@ -664,7 +667,7 @@
     const fw = o.walk ? Math.floor(t/220)%4 : 0, bob = o.walk && fw%2 ? -1 : 0;
     y += bob;
     const seated = o.legs==='sit' || o.legs===false;
-    const kind = (!o.walk && !o.muted && !o.still) ? fid(o.seed ?? strHash(L.hair + L.shirt + L.skin + L.pants), t, theirs || !!o.talkPhase, seated) : 'none';
+    const kind = o.fid ? o.fid : (!o.walk && !o.muted && !o.still) ? fid(o.seed ?? strHash(L.hair + L.shirt + L.skin + L.pants), t, theirs || !!o.talkPhase, seated) : 'none';
     if (kind==='shift') x += Math.floor(t/2000)%2;
     const y0 = y; if (kind==='nod') y += Math.floor(t/260)%2;
     head(x,y,{closed:blinkOn(t,o.seed??1700), look: lookFid(t, kind, o.face??-1), talk: (theirs || o.talking) && Math.floor(t/170)%2});
@@ -2414,6 +2417,7 @@
     simT = sim; SIM = null; e.ev._joined = true; window.__ishaiJoinMs = performance['now']() - t0;
   }
   function frame(){
+    if (BUILDER) return;
     const grid = stepTo(NOW());
     if (simT === null) simT = grid;
     if (grid - simT > 3000){
@@ -3479,6 +3483,85 @@
       dream(){ reset(); setState('apartment', 'sleeping', true); SLEEP_SINCE = NOW() - 20 * 60000; DREAM = [{t: NOW(), loc: 'park', a: 'idle', w: null}, {t: NOW(), loc: 'cafe', a: 'drinking', w: null}, {t: NOW(), loc: 'bus', a: 'idle', w: null}]; }
     };
   }
+  // ================= builder (/builder): the scene builder asks this hidden page for frozen pictures, drawn by the show's own code =================
+  function startBuilder(){
+    BUILDER = true; demoMode = true; TUNING = false; setCast(DEMO_CAST.map(c => ({...c, lastSeen: NOW()})));
+    const FRAME_MS = 100, T = f => 100000 + (+f || 0) * FRAME_MS, AX = 95, AY = 62;   // a person's feet stand on this point, so a new pose stays in place
+    const sky = o => { forceHour = +o.hour; const w = o.weather || 'clear', code = {clear: 0, cloudy: 3, rain: 61, storm: 95}[w];
+      WORLD = {weather: {temp: 22, code, desc: w, rain: w === 'rain' || w === 'storm', cloudy: w !== 'clear'}}; };
+    const OUTFIT = {everyday: null, pajamas: {shirt:'#9fc3e6', pants:'#7fa6cc', pjs:true}, gym: {shirt:'#c23b3b', pants:'#2a2a2a'}, jacket: {shirt:JACKETS[strHash('ishai') % JACKETS.length], inner:true}, shabbat: {shirt:'#f2f0ea'}};
+    const ISHAI = ['idle','talking','walk','back','phoning','reading','drinking','eating','cooking','working','gaming','watching','exercising','stretch','waking','lying down'];
+    const PERSON = {stand:{}, talking:{talking:true}, walk:{walk:true}, sit:{legs:'sit'}, gesture:{fid:'gesture'}, scratch:{fid:'scratch'}, shrug:{fid:'shrug'}, 'arms crossed':{fid:'cross'}, phone:{fid:'phone'}, stretch:{fid:'stretch'}, nod:{fid:'nod'}, 'turned away':{fid:'turn'}};
+    const FACE = {left: -1, ahead: 0, right: 1};
+    const FRUIT = x => { crate(x+2,62,'#e0403a','#c23030'); crate(x+13,62,'#4f9a3f','#3f7f33'); crate(x+24,62,'#e0b04a','#c27a3b'); };
+    const P = (name, group, poses, draw) => ({name, group, poses, draw});
+    const PROPS = {
+      catOrange: P('Orange cat','Animals',['sit','walk','sleep'],(l,t)=>drawCat(90,62,t,l.pose,0,1)),
+      catGrey: P('Grey cat','Animals',['sit','walk','sleep'],(l,t)=>drawCat(90,62,t,l.pose,1,1)),
+      catBlack: P('Black cat','Animals',['sit','walk','sleep'],(l,t)=>drawCat(90,62,t,l.pose,2,1)),
+      pigeon: P('Pigeon','Animals',['stand','fly'],(l,t)=>drawPigeon(90,62,t,0,l.pose==='fly')),
+      crow: P('Crow','Animals',['stand','fly'],(l,t)=>drawCrow(90,62,t,0,l.pose==='fly')),
+      bus: P('Bus','Vehicles',['door closed','door open','at night'],(l)=>drawBus(70,l.pose==='at night',l.pose==='door open')),
+      taxi: P('Taxi','Vehicles',['day','at night'],(l)=>drawTaxi(80,l.pose==='at night')),
+      scooter: P('ateBite scooter','Vehicles',['riding'],(l,t)=>ateScooter(90,62,t,1)),
+      box: P('ateBite bag','Objects',['closed'],()=>ateBox(90,50)),
+      can: P('Cooola can','Objects',['can'],()=>cooolaCan(90,50)),
+      sign: P('Cooola sign','Objects',['plain','glowing'],(l)=>cooolaSign(70,40,40,12,l.pose==='glowing')),
+      umbrella: P('Umbrella','Objects',['open'],(l,t)=>umbrella(90,40,t)),
+      crate: P('Fruit crate','Objects',['tomatoes','greens','oranges'],(l)=>{const c={tomatoes:['#e0403a','#c23030'],greens:['#4f9a3f','#3f7f33'],oranges:['#f08a2a','#e07a1a']}[l.pose]; crate(90,50,c[0],c[1]);}),
+      stall: P('Market stall','Objects',['fruit'],(l,t)=>stall(70,36,t,'#2f7d3a','#f4f4f4',FRUIT)),
+      chair: P('Folding chair','Objects',['chair'],()=>foldChair(90,34,1)),
+      treadmill: P('Treadmill','Objects',['off','on'],(l,t)=>treadmill(70,t,l.pose==='on')),
+      tv8: P('8bitTV screen','Objects',['on'],(l,t)=>onScreen(70,30,34,20,()=>eightBitTv(70,30,t))),
+      tvNes: P('NESflicks screen','Objects',['on'],(l,t)=>onScreen(70,30,34,20,()=>nesflicksTv(70,30,t))),
+      tvRgb: P('RGBeat screen','Objects',['on'],(l,t)=>onScreen(70,30,34,20,()=>rgbeatTv(70,30,t)))
+    };
+    // everything is drawn on the page's own canvas, so main characters get their usual outline
+    function trim(fixed){
+      const d = ctx.getImageData(0, 0, W, H).data; let x0 = W, y0 = H, x1 = -1, y1 = -1;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[(y*W+x)*4+3]){ if (x<x0)x0=x; if (x>x1)x1=x; if (y<y0)y0=y; if (y>y1)y1=y; }
+      if (x1 < 0) return null;
+      const c = document.createElement('canvas'); c.width = x1-x0+1; c.height = y1-y0+1; c.getContext('2d').drawImage(cv, -x0, -y0);
+      return {canvas: c, dx: fixed ? x0-AX : -Math.floor(c.width/2), dy: fixed ? y0-AY : -c.height, w: c.width, h: c.height};
+    }
+    function drawing(fn){ ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha = 1; ctx.clearRect(0, 0, W, H); const prev = g; g = ctx; try { fn(); } finally { g = prev; UMB = false; ZQ = null; } }
+    window.__builder = {
+      FRAMES: 60, STAGE: 108, W, H,
+      menus: () => ({
+        scenes: Object.keys(SCENES).filter(k => k !== 'offscreen').map(id => ({id, name: SCENES[id].place.replace('ISHAI // ', '')})),
+        ishai: ISHAI, outfits: Object.keys(OUTFIT), person: Object.keys(PERSON), faces: Object.keys(FACE), dog: ['sit','walk','sleep'],
+        people: [...DEMO_CAST.filter(c => c.id !== 'ishai').map(c => ({id: c.id, name: c.name, look: c.look})), ...Object.keys(REG).map(id => ({id, name: id[0].toUpperCase() + id.slice(1), look: REG[id].look}))],
+        props: Object.entries(PROPS).map(([id, p]) => ({id, name: p.name, group: p.group, poses: p.poses}))
+      }),
+      scene(o){   // the picture of a place, with nobody in it but its usual passers-by
+        const sc = SCENES[o.loc]; if (!sc) return null;
+        sky(o); const t = T(o.frame), outdoor = OUTSIDE.has(o.loc);
+        drawing(() => { DREAMING = true; drawLater = null; NO_CROWD = o.crowd === false;
+          try { const fake = {loc: o.loc, action: 'idle', x: 0, targetX: 0, travelling: false, hidden: true, pending: null, with: null};
+            sc.draw(t, +o.hour, 'idle', false, fake); if (drawLater) drawLater(t);
+            if (rainy() && outdoor) drawRain(0, 0, W, H, t, stormy() ? 140 : 90);
+            if (o.flash && stormy() && o.loc !== 'bathroom') alpha(outdoor ? .55 : .18, () => R(0, 0, W, H, '#eef4ff'));
+          } finally { DREAMING = false; NO_CROWD = false; } });
+        return cv;
+      },
+      sprite(l){  // one character or object, cut out; dx and dy place it from the layer's point
+        const t = T(l.frame); let fixed = true; sky({hour: 12});
+        drawing(() => {
+          UMB = !!l.rain;
+          if (l.kind === 'ishai'){ const fit = OUTFIT[l.outfit], keep = {shirt:C.shirt, shirtShade:C.shirtShade, pants:C.pants, inner:C.inner, pjs:C.pjs}, bed = l.pose === 'lying down', x = AX-5, y = AY-22;
+            fixed = !bed;
+            if (fit){ C.inner = fit.inner ? C.shirt : null; C.shirt = fit.shirt; C.shirtShade = shade(fit.shirt, .82); if (fit.pants) C.pants = fit.pants; C.pjs = !!fit.pjs; }
+            try { if (bed) drawIshaiBody('listening', 30, 66, t);
+              else if (['cooking','watching','waking'].includes(l.pose)) outlined(x-12, y-10, 36, 36, () => { legs(x, y, 0); drawIshaiRaw(l.pose, x, y, t); if (UMB) umbrella(x, y, t); });   // on the show a counter or a sofa hides his legs
+              else drawIshaiBody(l.pose, x, y, t, {legs: 'stand'}); } finally { Object.assign(C, keep); } }
+          else if (l.kind === 'dog') drawDog(AX-5, AY, t, l.pose, 1);
+          else if (l.kind === 'person') person(l.look, AX-5, AY-22, t, Object.assign({still: true, seed: 9, face: FACE[l.face] ?? -1}, PERSON[l.pose] || {}));
+          else { fixed = false; const p = PROPS[l.ref]; if (p) p.draw(l, t); }
+        });
+        return trim(fixed);
+      }
+    };
+  }
   // regulars talk to themselves or to the room, on the clock: no AI, and the same line for everyone
   const MUTTER = {
     zelig: ['The pigeons have changed shifts again.', 'Not you. You know what you did.', 'Forty-one benches in this city. I have counted. Forty-one.', 'They moved the pond. Half a metre. Nobody admits it.', 'Yes, yes, I told him. He said no. The duck said no.', 'Tuesday. It is always a Tuesday with these people.', 'Somebody is watching this park. I can feel it in my hat.', 'Good morning, tree. Still nothing to say?'],
@@ -3635,7 +3718,7 @@
   // key-moment alerts: a bell for each viewer, off until they turn it on
   const ALERT_KEY = 'BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI';
   (async () => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || forceLoc || params.has('sandbox') || params.has('preview') || params.has('demo') || location.protocol !== 'https:' && location.hostname !== '127.0.0.1') return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || forceLoc || params.has('sandbox') || params.has('builder') || params.has('preview') || params.has('demo') || location.protocol !== 'https:' && location.hostname !== '127.0.0.1') return;
     const bell = $('bell'), DEF = {from: 8, to: 23, max: 4}, PK = 'ishaiAlerts'; bell.hidden = false;
     const load = () => { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(PK)) || {}); } catch(e){ return {...DEF}; } };
     const keep = p => { try { localStorage.setItem(PK, JSON.stringify(p)); } catch(e){} };
@@ -3667,6 +3750,7 @@
   if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }
   else if (params.has('preview')) startPreview();
   else if (params.has('sandbox')) startSandbox();
+  else if (params.has('builder')) startBuilder();
   else if (location.protocol === 'file:' || params.has('demo')) { if (params.has('dev')) enableDev(); startDemo(); }
   else {
     TUNING = true; $('cam').textContent = 'CAM-??'; $('place').textContent = 'ISHAI // ...'; $('hudAction').textContent = '--';

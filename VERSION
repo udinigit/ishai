@@ -1,1 +1,1 @@
-v139 — 2026-11-05 (fewer wasted AI calls: broken AI JSON is repaired, one bad moment no longer costs a whole block, "walking with noa" is understood, /api/health counts drops by reason)
+v140 — 2026-11-05 (scene builder at /builder: compose square pictures from the show art and export sharp PNGs up to 10152 x 10152, transparent if you like)

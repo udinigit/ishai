@@ -236,6 +236,7 @@ const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && 
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
 const SANDBOX_HTML = __SANDBOX_HTML__;
+const BUILDER_HTML = __BUILDER_HTML__;
 const SW_JS = __SW_JS__;
 const VAPID_PUBLIC = "BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI";
 const BUILD = "__BUILD__";
@@ -253,7 +254,7 @@ async function isDev(req, env) {
   const c = (req.headers.get("cookie") || "").match(/(?:^|;\s*)ishai_dev=([0-9a-f]{64})/);
   return !!c && c[1] === await devToken(key);
 }
-const TEST_PARAMS = ["sandbox", "preview", "demo", "loc"];
+const TEST_PARAMS = ["sandbox", "builder", "preview", "demo", "loc"];
 
 export default {
   async fetch(req, env, ctx) {
@@ -338,6 +339,10 @@ export default {
     if (url.pathname === "/sandbox") {
       if (!await isDev(req, env)) return Response.redirect(url.origin + "/director", 302);
       return new Response(SANDBOX_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+    }
+    if (url.pathname === "/builder") {
+      if (!await isDev(req, env)) return Response.redirect(url.origin + "/director", 302);
+      return new Response(BUILDER_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
     }
     if (url.pathname === "/director")
       return new Response(DIRECTOR_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
