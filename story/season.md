@@ -10,6 +10,17 @@ You (the director) can edit anything here; changes go live with the next deploy.
 - Real weather and the Jewish calendar are real.
 - Ishai celebrates Shabbat at home in a warm, traditional-but-relaxed way.
 - About a third of each day stays unplanned so the live AI can improvise.
+- Write a `texture` pack in `plan.json` every day: 50-100 small lines about THAT day that fill the quiet, with no live AI. The page uses it only on its `date`. All lines are short (under 110 characters), match what is planned or was just remembered, never give away a coming twist, and repeat nothing from earlier days.
+  ```json
+  "texture": {
+    "date": "2026-11-07",
+    "hosts": ["20-30 lines for Zohar or Oren, either voice"],
+    "radio": ["10-15 lines of DJ patter; no real brands"],
+    "mutter": { "zelig": ["3-5 lines"], "michal": [], "sivan": [], "lior": [], "kobi": [] },
+    "overheard": { "street": ["3-5 half sentences starting with ...; passers-by, never plot"], "market": [], "park": [], "cafe": [] },
+    "chat": [{ "at": "09:40", "who": "Mrs. Levi", "say": "6-10 messages in the building group chat through the day; who is Mrs. Levi, Committee or Apt 1/2/7. None on Shabbat." }]
+  }
+  ```
 - Every planned scene with a person ends with `"update": {"memory": "what they now remember about Ishai, max 25 words, keep what still matters", "mood": -1, 0 or 1}` on its last moment with them. Without it, the scene changes nothing in their memory.
 - 3-6 key beats per day, each with a time window. New props, places or animals need art first ("art" field).
 

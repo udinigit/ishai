@@ -142,6 +142,8 @@ Back to the cameras.</textarea>
         <button id="evDream">Dream</button>
         <button id="evFill">Host fills silence</button>
         <button id="evOver">Overheard line</button>
+        <button id="evCity">City event</button>
+        <button id="evChat">Building chat</button>
       </div>
     </div>
   </div>
@@ -271,6 +273,8 @@ Back to the cameras.</textarea>
     $('evDream').onclick = () => { running++; api.dream(); };
     $('evFill').onclick = () => api.hostFill();
     $('evOver').onclick = () => api.overhear();
+    $('evCity').onclick = () => api.city();
+    $('evChat').onclick = () => api.chat();
     setInterval(() => { const s = api.state(); $('status').textContent = `${s.loc} · ${s.action}${s.moving ? ' · on the way' : ''} · voice: ${s.voice}`; }, 500);
   }
   $('stage').addEventListener('load', () => { if (!$('stage').contentWindow.__sandbox) { $('status').textContent = 'The picture did not load.'; return; } ready(); });

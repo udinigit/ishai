@@ -78,6 +78,10 @@
   .say::after{content:"";position:absolute;left:var(--tail,50%);bottom:-8px;margin-left:-6px;border:6px solid transparent;border-top-color:#151515;border-bottom:0}
   /* a passer-by's words: small, grey, no name, no bubble, so it never reads as a character talking */
   .over{position:absolute;z-index:3;left:6px;top:26px;max-width:62%;pointer-events:none;padding:1px 6px;background:rgba(0,0,0,.5);color:#b9b9ad;font-style:italic;font-size:clamp(10px,2.6vw,14px);line-height:1.15}
+  /* the building chat on Ishai's phone: a plain notification card, top right */
+  .chatC{position:absolute;z-index:3;right:6px;top:26px;max-width:52%;pointer-events:none;padding:2px 7px 3px;background:rgba(10,40,24,.9);border:1px solid #3e8f5c;border-radius:6px;color:#d6f5e0;font-size:clamp(10px,2.6vw,14px);line-height:1.15}
+  .chatC small{display:block;font-size:.72em;letter-spacing:1px;color:#7fcf9c}
+  .chatC b{font-weight:normal;color:#ffd36a}
   .over small{display:block;font-style:normal;font-size:.72em;letter-spacing:1px;text-transform:uppercase;opacity:.65}
   .say b{font-weight:normal;margin-right:5px;font-size:.85em;letter-spacing:.5px}
   .say.edge::after{display:none}
@@ -200,7 +204,8 @@
       <span class="stvTag">● STUDIO · RECAP</span>
       <div class="stvCap" id="stvCap"></div>
     </div>
-    <div class="over" id="over" hidden aria-hidden="true"><span id="overText"></span><small>overheard</small></div>
+    <div class="over" id="over" hidden aria-hidden="true"><span id="overText"></span><small id="overTag">overheard</small></div>
+    <div class="chatC" id="chatC" hidden aria-hidden="true"><small>HERZL ST. BUILDING CHAT</small><b id="chatWho"></b> <span id="chatSay"></span></div>
     <div class="say" id="say" hidden><b id="sayWho"></b><span id="sayText"></span></div>
     <div class="nosig" id="nosig"><span id="nosigText">[ SUBJECT NOT IN FRAME ]</span></div>
     <div class="hud bot"><span id="place">ISHAI // APARTMENT</span><span id="hudAction">--</span></div>
@@ -2776,6 +2781,13 @@
         case 'snore': noise(1.4,{vol:.05,type:'lowpass',freq:250,sweep:[500,180],buf:brown}); break;
         case 'breath': noise(.4,{vol:.03,type:'bandpass',freq:900,q:1.5}); noise(.4,{vol:.025,type:'bandpass',freq:700,q:1.5,when:.55}); break;
         case 'bark': bark(); break;
+        case 'ping': tone(1320,.07,'sine',.05); tone(1760,.1,'sine',.04,.08); break;
+        case 'truck': noise(3.2,{vol:.07,type:'lowpass',freq:220,sweep:[320,160],buf:brown}); for (let i = 0; i < 3; i++) tone(95,.12,'square',.03,.7 + i*.8); noise(.12,{vol:.05,type:'bandpass',freq:1400,when:2.4}); break;
+        case 'megaphone': [392,392,466,349].forEach((f,i) => { tone(f,.32,'sawtooth',.016,i*.38); tone(f*1.01,.32,'square',.01,i*.38); }); break;
+        case 'piano': [262,294,330,262,294,330,349,330].forEach((f,i) => tone(f*(i === 6 && r() < .5 ? .94 : 1),.42,'triangle',.022,i*.46)); break;
+        case 'kids': for (let i = 0; i < 6; i++){ noise(.28,{vol:.018,type:'bandpass',freq:1400+r()*1500,q:4,when:i*.3}); tone(620+r()*600,.14,'triangle',.008,i*.3+.05,out,1.3); } break;
+        case 'gas': for (let i = 0; i < 3; i++){ tone(1050+i*60,.3,'sine',.018,i*.5); noise(.05,{vol:.04,type:'bandpass',freq:900,when:i*.5}); } break;
+        case 'gameshow': [523,659,784,1047].forEach((f,i) => tone(f,.12,'square',.012,i*.12)); noise(.9,{vol:.012,type:'bandpass',freq:1800,q:.7,when:.55}); break;
       }
     }
     function bark(){
@@ -3215,6 +3227,7 @@
     if (kind === 'weather' && !wx) kind = 'time'; if (kind === 'news' && !heads.length) kind = 'song';
     const hello = r(3) < .4 ? `${d.name} here, on ${d.show}. ` : '';
     const tag = r(9) < .45 ? ` This ${['song','news','hour','minute'][Math.floor(r(11)*4)]} is brought to you by ${pickOf(BRAND_TAGS, 13)}.` : '';
+    { const today = pack('radio'); if (today.length && r(19) < .45) return hello + pickOf(today, 21); }
     if (kind === 'song' && live) return `${hello}More ${live.tag} on Radio Herzl, 88.2. All music, no opinions. Except mine.${tag}`;
     if (kind === 'song') return `${hello}That was ${song[0]} with "${song[1]}". Coming up: ${nextSong[0]}. Radio Herzl, 88.2!${tag}`;
     if (kind === 'weather') return `${hello}${Math.round(wx.temp)} degrees and ${wx.desc} in Tel Aviv. ` + (wx.rain ? 'Umbrellas out, people.' : wx.temp >= 27 ? "Hydrate. That's an order." : wx.temp <= 14 ? 'Find a sweater.' : 'Honestly? Lovely.') + tag;
@@ -3601,7 +3614,9 @@
       unlock(list){ UNLOCKED = new Set(list); },
       drawLook(c, look){ const x = c.getContext('2d'), prev = g; x.clearRect(0, 0, c.width, c.height); g = x; try { person(look, 5, 4, 0, {face: 0, seed: 9}); } finally { g = prev; } },
       call(lines){ if (!callOn) playCall({id: 'sb-call' + (++n), t: NOW(), caller: {name: 'Test caller', from: 'Sandbox'}, lines}, NOW()); },
-      hostFill: () => hostFill(true), overhear: () => overhear(true),
+      hostFill: () => hostFill(true), overhear: () => overhear(true), city: id => cityTick(CITY.find(e => e.id === id) || CITY[0]), chat: () => { const c = CHAT_STOCK[Math.floor(NOW() / 1000) % CHAT_STOCK.length]; showChat(c[0], c[1]); },
+      texture: x => { TEXTURE = x; },
+      fillLine: slot => hostFillLine(slot), sfx: k => Sound.sfx(k),
       recap(lines){ if (!studioOn) playStudio({id: 'sb-st' + (++n), t: NOW(), lines}, NOW()); },
       show(lines){ if (showOn) return; SHOW = {id: 'sb-sh' + (++n), t: NOW(), lines}; playShow(); SHOW = null; },
       dream(){ reset(); setState('apartment', 'sleeping', true); SLEEP_SINCE = NOW() - 20 * 60000; DREAM = [{t: NOW(), loc: 'park', a: 'idle', w: null}, {t: NOW(), loc: 'cafe', a: 'drinking', w: null}, {t: NOW(), loc: 'bus', a: 'idle', w: null}]; }
@@ -3737,7 +3752,7 @@
     const here = Object.keys(REG).filter(id => REG[id].place === actor.loc && regHere(id) && actor.with !== id); if (!here.length) return;
     if (SPEAKING || (SAY.who && NOW() < SAY.until) || actor.switching || actor.hidden || studioOn || showOn || callOn) return;
     mutterDone = slot; if (hash(slot * 19 + 5) > .7) return;
-    const id = here[Math.floor(hash(slot * 23 + 7) * here.length)], list = MUTTER[id === 'kobi' ? 'kobi' + drunk() : id], line = list[Math.floor(hash(slot * 29 + 11) * list.length)];
+    const id = here[Math.floor(hash(slot * 23 + 7) * here.length)], today = pack('mutter', id), list = today.length && hash(slot * 31 + 2) < .5 ? today : MUTTER[id === 'kobi' ? 'kobi' + drunk() : id], line = list[Math.floor(hash(slot * 29 + 11) * list.length)];
     showSay(id, line); holdSay(5500); Sound.say(id, line);
   }, 1000);
   // ================= the hosts fill the silence: every 45 s of quiet one of them says what the picture shows, no AI =================
@@ -3758,6 +3773,8 @@
     store: ['Everything Else. Everything, except anything you can eat.', 'That wall of TVs is all showing the same thing, and it is still better than this.', 'He is browsing. Nobody in history has come out of here with only what they wanted.', 'The cashier has seen it all, mostly lamps.', 'Kitchenware aisle. A man alone with his dreams of a better pan.'],
     gym: ['Herzl Gym. Two screens, a mirror wall, and a lot of regret.', 'That water cooler sees more action than the dumbbells.', 'Treadmills facing the television. Running, in the sense of staying exactly where you are.', 'The mirror wall. Nobody here is looking at the mirror, except everyone.', 'Somebody paid for a year in January. You can tell which.'],
     bar: ['The Black Candle. Black brick, red neon, and nobody asking how your day was.', 'Grave Tahini on the poster. Saw them once. Still recovering.', 'Candle on the table, guitar in the air. Very moody for a Tuesday, whichever day this is.', 'That bartender has heard every sad story on Herzl Street, some of them twice.', 'Sit at a table in here long enough, you become a regular. It happened to Kobi.'],
+    campus: ['Tel Herzl University. Benches, backpacks, and everybody slightly late.', 'Look at him, a mature student, in the wild.', 'Those students are a decade younger than his laptop.', 'He checks the board. He checks it again.'],
+    classroom: ['The lecture room. Rows of chairs, one board, and Dr. Sasson somewhere near a tangent.', 'Notes open. Nobody check what he is drawing.', 'Back row. He has picked his side.', 'A room full of people pretending they did the reading.'],
     cafe: ['Cafe Nahat. Corner table, soft rock, one barista seeing everything.', 'Listen to that playlist. It is 1976 in there and always will be.', 'Look at the counter. Then look at the cups. That is all I am saying.', "That's the laptop table. Three novels have died there.", 'Coffee, milk foam, and a lot of things nobody is saying.']
   };
   const FILL_DO = {
@@ -3811,6 +3828,9 @@
     if (BATH.has(a)) return fillPick(FILL_BATH, slot, 2);
     if (a === 'sleeping') return slot % 4 ? null : fillPick(FILL_NIGHT, slot / 4, 3);        // a quiet night: one line in four
     if (fillMoving() && place.length) return fillPick(place, slot, 4);                        // on the way: they say what he is passing
+    const city = cityNow()[0], today = pack('hosts');
+    if (city && r < .4) return fillPick(city.host, slot, 7);                                  // something is going on outside
+    if (today.length && hash(slot * 71 + 5) < .45) return fillPick(today, slot, 10);          // today's lines from the planner
     const list = r < .3 ? place : r < .55 ? act : r < .75 ? fillFacts() : r < .92 ? fillRecap() : fillPeople();
     return fillPick(list.length ? list : (place.length ? place : act), slot, 5);
   }
@@ -3839,6 +3859,7 @@
     gym: ['...one more. One more. That was one more.', '...my trainer says it is water weight.', '...is anyone using this? I am asking the machine.'],
     bar: ['...the bassist quit, and then the band quit the bassist.', '...he is not my ex, he is my former mistake.', '...turn it up, nobody here is talking anyway.'],
     cafe: ['...I am not writing, I am researching.', '...oat, soy, or the other one that has feelings?', '...we should really get a proper office.', '...she said she would call, so I moved to a closer table.'],
+    campus: ['...it is on the exam. Everything is on the exam.', '...I sat in the wrong lecture for a month and got a B.', '...does anyone know which building this is?'],
     bus: ['...next stop? No, the one after the one after.', '...this seat is taken by my bag.', '...I have been on this line since 1994.']
   };
   const OVER_SLOT = 240000, OVER_MS = 6500; let overUntil = 0, overDone = 0;
@@ -3847,10 +3868,47 @@
     if (!force && (slot === overDone || now < at || now > at + 12000 || !list || h < 7 || h >= 23 || forceLoc || PREVIEW)) return false;
     if (!list || (!force && (now - TALK_AT < 6000 || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || actor.hidden || actor.with || studioOn || showOn || callOn || talkSoon(8000)))) return false;
     overDone = slot; if (!force && hash(slot * 47 + 1) > .6) return false;                    // most slots pass by without a word
-    $('overText').textContent = fillPick(list, slot, 6); $('over').hidden = false; overUntil = now + OVER_MS;
+    const today = pack('overheard', actor.loc); showOver(fillPick(today.length && hash(slot * 67 + 1) < .6 ? today : list, slot, 6), 'overheard', OVER_MS);
     return true;
   }
   setInterval(() => { overhear(); if (overUntil && (NOW() > overUntil || actor.switching)){ overUntil = 0; $('over').hidden = true; } }, 1000);
+  // ================= the ambient layer: the city's own timetable, the building chat and the day's texture pack. No AI, no writes, picked from the clock =================
+  let CITY = [], TEXTURE = null;
+  const dayOf = t => new Date(t).toLocaleDateString('en-CA', {timeZone: TZ});
+  const pack = (key, sub) => { if (!TEXTURE || TEXTURE.date !== dayOf(NOW())) return []; const v = sub ? (TEXTURE[key] || {})[sub] : TEXTURE[key]; return Array.isArray(v) ? v.filter(Boolean) : []; };
+  async function loadAmbient(){ try { const a = await (await fetch('/api/ambient', {cache: 'no-store'})).json(); CITY = a.city || []; TEXTURE = a.texture || null; } catch(e){} }
+  const fmtCity = new Intl.DateTimeFormat('en-GB', {timeZone: TZ, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false});
+  function cityWhen(t){ const p = Object.fromEntries(fmtCity.formatToParts(new Date(t)).map(x => [x.type, x.value]));
+    return {day: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(p.weekday), min: (+p.hour % 24) * 60 + +p.minute}; }
+  function cityNow(){ const w = cityWhen(NOW()), sh = WORLD && WORLD.shabbat; if (sh && NOW() >= sh.start && NOW() <= sh.end) return [];   // the street rests on Shabbat
+    return CITY.filter(e => e.days.includes(w.day) && e.places.includes(actor.loc) && w.min >= e.from && w.min < e.from + e.min); }
+  function showOver(text, label, ms){ $('overText').textContent = text; $('overTag').textContent = label; $('over').hidden = false; overUntil = NOW() + ms; }
+  const CITY_SLOT = 90000; let cityDone = 0;
+  const ambientClear = (ms) => !(NOW() - TALK_AT < ms || SPEAKING || (SAY.who && NOW() < SAY.until) || actor.switching || studioOn || showOn || callOn || talkSoon(8000));
+  function cityTick(forced){
+    const now = NOW(), slot = Math.floor(now / CITY_SLOT), at = slot * CITY_SLOT + hash(slot * 53 + 4) * 30000, e = forced || cityNow()[0];
+    if (!e || (!forced && (slot === cityDone || now < at || now > at + 15000 || forceLoc || PREVIEW || actor.action === 'sleeping' || !ambientClear(5000)))) return false;
+    cityDone = slot; Sound.sfx(e.sfx);
+    if (forced || hash(slot * 59 + 2) < .6) showOver(fillPick(e.cap, slot, 8), e.label, OVER_MS);
+    return true;
+  }
+  setInterval(cityTick, 1000);
+  // the building chat buzzes on his phone: a small card, timed by the day's pack, or a stock line now and then
+  const CHAT_STOCK = [['Mrs. Levi','Who left a bicycle on the second floor? I am not angry. I am only writing it down.'],['Apt 2','The stairs light is on a timer again. Four seconds. Run.'],['Committee','Reminder: the monthly fee was due on the first. You know who you are.'],['Mrs. Levi','Whoever is cooking onions at this hour, God bless you, close the door.'],['Apt 7','Parcel at the entrance for someone called Yossi. There is no Yossi.'],['Apt 2','Elevator update: no.'],['Mrs. Levi','The dog is very nice but his nails are on my floor. In my head I hear them.'],['Committee','The man is coming to look at the elevator. He said this week. He did not say which.'],['Apt 7','Does anyone have a ladder? Asking for a lamp.'],['Apt 1','Please stop feeding the cat in the entrance. Signed, the cat\'s other family.'],['Mrs. Levi','I made too much soup. Do not all come at once. Somebody come.'],['Apt 2','Who put a chair in the parking spot? The chair has been there nine days. Respect.'],['Committee','Vote on repainting the stairwell: 2 for, 1 against, 5 have seen the message and said nothing.'],['Apt 7','Somebody is playing the same four piano notes. I now know them in my sleep.']];
+  const CHAT_SLOT = 2400000, CHAT_MS = 9000; let chatDone = 0, chatUntil = 0; const chatSeen = new Set();
+  function showChat(who, say){ $('chatWho').textContent = who + ':'; $('chatSay').textContent = say; $('chatC').hidden = false; chatUntil = NOW() + CHAT_MS; Sound.sfx('ping'); }
+  function chatTick(){
+    const now = NOW(); if (chatUntil && now > chatUntil){ chatUntil = 0; $('chatC').hidden = true; }
+    if (forceLoc || PREVIEW || chatUntil || actor.action === 'sleeping' || !ambientClear(5000)) return;
+    const sh = WORLD && WORLD.shabbat; if (sh && now >= sh.start && now <= sh.end) return;      // the building keeps its phones down on Shabbat
+    const w = cityWhen(now), list = pack('chat');
+    for (const c of list){ const [h, m] = String(c.at || '').split(':').map(Number), d = w.min - (h * 60 + m), key = dayOf(now) + c.at + c.who;
+      if (d >= 0 && d < 6 && !chatSeen.has(key)){ chatSeen.add(key); showChat(c.who, c.say); return; } }
+    const slot = Math.floor(now / CHAT_SLOT), at = slot * CHAT_SLOT + hash(slot * 61 + 3) * 900000;
+    if (list.length || slot === chatDone || now < at || now > at + 20000 || w.min < 480 || w.min >= 1320) return;
+    chatDone = slot; const c = fillPick(CHAT_STOCK, slot, 9); showChat(c[0], c[1]);
+  }
+  setInterval(chatTick, 1000);
   let SHOW_AUTO = false; const autoShown = new Set();
   setInterval(() => {
     if (forceLoc || PREVIEW || showOn || studioOn || callOn || !SHOW || autoShown.has(SHOW.id)) return;
@@ -3974,6 +4032,7 @@
     desc: params.has('storm') ? 'thunderstorm' : params.has('rain') ? 'light rain' : 'overcast', rain: params.has('rain') || params.has('storm'), cloudy: true}};
   if (WORLD) $('stNext').textContent = weatherLabel();
   boothInit();
+  loadAmbient();
   if (params.get('unlock')) params.get('unlock').split(',').forEach(u=>UNLOCKED.add(u));
   if (forceLoc){ setCast(DEMO_CAST); setState(forceLoc, forcePose || 'idle', true, params.get('with')); }
   else setState('apartment','sleeping',true);

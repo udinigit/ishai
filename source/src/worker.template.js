@@ -318,6 +318,7 @@ export default {
       return json({ ok: true, done, stuck: s.stuck || 0, note: s.fixNote || null }, { "cache-control": "no-store" });
     }
     // the planned day, for the preview player (/?preview)
+    if (url.pathname === "/api/ambient") return json({ city: CITY, texture: PLAN.texture || null });
     if (url.pathname === "/api/plan") {
       const s = await loadState(env);
       return json({ version: PLAN.version || null, written: PLAN.written || null, arcs: PLAN.arcs || [], beats: PLAN.beats || [], unlocked: s.unlocked,
@@ -673,6 +674,35 @@ function sceneOverdue(sc, storyMs, stuck) {
   const h = storyClock(storyMs).hour;
   return sc.lines >= sc.target * 1.4 || storyMs - (sc.startedAt || storyMs) > 100 * 60000 || h >= 23 || h < 6;
 }
+// the city's own timetable, in Israel time. days: 0 = Sunday. from: minutes after midnight. The page plays it (sound, caption, hosts) with no AI; the story prompt names what is on.
+const hm = (h, m = 0) => h * 60 + m;
+const CITY = [
+  { id: "garbage", days: [0, 3], from: hm(7, 10), min: 12, places: ["apartment", "corridor", "street", "shops"], sfx: "truck", label: "outside", note: "the garbage truck is grinding along Herzl Street",
+    cap: ["...hold it, hold it, HOLD IT, okay.", "...who puts a sofa out on a Wednesday?", "...BEEP. BEEP. BEEP."], host: ["There's the garbage truck. The one alarm clock nobody can snooze.", "Herzl Street gets its weekly wake-up call. Apologies to apartment 4.", "That truck is the most reliable thing on this show."] },
+  { id: "gas", days: [2], from: hm(10), min: 10, places: ["street", "shops", "corridor"], sfx: "gas", label: "outside", note: "the gas delivery man is clanking cylinders up the street",
+    cap: ["...gas! Who ordered gas?", "...third floor, and no, there is no elevator."], host: ["The gas man's cylinders. You can hear him before you can see him.", "Clank, clank. The sound of someone else's Tuesday."] },
+  { id: "alte", days: [1, 4], from: hm(11, 10), min: 14, places: ["apartment", "corridor", "street", "shops", "west1"], sfx: "megaphone", label: "outside", note: "the alte-zachen cart is rolling down the street, the old man shouting through his megaphone for old things to buy",
+    cap: ["ALTE ZACHEN! ALTE ZACHEN!", "Fridges, fans, old radios, ALTE ZACHEN!", "I buy, I buy, everything old, I buy!"], host: ["The alte-zachen man. Eighty years old, one megaphone, zero competition.", "Quick, hide the old radio. He will make an offer.", "He has been shouting that since before this street had names."] },
+  { id: "flowers", days: [5], from: hm(11), min: 45, places: ["shops", "street"], sfx: "steps", label: "overheard", note: "the Friday rush is on, people queue for flowers and challah before Shabbat",
+    cap: ["...the white ones, for my mother, she will still complain.", "...one bouquet, one challah, and I am a good son."], host: ["The Friday flower queue. Every guilty son on Herzl Street, in one line.", "Friday rush. The whole street is buying its way out of something."] },
+  { id: "market-close", days: [5], from: hm(13, 20), min: 40, places: ["market"], sfx: "kids", label: "overheard", note: "the market is closing for Shabbat and the vendors shout their last prices",
+    cap: ["...everything five! Everything five! Going home!", "...take it, take it, I am not carrying it back!"], host: ["Last call at the shuk. This is when the real bargains come out.", "Prices drop by the minute now. It's basically a stock exchange with parsley."] },
+  { id: "school", days: [0, 1, 2, 3, 4], from: hm(13, 30), min: 16, places: ["apartment", "corridor", "street", "shops", "west1", "west2", "west3", "park"], sfx: "kids", label: "outside", note: "school is out and kids are running down the street with their bags",
+    cap: ["...it's not fair, you said no ball!", "...my mother said you can't!", "...last one to the kiosk pays!"], host: ["School's out. Herzl Street belongs to the under-tens now.", "Hear that? Thirty children and one ball.", "Avi's kiosk is about to do its best business of the day."] },
+  { id: "piano", days: [0, 2, 4], from: hm(16, 5), min: 30, places: ["apartment", "corridor"], sfx: "piano", label: "through the wall", note: "a neighbour's child is practising the piano through the wall, the same few notes, one always wrong",
+    cap: ["...again, from the beginning.", "...the second note, Noga. The SECOND note."], host: ["The piano from upstairs. Week six of the same four notes.", "That wrong note is the only surprise in the building.", "Someone in this building is getting very slightly better."] },
+  { id: "kiosk", days: [0, 1, 2, 3, 4, 6], from: hm(18, 30), min: 30, places: ["street"], sfx: "steps", label: "overheard", note: "there is an evening queue at Avi's kiosk",
+    cap: ["...with everything, and no tahini, I know, I know.", "...Avi, you said five minutes an hour ago."], host: ["Evening queue at Avi's. The neighbourhood parliament is in session.", "Everyone in that line has a theory about something."] },
+  { id: "gameshow", days: [0, 1, 2, 3, 4, 6], from: hm(19, 30), min: 30, places: ["apartment", "corridor"], sfx: "gameshow", label: "through the wall", note: "Mrs. Levi's game show is loud through the wall of apartment 5",
+    cap: ["...for five thousand shekels!", "...wrong! Wrong, you donkey, it's Haifa!"], host: ["Mrs. Levi's game show. She has never missed one, or stayed quiet through one.", "That's her TV. The shouting is also her.", "Apartment 5 is winning tonight, according to the wall."] }
+];
+function cityNote(now, sh) {
+  if (sh && now >= sh.start && now <= sh.end) return "";   // the street rests on Shabbat
+  const f = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(now)).map(p => [p.type, p.value]));
+  const d = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(f.weekday), m = (+f.hour % 24) * 60 + +f.minute;
+  const on = CITY.filter(e => e.days.includes(d) && m >= e.from && m < e.from + e.min);
+  return on.length ? `\nAround the neighbourhood right now (only where he could see or hear it; he may react, it need not matter): ${on.map(e => `${e.note} (${e.places.join(", ")})`).join("; ")}.` : "";
+}
 // the longer memory of the show: what happened yesterday and today, and where each arc stands. Background for the writers, never to be rushed.
 const clip = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); if (t.length <= n) return t; const c = t.slice(0, n), i = Math.max(c.lastIndexOf(". "), c.lastIndexOf("! "), c.lastIndexOf("? ")); return i > n / 2 ? c.slice(0, i + 1) : c.slice(0, c.lastIndexOf(" ")) + "..."; };
 function storySoFar(s) {
@@ -815,7 +845,7 @@ newCharacter format: {"name":"...","role":"...","personality":"...","speech":"..
   const user =
 `Story time now: ${clock.label} (${TZ}).
 He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
-Plot notes: ${s.notes || "none"}${storySoFar(s)}${courseNote(s, now, cw)}
+Plot notes: ${s.notes || "none"}${storySoFar(s)}${cityNote(now, s.world && s.world.shabbat)}${courseNote(s, now, cw)}
 ${body}
 ${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
