@@ -81,7 +81,8 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 
 ## 4. Focus: main characters vs. bystanders
 - Ishai and the cast: full saturation, thin dark outline (`outlined()`), speech bubbles.
-- Bystanders: muted palette (`muted:true`), solid (never see-through), no outline, no dialogue, never block the main action.
+- Bystanders: muted palette (`muted:true`), solid (never see-through), no outline, no speech bubbles or voices, never block the main action.
+- Overheard (`overhear()`, `OVERHEARD`): now and then, about one 4-minute slot in three while he is alone in a place with people, a passer-by's half sentence shows for 6.5 s as a small grey caption marked OVERHEARD. It has no name, bubble or voice, never enters the chat, and starts with "...", so it can't be taken for the cast. Never plot.
 - New cast members are drawn only from the look menu (hair, colors, extras) so they stay consistent forever.
 
 ## 4b. Regulars

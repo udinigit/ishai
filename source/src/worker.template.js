@@ -549,6 +549,7 @@ async function tick(env, force) {
     }
     if (!ev){ ev = fallback(last, clock.hour, s); ev.stuck = true; ev.src = s.lastError && s.lastError.at === now ? "backup line (AI error)" : "backup line (AI reply dropped: repeat)"; }
   }
+  { const q = quietHosts(s, ev, s.nextId); if (q.length) ev.commentary = q; }   // nobody speaks: the hosts fill the silence
   if (goal && goal.status !== "done" && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
 
   if (ev.newCard) { s.cast[ev.newCard.id] = ev.newCard; s.lastNewAt = now; }
@@ -654,6 +655,16 @@ function sceneOverdue(sc, storyMs, stuck) {
   if (stuck >= 2) return true;   // the story is going in circles: wrap it up
   const h = storyClock(storyMs).hour;
   return sc.lines >= sc.target * 1.4 || storyMs - (sc.startedAt || storyMs) > 100 * 60000 || h >= 23 || h < 6;
+}
+// the longer memory of the show: what happened yesterday and today, and where each arc stands. Background for the writers, never to be rushed.
+const clip = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); if (t.length <= n) return t; const c = t.slice(0, n), i = Math.max(c.lastIndexOf(". "), c.lastIndexOf("! "), c.lastIndexOf("? ")); return i > n / 2 ? c.slice(0, i + 1) : c.slice(0, c.lastIndexOf(" ")) + "..."; };
+function storySoFar(s) {
+  const out = [];
+  if (s.yesterdaySum) out.push(`Yesterday: ${clip(s.yesterdaySum.text, 450)}`);
+  if (s.daySum) out.push(`Today so far: ${clip(s.daySum.text, 650)}`);
+  const arcs = (PLAN.arcs || []).filter(a => a && a.title).map(a => `- ${a.title}: ${clip(a.stage, 170)}`);
+  if (arcs.length) out.push(`Ongoing arcs (where they stand; let people remember and mention them, never rush them or play a future step early):\n${arcs.join("\n")}`);
+  return out.length ? `\nTHE STORY SO FAR (stay consistent with it):\n${out.join("\n")}` : "";
 }
 function buildMessages(s, clock, now, goal, opt = {}) {
   const block = opt.block || 0, cue = opt.live || null;
@@ -787,7 +798,7 @@ newCharacter format: {"name":"...","role":"...","personality":"...","speech":"..
   const user =
 `Story time now: ${clock.label} (${TZ}).
 He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
-Plot notes: ${s.notes || "none"}
+Plot notes: ${s.notes || "none"}${storySoFar(s)}
 ${body}
 ${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
@@ -817,7 +828,7 @@ async function addHosts(env, s, moments, clock, now) {
 - ${HOSTS.rules}
 For EACH moment below write 0-2 short lines (max 20 words each). The viewers see only the picture (the camera and what Ishai is doing) and hear the spoken lines; they cannot read "what happens", so usually one line says plainly what is going on, then a joke, an opinion or a guess. React only to what is visible or said: never invent drinks, food, objects, visitors, calls or plans. If the CAMERA is STATIC, they cannot see him: they wonder where he is, guess, or joke about losing him. Fresh every time: never repeat the lines below, their jokes, openings or catchphrases.${sponsor ? `\nIN ONE OF THESE MOMENTS one host slips in an obvious, cheesy "secret" plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending with a wink like "...not sponsored, by the way"; the other host reacts.` : ""}
 Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..."}]}]} with exactly ${moments.length} entries, in order.` },
-      { role: "user", content: `ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
+      { role: "user", content: `${s.daySum ? `TODAY SO FAR (to connect with earlier moments): ${clip(s.daySum.text, 300)}\n\n` : ""}ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
     // read whatever came back, even a cut-off or slightly broken reply: every {"commentary":[...]} found, in order
     const readHosts = raw => { const o = parseAI(raw); if (o && Array.isArray(o.moments)) return o.moments;
       const out = []; const re = /"commentary"\s*:\s*\[([\s\S]*?)\]/g; let m;
@@ -1170,7 +1181,7 @@ function repair(ev, s, last) {
 }
 
 // moments written without the AI (sick day, backups): the hosts tell viewers what is happening, plus a fresh joke now and then
-const RELAY_OPEN = ["Live update:", "For those just tuning in:", "Right now:", "Status report from apartment 4:", "Quick update:", "What you're seeing:", "Meanwhile:", "Breaking, kind of:"];
+const RELAY_OPEN = ["Live update:", "For those just tuning in:", "Right now:", "Status report:", "Quick update:", "What you're seeing:", "Meanwhile:", "Breaking, kind of:"];
 const SICK_JOKES = ["Our boy is not okay. Somebody bring that man soup.", "Sick day on live TV. Respect the blanket.", "Nobody judge the pajamas. He is recovering.",
   "Even Moshe the basil looks worried.", "Rest up, Ishai. The whole country is whispering.", "This is the most relaxing episode we have ever aired.",
   "If he naps any harder he'll need a sponsor. FluffNap, call us.", "Tea count today: I lost track at four.", "Somewhere Mrs. Levi is already preparing soup. I can feel it.",
@@ -1178,10 +1189,21 @@ const SICK_JOKES = ["Our boy is not okay. Somebody bring that man soup.", "Sick 
 function relayHosts(s, text, n, jokes) {
   const who = n % 2 ? "oren" : "zohar", other = who === "zohar" ? "oren" : "zohar";
   const t = String(text).replace(/^(He|Ishai)\b/, "Ishai").replace(/\s+/g, " ").trim();
-  const out = [{ who, say: `${RELAY_OPEN[n % RELAY_OPEN.length]} ${t}`.slice(0, 200) }];
+  const out = [{ who, say: clip(`${RELAY_OPEN[n % RELAY_OPEN.length]} ${t}`, 158) }];
   if (jokes && n % 2 === 0) { const prev = recentHostLines(s, 16); const fresh = jokes.filter(j => !prev.includes(j));
     if (fresh.length) out.push({ who: other, say: fresh[(Math.floor(n / 2) * 5) % fresh.length] }); }
   return out;
+}
+// a moment nobody speaks in (travel, waiting, listening, working alone): viewers can't read the narration, so the hosts say what is going on. No AI.
+const QUIET_QUIPS = ["Riveting television, ladies and gentlemen.", "I've seen less walking in a marathon.", "Nobody say anything. It's going so well.", "Our sound guy thinks his headphones broke.",
+  "Every great story has a middle part. This is it.", "My aunt pays for this channel. For this.", "Look at him go. Somewhere, a director is crying.", "Nothing is happening, and I can't look away.",
+  "This is the part they cut from the documentary.", "I'm told this is what people do when no one's watching.", "He has no idea how much we care about this.", "Stay with us. It might get slightly more interesting."];
+const OFF_LINES = ["We've lost him. Static on every camera.", "Out of coverage. He could be anywhere, doing anything, most likely queueing.", "No signal. Our best people are looking at a grey screen.",
+  "He's off the grid. Moshe is unsupervised.", "Enjoy the static. It's the most colourful thing he's worn all week.", "Wherever he is, it has no camera, and that upsets me."];
+function quietHosts(s, ev, n) {
+  if (ev.action === "sleeping" || BATH_ACTIONS.includes(ev.action) || (ev.lines || []).length || (ev.commentary || []).length) return [];
+  if (ev.location === "offscreen") return [{ who: n % 2 ? "oren" : "zohar", say: OFF_LINES[n % OFF_LINES.length] }];
+  return relayHosts(s, ev.text, n, n % 4 === 0 ? QUIET_QUIPS : null);
 }
 var QUOTA_RE = /4006|daily free allocation|backup AI/i;
 var cfOutUntil = 0;
@@ -1703,7 +1725,8 @@ function cleanScript(a) {
   const sc = a.filter(m => m && typeof m === "object" && String(m.text || "").length > 8).slice(0, 8)
     .map(m => ({ location: m.location, action: m.action, with: m.with || null, text: String(m.text).slice(0, 260),
       lines: Array.isArray(m.lines) ? m.lines.slice(0, 14) : [], commentary: Array.isArray(m.commentary) ? m.commentary.slice(0, 2) : [],
-      delivery: m.delivery === true || undefined, message: m.message && typeof m.message === "object" ? m.message : undefined }));
+      delivery: m.delivery === true || undefined, message: m.message && typeof m.message === "object" ? m.message : undefined,
+      update: m.update && typeof m.update === "object" ? m.update : undefined }));   // what the scene changed in that person's memory and mood
   return sc.length ? sc : null;
 }
 function activeGoal(s, now) {

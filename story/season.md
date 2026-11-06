@@ -10,6 +10,7 @@ You (the director) can edit anything here; changes go live with the next deploy.
 - Real weather and the Jewish calendar are real.
 - Ishai celebrates Shabbat at home in a warm, traditional-but-relaxed way.
 - About a third of each day stays unplanned so the live AI can improvise.
+- Every planned scene with a person ends with `"update": {"memory": "what they now remember about Ishai, max 25 words, keep what still matters", "mood": -1, 0 or 1}` on its last moment with them. Without it, the scene changes nothing in their memory.
 - 3-6 key beats per day, each with a time window. New props, places or animals need art first ("art" field).
 
 ## Arcs

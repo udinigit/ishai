@@ -76,6 +76,9 @@
     background:#f7f7f2;color:#151515;border:2px solid #151515;border-radius:8px;padding:2px 7px 3px;
     font-size:clamp(14px,3.7vw,20px);line-height:1.1;text-shadow:none;box-shadow:0 2px 0 rgba(0,0,0,.35)}
   .say::after{content:"";position:absolute;left:var(--tail,50%);bottom:-8px;margin-left:-6px;border:6px solid transparent;border-top-color:#151515;border-bottom:0}
+  /* a passer-by's words: small, grey, no name, no bubble, so it never reads as a character talking */
+  .over{position:absolute;z-index:3;left:6px;top:26px;max-width:62%;pointer-events:none;padding:1px 6px;background:rgba(0,0,0,.5);color:#b9b9ad;font-style:italic;font-size:clamp(10px,2.6vw,14px);line-height:1.15}
+  .over small{display:block;font-style:normal;font-size:.72em;letter-spacing:1px;text-transform:uppercase;opacity:.65}
   .say b{font-weight:normal;margin-right:5px;font-size:.85em;letter-spacing:.5px}
   .say.edge::after{display:none}
   .caption{position:absolute;left:8px;right:8px;bottom:34px;z-index:3;pointer-events:none;text-align:center;
@@ -197,6 +200,7 @@
       <span class="stvTag">● STUDIO · RECAP</span>
       <div class="stvCap" id="stvCap"></div>
     </div>
+    <div class="over" id="over" hidden aria-hidden="true"><span id="overText"></span><small>overheard</small></div>
     <div class="say" id="say" hidden><b id="sayWho"></b><span id="sayText"></span></div>
     <div class="nosig" id="nosig"><span id="nosigText">[ SUBJECT NOT IN FRAME ]</span></div>
     <div class="hud bot"><span id="place">ISHAI // APARTMENT</span><span id="hudAction">--</span></div>
@@ -3479,6 +3483,7 @@
       unlock(list){ UNLOCKED = new Set(list); },
       drawLook(c, look){ const x = c.getContext('2d'), prev = g; x.clearRect(0, 0, c.width, c.height); g = x; try { person(look, 5, 4, 0, {face: 0, seed: 9}); } finally { g = prev; } },
       call(lines){ if (!callOn) playCall({id: 'sb-call' + (++n), t: NOW(), caller: {name: 'Test caller', from: 'Sandbox'}, lines}, NOW()); },
+      hostFill: () => hostFill(true), overhear: () => overhear(true),
       recap(lines){ if (!studioOn) playStudio({id: 'sb-st' + (++n), t: NOW(), lines}, NOW()); },
       show(lines){ if (showOn) return; SHOW = {id: 'sb-sh' + (++n), t: NOW(), lines}; playShow(); SHOW = null; },
       dream(){ reset(); setState('apartment', 'sleeping', true); SLEEP_SINCE = NOW() - 20 * 60000; DREAM = [{t: NOW(), loc: 'park', a: 'idle', w: null}, {t: NOW(), loc: 'cafe', a: 'drinking', w: null}, {t: NOW(), loc: 'bus', a: 'idle', w: null}]; }
@@ -3617,6 +3622,117 @@
     const id = here[Math.floor(hash(slot * 23 + 7) * here.length)], list = MUTTER[id === 'kobi' ? 'kobi' + drunk() : id], line = list[Math.floor(hash(slot * 29 + 11) * list.length)];
     showSay(id, line); holdSay(5500); Sound.say(id, line);
   }, 1000);
+  // ================= the hosts fill the silence: every 45 s of quiet one of them says what the picture shows, no AI =================
+  // Everything is picked from the clock slot and the moments, so all viewers get the same line. Nothing here is written to the story.
+  const FILL_SLOT = 45000, FILL_QUIET = 10000;
+  const FILL = {
+    apartment: ['Apartment 4. One room, one man, one basil, no secrets.', 'Look at that windowsill. Moshe is holding the whole place together.', 'That desk has seen more revisions than a constitution.', 'The sofa, the desk, the fridge. The three stops of his daily commute.', 'Somewhere under that pile is a clean shirt. Allegedly.', 'You can tell a lot about a man by his one kitchen chair.'],
+    corridor: ['The second floor hall. Mrs. Levi can hear this through the wall, believe me.', 'That is the only hallway in Tel Aviv with its own intelligence service.', 'Apartment 4 on the left, apartment 5 on the right, and judgement in between.', 'The stairs again. The elevator is more of a rumour.', 'Listen to that echo. Nobody in this building has ever had a private conversation.', 'Second floor. Smells of soup from at least one direction.'],
+    street: ["Herzl Street, his block. Avi's kiosk, the bus stop, the gym he thinks about.", 'There goes the bus stop bench, the most honest seat in the city.', "That's The Black Candle by the bench. Closed by day, like its regulars.", 'He walks this street so often the pavement knows his shoe size.', 'Watch the kiosk. Avi sees everything and comments on all of it.', 'Traffic, pigeons, one man with a plan. Herzl Street at its finest.'],
+    shops: ['East end of Herzl. Hardware, the bank, the flowers, the crossing.', "That's the flower shop. He has never once stopped there. We're watching that closely.", "He's passing Tahini Tower Savings Bank, walking a little faster, as freelancers do.", 'Herzl Hardware. If it squeaks, they have the thing. Probably.', 'Red light at the crossing. The only thing that has ever told him no and meant it.', 'Cafe Nahat is on that corner. Keep your eyes on the corner.'],
+    west1: ["West along Herzl now. That's PicSell, and the pharmacy coming up.", 'Three blocks to the park. He is committing to the outdoors.', 'PicSell in the window. If it holds still, they print it.'],
+    west2: ['The Soap Opera launderette, the only place on this street with more drama than us.', "That's the barber. He'd like a word with that hair.", 'Middle of the walk. The makolet on the left has seen him at every hour.'],
+    west3: ['The bakery. Everyone slows down here, it is the law.', 'Second-hand bookshop on the right. He buys one and reads the back.', 'Bicycle shop, last block. The park is just ahead.'],
+    park: ['The park. One bench, one pond, one duck with a lot on its mind.', 'That tree has been here longer than the whole street.', 'Look at the pigeons. They know something, says Mr. Zelig, and I no longer argue.', 'Fresh air. We had to check the manual to see what it does.', "There's a cat by the vending machine. It has a better routine than he does.", 'The duck has not moved. Neither have our ratings.'],
+    bus: ['Line 88. Window seat, city going past, nobody talking. Classic Tel Aviv.', "He's on the bus, watching the shops slide by.", 'Nothing on a bus is ever on time except the opinions.', 'Every stop, one person gets on and one gets a seat they do not deserve.', 'That is a man on public transport, thinking about something he will never say out loud.', 'Red light. The whole bus sighs together.'],
+    taxi: ['Back seat of a taxi. The meter is the most exciting thing in shot.', "He's watching that meter like it owes him money.", 'The driver has opinions. You can see them from here.', 'Every red light is costing him a coffee.', 'A taxi. Somebody has money, or it is raining, or both.', 'The city going past, one shekel at a time.'],
+    market: ['Shuk Shalom. Tomatoes, shouting, and the smell of everything.', "He's going stall to stall. This is the most decisive he gets.", 'Every vendor here is sure you are making a mistake by walking on.', 'Look at the crowd. Nobody in that line has ever been wrong about olives.', 'The fresh juice stand. Six shekels of hope.', 'Bags in both hands soon. Watch the shoulder go.'],
+    store: ['Everything Else. Everything, except anything you can eat.', 'That wall of TVs is all showing the same thing, and it is still better than this.', 'He is browsing. Nobody in history has come out of here with only what they wanted.', 'The cashier has seen it all, mostly lamps.', 'Kitchenware aisle. A man alone with his dreams of a better pan.'],
+    gym: ['Herzl Gym. Two screens, a mirror wall, and a lot of regret.', 'That water cooler sees more action than the dumbbells.', 'Treadmills facing the television. Running, in the sense of staying exactly where you are.', 'The mirror wall. Nobody here is looking at the mirror, except everyone.', 'Somebody paid for a year in January. You can tell which.'],
+    bar: ['The Black Candle. Black brick, red neon, and nobody asking how your day was.', 'Grave Tahini on the poster. Saw them once. Still recovering.', 'Candle on the table, guitar in the air. Very moody for a Tuesday, whichever day this is.', 'That bartender has heard every sad story on Herzl Street, some of them twice.', 'Sit at a table in here long enough, you become a regular. It happened to Kobi.'],
+    cafe: ['Cafe Nahat. Corner table, soft rock, one barista seeing everything.', 'Listen to that playlist. It is 1976 in there and always will be.', 'Look at the counter. Then look at the cups. That is all I am saying.', "That's the laptop table. Three novels have died there.", 'Coffee, milk foam, and a lot of things nobody is saying.']
+  };
+  const FILL_DO = {
+    working: ['Eyes on the screen. Whatever that is, it needs one more change.', 'Tiny drag to the left. Tiny drag back to the right. That was ten minutes of a freelancer.', 'Look at him lean back and squint. The universal sign for version nine.', 'Save as final. Save as final two. Save as final really.', 'He stretches. He looks at the clock. He remembers what he charges.', "That face is a man reading an email he won't answer yet."],
+    gaming: ['He has played this level before. It remembers him too.', 'Look at those thumbs. His best work of the week.', 'That sigh means the hero fell in the same hole.', 'One more try. It has been one more try for a while.', 'Tomer would have something to say about that score.'],
+    reading: ['Page turned. We have a page turned, everybody.', 'Is he reading, or staring at one sentence? Hard to say.', "He's been on that paragraph long enough to rent it.", 'Reading on a live broadcast. Bold.'],
+    watching: ['He picks a channel. He doubts the channel.', "We're watching a man watch television. Think about that.", 'That is the look of someone who has stopped choosing and started accepting.', 'Remote in hand, kingdom secured.'],
+    listening: ['He has the radio on and the world off.', 'Foot tapping. Slightly behind the beat, as is his way.', 'That old radio has better reception than he does.', 'Mrs. Levi can hear this too. Mrs. Levi has notes.'],
+    cooking: ['Something is happening in that pan, and he is as surprised as we are.', 'Taste, pause, more salt. Taste, pause, regret.', 'He reads the instructions after. That is the order he does things in.', 'The smell has reached apartment 5. Expect a report.'],
+    eating: ['Dinner for one, plus one dog looking heartbroken.', 'He eats like someone with a deadline and no appetite for it.', 'Chew, look at the wall, chew. Fine dining.', 'Nobody ever looks good eating on camera. Nobody.'],
+    drinking: ['A long sip, with a lot of thinking in it.', 'He holds that cup with both hands, like it might leave him.', 'Slow sip. The man has nowhere to be, or several and is avoiding them.'],
+    idle: ['He is standing there. We are all standing here with him.', 'That is the look of a man who came in here for something.', 'Scratch of the head. A plan may be forming. Do not get your hopes up.', 'Doing nothing, and frankly doing it well.', 'He looks around like someone moved everything half a metre.'],
+    walking: ['Hands in pockets, eyes on nothing. A man and his thoughts.', 'Look at that pace. Not late, not early, not sure.', 'Steady walk. Going somewhere, probably.', 'If you walk slowly enough, it counts as a decision.'],
+    exercising: ['There it is, the face of someone counting backwards.', 'Good pace. Somebody tell his knees.', 'He looked at the timer. Never look at the timer.', 'That is a lot of effort to end up in the same place.'],
+    talking: ['And a little pause there. Nobody wants to go first.', 'Listen to that silence. You could park a bus in it.', 'They have run out of words. Watch who looks away first.'],
+    phoning: ['Phone at the ear, nodding at someone who cannot see him.', 'He says yes a lot on the phone. We have noticed that.'],
+    waking: ['He is up, in the legal sense.', 'The eyes are open. The rest of him is waiting for an update.']
+  };
+  const FILL_NIGHT = ['Night shift. Still horizontal, still our favourite.', 'Listen to that. A man, a dog, a fridge humming.', 'If you are watching this at this hour, we should talk.', 'Moshe has the watch. Moshe always has the watch.', 'Nothing to report. We are reporting it anyway.', 'Tomorrow he will say he slept badly. We have the tapes.'];
+  const FILL_BATH = ['Door closed. We respect that door.', 'That door stays shut, and so does this subject.', 'A moment of privacy, the one thing we do not sell.', 'Let us all look at the door together.'];
+  const FILL_OFF = ['Still no picture. Our best people are looking at the static.', 'He is out of coverage, and I do not like how well he is doing without us.', 'Static. Honestly, a nice change of pace.', 'Wherever he is, it is not on our map.', 'We have no idea what he is doing. For once, neither does he.'];
+  const fillPick = (list, slot, k) => list[((slot * (list.length % 7 ? 7 : 5) + k) % list.length + list.length) % list.length];   // walks the whole list before repeating
+  // how long he has been at this, and how long since anyone talked to him, from the moments themselves
+  function fillFacts(){
+    const now = NOW(), done = [...TL.values()].filter(x => x.start <= now), out = [], last = done[done.length - 1];
+    if (last){ const same = x => x.ev.action === last.ev.action && (x.ev.location || 'apartment') === (last.ev.location || 'apartment');
+      let i = done.length - 1; while (i > 0 && same(done[i - 1])) i--;
+      const m = Math.round((now - done[i].start) / 60000), a = last.ev.action;
+      if (m >= 12 && !['sleeping', 'walking'].includes(a)) out.push(`That's ${m} minutes of ${a === 'idle' ? 'this' : a} now, for those keeping score.`);
+      let j = done.length - 1; while (j >= 0 && !done[j].ev.with) j--;
+      const quiet = j >= 0 ? Math.round((now - done[j].end) / 60000) : 0;
+      if (quiet >= 20) out.push(`Nobody has said a word to him in ${quiet} minutes.`); }
+    const w = WORLD && WORLD.weather; if (w) out.push(`${Math.round(w.temp)} degrees and ${w.desc} over Herzl Street${w.rain ? '. Nobody is out for fun.' : '.'}`);
+    out.push(`It's ${fmtHM.format(new Date(now))} on Herzl Street. Do you know where your basil is?`);
+    const sh = WORLD && WORLD.shabbat; if (sh && /^Fri/.test(sh.startLabel || '') && now < (sh.start || 0)) out.push(`Candles tonight at ${sh.startLabel.replace(/^\S+\s*/, '')}. Clock's ticking.`);
+    return out;
+  }
+  // the show's own memory, read back: today's and yesterday's summary, a sentence at a time
+  function fillRecap(){
+    const bits = o => o ? String(o.text || '').split(/(?<=[.!?])\s+/).filter(x => x.length > 15 && x.length < 170) : [];
+    return [...bits(SUMMARY && SUMMARY.today).map(x => 'For anyone just joining: ' + x), ...bits(SUMMARY && SUMMARY.yesterday).map(x => 'Yesterday, for the record: ' + x)];
+  }
+  // who is who: the people in his life and what they hold on to
+  function fillPeople(){
+    return Object.values(CAST).filter(c => c.memory && c.memory.length > 12 && c.memory.length < 150 && (c.scenes || 0) > 0).map(c => `From the file on ${c.name}: ${c.memory}`);
+  }
+  const fillMoving = () => !!(actor.travelling || actor.pending || actor.ride || actor.rideUntil);
+  function hostFillLine(slot){
+    const a = actor.action, loc = actor.loc, r = hash(slot * 41 + 9), place = FILL[loc] || [], act = FILL_DO[a] || FILL_DO.idle;
+    if (loc === 'offscreen') return fillPick(FILL_OFF, slot, 1);
+    if (BATH.has(a)) return fillPick(FILL_BATH, slot, 2);
+    if (a === 'sleeping') return slot % 4 ? null : fillPick(FILL_NIGHT, slot / 4, 3);        // a quiet night: one line in four
+    if (fillMoving() && place.length) return fillPick(place, slot, 4);                        // on the way: they say what he is passing
+    const list = r < .3 ? place : r < .55 ? act : r < .75 ? fillFacts() : r < .92 ? fillRecap() : fillPeople();
+    return fillPick(list.length ? list : (place.length ? place : act), slot, 5);
+  }
+  // a line of the story is due soon: leave the room for it
+  const talkSoon = ms => { const now = NOW(); for (const e of TL.values()){ if (e.start > now && e.start < now + ms) return true; if (e.start <= now && e.plan.some(p => e.start + p.at + p.ms > now - 1500 && e.start + p.at < now + ms)) return true; } return false; };
+  function hostFill(force){
+    const now = NOW(), slot = Math.floor(now / FILL_SLOT), at = slot * FILL_SLOT + hash(slot * 37 + 1) * 12000;
+    if (!force && (slot === hostFill.done || now < at || now > at + 9000 || forceLoc || PREVIEW)) return false;
+    if (!force && (now - TALK_AT < FILL_QUIET || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || studioOn || showOn || callOn || talkSoon(7000) || (document.hidden && !POP.on))) return false;
+    hostFill.done = slot;
+    const say = hostFillLine(slot); if (!say) return false;
+    hostLine({id: 'fill-' + slot + (force ? '-' + now : ''), t: now, who: slot % 2 ? 'oren' : 'zohar', say, host: true}, true, {at: now, ms: 0});
+    return true;
+  }
+  setInterval(hostFill, 1000);
+  // ================= overheard: now and then a passer-by's words, as a small caption. Never a name, a bubble, a voice or the chat, so nobody takes them for the cast =================
+  const OVERHEARD = {
+    street: ['...so I told him, that is not parking, that is a hobby.', '...my sister says the same about her landlord.', '...no, the other bus. The one that never comes.', '...second floor, third door, and bring the receipt.', '...I said ten minutes. It is a Tel Aviv ten minutes.', '...he is a good boy, he just bites.'],
+    shops: ['...nine shekels for one tulip? Is it a wedding?', '...the machine ate it. The whole card.', '...wait for the green, Yonatan. Wait.', '...I only came in for a screw.', '...she never said yes, she said we will see.'],
+    west1: ['...print it bigger. No, smaller. Bigger.', '...the pharmacist knows everything about this street.', '...it was a joke shirt, and my mother wore it to a wedding.'],
+    west2: ['...same haircut as last time, but happier.', '...somebody took my socks out and left them on top.', '...closed for inventory. There are four things in there.'],
+    west3: ['...still warm, smell it, go on.', '...first edition. Of what, he would not say.', '...a bike that old has opinions.'],
+    park: ['...the duck is new. I am telling you.', '...three kilometres. Okay, two. Okay, to the bench.', '...he says the same to the pigeons, I heard him.', '...leave the cat, the cat has a job.'],
+    market: ['...how much? For that? I knew your father!', '...two kilos, and not from the top, I can see the top.', '...taste it, taste it, you are insulting me.', '...the good ones are in the back, always in the back.', '...who sells a cucumber like that on a Friday?', '...yalla, yalla, closing soon, take three.'],
+    store: ['...it is the same lamp, it just costs more.', '...does it come in a colour that is not grey?', '...I came for batteries. Look at this trolley.'],
+    gym: ['...one more. One more. That was one more.', '...my trainer says it is water weight.', '...is anyone using this? I am asking the machine.'],
+    bar: ['...the bassist quit, and then the band quit the bassist.', '...he is not my ex, he is my former mistake.', '...turn it up, nobody here is talking anyway.'],
+    cafe: ['...I am not writing, I am researching.', '...oat, soy, or the other one that has feelings?', '...we should really get a proper office.', '...she said she would call, so I moved to a closer table.'],
+    bus: ['...next stop? No, the one after the one after.', '...this seat is taken by my bag.', '...I have been on this line since 1994.']
+  };
+  const OVER_SLOT = 240000, OVER_MS = 6500; let overUntil = 0, overDone = 0;
+  function overhear(force){
+    const now = NOW(), slot = Math.floor(now / OVER_SLOT), at = slot * OVER_SLOT + hash(slot * 43 + 2) * 150000, list = OVERHEARD[actor.loc], h = hourNow();
+    if (!force && (slot === overDone || now < at || now > at + 12000 || !list || h < 7 || h >= 23 || forceLoc || PREVIEW)) return false;
+    if (!list || (!force && (now - TALK_AT < 6000 || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || actor.hidden || actor.with || studioOn || showOn || callOn || talkSoon(8000)))) return false;
+    overDone = slot; if (!force && hash(slot * 47 + 1) > .6) return false;                    // most slots pass by without a word
+    $('overText').textContent = fillPick(list, slot, 6); $('over').hidden = false; overUntil = now + OVER_MS;
+    return true;
+  }
+  setInterval(() => { overhear(); if (overUntil && (NOW() > overUntil || actor.switching)){ overUntil = 0; $('over').hidden = true; } }, 1000);
   let SHOW_AUTO = false; const autoShown = new Set();
   setInterval(() => {
     if (forceLoc || PREVIEW || showOn || studioOn || callOn || !SHOW || autoShown.has(SHOW.id)) return;
