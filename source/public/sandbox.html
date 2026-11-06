@@ -59,6 +59,8 @@
       <div class="bar">
         <button id="qBar">The bar</button>
         <button id="qImprov">Improv lesson</button>
+        <button id="qCampus">University</button>
+        <button id="qLecture">Lecture</button>
         <a href="/?preview" target="_blank" rel="noopener">Today's plan</a>
       </div>
     </div>
@@ -215,6 +217,14 @@ Back to the cameras.</textarea>
     const me = ++running; api.go({location:'street', action:'idle'});
     for (const m of list){ if (me !== running) return; api.play(m); await wait(600); while (me === running && api.busy()) await wait(300); }
   }
+  // the lecture that comes next on the course, as it will air (the sandbox only reads it)
+  async function lecture(){
+    let list = [];
+    try { list = (await (await fetch('/api/lecture', {cache:'no-store'})).json()).moments || []; } catch(e){}
+    if (!list.length) list = [{location:'classroom', action:'lecture', with:'sasson', lines:[{who:'sasson', say:'Everything in this course really happened, and that\'s the problem.'}, {who:'student3', say:'Is that going to be on the test?'}, {who:'ishai', say:'Sorry I\'m late.'}], commentary:[]}];
+    const me = ++running; api.go({location:'campus', action:'idle'});
+    for (const m of list){ if (me !== running) return; api.play(m); await wait(600); while (me === running && api.busy()) await wait(300); }
+  }
   function world(){
     const real = $('hourT').textContent === 'Real time';
     api.world({hour: real ? null : +$('hour').value, weather: $('wx').value, temp: +$('temp').value || 22,
@@ -242,6 +252,8 @@ Back to the cameras.</textarea>
     $('addLine').onclick = () => { lines.push({who: lines.length ? lines[lines.length - 1].who : 'ishai', say:''}); drawLines(); };
     $('qBar').onclick = () => { running++; api.go({location:'bar', action:'idle'}); };
     $('qImprov').onclick = lesson;
+    $('qCampus').onclick = () => { running++; api.go({location:'campus', action:'idle'}); };
+    $('qLecture').onclick = lecture;
     $('play').onclick = () => { running++; api.reset(); api.play(moment()); };
     $('jump').onclick = () => { running++; api.go(moment()); };
     $('save').onclick = () => { if (editing >= 0) D.list[editing] = moment(); else D.list.push(moment()); editing = -1; $('save').textContent = 'Add to list'; store(); drawList(); };

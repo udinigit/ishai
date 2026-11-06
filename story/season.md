@@ -23,6 +23,7 @@ You (the director) can edit anything here; changes go live with the next deploy.
 Done: the TV (Nov 1) and Mrs. Levi's radio (Nov 3) both arrived.
 
 ## Already scheduled — plan around these, do not overlap or move them
+- Every Sunday, Tuesday and Wednesday, 11:00 — Ishai's history lecture at Tel Herzl University. The engine schedules it by itself: write NO beat for it, and keep him free from 10:25 to 11:50.
 - Sat Nov 7, after havdalah — Dana comes to see Moshe (promised on screen Nov 5; plan it Saturday).
 - Every Thursday, 17:00 — improv class at The Black Candle (not during a holiday). Plan one beat: `startAt` 16:42, `sceneAt` 16:58 (the first moment then plays at 16:59 and the class starts at 17:00), `deadlineAt` 17:20, `location` bar, `forceWith` yael, and 5 `preview.moments` with Yael (about 30 minutes): the first 4 in the bar with action `improv` (Ishai and Yael stand on the cleared floor, the class watches from a half circle of chairs), the last one on the street with action `talking`, so the room is reset out of sight. Yael is the only other speaker. Keep 15:45-17:45 free of other beats.
 

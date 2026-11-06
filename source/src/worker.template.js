@@ -172,7 +172,10 @@ const SEED_CAST = [
   { id: "yael", name: "Yael", role: "teaches a beginners' improv class on Thursdays at 17:00 in the back of The Black Candle, before the evening crowd",
     personality: "warm, sharp, patient, notices when people hide behind jokes", speech: "short encouraging notes, 'yes, and', stops a scene with one clap",
     hangouts: ["bar"], look: { hair: "curly", hairColor: "black", skin: "tan", shirt: "yellow", pants: "black", extras: ["earring"] },
-    memory: "Noa paid for four lessons for Ishai and warned her he would try to get a refund.", relationship: 0 }
+    memory: "Noa paid for four lessons for Ishai and warned her he would try to get a refund.", relationship: 0 },
+  { id: "sasson", name: "Dr. Sasson", role: "lectures on Strange But True, a history course at Tel Herzl University, on Sundays, Tuesdays and Wednesdays at 11:00",
+    personality: "dry, exact, loves a good footnote, stops joking when the subject deserves it", speech: "calm and precise, ends a point with a quiet joke",
+    hangouts: ["classroom"], look: { hair: "short", hairColor: "gray", skin: "light", shirt: "purple", pants: "black", extras: ["glasses", "scarf"] }, memory: "", relationship: 0 }
 ];
 
 // ---------- world (must match the page) ----------
@@ -187,6 +190,8 @@ const LOCATIONS = {
   market:    ["walking","idle","talking","eating","drinking","phoning"],
   store:     ["idle","talking","phoning"],
   bar:       ["idle","drinking","eating","talking","phoning","improv"],
+  campus:    ["walking","idle","talking","eating","drinking","phoning"],
+  classroom: ["idle","talking","phoning","lecture"],
   bus:       ["idle","talking","phoning","reading"],
   taxi:      ["idle","talking","phoning","reading"],
   offscreen: ["away"]
@@ -204,23 +209,27 @@ const PLACES = {
   bar:       "The Black Candle, a small dark rock bar on Herzl Street next to his building: black brick, red neon, candles on the tables, band posters, a bearded bartender, rock and alternative music on the radio all night. He sits at a candle-lit table (drinking a beer, eating bar snacks). Opens 17:00, closes 02:00",
   bus:       "inside the city bus, line 88 (camera on board): he sits by the window with the city going past, a few other passengers around him",
   taxi:      "the back seat of a taxi (camera on board): the driver in front, the meter running, the city going past the window",
+  campus:    "Tel Herzl University, a bus ride away from Herzl Street (bus or taxi; it has its own stop): the courtyard, a vending machine, students. Open Sunday to Thursday 08:00-20:00. Ishai goes there for his history lectures",
+  classroom: "a lecture room at the university, only used during a lecture",
   offscreen: "anywhere without a camera (the supermarket, a client's office, a friend's home); he gets there by bus or taxi from the bus stop on Herzl Street and comes back the same way"
 };
 // The world map (must match MAP in the page). Far places are reached by bus or taxi from the street bus stop.
 const NEXT = {
   apartment: ["corridor"],
   corridor:  ["apartment","street"],
-  street:    ["corridor","park","shops","gym","bar","market","bus","taxi","offscreen"],
+  street:    ["corridor","park","shops","gym","bar","market","campus","bus","taxi","offscreen"],
   market:    ["street","store","bus","taxi"],
+  campus:    ["street","classroom","bus","taxi"],
+  classroom: ["campus"],
   store:     ["market"],
   shops:     ["street","cafe"],
   park:      ["street"],
   cafe:      ["shops"],
   gym:       ["street"],
   bar:       ["street"],
-  bus:       ["street","market","offscreen"],
-  taxi:      ["street","market","offscreen"],
-  offscreen: ["street","market","bus","taxi"]
+  bus:       ["street","market","campus","offscreen"],
+  taxi:      ["street","market","campus","offscreen"],
+  offscreen: ["street","market","campus","bus","taxi"]
 };
 // drawing menu for characters (must match the page)
 const LOOK = {
@@ -231,7 +240,7 @@ const LOOK = {
   extras: ["glasses","beard","mustache","earring","apron","scarf"]
 };
 
-const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" is only for the planned class
+const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && a !== "lecture" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" and "lecture" are only for planned classes
 
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
@@ -242,6 +251,7 @@ const VAPID_PUBLIC = "BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryf
 const BUILD = "__BUILD__";
 // The story plan (story/plan.json in the repository), written ahead by the daily planner.
 const PLAN = __PLAN__;
+const COURSE = __COURSE__;
 // sha-256 of the health check's fix token (the token itself lives only in the scheduled task)
 const FIX_HASH = "b5c6aeba6f36ea21799c22ef3a0a75c2692b6d8f9018f76669af06fe84d7c505";
 
@@ -289,7 +299,7 @@ export default {
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         usage: s.usage ? { ...s.usage, neuronsEst: Math.round(s.usage.inTok * 4625 / 1e6 + s.usage.outTok * 30475 / 1e6) } : null,
-        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null,
+        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?") }, { "cache-control": "no-store" });
     }
@@ -335,6 +345,11 @@ export default {
       const dev = JSON.stringify({ ep, from: num(b.from, 0, 23, 8), to: num(b.to, 0, 24, 23), max: num(b.max, 1, ALERTS_A_DAY, ALERTS_A_DAY) });
       if (req.method === "DELETE") await env.ISHAI.delete(key); else if ((await env.ISHAI.get(key)) !== dev) await env.ISHAI.put(key, dev);
       return json({ ok: true }, { "cache-control": "no-store" });
+    }
+    if (url.pathname === "/api/lecture") {
+      if (!await isDev(req, env)) return json({ error: "director only" }, {}, 403);
+      const c = courseOf(await loadState(env)), cur = c.queue[0];
+      return json({ title: cur.title, moments: lectureMoments(cur, c.queue[1]) || lectureMoments(firstLecture(), c.queue[1]) }, { "cache-control": "no-store" });
     }
     if (url.pathname === "/sandbox") {
       if (!await isDev(req, env)) return Response.redirect(url.origin + "/director", 302);
@@ -418,7 +433,7 @@ function publicState(s, dev) {
     studio: s.studio || null, show: s.show || null, call: s.call || null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
-    unlocked: s.unlocked,
+    unlocked: s.unlocked, course: coursePublic(s),
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [], barStations: s.world.barStations || [], cafeStations: s.world.cafeStations || [] } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
@@ -511,10 +526,12 @@ async function tick(env, force) {
   else if (now - (s.world.wxAt || s.world.at) > 15 * 60000) await refreshWeather(s, now);
 
   HOSTS_APART = !!env.GEMINI_API_KEY;
+  if (!force) try { await courseTick(env, s, now); } catch (e) { courseOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   geminiOutUntil = Math.max(geminiOutUntil, s.geminiOutUntil || 0);   // a pause set by another isolate still counts
   // director: activate the next goal, or force it if its deadline passed
   let goal = activeGoal(s, now);
   let ev = null;
+  if (goal && goal.course && now > deadlineOf(goal) && !(goal.step > 0)) { finishGoal(s, goal, "missed", now); goal = null; }   // a lecture he never reached moves to the next slot
   if (goal && now > deadlineOf(goal) && !(goal.step > 0)) {   // a planned scene already playing is not cut off
     ev = forcedEvent(goal, last, s); ev.src = "director goal (forced)";
     finishGoal(s, goal, "forced", now); ev.unlocks = goal.unlock || null;
@@ -787,7 +804,7 @@ newCharacter format: {"name":"...","role":"...","personality":"...","speech":"..
   const user =
 `Story time now: ${clock.label} (${TZ}).
 He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
-Plot notes: ${s.notes || "none"}
+Plot notes: ${s.notes || "none"}${courseNote(s, now, cw)}
 ${body}
 ${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
@@ -801,7 +818,7 @@ ${block ? `What happens in the next ${block} moments?` : "What happens next?"}`;
 
 // the hosts react to the moments the story just wrote (one call for a whole block)
 const CAMERA = { apartment: "his apartment", bathroom: "closed bathroom door", corridor: "the building hallway", street: "Herzl Street outside his building", shops: "the shops block of Herzl Street (sidewalk)",
-  park: "the park", cafe: "Cafe Nahat", gym: "Herzl Gym", bar: "The Black Candle bar", market: "Shuk Shalom market", store: "the Everything Else store", bus: "inside the bus, the city going past the windows", taxi: "the back seat of a taxi, the city going past the window", offscreen: "STATIC - no camera, he is out of coverage" };
+  park: "the park", cafe: "Cafe Nahat", gym: "Herzl Gym", bar: "The Black Candle bar", market: "Shuk Shalom market", store: "the Everything Else store", campus: "the courtyard of Tel Herzl University", classroom: "a lecture room at the university", bus: "inside the bus, the city going past the windows", taxi: "the back seat of a taxi, the city going past the window", offscreen: "STATIC - no camera, he is out of coverage" };
 async function addHosts(env, s, moments, clock, now) {
   try {
     const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : s.cast[id]?.name || id;
@@ -1010,6 +1027,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   if (ev.with && s.cast[ev.with]?.phoneOnly) { if (LOCATIONS[ev.location]?.includes("phoning")) ev.action = "phoning"; else ev.with = null; }
   // dialogue
   const who = x => { const k = str(x, 40).toLowerCase(); if (k === "ishai") return "ishai";
+    if (allowNoHosts && ev.action === "lecture" && STUDENT.test(k)) return k;  // the class speaks up, nameless, from their seats
     const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || "").toLowerCase() === k); return c ? ev.with : null; };
   ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: who(l?.who), say: str(l?.say, 200).replace(/^["']|["']$/g, "") }))
     .filter(l => l.who && l.say).slice(0, 14);
@@ -1055,10 +1073,12 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (ev.location === "gym" && last.location !== "gym" && (h >= 23 || h < 6)) return { ev, problem: "Herzl Gym is closed now (open 06:00-23:00)" };
     const wd = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(new Date(Date.now() + DELAY_MIN * 60000));
     const shut = (open, close) => wd === "Sat" || h < open || h >= (wd === "Fri" ? 14 : close);
+    if (ev.location === "campus" && last.location !== "campus" && last.location !== "classroom" && !allowNoHosts && (shut(8, 20) || wd === "Fri")) return { ev, problem: "the university is closed now (Sunday to Thursday, 08:00-20:00)" };
+    if (ev.location === "classroom" && !allowNoHosts) return { ev, problem: "the lecture room is only used during a lecture; he stays in the courtyard" };
     if (ev.location === "market" && last.location !== "market" && shut(7, 19)) return { ev, problem: "Shuk Shalom market is closed now (07:00-19:00, Friday until 14:00, closed on Shabbat)" };
     if (ev.location === "store" && last.location !== "store" && shut(9, 21)) return { ev, problem: "Everything Else is closed now (09:00-21:00, Friday until 14:00, closed on Shabbat)" }; }
   if (!LOCATIONS[ev.location]) return { ev, problem: `"${ev.location}" is not a known location` };
-  if (ev.action === "improv" && !allowNoHosts) ev.action = "talking";     // the class layout comes from the plan only
+  if ((ev.action === "improv" || ev.action === "lecture") && !allowNoHosts) ev.action = "talking";     // the class layouts come from the plan only
   if (!LOCATIONS[ev.location].includes(ev.action)) {
     const A = { waiting: "idle", sitting: "idle", standing: "idle", relaxing: "idle", resting: "idle", thinking: "idle", cleaning: "idle", tidying: "idle", washing: "idle", shopping: "idle", browsing: "idle", looking: "idle", lounging: "idle", stretching: "idle",
       typing: "working", coding: "working", designing: "working", emailing: "working", texting: "phoning", calling: "phoning", chatting: "talking", speaking: "talking", greeting: "talking",
@@ -1087,7 +1107,8 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   const vNow = Date.now() + DELAY_MIN * 60000;
   // an overdue scene must end with a real goodbye in this moment
   const saidBye = (last.lines || []).some(l => FAREWELL.test(l.say));
-  if (ev.with && s.scene && s.scene.w === ev.with && !saidBye && sceneOverdue(s.scene, vNow, s.stuck) && !ev.lines.some(l => FAREWELL.test(l.say))) {
+  const inClass = !!(goal && goal.course);   // a lecture runs to its end: nobody says good night halfway
+  if (ev.with && !inClass && s.scene && s.scene.w === ev.with && !saidBye && sceneOverdue(s.scene, vNow, s.stuck) && !ev.lines.some(l => FAREWELL.test(l.say))) {
     const nmW = s.cast[ev.with]?.name || ev.with;
     if (!allowNoHosts) return { ev, problem: `this moment ends the scene: finish the conversation with their goodbye (e.g. "Good night", "See you"), ${nmW} leaves` };
     ev.lines = [...ev.lines.slice(0, 10), { who: ev.with, say: "Okay, it's late. I should go. Good night, Ishai." }, { who: "ishai", say: "Good night. Thanks for coming." }];
@@ -1096,7 +1117,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   if (ev.with && s.gone && s.gone.w === ev.with && vNow < s.gone.until && !(goal && goal.with && String(goal.with).toLowerCase().includes(String(s.cast[ev.with]?.name || ev.with).toLowerCase()))) {
     ev.with = null; ev.lines = ev.lines.filter(l => l.who === "ishai").slice(0, 1);
   }
-  if (ev.with && s.scene && s.scene.leaving && s.scene.w === ev.with && (last.lines || []).some(l => FAREWELL.test(l.say))) {
+  if (ev.with && !inClass && s.scene && s.scene.leaving && s.scene.w === ev.with && (last.lines || []).some(l => FAREWELL.test(l.say))) {
     ev.with = null; ev.lines = ev.lines.filter(l => l.who === "ishai").slice(0, 1); if (ev.action === "talking") ev.action = "idle";
   }
   // "heads to the bathroom" must actually take him there, or the story loops on it forever
@@ -1104,7 +1125,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     ev.action = /shower/i.test(ev.text) ? "showering" : "bathroom"; ev.with = null;
   }
   // the story must move: a moment that retells one of the last few is sent back
-  if (!(ev.action === "sleeping" && last.action === "sleeping")) { const prevTexts = s.events.slice(-4).map(e => e.text);
+  if (!inClass && !(ev.action === "sleeping" && last.action === "sleeping")) { const prevTexts = s.events.slice(-4).map(e => e.text);
     const rep = prevTexts.find(p => similar(ev.text, p) >= 0.6);
     if (rep) { if (!allowNoHosts) return { ev, problem: `the narration repeats an earlier moment ("${rep.slice(0, 80)}"). Write what happens NEXT: a new action, a new topic, someone moves or leaves, time passes` };
       return { ev: null, problem: "repeat" }; } }   // still the same after a retry: drop it; the engine writes a different backup moment instead
@@ -1115,7 +1136,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   { const norm = t => String(t).toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
     const same = (x, y) => norm(x) === norm(y) || similar(x, y) >= 0.75;
     const seen = []; ev.lines = ev.lines.filter(l => { if (seen.some(x => same(x, l.say))) return false; seen.push(l.say); return true; });
-    const said = (s.talk || []).filter(m => !m.host).slice(-24).map(m => m.say);
+    const said = inClass ? [] : (s.talk || []).filter(m => !m.host).slice(-24).map(m => m.say);
     const reused = ev.lines.filter(l => said.some(p => same(p, l.say)));
     if (reused.length >= 2 && !allowNoHosts) return { ev, problem: `the dialogue repeats lines already said ("${reused[0].say.slice(0, 60)}"). Write NEW lines that move the conversation on, or let it end` };
     ev.lines = ev.lines.filter(l => !said.some(p => same(p, l.say)));
@@ -1162,11 +1183,11 @@ function cleanCard(c, s, loc) {
 function repair(ev, s, last) {
   let loc = LOCATIONS[ev.location] ? ev.location : last.location;
   if (loc !== last.location && !NEXT[last.location].includes(loc)) loc = last.location;
-  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : allowed(loc, s.unlocked);
+  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : allowed(loc, s.unlocked);
   const act = legal.includes(ev.action) ? ev.action : (legal.includes("idle") ? "idle" : legal[0]);
   const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with) && act !== "sleeping";
   return { ...ev, location: loc, action: act, with: ok ? ev.with : null,
-    lines: ok ? ev.lines : ev.lines.filter(l => l.who === "ishai"), update: ok ? ev.update : null, newCard: ok ? ev.newCard : null };
+    lines: ok ? ev.lines : ev.lines.filter(l => l.who === "ishai" || STUDENT.test(l.who)), update: ok ? ev.update : null, newCard: ok ? ev.newCard : null };
 }
 
 // moments written without the AI (sick day, backups): the hosts tell viewers what is happening, plus a fresh joke now and then
@@ -1243,12 +1264,13 @@ function sickEvent(s, last, hour) {
     { who: "zohar", say: "Rest up, Ishai. The whole country is whispering." },
     { who: "oren", say: "This is the most relaxing episode we have ever aired." }
   ];
-  const step = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", park: "street", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
+  const step = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   let ev;
   if (step) {
     const T = {
       street: ["Ishai looks pale. He heads back along Herzl Street toward home, slower than usual.", "He walks home along Herzl Street, one hand on his stomach."],
       market: ["Ishai looks pale among the market stalls. He gives up on the shopping and takes the bus home.", "He sits on the bus back from the market, eyes closed."],
+      campus: ["Ishai looks pale. He leaves the lecture room and goes out to the courtyard.", "He steps out into the courtyard for air, one hand on his stomach."],
       store: ["Ishai puts the basket down and walks out of the store, looking pale.", "He leaves Everything Else empty-handed, one hand on his stomach."],
       shops: ["Ishai leaves the café looking pale and walks slowly back along Herzl Street, past the flower shop.", "He heads home past the shops, one hand on his stomach."],
       corridor: ["Ishai climbs the stairs slowly and fishes for his keys, looking worn out.", "He leans on the wall in the hallway for a second, then unlocks the door."],
@@ -1290,9 +1312,9 @@ function sickEvent(s, last, hour) {
 }
 function fallback(last, hour, s) {
   const night = hour < 7 || hour >= 23;
-  const home = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", park: "street", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
+  const home = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   if (night && home) {
-    const T = { market: "He walks out of the store into the dark, empty market.", street: "Ishai heads back along Herzl Street toward home.", shops: "He walks back past the dark shop windows toward his building.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
+    const T = { campus: "He walks out into the dark courtyard.", market: "He walks out of the store into the dark, empty market.", street: "Ishai heads back along Herzl Street toward home.", shops: "He walks back past the dark shop windows toward his building.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
     return { location: home, action: home === "apartment" ? "idle" : "walking", text: T[home], with: null, lines: [] };
   }
   const P = {
@@ -1300,6 +1322,8 @@ function fallback(last, hour, s) {
       : [["apartment", "idle", "Ishai stares out the window, thinking about nothing in particular."], ["apartment", "working", "He opens the laptop and pretends to answer emails."], ["apartment", "reading", "He picks up a book, reads two pages, and checks his phone."], ["apartment", "drinking", "He pours a glass of water and waters Moshe the basil too."], ["apartment", "cooking", "He makes a quick omelette and eats it straight from the pan."]],
     corridor: [["corridor", "walking", "Ishai walks down the hallway, keys jingling."], ["apartment", "idle", "He lets himself back into the flat and drops his keys on the desk."], ["street", "walking", "He steps out of the building onto Herzl Street."]],
     street: [["street", "walking", "He walks along Herzl Street, dodging a scooter."], ["street", "idle", "He sits on the bus stop bench for a minute, watching the traffic."], ["street", "eating", "He buys a falafel at Avi's kiosk and eats it standing at the counter."], ["park", "walking", "He wanders into the little park and heads for the bench."], ["corridor", "walking", "He heads back into his building and up the stairs."]],
+    campus: [["campus", "idle", "Ishai reads the notices on the university board."], ["campus", "walking", "He crosses the courtyard, past students on the benches."], ["street", "walking", "He takes the bus back to Herzl Street."]],
+    classroom: [["campus", "walking", "He walks out of the lecture room into the courtyard."]],
     park: [["park", "idle", "Ishai watches the duck. The duck watches back."], ["park", "walking", "He does a slow lap around the pond."], ["street", "walking", "He leaves the park and walks back to Herzl Street."]],
     market: [["market", "walking", "Ishai weaves between the stalls, comparing tomato prices."], ["market", "drinking", "He buys a fresh orange juice at a stall and drinks it on the spot."],
       ["market", "eating", "He tears into a warm pita the baker hands him."], ["street", "walking", "He takes the bus back to Herzl Street, bags in both hands."]],
@@ -1366,6 +1390,9 @@ function travelEvent(s, last, hop, dest) {
     "street>market": `He takes the bus to Shuk Shalom market${umb}.`, "market>street": "He takes the bus back to Herzl Street, shopping bags on his knees.",
     "market>store": "He walks into Everything Else, the big store next to the market.", "store>market": "He walks out of Everything Else back into the market.",
     "street>offscreen": "He gets on the bus at the stop.", "offscreen>street": "He gets off the bus on Herzl Street.",
+    "street>campus": `He takes the bus to the university${umb}.`, "campus>street": "He takes the bus back to Herzl Street, his notebook on his knees.",
+    "offscreen>campus": "He gets off the bus at the university.", "bus>campus": "The bus drops him at the university.", "taxi>campus": "The taxi drops him at the university.",
+    "campus>classroom": "He walks into the lecture building.", "classroom>campus": "He walks out into the courtyard.",
     "offscreen>market": "He gets off the bus at Shuk Shalom.", "bus>market": "The bus drops him at Shuk Shalom.", "bus>street": "He gets off the bus on Herzl Street.", "taxi>market": "The taxi drops him at Shuk Shalom.", "taxi>street": "He pays the driver and gets out on Herzl Street." };
   const text = T[last.location + ">" + hop] || `Ishai heads toward the ${dest}.`;
   return { location: hop, action: hop === "offscreen" ? "away" : ["apartment", "cafe", "gym", "bar", "store", "bus", "taxi"].includes(hop) ? "idle" : "walking", text, with: null, lines: [], commentary: [], src: "on the way to the planned scene (no AI)" };
@@ -1374,6 +1401,8 @@ function scriptEvent(s, last, g, now) {
   const sc = g.script, i = g.step || 0; if (!sc || i >= sc.length) return null;
   const m = sc[i], to = LOCATIONS[m.location] ? m.location : (LOCATIONS[g.where] ? g.where : last.location);
   const busy = ["sleeping", "waking"].includes(last.action) || BATH_ACTIONS.includes(last.action) || (last.with && last.with !== String(m.with || "").toLowerCase());
+  if (i === 0 && busy && g.sceneAt && last.with && !BATH_ACTIONS.includes(last.action) && !["sleeping", "waking"].includes(last.action))   // a class has a fixed time: he excuses himself and goes
+    return { location: last.location, action: LOCATIONS[last.location].includes("idle") ? "idle" : last.action, text: "Ishai looks at the time and says he has to go.", with: null, lines: [{ who: "ishai", say: "Sorry, I have to run. I've got a class." }], commentary: [], src: "leaving for the planned scene (no AI)" };
   if (i === 0 && busy) return null;                                       // he finishes what he is doing first (the story wraps it up)
   if (to !== last.location && !NEXT[last.location].includes(to)) { const hop = pathStep(last.location, to); return hop ? travelEvent(s, last, hop, to) : null; }
   // a scene with a fixed start (a class): he gets close, then waits for the story clock (no AI)
@@ -1680,6 +1709,177 @@ async function sendAlerts(env, s) {
   return n;
 }
 
+// ---------- Strange But True: the history course (story/course.json holds the topics and the first lecture) ----------
+// Sunday, Tuesday and Wednesday at 11:00. Each lecture is written once by the AI, a day ahead, from the Wikipedia article(s), and then plays as a planned beat.
+const STUDENT = /^student[1-8]$/;
+const LECTURE_DAYS = [0, 2, 3], LECTURE_H = 11, PREP_MS = 30 * 3600000, LECTURE_MOMENTS = 7, MAX_SOURCE = 30000;
+const SHORT_WORDS = 1400, LONG_WORDS = 7000;   // under: two topics share a lecture; over: it is split in two
+const tzOffset = ms => { const p = new Intl.DateTimeFormat("en-US", { timeZone: TZ, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" }).formatToParts(new Date(ms)),
+  n = t => +p.find(x => x.type === t).value; return Date.UTC(n("year"), n("month") - 1, n("day"), n("hour"), n("minute")) - Math.floor(ms / 60000) * 60000; };
+function nextLectureAt(s, now) {
+  for (let k = 0; k < 14; k++) {
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now + k * 86400000)), [y, m, d] = day.split("-").map(Number);
+    if (!LECTURE_DAYS.includes(new Date(Date.UTC(y, m - 1, d)).getUTCDay()) || (s.world?.holidays || []).some(h => h.date === day)) continue;
+    const u = Date.UTC(y, m - 1, d, LECTURE_H), t = u - tzOffset(u);
+    if (t - 50 * 60000 > now) return t;
+  }
+  return now + 2 * 86400000;
+}
+const topicId = t => "t-" + String(t).toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+const allTopics = () => Object.entries(COURSE.strands).flatMap(([strand, list]) => list.map(wiki => ({ id: topicId(wiki), title: wiki.replace(/ \(.*\)$/, ""), wiki: [wiki], strand })));
+function firstLecture() { return { id: "t-first", title: COURSE.first.title, wiki: COURSE.first.wiki, strand: "Disasters", note: COURSE.first.note, script: COURSE.first.moments }; }
+function courseOf(s) {
+  if (!s.course) s.course = { queue: [firstLecture(), { id: topicId(COURSE.second.wiki[0]), ...COURSE.second }], used: [], memory: [], at: null, goalId: null, err: null, tries: 0, retryAt: 0, triviaAt: 0, strandAt: 0 };
+  const c = s.course; while (c.queue.length < 2) { const t = pickTopic(c); if (!t) break; c.queue.push(t); }
+  return c;
+}
+// the strands take turns, so a run of disasters never happens
+function pickTopic(c, sameStrand) {
+  const names = Object.keys(COURSE.strands), taken = new Set([...c.used, ...c.queue.map(q => q.id)]);
+  let pool = allTopics().filter(t => !taken.has(t.id)); if (!pool.length) { c.used = []; pool = allTopics().filter(t => !c.queue.some(q => q.id === t.id)); }
+  for (let i = 0; i < names.length; i++) {
+    const strand = sameStrand || names[(c.strandAt + i) % names.length], l = pool.filter(t => t.strand === strand);
+    if (l.length) { if (!sameStrand) c.strandAt = (names.indexOf(strand) + 1) % names.length; return l[Math.floor(Math.random() * l.length)]; }
+    if (sameStrand) sameStrand = null;
+  }
+  return pool[0] || null;
+}
+async function wikiText(title) {
+  const u = "https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&format=json&titles=" + encodeURIComponent(title);
+  const r = await fetch(u, { headers: { "user-agent": "WatchingIshai/1.0 (story website)" } });
+  if (!r.ok) throw new Error(`Wikipedia ${r.status} for ${title}`);
+  const page = Object.values((await r.json())?.query?.pages || {})[0], t = String(page?.extract || "");
+  if (t.length < 400) throw new Error(`no article for "${title}"`);
+  const end = t.search(/\n==+ *(See also|References|Notes|Footnotes|External links|Further reading|Bibliography|Sources|Citations) *==+/);
+  return end > 0 ? t.slice(0, end) : t;
+}
+const wordsOf = t => (String(t).match(/\S+/g) || []).length;
+const LECTURE_SYS = `You write one lecture of "Strange But True", a university history course in the TV story of Ishai, an ordinary man in Tel Aviv who attends it. Reply with ONLY JSON:
+{"note":"one surprising fact from the lecture that a person would repeat to a friend, one plain sentence, at most 140 characters","moments":[{"text":"one sentence saying what happens in this part","lines":[{"who":"dr","say":"..."}],"commentary":[{"who":"zohar","say":"..."}]}]}
+RULES
+- Exactly ${LECTURE_MOMENTS} moments, a break falls after the 3rd. Each moment has 11 to 13 lines. Each "say" is at most 130 characters. About 1500 spoken words in all.
+- "who" is "dr" (Dr. Sasson, the lecturer: dry, exact, ends a point with a quiet joke), "student" (someone in the class, no name) or "ishai" (a shy man, a little behind, honest).
+- About three lines in four are Dr. Sasson's. In each moment 1 or 2 lines are students' comments or questions, and Ishai speaks at most once. Vary who interrupts; Dr. Sasson never calls a student by name.
+- Moment 1 starts with Dr. Sasson naming today's title and one question the lecture will answer. Moment ${LECTURE_MOMENTS} answers it and ends with one question for the class. Do NOT announce the next lecture; that is added later.
+- Use ONLY facts from the SOURCE. Keep real names, dates and numbers, use metric units, say so when sources disagree, and mark a popular legend as a legend.
+- Stop joking when people died; speak of deaths with respect, and never joke about a victim, a child or a tragedy.
+- "commentary": the TV hosts zohar or oren, at most one short line, in at most 3 of the moments, about Ishai or the class, never about deaths. Empty list otherwise.
+- Plain speech only: no markdown, no stage directions, nothing about cameras or being filmed.`;
+const BREAKS = [
+  [["ishai", "Excuse me, did this machine just take my coin? It took my coin."], ["sasson", "It does that. I've been in a dispute with it since March."]],
+  [["ishai", "Is there anywhere to get a coffee here?"], ["sasson", "There is a machine. I wouldn't call what it makes a coffee."]],
+  [["ishai", "Are you allowed to eat in the lecture room?"], ["sasson", "No. Everyone does. I teach history, not law."]],
+  [["ishai", "Is it always this full?"], ["sasson", "No. Word gets around when somebody dies in an interesting way."]],
+  [["ishai", "Do you ever run out of these stories?"], ["sasson", "Not yet. People keep doing things."]]
+];
+// the moments as they will air: the lecture, the break in the courtyard, the announcement of the next one, and out to the bus stop
+function lectureMoments(cur, next) {
+  if (!cur || !cur.script) return null;
+  const parts = cur.script.map(m => ({ location: "classroom", action: "lecture", with: "sasson", text: m.text, lines: (m.lines || []).map(l => ({ ...l })), commentary: m.commentary || [] }));
+  const k = Math.min(parts.length, cur.id === "t-first" ? 4 : 3);   // the first lecture's two halves are its two floods
+  const seed = [...cur.id].reduce((a, c) => a + c.charCodeAt(0), 0), b = BREAKS[seed % BREAKS.length];
+  const brk = { location: "campus", action: "talking", with: "sasson", text: "The class takes a short break; Ishai goes out to the courtyard and Dr. Sasson stands by the vending machine.", lines: b.map(([who, say]) => ({ who, say })), commentary: [] };
+  const lastM = parts[parts.length - 1], nextT = next ? next.title : "to be announced";
+  if (cur.id !== "t-first") parts[k - 1].lines = [...parts[k - 1].lines.slice(0, 13), { who: "sasson", say: "That's enough for now. Take a short break." }];
+  lastM.lines = [...lastM.lines.slice(0, 13), { who: "sasson", say: `Next lecture is on the board: ${nextT}. Good afternoon, everyone.`.slice(0, 200) }];
+  return [...parts.slice(0, k), brk, ...parts.slice(k), { location: "campus", action: "walking", with: null, text: "The lecture is over. Ishai walks out into the courtyard with his notebook.", lines: [], commentary: [] }];
+}
+function cleanLecture(o) {
+  const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+  const seat = i => "student" + (1 + (i * 5 + 2) % 8); let n = 0;
+  const who = w => { const k = str(w, 12).toLowerCase(); return k === "ishai" ? "ishai" : k === "student" || STUDENT.test(k) ? seat(n++) : /^(dr|sasson|dr\.? sasson)$/.test(k) ? "sasson" : null; };
+  const moments = (Array.isArray(o?.moments) ? o.moments : []).filter(m => m && typeof m === "object").slice(0, LECTURE_MOMENTS).map(m => ({
+    text: str(m.text, 240).length > 8 ? str(m.text, 240) : "Dr. Sasson goes on with the lecture.",
+    lines: (Array.isArray(m.lines) ? m.lines : []).map(l => ({ who: who(l?.who), say: str(l?.say, 200) })).filter(l => l.who && l.say).slice(0, 14),
+    commentary: (Array.isArray(m.commentary) ? m.commentary : []).map(c => ({ who: str(c?.who, 8).toLowerCase(), say: str(c?.say, 160) })).filter(c => HOSTS[c.who] && c.say).slice(0, 1) })).filter(m => m.lines.length >= 4);
+  return moments.length >= 4 ? { note: str(o.note, 160), moments } : null;
+}
+async function generateLecture(env, s, cur) {
+  const c = courseOf(s); let source = (await Promise.all(cur.wiki.map(wikiText))).join("\n\n");
+  if (cur.part) source = source.slice(Math.floor(source.length * (cur.part - 1) / cur.of));
+  else if (wordsOf(source) > LONG_WORDS) {          // too much for one lecture: two parts, and the second one comes next
+    const base = cur.title; cur.of = 2; cur.part = 1; cur.title = base + ", Part 1";
+    c.queue.splice(1, 0, { id: cur.id + "-2", title: base + ", Part 2", wiki: cur.wiki, strand: cur.strand, part: 2, of: 2 });
+    source = source.slice(0, Math.floor(source.length / 2));
+  } else if (wordsOf(source) < SHORT_WORDS) {                        // too little: two topics of the same kind share the lecture
+    const t = pickTopic(c, cur.strand);
+    if (t) try { const more = await wikiText(t.wiki[0]);
+      if (wordsOf(more) < LONG_WORDS) { source += "\n\n" + more; cur.wiki = [...cur.wiki, t.wiki[0]]; cur.title = `${cur.title} and ${t.title}`; c.used = [...c.used, t.id]; } } catch (e) {}
+  }
+  source = source.slice(0, MAX_SOURCE);
+  const raw = await runModel(env, [{ role: "system", content: LECTURE_SYS }, { role: "user", content: `Today's title: ${cur.title}${cur.part ? ` (part ${cur.part} of ${cur.of})` : ""}\n\nSOURCE (Wikipedia):\n${source}` }], 6500);
+  const l = cleanLecture(parseAI(raw)); if (!l) throw new Error("the AI's lecture could not be used");
+  cur.script = l.moments; cur.note = l.note || null; cur.words = l.moments.reduce((n, m) => n + m.lines.reduce((k, x) => k + wordsOf(x.say), 0), 0); cur.at = Date.now();
+}
+function unscheduleLecture(s) {
+  const c = courseOf(s), g = s.director.find(d => d.id === c.goalId && d.status === "waiting");
+  if (g) { g.status = "done"; g.how = "rescheduled"; g.doneAt = Date.now(); delete g.script; c.goalId = null; }
+}
+function scheduleLecture(s, now) {
+  const c = courseOf(s), cur = c.queue[0], t = c.at, moments = lectureMoments(cur, c.queue[1]); if (!moments) return;
+  const id = "lecture-" + t.toString(36);
+  const g = newGoal({ id, goal: `Ishai goes to his history lecture: ${cur.title}.`, startAt: new Date(t - 32 * 60000).toISOString(), sceneAt: new Date(t - 2 * 60000).toISOString(), deadlineAt: new Date(t + 15 * 60000).toISOString(), location: "classroom", with: "Dr. Sasson", forceWith: "sasson" }, now);
+  g.id = id; g.course = true; g.script = cleanScript(moments, 9); s.director = s.director.filter(d => d.id !== id || d.status !== "done"); s.director.push(g); c.goalId = id;
+}
+function courseFinished(s, now) {
+  const c = courseOf(s), cur = c.queue.shift();
+  c.used = [...c.used, cur.id].slice(-90);
+  if (cur.note) c.memory = [...(c.memory || []), { title: cur.title, note: cur.note, at: now, offered: 0 }].slice(-10);   // he remembers one thing from each of the last 10 topics
+  c.goalId = null; c.at = null; c.err = null; c.tries = 0; courseOf(s);
+}
+async function courseTick(env, s, now) {
+  const c = courseOf(s), g = c.goalId ? s.director.find(d => d.id === c.goalId) : null;
+  if (g && g.status === "done") {
+    if (g.how === "script" || g.how === "story") courseFinished(s, now);
+    else { c.goalId = null; c.at = null; }                      // missed or moved: the same lecture takes the next slot
+  }
+  if (!c.at || (!c.goalId && c.at - 50 * 60000 <= now)) c.at = nextLectureAt(s, now);
+  const cur = c.queue[0];
+  if (!cur.script && c.at - now < PREP_MS && now >= (c.retryAt || 0) && now >= (s.aiOutUntil || 0)) {
+    try { await generateLecture(env, s, cur); c.err = null; c.tries = 0; }
+    catch (e) { c.tries = (c.tries || 0) + 1; c.retryAt = now + 3600000; c.err = { at: now, msg: String(e && e.message || e).slice(0, 200) };
+      if (/no article/.test(c.err.msg) && !cur.part) { c.used = [...c.used, cur.id]; c.queue.shift(); courseOf(s); } }   // a topic Wikipedia doesn't have: the next one takes its place
+  }
+  if (c.queue[0].script && !c.goalId) scheduleLecture(s, now);
+}
+async function courseAction(env, s, b, now) {
+  const c = courseOf(s), slot = b.slot === 1 ? 1 : 0, live = s.director.find(d => d.id === c.goalId && d.status === "active" && d.step > 0);
+  if (slot === 0 && live) return "that lecture has already started";
+  if (b.action === "courseSet" || b.action === "courseNew") {
+    let t;
+    if (b.action === "courseNew") t = pickTopic(c);
+    else { const title = String(b.title || "").replace(/\s+/g, " ").trim().slice(0, 90); if (title.length < 3) return "write a topic first";
+      try { await wikiText(title); } catch (e) { return `Wikipedia has no article called "${title}" (use its exact title)`; }
+      t = { id: topicId(title) + "-" + now.toString(36), title: title.replace(/ \(.*\)$/, ""), wiki: [title], strand: "Director's choice" }; }
+    if (!t) return "no topics left";
+    unscheduleLecture(s); if (c.queue[slot] && c.queue[slot].part === 1) c.queue.splice(slot + 1, 1); c.queue[slot] = t; c.retryAt = 0; c.tries = 0; c.err = null; courseOf(s);
+  } else if (b.action === "courseGen") {
+    const cur = c.queue[slot]; delete cur.script; delete cur.note; unscheduleLecture(s); c.err = null;
+    try { await generateLecture(env, s, cur); } catch (e) { c.err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; return "the lecture could not be written: " + c.err.msg; }
+  } else return "unknown course action";
+  if (!c.at) c.at = nextLectureAt(s, now);
+  if (c.queue[0].script && !c.goalId) scheduleLecture(s, now);
+  return null;
+}
+const coursePublic = s => { const c = s.course; return c && c.queue[0] ? { name: COURSE.name, title: c.queue[0].title, next: c.queue[1]?.title || null, at: c.at || null } : { name: COURSE.name, title: COURSE.first.title, next: COURSE.second.title, at: null }; };
+const courseHealth = s => { const c = s.course; return c ? { at: c.at, title: c.queue[0]?.title, ready: !!c.queue[0]?.script, next: c.queue[1]?.title || null, memory: (c.memory || []).length, err: c.err || null } : null; };
+const courseDirector = s => { const c = courseOf(s); return { name: COURSE.name, at: c.at, err: c.err || null, goal: c.goalId, topics: allTopics().map(t => t.wiki[0]),
+  queue: c.queue.slice(0, 2).map(q => ({ title: q.title, strand: q.strand, wiki: q.wiki, note: q.note || null, words: q.words || null, ready: !!q.script, moments: q.script ? lectureMoments(q, c.queue[c.queue.indexOf(q) + 1]) : null })),
+  memory: (c.memory || []).map(m => ({ title: m.title, note: m.note })) }; };
+// what Ishai knows: the next lecture, and now and then one thing he learned. At most one offer a day, only with company, each fact at most twice.
+function courseNote(s, now, company) {
+  const c = s.course; if (!c || !c.queue[0]) return "";
+  const when = c.at ? new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "long", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(c.at)) : "";
+  let out = `\nIshai studies history part time (Strange But True, Tel Herzl University).${when ? ` Next lecture: ${when}, "${c.queue[0].title}".` : ""} He rarely talks about it.`;
+  const fresh = (c.memory || []).filter(m => (m.offered || 0) < 2);
+  if (company && fresh.length && now - (c.triviaAt || 0) > 20 * 3600000 && Math.random() < .2) {
+    const m = fresh[Math.floor(Math.random() * fresh.length)]; m.offered = (m.offered || 0) + 1; c.triviaAt = now;
+    out += ` If, and only if, it fits this conversation naturally, he may share this once, in his own words, as something from class: "${m.note}". Otherwise ignore it.`;
+  }
+  return out;
+}
+
+
 // ---------- director ----------
 function newGoal(d, now) {
   const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -1698,9 +1898,9 @@ function newGoal(d, now) {
   };
 }
 // a planned beat's moments, played as written when the beat starts (the daily planner writes them)
-function cleanScript(a) {
+function cleanScript(a, cap = 8) {
   if (!Array.isArray(a)) return null;
-  const sc = a.filter(m => m && typeof m === "object" && String(m.text || "").length > 8).slice(0, 8)
+  const sc = a.filter(m => m && typeof m === "object" && String(m.text || "").length > 8).slice(0, cap)
     .map(m => ({ location: m.location, action: m.action, with: m.with || null, text: String(m.text).slice(0, 260),
       lines: Array.isArray(m.lines) ? m.lines.slice(0, 14) : [], commentary: Array.isArray(m.commentary) ? m.commentary.slice(0, 2) : [],
       delivery: m.delivery === true || undefined, message: m.message && typeof m.message === "object" ? m.message : undefined }));
@@ -1708,6 +1908,8 @@ function cleanScript(a) {
 }
 function activeGoal(s, now) {
   let g = s.director.find(d => d.status === "active");
+  const lec = s.director.find(d => d.course && d.status === "waiting" && d.startAfter <= now);   // a lecture has a fixed time: a beat that has not begun waits for it
+  if (lec && (!g || !(g.step > 0))) { if (g) g.status = "waiting"; lec.status = "active"; lec.activatedAt = now; return lec; }
   if (!g) {
     g = s.director.filter(d => d.status === "waiting" && d.startAfter <= now).sort((a, b) => a.startAfter - b.startAfter)[0];
     if (g) { g.status = "active"; g.activatedAt = now; }
@@ -1780,6 +1982,8 @@ async function directorApi(req, env) {
     } else if (b.action === "cancel") {
       const g = s.director.find(d => d.id === b.id && d.status !== "done");
       if (g) { g.status = "done"; g.how = "cancelled"; g.doneAt = now; }
+    } else if (String(b.action || "").startsWith("course")) {
+      const r = await courseAction(env, s, b, now); if (r) return json({ error: r }, {}, 400);
     } else if (b.action === "testAlert") {
       s.alert = { title: "Watching Ishai", body: "This is a test alert from the director.", at: now, test: true }; s.alertSend = { cursor: null, sent: 0 };
       const sent = await sendAlerts(env, s); await saveState(env, s); return json({ ok: true, sent });
@@ -1793,7 +1997,7 @@ async function directorApi(req, env) {
 }
 function directorView(s, bugs) {
   const last = s.events[s.events.length - 1];
-  return { bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
+  return { course: courseDirector(s), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse(), lastError: s.lastError || null,
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t } };

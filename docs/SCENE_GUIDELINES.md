@@ -30,6 +30,10 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 | Street | bus stop (128) | Off camera | — by bus (day) or taxi (night / rain) |
 | Street, Market | bus stop (128) | Bus (CAM-12) or Taxi (CAM-13) | seated, after the camera switch |
 | Bus, Taxi | a stop | Street, Market (bus stop 128) or Off camera | the vehicle pulls in and he steps off |
+| Street | bus stop (128) | University courtyard | its own bus stop (128) — by bus (day) or taxi (night / rain) |
+| University courtyard | bus stop (128) | Street | bus stop (128) |
+| University courtyard | lecture building doors (60) | Lecture room | door (right edge) |
+| Lecture room | door (right edge) | University courtyard | lecture building doors (60) |
 | Street | Herzl Gym door (64, blue building) | Gym | door (4, left) |
 | Gym | door (4) | Street | Herzl Gym door (64) |
 | Street | The Black Candle door (101, next to the bench) | Bar | door (4, left) |
@@ -123,6 +127,10 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 
 ## 9d. Improv class
 - The action `improv` (planned beats only) sets The Black Candle up for the class (`barLesson()`, `improvRoom()`): the table against the wall, six muted classmates on folding chairs in a half circle, Ishai and Yael standing on the cleared floor. The chairs stay until he has left, and the last moment plays outside, so nobody sees the room change. Preview: `?loc=bar&pose=improv&with=yael`.
+
+## 9e. University
+- Tel Herzl University (CAM-17, `campus`): stone building, doors at 60, the moving sign with the next lectures, a notice board, the Cooola vending machine (the break happens here), a bench, its own bus stop at 128. Open Sunday to Thursday 08:00-20:00.
+- The lecture room (CAM-18, `classroom`, door on the right): the blackboard shows TODAY and NEXT from `COURSE`, Dr. Sasson stands by it, and ten muted classmates sit in two rows, `student1`-`student8` with speech bubbles. Ishai's seat is in the front row (`SEAT`). The action `lecture` comes from planned moments only, and the class stays seated through the break (`classOn()`). Preview: `?loc=classroom&pose=lecture&with=sasson`.
 
 ## 10. Fidgets and idle life
 - Seated activities (working, gaming, reading, watching) never pop up for an errand: small breaks happen in the seat (`seatFid()`: a yawning stretch, a sip, rubbing eyes). Errands are for standing/idle moments only.

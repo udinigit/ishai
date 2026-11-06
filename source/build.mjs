@@ -9,5 +9,7 @@ const builder = fs.readFileSync('public/builder.html','utf8');
 const sw = fs.readFileSync('public/sw.js','utf8');
 const plan = fs.existsSync('../story/plan.json') ? fs.readFileSync('../story/plan.json','utf8') : '{}';
 JSON.parse(plan); // fail the build early if the plan is not valid JSON
-fs.writeFileSync('../src/index.js', tpl.replace('__BUILD__', BUILD).replace('__HTML__', () => JSON.stringify(html)).replace('__DIRECTOR_HTML__', () => JSON.stringify(dir)).replace('__SANDBOX_HTML__', () => JSON.stringify(sandbox)).replace('__BUILDER_HTML__', () => JSON.stringify(builder)).replace('__SW_JS__', () => JSON.stringify(sw)).replace('__PLAN__', () => plan));
+const course = fs.readFileSync('../story/course.json','utf8');
+JSON.parse(course);
+fs.writeFileSync('../src/index.js', tpl.replace('__BUILD__', BUILD).replace('__HTML__', () => JSON.stringify(html)).replace('__DIRECTOR_HTML__', () => JSON.stringify(dir)).replace('__SANDBOX_HTML__', () => JSON.stringify(sandbox)).replace('__BUILDER_HTML__', () => JSON.stringify(builder)).replace('__SW_JS__', () => JSON.stringify(sw)).replace('__PLAN__', () => plan).replace('__COURSE__', () => course));
 console.log('built', fs.statSync('../src/index.js').size, 'bytes');
