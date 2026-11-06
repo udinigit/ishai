@@ -35,6 +35,7 @@ You (the director) can edit anything here; changes go live with the next deploy.
 Done: the TV (Nov 1) and Mrs. Levi's radio (Nov 3) both arrived.
 
 ## Already scheduled — plan around these, do not overlap or move them
+- Viewers' polls: goals named `poll-…` are what viewers voted for (small things other people do to Ishai). Keep them: do not cancel, move or overlap them, and do not write beats about votes.
 - Every Sunday, Tuesday and Wednesday, 11:00 — Ishai's history lecture at Tel Herzl University. The engine schedules it by itself: write NO beat for it, and keep him free from 10:25 to 11:50.
 - Sun Nov 8, evening — Tomer comes with a ladder to fix the flickering hallway light (promised Sat Nov 7).
 - Mon Nov 9 — Sigd (Ethiopian Jewish holiday); a mention at most.

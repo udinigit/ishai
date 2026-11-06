@@ -11,3 +11,4 @@ Ideas and requests from the director. Newest at the bottom; mark done with the v
 - [x] A history course: Tel Herzl University by bus, a lecture room, Dr. Sasson, nameless students who speak up, 96 topics, 45-minute lectures from Wikipedia, the next topic on the board, director controls, and a remembered fact from each of the last 10 topics. — v144
 - [x] Hosts describe what viewers can't read (travel, waiting) and fill silences; rare overheard captions from passers-by; planned scenes update memory; the story writer gets the summaries and arcs. — v144
 - [x] Ambient layer: weekly city timetable with sound, building chat, daily texture pack from the planner. — v147
+- [x] Viewers' polls every hour: anonymous, 60 seconds, percentages with the winner highlighted; the winner plays out an hour or more later. — v148

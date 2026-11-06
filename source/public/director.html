@@ -55,6 +55,15 @@
     </div>
 
     <div class="box">
+      <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Viewers' polls</span>
+        <span><button id="pollBank" class="ghost">Use a stock poll</button> <button id="pollSkip" class="ghost">Skip this poll</button> <button id="pollsOff" class="ghost">Turn polls off</button></span></div>
+      <div id="pollNow" style="margin-top:6px">—</div>
+      <div id="pollErr" class="muted" style="font-size:16px"></div>
+      <div id="pollLog" style="margin-top:6px"></div>
+      <div class="muted" style="font-size:16px">One poll an hour, opening at hh:20 (08:20-20:20, not on Shabbat) for 60 seconds. The winner becomes a goal named poll-… that starts an hour or more later, in a free gap. Skip and stock work only before the poll opens.</div>
+    </div>
+
+    <div class="box">
       <div style="font-size:24px">New story goal</div>
       <label for="goal">What should happen (the AI works it in naturally)</label>
       <textarea id="goal" placeholder="Example: Mrs. Levi's cat goes missing. Ishai helps search the building and the park. They find it in the café."></textarea>
@@ -136,8 +145,23 @@
     const msg = $('courseMsg'); msg.className = ''; msg.textContent = busy;
     try { body.slot = +$('courseSlot').value; render(await api(body)); msg.textContent = 'Done.'; } catch(e){ msg.className = 'err'; msg.textContent = e.message; }
   }
+  function renderPolls(p){
+    if (!p) return;
+    const hm = t => new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Jerusalem', weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false}).format(new Date(t));
+    const n = p.now, el = $('pollNow'); el.textContent = '';
+    if (!n) el.textContent = p.off ? 'Polls are off.' : 'No poll right now.';
+    else { const h = document.createElement('div'); h.textContent = `${hm(n.opensAt)} · ${n.question} (${n.bank ? 'stock: ' + n.bank : 'written by the AI'})${n.done ? ' · closed' : ''}`; el.appendChild(h);
+      n.options.forEach((o, i) => { const d = document.createElement('div'); d.className = 'muted'; d.style.fontSize = '16px';
+        const res = n.result && n.result.total ? ` · ${Math.round(100 * n.result.counts[i] / n.result.total)}%${n.result.winner === i ? ' ★' : ''}` : '';
+        d.textContent = `• ${o.label} — ${o.kind}${o.where ? ' at ' + o.where : ''}${o.who && o.kind !== 'none' ? ', ' + o.who : ''}${res}${o.goal ? ': ' + o.goal : ''}`; el.appendChild(d); }); }
+    $('pollsOff').textContent = p.off ? 'Turn polls on' : 'Turn polls off'; $('pollsOff').onclick = async () => render(await api({action:'pollsOff', off: !p.off}));
+    $('pollErr').textContent = p.err ? `Last check (${hm(p.err.at)}): ${p.err.why.join('; ')}` : '';
+    const lg = $('pollLog'); lg.textContent = '';
+    p.log.forEach(x => { const d = document.createElement('div'); d.style.fontSize = '16px';
+      d.textContent = `${x.question} → ${x.winner ? x.winner + ' (' + x.pct + '% of ' + x.total + ')' : 'no votes'}${x.goal ? ' · goal ' + x.goal + (x.at ? ' at ' + hm(x.at) : '') : ''}`; lg.appendChild(d); });
+  }
   function render(v){
-    renderCourse(v.course);
+    renderCourse(v.course); renderPolls(v.polls);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('last').textContent = v.last ? `${fmt(v.last.created)} (${v.last.location}/${v.last.action}) ${v.last.text}` : '—';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';
@@ -199,6 +223,8 @@
       el.appendChild(d);
     });
   }
+  $('pollSkip').onclick = async () => { if (!confirm('Skip the coming poll? This hour will have none.')) return; render(await api({action:'pollSkip'})); };
+  $('pollBank').onclick = async () => render(await api({action:'pollBank'}));
   $('courseSet').onclick = () => courseDo({action:'courseSet', title:$('courseTopic').value}, 'Checking Wikipedia...');
   $('courseNew').onclick = () => courseDo({action:'courseNew'}, 'Picking...');
   $('courseGen').onclick = () => courseDo({action:'courseGen'}, 'Writing the lecture, this takes up to a minute...');

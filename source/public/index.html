@@ -82,6 +82,25 @@
   .chatC{position:absolute;z-index:3;right:6px;top:26px;max-width:52%;pointer-events:none;padding:2px 7px 3px;background:rgba(10,40,24,.9);border:1px solid #3e8f5c;border-radius:6px;color:#d6f5e0;font-size:clamp(10px,2.6vw,14px);line-height:1.15}
   .chatC small{display:block;font-size:.72em;letter-spacing:1px;color:#7fcf9c}
   .chatC b{font-weight:normal;color:#ffd36a}
+  /* viewers' poll: a card under the picture */
+  .pollC{border:2px solid var(--amber);border-radius:10px;background:#0d0a03;padding:8px 10px 9px;color:#ffe2ad;font-size:clamp(15px,3.9vw,20px);line-height:1.15}
+  .pollH{display:flex;justify-content:space-between;gap:8px;color:var(--amber);letter-spacing:1px;font-size:.85em}
+  .pollH b{font-weight:normal;color:#fff3d6}
+  .pollQ{margin:4px 0 7px;font-size:1.15em;color:#fff3d6}
+  .pollO{display:grid;gap:6px}
+  .pollB{font:inherit;position:relative;display:flex;justify-content:space-between;gap:10px;align-items:center;width:100%;min-height:2em;padding:3px 10px;text-align:left;cursor:pointer;
+    background:#1a1405;color:#ffe2ad;border:1px solid #6b5420;border-radius:6px;overflow:hidden}
+  .pollB:not(:disabled):hover,.pollB:not(:disabled):focus-visible{border-color:var(--amber);background:#2a1f07;outline:none}
+  .pollB:disabled{cursor:default}
+  .pollB.wait{opacity:.55}
+  .pollB .fill{position:absolute;left:0;top:0;bottom:0;background:rgba(255,184,77,.18);transition:width .8s}
+  .pollB span{position:relative}
+  .pollB .pct{color:var(--amber);flex:none}
+  .pollB.mine{border-color:#cfa44d}
+  .pollB.win{border:2px solid var(--amber);color:#fff;box-shadow:0 0 10px rgba(255,184,77,.45)}
+  .pollB.win .fill{background:rgba(255,184,77,.38)}
+  .pollB.lose{opacity:.7}
+  .pollF{margin-top:6px;font-size:.8em;color:#c9a96a}
   .over small{display:block;font-style:normal;font-size:.72em;letter-spacing:1px;text-transform:uppercase;opacity:.65}
   .say b{font-weight:normal;margin-right:5px;font-size:.85em;letter-spacing:.5px}
   .say.edge::after{display:none}
@@ -210,6 +229,8 @@
     <div class="nosig" id="nosig"><span id="nosigText">[ SUBJECT NOT IN FRAME ]</span></div>
     <div class="hud bot"><span id="place">ISHAI // APARTMENT</span><span id="hudAction">--</span></div>
   </div>
+
+  <div class="pollC" id="pollC" hidden><div class="pollH"><span>🗳 VIEWERS' VOTE</span><b id="pollT"></b></div><div class="pollQ" id="pollQ"></div><div class="pollO" id="pollO"></div><div class="pollF" id="pollF" aria-live="polite"></div></div>
 
   <div class="status">
     <div class="info">
@@ -3616,6 +3637,8 @@
       call(lines){ if (!callOn) playCall({id: 'sb-call' + (++n), t: NOW(), caller: {name: 'Test caller', from: 'Sandbox'}, lines}, NOW()); },
       hostFill: () => hostFill(true), overhear: () => overhear(true), city: id => cityTick(CITY.find(e => e.id === id) || CITY[0]), chat: () => { const c = CHAT_STOCK[Math.floor(NOW() / 1000) % CHAT_STOCK.length]; showChat(c[0], c[1]); },
       texture: x => { TEXTURE = x; },
+      poll(o){ const t = NOW(), id = 'sb-poll-' + (++n); POLL = {id, sandbox: true, question: o.question || 'How will Avi make Ishai\'s next falafel?', options: o.options || ['Extremely spicy', 'Drowning in tahini', 'Just the usual'],
+        opensAt: t + (o.inSec ?? 5) * 1000, closesAt: t + ((o.inSec ?? 5) + 60) * 1000, result: null}; if (o.result){ POLL.opensAt = t - 70000; POLL.closesAt = t - 10000; POLL.result = pollFake(POLL); } pollSig = ''; },
       fillLine: slot => hostFillLine(slot), sfx: k => Sound.sfx(k),
       recap(lines){ if (!studioOn) playStudio({id: 'sb-st' + (++n), t: NOW(), lines}, NOW()); },
       show(lines){ if (showOn) return; SHOW = {id: 'sb-sh' + (++n), t: NOW(), lines}; playShow(); SHOW = null; },
@@ -3991,6 +4014,76 @@
     setTimeout(go, 1500);
   }
   let loaded = false, fails = 0;
+  // ================= viewers' poll =================
+  // The worker writes one poll an hour (opens hh:20 for 60 s). Times are the server's (NOW()), so the card opens and closes for everyone together.
+  // Anyone can vote once per browser; the result shows percentages with the winner highlighted, and the story plays it out an hour or more later.
+  let POLL = null, pollSig = '', pollFetch = 0, pollTries = 0, pollPinged = '', pollMsg = '';
+  const POLL_SOON = 20 * 60000, POLL_KEEP = 10 * 60000;
+  const pollVoter = (() => { const mk = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16)));
+    try { let v = localStorage.getItem('ishaiVoter'); if (!v){ v = mk(); localStorage.setItem('ishaiVoter', v); } return v; } catch(e){ return mk(); } })();
+  const MYVOTES = (() => { try { return JSON.parse(localStorage.getItem('ishaiVotes')) || {}; } catch(e){ return {}; } })();
+  const keepVote = (id, i) => { MYVOTES[id] = i; try { const k = Object.keys(MYVOTES).slice(-30), o = {}; k.forEach(x => o[x] = MYVOTES[x]); localStorage.setItem('ishaiVotes', JSON.stringify(o)); } catch(e){} };
+  const forgetVote = id => { delete MYVOTES[id]; try { localStorage.setItem('ishaiVotes', JSON.stringify(MYVOTES)); } catch(e){} };
+  function setPoll(p){
+    if (!p){ if (POLL && !POLL.sandbox) POLL = null; return; }
+    if (POLL && POLL.id === p.id){ if (p.result && !POLL.result) POLL.result = p.result; return; }
+    POLL = {...p}; pollTries = 0; pollFetch = 0; pollMsg = '';
+  }
+  const mmss = ms => { const t = Math.max(0, Math.ceil(ms / 1000)); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
+  function pollFake(p){   // the sandbox counts its own pretend votes
+    const counts = p.options.map((_, i) => 3 + (strHash(p.id + i) % 9)); if (MYVOTES[p.id] != null) counts[MYVOTES[p.id]]++;
+    const top = Math.max(...counts), total = counts.reduce((a, b) => a + b, 0); return {counts, total, winner: counts.indexOf(top)};
+  }
+  async function pollGetResult(p){
+    if (p.sandbox){ p.result = pollFake(p); return; }
+    pollTries++;
+    try { const r = await (await fetch('/api/poll?id=' + encodeURIComponent(p.id), {cache: 'no-store'})).json();
+      if (r.poll && r.poll.result && POLL && POLL.id === p.id) POLL.result = r.poll.result; } catch(e){}
+  }
+  async function pollVote(i){
+    const p = POLL; if (!p || MYVOTES[p.id] != null) return;
+    keepVote(p.id, i); pollMsg = 'Sending your vote…'; pollSig = ''; pollTick();
+    if (p.sandbox){ pollMsg = 'Vote counted (sandbox: nothing is sent). Results when the minute is up.'; pollSig = ''; return; }
+    try { const r = await fetch('/api/vote', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({poll: p.id, opt: i, voter: pollVoter})});
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) pollMsg = j.counted === false ? 'You already voted in this one.' : 'Vote counted. Results when the minute is up.';
+      else { pollMsg = j.error ? j.error.charAt(0).toUpperCase() + j.error.slice(1) + '.' : 'That did not work.'; if (r.status !== 429) forgetVote(p.id); }
+    } catch(e){ pollMsg = 'No connection, try again.'; forgetVote(p.id); }
+    pollSig = ''; pollTick();
+  }
+  function pollTick(){
+    const card = $('pollC'), p = POLL, now = NOW();
+    if (!p || PREVIEW || BUILDER || (demoMode && !p.sandbox) || now < p.opensAt - POLL_SOON || now > p.closesAt + POLL_KEEP){ if (!card.hidden){ card.hidden = true; pollSig = ''; } return; }
+    const phase = now < p.opensAt ? 'soon' : now <= p.closesAt ? 'open' : p.result ? 'done' : 'count', mine = MYVOTES[p.id];
+    if (phase === 'count' && now > p.closesAt + 6000 && now >= pollFetch && pollTries < 15){ pollFetch = now + 4000; pollGetResult(p); }
+    if (phase === 'open' && pollPinged !== p.id){ pollPinged = p.id; if (now - p.opensAt < 3000) Sound.sfx('ping'); }
+    $('pollT').textContent = phase === 'soon' ? 'OPENS IN ' + mmss(p.opensAt - now) : phase === 'open' ? mmss(p.closesAt - now) + ' LEFT' : phase === 'count' ? 'CLOSED' : 'RESULT';
+    const sig = p.id + phase + mine + pollMsg;
+    if (sig === pollSig) return;
+    pollSig = sig; card.hidden = false;
+    $('pollQ').textContent = p.question;
+    const box = $('pollO'); box.textContent = '';
+    const r = p.result, total = r ? r.total : 0;
+    p.options.forEach((label, i) => {
+      const b = document.createElement('button'); b.className = 'pollB'; b.type = 'button';
+      const t = document.createElement('span'); t.textContent = label; b.appendChild(t);
+      if (phase === 'done' && total){
+        const pct = Math.round(100 * r.counts[i] / total), f = document.createElement('i'); f.className = 'fill'; f.style.width = pct + '%'; b.prepend(f);
+        const n = document.createElement('span'); n.className = 'pct'; n.textContent = (i === r.winner ? '★ ' : '') + pct + '%'; b.appendChild(n);
+        b.classList.add(i === r.winner ? 'win' : 'lose');
+      } else if (mine === i){ const n = document.createElement('span'); n.className = 'pct'; n.textContent = '✓ YOUR VOTE'; b.appendChild(n); }
+      if (mine === i) b.classList.add('mine');
+      if (phase !== 'open' || mine != null) b.disabled = true;
+      if (phase === 'soon') b.classList.add('wait');
+      b.onclick = () => pollVote(i);
+      box.appendChild(b);
+    });
+    $('pollF').textContent = phase === 'soon' ? 'Anyone can vote once. You get 60 seconds.' : phase === 'open' ? (pollMsg || 'Tap your pick. One vote each.')
+      : phase === 'count' ? 'Counting the votes…' : !total ? 'No votes this time, so nothing changes.'
+      : `${total} vote${total === 1 ? '' : 's'}.` + (r.tie ? ' A tie, settled by the studio coin.' : '') + ' It plays out in the story later today.';
+  }
+  setInterval(pollTick, 250);
+
   async function poll(){
     let s;
     try{
@@ -4017,6 +4110,7 @@
       if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;
       if (s.course) COURSE = s.course;
+      if ('poll' in s) setPoll(s.poll);
       if (s.summary) SUMMARY = s.summary;
       if (s.summary || s.course) renderSummary();
       if (s.world) { WORLD = s.world; $('stNext').textContent = weatherLabel(); }

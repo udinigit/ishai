@@ -10,6 +10,12 @@ binding = "AI"
 binding = "ISHAI"
 id = "62778efab6dc475ba095345c03d64fc2"
 
+# viewers' polls: one vote per browser per poll (see CLAUDE.md, "Viewers' polls")
+[[d1_databases]]
+binding = "DB"
+database_name = "ishai-polls"
+database_id = "7ec762a4-f13b-4409-a290-6b52a4ab29fe"
+
 [triggers]
 crons = ["*/6 * * * *"]
 

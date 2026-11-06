@@ -301,7 +301,8 @@ export default {
         usage: s.usage ? { ...s.usage, neuronsEst: Math.round(s.usage.inTok * 4625 / 1e6 + s.usage.outTok * 30475 / 1e6) } : null,
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
-        writers: s.events.slice(-10).map(e => e.src || "?") }, { "cache-control": "no-store" });
+        writers: s.events.slice(-10).map(e => e.src || "?"),
+        polls: { db: !!env.DB, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3) } }, { "cache-control": "no-store" });
     }
     // quick story fix for the scheduled health check: /api/fix?token=...&endScene=1&note=...&minutes=45
     if (url.pathname === "/api/fix") {
@@ -318,6 +319,14 @@ export default {
       return json({ ok: true, done, stuck: s.stuck || 0, note: s.fixNote || null }, { "cache-control": "no-store" });
     }
     // the planned day, for the preview player (/?preview)
+    if (url.pathname === "/api/vote" && req.method === "POST") return pollVote(req, env);
+    if (url.pathname === "/api/poll") {   // the current poll and, once it has closed, its result
+      const s = await loadState(env), p = s.poll, id = url.searchParams.get("id");
+      if (!p || (id && id !== p.id)) { const old = (s.pollLog || []).find(x => x.id === id); return json({ poll: null, old: old || null }, { "cache-control": "no-store" }); }
+      let result = p.result || null;
+      if (!result && Date.now() > p.closesAt + 5000 && env.DB) try { result = await pollResult(env, p); } catch (e) { return json({ error: "counting failed, try again" }, {}, 503); }
+      return json({ poll: { ...pollPublic(p), result } }, { "cache-control": "no-store" });
+    }
     if (url.pathname === "/api/ambient") return json({ city: CITY, texture: PLAN.texture || null });
     if (url.pathname === "/api/plan") {
       const s = await loadState(env);
@@ -431,7 +440,7 @@ function publicState(s, dev) {
     build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
     events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined })),
     talk: (s.talk || []).slice(-80), dev: !!dev,
-    studio: s.studio || null, show: s.show || null, call: s.call || null,
+    studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
     unlocked: s.unlocked, course: coursePublic(s),
@@ -568,6 +577,7 @@ async function tick(env, force) {
     if (!ev){ ev = fallback(last, clock.hour, s); ev.stuck = true; ev.src = s.lastError && s.lastError.at === now ? "backup line (AI error)" : "backup line (AI reply dropped: repeat)"; }
   }
   { const q = quietHosts(s, ev, s.nextId); if (q.length) ev.commentary = q; }   // nobody speaks: the hosts fill the silence
+  if (!force) try { await pollTick(env, s, ev, now, last); } catch (e) { s.pollErr = { at: now, why: [String(e && e.message || e).slice(0, 160)] }; }   // viewers' poll: count the last one, write the next
   if (goal && goal.status !== "done" && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
 
   if (ev.newCard) { s.cast[ev.newCard.id] = ev.newCard; s.lastNewAt = now; }
@@ -1932,6 +1942,208 @@ function courseNote(s, now, company) {
 }
 
 
+// ---------- viewers' polls (D1 database "ishai-polls", binding DB) ----------
+// Once an hour a question about the people around Ishai: it opens at hh:20 (Israel time) for 60 seconds, anyone can vote once.
+// The winner becomes a secret goal that starts at least an hour later, in a free gap, so it never touches the next hour.
+const POLL_AT_MIN = 20, POLL_SEC = 60, POLL_SHOW_MIN = 10;       // opens at hh:20, 60 s of voting, the result stays on screen 10 minutes
+const POLL_FROM_H = 8, POLL_TO_H = 20;                             // the first poll opens at 08:20, the last at 20:20
+const POLL_DELAY_MIN = 60, POLL_LEN_MIN = 90, POLL_LOOK_H = 6;     // the result starts an hour or more after the vote, in a free 90-minute gap within 6 hours
+const POLL_AWAKE = [8, 22];                                        // results only play out between 08:00 and 22:00
+const POLL_IP_MAX = 5;                                             // votes per internet connection per poll (a family on one Wi-Fi)
+const POLL_KINDS = {
+  serve: "serves or makes Ishai something at their own place (a dish, a drink, a coffee); Ishai has to go there",
+  meet: "runs into Ishai at one of their usual places and does or says something; Ishai has to go there",
+  visit: "comes to Ishai's door (corridor) and brings or says something",
+  message: "texts, emails or phones Ishai",
+  none: "nothing happens: the plain 'no' option (at most one per poll)" };
+const POLL_NOT = ["ishai", "sasson", "yael"];                      // Ishai never acts; the lecturer and the improv teacher keep their fixed days
+const POLL_BANNED = /\b(die[sd]?|death|dead|dying|kill|hospital|sick|ill|injur\w*|accident|police|arrest\w*|fired|fires|sack(ed)?|divorce|break(s)? up|breakup|kiss\w*|marr\w*|date|dating|pregnan\w*|drunk|fight\w*|punch\w*|steal\w*|stole|rob\w*|moves? away|quits?|vote[sd]?|voting|viewers?|camera|filmed|broadcast|new (tv|radio|dog|cat|pet|car|phone))\b/i;
+// stock polls, used when the AI is out or its poll does not pass the checks: [label, who, kind, where, goal, forceText]
+const POLL_BANK = [
+  { id: "avi-spice", q: "How will Avi make Ishai's next falafel?", o: [
+    ["Extremely spicy", "avi", "serve", "street", "Ishai gets hungry and goes down to Avi's falafel kiosk. Avi secretly makes his falafel extremely spicy, 'for his own good'. Ishai suffers bravely, sweats and begs for water while Avi grins.", "Avi hands Ishai a falafel so spicy his eyes water; Avi just grins and pours him water."],
+    ["Drowning in tahini", "avi", "serve", "street", "Ishai gets hungry and goes down to Avi's falafel kiosk. Avi, in a generous mood, drowns his falafel in extra tahini and won't take no for an answer. It drips everywhere.", "Avi hands Ishai a falafel dripping with extra tahini; it gets all over his sleeve."],
+    ["Just the usual", "avi", "none", null, "", ""]] },
+  { id: "levi-door", q: "What will Mrs. Levi bring to Ishai's door?", o: [
+    ["A pot of soup", "levi", "visit", "corridor", "Mrs. Levi knocks on Ishai's door with a pot of her soup, insisting he looks thin. She lingers to ask nosy questions.", "Mrs. Levi knocks with a pot of soup: 'You look thin, motek. Eat.'"],
+    ["Homemade cookies", "levi", "visit", "corridor", "Mrs. Levi knocks on Ishai's door with a plate of homemade cookies and a story about her late husband.", "Mrs. Levi leaves a plate of homemade cookies at Ishai's door and knocks twice."],
+    ["A complaint about noise", "levi", "visit", "corridor", "Mrs. Levi knocks on Ishai's door to complain, very politely and at length, about a noise she is sure came from his flat.", "Mrs. Levi knocks to complain about a noise she is sure came from his flat."]] },
+  { id: "gadi-msg", q: "What will Gadi send Ishai next?", o: [
+    ["A small bonus for the chickpea", "gadi", "message", null, "Gadi texts Ishai that the client loved the chickpea work and there is a small one-time bonus for him. Ishai doesn't know how to react and reads it three times.", "Gadi texts: the client loved the chickpea, small bonus coming."],
+    ["Another round of notes", "gadi", "message", null, "Gadi emails Ishai yet another round of client notes on the logo, all contradicting the last round. Ishai groans and reads them out loud.", "Gadi emails yet another round of contradicting client notes."],
+    ["Nothing today", "gadi", "none", null, "", ""]] },
+  { id: "dana-cup", q: "What will Dana draw on Ishai's next coffee?", o: [
+    ["A basil leaf", "dana", "serve", "cafe", "Ishai goes to Cafe Nahat for a coffee. Dana draws a basil leaf in the foam again, without a word. He notices.", "Dana slides Ishai a coffee with a basil leaf drawn in the foam."],
+    ["A little dog", "dana", "serve", "cafe", "Ishai goes to Cafe Nahat for a coffee. Dana draws a tiny dog in the foam, clearly Falafel. Ishai laughs.", "Dana slides Ishai a coffee with a tiny dog drawn in the foam."],
+    ["A question mark", "dana", "serve", "cafe", "Ishai goes to Cafe Nahat for a coffee. Dana draws a question mark in the foam and says nothing. Ishai spends the whole coffee wondering what it means.", "Dana slides Ishai a coffee with a question mark in the foam."]] },
+  { id: "noa-text", q: "What will Noa text Ishai?", o: [
+    ["A meme about Moshe the basil", "noa", "message", null, "Noa texts Ishai a silly meme about Moshe the basil. He laughs out loud and shows it to whoever is around.", "Noa texts a silly meme about Moshe the basil."],
+    ["\"RAISE. YOUR. PRICES.\"", "noa", "message", null, "Noa texts Ishai in capital letters to raise his prices, with too many emojis. He mutters that she is right.", "Noa texts: RAISE. YOUR. PRICES."],
+    ["Nothing, she's busy", "noa", "none", null, "", ""]] },
+  { id: "zelig-park", q: "What will Mr. Zelig tell Ishai in the park?", o: [
+    ["A prophecy from the pigeons", "zelig", "meet", "park", "Ishai goes for a walk in the park. Mr. Zelig stops him to share a very serious prophecy he got from the pigeons. Ishai doesn't know what to say.", "Mr. Zelig stops Ishai in the park with a prophecy from the pigeons."],
+    ["Surprisingly good work advice", "zelig", "meet", "park", "Ishai goes for a walk in the park. Mr. Zelig, talking half to the pigeons, says something that turns out to be surprisingly good advice about Ishai's work.", "Mr. Zelig mutters some surprisingly good advice at Ishai in the park."],
+    ["Nothing, just a nod", "zelig", "none", null, "", ""]] },
+  { id: "kobi-bar", q: "What will Kobi insist on at The Black Candle?", o: [
+    ["Buying Ishai a drink", "kobi", "meet", "bar", "Ishai drops into The Black Candle for a drink. Kobi insists on buying him one and won't hear a word against it.", "Kobi buys Ishai a drink at The Black Candle and won't hear a word against it."],
+    ["Explaining his lottery system", "kobi", "meet", "bar", "Ishai drops into The Black Candle for a drink. Kobi corners him to explain his lottery system in great detail.", "Kobi corners Ishai at the bar to explain his lottery system."],
+    ["Nothing, he's busy with the game on TV", "kobi", "none", null, "", ""]] },
+  { id: "tomer-help", q: "What will Tomer do for Ishai?", o: [
+    ["Fix the flickering lamp", "tomer", "visit", "corridor", "Tomer the electrician drops by Ishai's place, unannounced, to fix the lamp that has been flickering. He fixes it in two minutes and teases Ishai for an hour.", "Tomer drops by and fixes Ishai's flickering lamp in two minutes."],
+    ["Drag him to the gym", "tomer", "message", null, "Tomer phones Ishai and pushes him to come to Herzl Gym later. Ishai makes excuses and loses.", "Tomer phones and talks Ishai into the gym."],
+    ["Nothing, he's on a job", "tomer", "none", null, "", ""]] }
+];
+const pollHash = str => { let h = 2166136261; for (const ch of String(str)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+const weekday = ms => new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(new Date(ms));
+const pollHM = ms => new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(ms));
+// is this place open at that time (the same hours validate() enforces)
+function placeOpen(loc, ms) {
+  const h = storyClock(ms).hour, wd = weekday(ms), shut = (o, c) => wd === "Sat" || h < o || h >= (wd === "Fri" ? 14 : c);
+  if (!LOCATIONS[loc] || ["classroom", "bus", "taxi", "offscreen"].includes(loc)) return false;
+  return loc === "bar" ? !(h >= 2 && h < 17) : loc === "gym" ? !(h >= 23 || h < 6) : loc === "market" ? !shut(7, 19) : loc === "store" ? !shut(9, 21) : loc === "campus" ? !(shut(8, 20) || wd === "Fri") : true;
+}
+const pollShabbat = (s, ms) => { const sh = s.world && s.world.shabbat; return !!sh && ms >= sh.start - 30 * 60000 && ms <= (sh.end || sh.start + 26 * 3600000); };
+const pollAwake = ms => { const h = storyClock(ms).hour; return h >= POLL_AWAKE[0] && h < POLL_AWAKE[1]; };
+// nothing else is planned or running then (planned beats, lectures, other poll results)
+function pollFree(s, from, to) {
+  return !(s.director || []).some(g => g.status !== "done" && g.status !== "needs-art" && !(g.startAfter >= to) &&
+    Math.min(deadlineOf(g), (g.status === "active" ? g.activatedAt || g.startAfter : g.startAfter) + 2 * 3600000) > from);
+}
+// the first moment, an hour or more after the vote, when this option can really happen; null when it can't
+function pollStart(s, o, closesAt) {
+  if (o.kind === "none") return closesAt + POLL_DELAY_MIN * 60000;
+  const len = POLL_LEN_MIN * 60000;
+  for (let t = closesAt + POLL_DELAY_MIN * 60000; t <= closesAt + POLL_LOOK_H * 3600000; t += 15 * 60000) {
+    if (!pollAwake(t) || !pollAwake(t + len - 60000) || pollShabbat(s, t) || pollShabbat(s, t + len)) continue;
+    if (o.where && !(placeOpen(o.where, t) && placeOpen(o.where, t + 60 * 60000))) continue;
+    if (pollFree(s, t, t + len)) return t;
+  }
+  return null;
+}
+// one option, checked against the rules; returns the clean option or a reason
+function pollOption(s, raw, closesAt) {
+  const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+  const o = { label: str(raw.label, 70), who: str(raw.who, 20).toLowerCase(), kind: str(raw.kind, 10).toLowerCase(), where: raw.where ? str(raw.where, 20).toLowerCase() : null, goal: str(raw.goal, 400), forceText: str(raw.forceText, 220) };
+  const c = s.cast[o.who];
+  if (o.label.length < 3) return "no label";
+  if (!POLL_KINDS[o.kind]) return `unknown kind "${o.kind}"`;
+  if (POLL_BANNED.test(o.label + " " + o.goal + " " + o.forceText)) return "a word that is not allowed";
+  if (/^ishai\b/i.test(o.label)) return "Ishai cannot be the one who acts";
+  if (o.kind === "none") return { ...o, where: null, goal: "", forceText: "" };
+  if (!c || POLL_NOT.includes(o.who) || /^student/.test(o.who)) return `"${o.who}" cannot act in a poll`;
+  if (c.phoneOnly && o.kind !== "message") return `${c.name} is never seen in person: messages only`;
+  if (o.kind === "message") o.where = null;
+  else if (o.kind === "visit") { if (!["corridor", "apartment"].includes(o.where)) o.where = "corridor"; }
+  else if (!(c.hangouts || []).includes(o.where)) return `${c.name} is not usually at "${o.where}"`;
+  if (o.goal.length < 20 || !o.goal.toLowerCase().includes(c.name.toLowerCase().replace(/^(mr|mrs|dr)\. /, ""))) return "the goal must say what " + c.name + " does";
+  if (!o.forceText) o.forceText = o.goal.split(/(?<=\.)\s/)[0].slice(0, 220);
+  if (pollStart(s, o, closesAt) == null) return `no free time for it in the next ${POLL_LOOK_H} hours`;
+  return o;
+}
+function pollCheck(s, raw, closesAt) {
+  const q = String(raw && raw.question || "").replace(/\s+/g, " ").trim().slice(0, 120), why = [];
+  if (q.length < 8 || POLL_BANNED.test(q)) return { why: ["bad question"] };
+  const opts = [];
+  for (const r of (Array.isArray(raw.options) ? raw.options : []).slice(0, 4)) {
+    const o = pollOption(s, r || {}, closesAt);
+    if (typeof o === "string") { why.push(o); continue; }
+    if (opts.some(x => x.label.toLowerCase() === o.label.toLowerCase()) || (o.kind === "none" && opts.some(x => x.kind === "none"))) continue;
+    opts.push(o);
+  }
+  if (opts.length < 2 || !opts.some(o => o.kind !== "none")) return { why: why.length ? why : ["needs two real options"] };
+  return { poll: { question: q, options: opts }, why: why.length ? why.map(w => "dropped an option: " + w) : null };   // an option that can't happen is left out
+}
+async function writePoll(env, s, opensAt, closesAt) {
+  const from = pollHM(closesAt + POLL_DELAY_MIN * 60000), to = pollHM(closesAt + POLL_LOOK_H * 3600000);
+  const cast = Object.values(s.cast).filter(c => !POLL_NOT.includes(c.id))
+    .map(c => `- ${c.id}: ${c.name}, ${c.role}. ${c.phoneOnly ? "Never seen in person: kind \"message\" only." : "Usually at: " + (c.hangouts || []).join(", ") + "."} Memory of Ishai: ${String(c.memory || "none").slice(0, 160)}`).join("\n");
+  const recent = (s.pollLog || []).slice(-8).map(p => `- ${p.question} -> ${p.winner || "no votes"}`).join("\n") || "- none yet";
+  const messages = [{ role: "system", content:
+`You write ONE viewers' poll for "Watching Ishai", a Truman-Show-like reality show about Ishai, a freelance designer in Tel Aviv.
+Viewers vote on something small that SOMEONE ELSE does to or for Ishai. It plays out between ${from} and ${to} today.
+Rules:
+- Every option is something one person from the cast does. Ishai NEVER decides or acts in an option; he only reacts. Nobody in the story knows about the poll.
+- Small, everyday, realistic, kind or funny: a dish made a certain way, a message, a visit, a gift of food, a remark. Nothing sad, dangerous, romantic or life-changing, no new objects, pets or people, nothing that ends a story arc, no real brands.
+- 2-4 options, each a short label (max 6 words). Options of one poll are about the same person or the same situation. At most one option of kind "none" (the "no" / "nothing happens" option).
+- kinds: ${Object.entries(POLL_KINDS).map(([k, v]) => `"${k}" = ${v}`).join("; ")}.
+- "where": for serve and meet, one of that person's usual places; for visit "corridor"; for message and none null.
+- "goal": the secret direction for the story writers, 1-2 sentences, naming the person: what happens and how Ishai reacts. "forceText": one sentence of the same thing, for when it must happen quickly.
+- The question names the person and is under 12 words, in English, ending with "?".
+Reply with ONLY JSON: {"question":"...","options":[{"label":"...","who":"cast id","kind":"...","where":"..."|null,"goal":"...","forceText":"..."}]}` },
+  { role: "user", content: `CAST:\n${cast}\n\nSTORY SO FAR: ${String(s.daySum ? s.daySum.text : "").slice(0, 600) || "(quiet day)"}\nARCS (do not resolve them): ${(PLAN.arcs || []).map(a => typeof a === "string" ? a : a.name || a.title || "").filter(Boolean).join("; ").slice(0, 500) || "-"}\n\nRECENT POLLS (ask something different):\n${recent}\n\nJSON only.` }];
+  const o = parseAI(await runModel(env, messages, 700, "story"));
+  return o ? pollCheck(s, o, closesAt) : { why: ["the AI reply could not be read"] };
+}
+function bankPoll(s, key, closesAt) {
+  const used = (s.pollLog || []).slice(-6).map(p => p.bank).filter(Boolean);
+  const ok = POLL_BANK.map(b => ({ b, r: pollCheck(s, { question: b.q, options: b.o.map(([label, who, kind, where, goal, forceText]) => ({ label, who, kind, where, goal, forceText })) }, closesAt) }))
+    .filter(x => x.r.poll);
+  const fresh = ok.filter(x => !used.includes(x.b.id)), pool = fresh.length ? fresh : ok;
+  if (!pool.length) return null;
+  const x = pool[pollHash(key) % pool.length];
+  return { ...x.r.poll, bank: x.b.id };
+}
+const pollPublic = p => p ? { id: p.id, question: p.question, options: p.options.map(o => o.label), opensAt: p.opensAt, closesAt: p.closesAt, result: p.result || null, by: p.bank ? "stock" : "ai" } : null;
+// the result is counted once, after the poll closes, and kept in its own row; everyone reads that row
+async function pollResult(env, p) {
+  const row = await env.DB.prepare("SELECT counts, total, winner FROM results WHERE poll = ?").bind(p.id).first();
+  if (row) return { counts: JSON.parse(row.counts), total: row.total, winner: row.winner };
+  const { results } = await env.DB.prepare("SELECT opt, COUNT(*) AS n FROM votes WHERE poll = ? GROUP BY opt").bind(p.id).all();
+  const counts = p.options.map((_, i) => Number((results || []).find(r => Number(r.opt) === i)?.n || 0)), total = counts.reduce((a, b) => a + b, 0);
+  const top = Math.max(...counts), tied = counts.map((n, i) => n === top ? i : -1).filter(i => i >= 0);
+  const r = { counts, total, winner: total ? tied[pollHash(p.id) % tied.length] : null, tie: tied.length > 1 && total > 0 };   // a tie is settled the same way for everyone
+  if (Date.now() > p.closesAt + 5000) await env.DB.prepare("INSERT OR IGNORE INTO results (poll, counts, total, winner, at) VALUES (?, ?, ?, ?, ?)").bind(p.id, JSON.stringify(counts), total, r.winner, Date.now()).run();
+  return r;
+}
+async function pollVote(req, env) {
+  if (!env.DB) return json({ error: "voting is not set up yet" }, {}, 503);
+  const b = await req.json().catch(() => ({})), s = await loadState(env), p = s.poll, now = Date.now();
+  if (!p || p.id !== b.poll) return json({ error: "this vote is over" }, {}, 409);
+  if (now < p.opensAt - 2000) return json({ error: "voting has not opened yet" }, {}, 409);
+  if (now > p.closesAt + 3000) return json({ error: "voting has closed" }, {}, 409);
+  const opt = Number(b.opt), voter = String(b.voter || "");
+  if (!Number.isInteger(opt) || opt < 0 || opt >= p.options.length) return json({ error: "no such option" }, {}, 400);
+  if (!/^[0-9a-f-]{36}$/i.test(voter)) return json({ error: "bad voter id" }, {}, 400);
+  const ip = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(p.id + ":" + (req.headers.get("cf-connecting-ip") || "?")))).slice(0, 24);
+  const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM votes WHERE poll = ? AND ip = ?").bind(p.id, ip).first("n");
+  if (n >= POLL_IP_MAX) return json({ error: "too many votes from this connection" }, {}, 429);
+  const r = await env.DB.prepare("INSERT OR IGNORE INTO votes (poll, voter, ip, opt, at) VALUES (?, ?, ?, ?, ?)").bind(p.id, voter.toLowerCase(), ip, opt, now).run();
+  return json({ ok: true, counted: r.meta.changes === 1 }, { "cache-control": "no-store" });
+}
+// in tick(): count a closed poll and hand the winner to the story; write the next poll at the start of each hour
+async function pollTick(env, s, ev, now, last) {
+  const p = s.poll;
+  if (p && !p.done && now > p.closesAt + 5000) {
+    p.done = true;
+    const r = env.DB ? await pollResult(env, p) : { counts: p.options.map(() => 0), total: 0, winner: null };
+    p.result = r;
+    const o = r.winner == null ? null : p.options[r.winner], pct = o ? Math.round(100 * r.counts[r.winner] / r.total) : 0;
+    let goalId = null, at = null;
+    if (o && o.kind !== "none") {
+      at = pollStart(s, o, p.closesAt);
+      if (at) {
+        const c = s.cast[o.who], act = o.kind === "message" ? "phoning" : o.kind === "serve" && LOCATIONS[o.where].includes("eating") ? "eating" : "talking";
+        const g = newGoal({ id: "poll-" + p.id.slice(2), goal: o.goal + " Nobody in the story knows about any vote: it simply happens, naturally.", forceText: o.forceText,
+          startAt: new Date(at).toISOString(), deadlineAt: new Date(at + POLL_LEN_MIN * 60000).toISOString(), location: o.where || undefined, with: c.name, forceWith: o.who, forceAction: act }, now);
+        g.poll = p.id; s.director.push(g); goalId = g.id;
+      }
+    }
+    const say = !r.total ? "Nobody voted this hour, so life goes on exactly as planned. Your loss." : o.kind === "none" ? `The votes are in: ${pct}% said "${o.label}". So, nothing. Democracy!`
+      : at ? `The votes are in: ${pct}% chose "${o.label}"${r.tie ? " (a tie, settled by the studio coin)" : ""}. Keep watching, it happens later today.` : `The votes are in: "${o.label}" won, but life got too busy for it today.`;
+    ev.commentary = [...(ev.commentary || []), { who: pollHash(p.id) % 2 ? "zohar" : "oren", say }];
+    s.pollLog = [...(s.pollLog || []), { id: p.id, question: p.question, bank: p.bank || null, winner: o ? o.label : null, kind: o ? o.kind : null, pct, total: r.total, goal: goalId, at: at }].slice(-20);
+  }
+  const key = Math.floor(now / 3600000), opensAt = key * 3600000 + POLL_AT_MIN * 60000, closesAt = opensAt + POLL_SEC * 1000, h = storyClock(opensAt).hour;
+  if (s.pollKey === key || now > opensAt - 3 * 60000) return;   // one per hour, written before hh:17 so pages see it coming
+  s.pollKey = key;
+  if (!env.DB || s.pollsOff || h < POLL_FROM_H || h > POLL_TO_H || pollShabbat(s, opensAt) || last.action === "sleeping" || ev.action === "sleeping") return;
+  let made = null, why = null;
+  if (now >= (s.aiOutUntil || 0)) { try { const r = await writePoll(env, s, opensAt, closesAt); made = r.poll || null; why = r.why || null; } catch (e) { why = [String(e && e.message || e).slice(0, 120)]; } }
+  if (!made) made = bankPoll(s, key, closesAt);
+  s.pollErr = why ? { at: now, why: why.slice(0, 4) } : null;
+  if (made) s.poll = { id: "p-" + new Date(opensAt).toLocaleString("sv-SE", { timeZone: TZ }).slice(0, 13).replace(/\D/g, ""), ...made, opensAt, closesAt };
+}
+
 // ---------- director ----------
 function newGoal(d, now) {
   const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -2037,6 +2249,12 @@ async function directorApi(req, env) {
       if (g) { g.status = "done"; g.how = "cancelled"; g.doneAt = now; }
     } else if (String(b.action || "").startsWith("course")) {
       const r = await courseAction(env, s, b, now); if (r) return json({ error: r }, {}, 400);
+    } else if (b.action === "pollSkip") {   // drop the coming poll (this hour has none)
+      if (s.poll && !s.poll.done && now < s.poll.opensAt) s.poll = null;
+    } else if (b.action === "pollsOff") {
+      s.pollsOff = !!b.off;
+    } else if (b.action === "pollBank") {     // replace the coming poll with a stock one
+      if (s.poll && !s.poll.done && now < s.poll.opensAt) { const p = bankPoll(s, now, s.poll.closesAt); if (p) s.poll = { id: s.poll.id, ...p, opensAt: s.poll.opensAt, closesAt: s.poll.closesAt }; }
     } else if (b.action === "testAlert") {
       s.alert = { title: "Watching Ishai", body: "This is a test alert from the director.", at: now, test: true }; s.alertSend = { cursor: null, sent: 0 };
       const sent = await sendAlerts(env, s); await saveState(env, s); return json({ ok: true, sent });
@@ -2053,6 +2271,7 @@ function directorView(s, bugs) {
   return { course: courseDirector(s), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse(), lastError: s.lastError || null,
+    polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t } };
 }
 

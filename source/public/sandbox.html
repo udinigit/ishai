@@ -143,6 +143,8 @@ Back to the cameras.</textarea>
         <button id="evFill">Host fills silence</button>
         <button id="evOver">Overheard line</button>
         <button id="evCity">City event</button>
+        <button id="evPoll">Viewers' poll</button>
+        <button id="evPollRes">Poll result</button>
         <button id="evChat">Building chat</button>
       </div>
     </div>
@@ -275,6 +277,8 @@ Back to the cameras.</textarea>
     $('evOver').onclick = () => api.overhear();
     $('evCity').onclick = () => api.city();
     $('evChat').onclick = () => api.chat();
+    $('evPoll').onclick = () => api.poll({inSec: 5});            // opens in 5 s for 60 s; vote, then see the pretend result
+    $('evPollRes').onclick = () => api.poll({result: true});
     setInterval(() => { const s = api.state(); $('status').textContent = `${s.loc} · ${s.action}${s.moving ? ' · on the way' : ''} · voice: ${s.voice}`; }, 500);
   }
   $('stage').addEventListener('load', () => { if (!$('stage').contentWindow.__sandbox) { $('status').textContent = 'The picture did not load.'; return; } ready(); });
