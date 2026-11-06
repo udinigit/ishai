@@ -82,6 +82,21 @@
 
     <div class="box"><div style="font-size:24px">AI checks (last moments)</div><div id="diag" class="muted" style="white-space:pre-line;font-size:16px"></div></div>
 
+    <div class="box">
+      <div style="font-size:24px">Course: Strange But True</div>
+      <div id="courseInfo"></div>
+      <label for="courseTopic">Topic (the exact Wikipedia title, or pick from the list)</label>
+      <input id="courseTopic" list="courseList" style="width:100%"><datalist id="courseList"></datalist>
+      <div class="bar" style="margin-top:8px">
+        <select id="courseSlot"><option value="0">Next lecture</option><option value="1">The one after</option></select>
+        <button id="courseSet">Use this topic</button>
+        <button id="courseNew" class="ghost">Pick another at random</button>
+        <button id="courseGen" class="ghost">Write the lecture now</button>
+        <span id="courseMsg"></span>
+      </div>
+      <details style="margin-top:8px"><summary>Read the lecture before it airs</summary><div id="coursePreview"></div></details>
+      <details style="margin-top:8px"><summary>What Ishai remembers (last 10 topics)</summary><div id="courseMemory"></div></details>
+    </div>
     <div class="box"><div style="font-size:24px">Goals</div><div id="goals"></div></div>
 
     <div class="box"><div style="font-size:24px">Missing graphics</div>
@@ -102,7 +117,27 @@
     if (!r.ok) throw new Error(j.error || ('error '+r.status));
     return j;
   }
+  function renderCourse(c){
+    if (!c) return;
+    const when = c.at ? new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Jerusalem', weekday:'long', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', hour12:false}).format(new Date(c.at)) : 'not set yet';
+    const el = $('courseInfo'); el.textContent = '';
+    c.queue.forEach((q, i) => { const d = document.createElement('div'); d.style.marginTop = '4px';
+      d.textContent = `${i ? 'After that' : 'Next (' + when + ')'}: ${q.title} · ${q.strand || ''} · ${q.ready ? 'written' + (q.words ? ', ' + q.words + ' words' : '') : 'not written yet'}`; el.appendChild(d); });
+    if (c.err){ const d = document.createElement('div'); d.textContent = 'Last problem: ' + c.err.msg; d.style.color = '#ff9a7a'; el.appendChild(d); }
+    const dl = $('courseList'); if (!dl.children.length) c.topics.forEach(t => { const o = document.createElement('option'); o.value = t; dl.appendChild(o); });
+    const pv = $('coursePreview'); pv.textContent = '';
+    c.queue.forEach(q => { const h = document.createElement('div'); h.style.margin = '8px 0 2px'; h.textContent = q.title + (q.note ? ' — he remembers: ' + q.note : ''); pv.appendChild(h);
+      if (!q.moments){ const n = document.createElement('div'); n.textContent = 'Not written yet.'; pv.appendChild(n); return; }
+      q.moments.forEach(m => (m.lines || []).forEach(l => { const r = document.createElement('div'); r.textContent = `${/^student/.test(l.who) ? 'Student' : l.who === 'sasson' ? 'Dr. Sasson' : 'Ishai'}: ${l.say}`; pv.appendChild(r); })); });
+    const mm = $('courseMemory'); mm.textContent = c.memory.length ? '' : 'Nothing yet.';
+    c.memory.forEach(m => { const r = document.createElement('div'); r.textContent = `${m.title}: ${m.note}`; mm.appendChild(r); });
+  }
+  async function courseDo(body, busy){
+    const msg = $('courseMsg'); msg.className = ''; msg.textContent = busy;
+    try { body.slot = +$('courseSlot').value; render(await api(body)); msg.textContent = 'Done.'; } catch(e){ msg.className = 'err'; msg.textContent = e.message; }
+  }
   function render(v){
+    renderCourse(v.course);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('last').textContent = v.last ? `${fmt(v.last.created)} (${v.last.location}/${v.last.action}) ${v.last.text}` : '—';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';
@@ -164,6 +199,9 @@
       el.appendChild(d);
     });
   }
+  $('courseSet').onclick = () => courseDo({action:'courseSet', title:$('courseTopic').value}, 'Checking Wikipedia...');
+  $('courseNew').onclick = () => courseDo({action:'courseNew'}, 'Picking...');
+  $('courseGen').onclick = () => courseDo({action:'courseGen'}, 'Writing the lecture, this takes up to a minute...');
   async function open(){
     try { const v = await api(); localStorage.setItem('ishaiKey', KEY); $('login').hidden = true; $('main').hidden = false; render(v); }
     catch(e){ $('loginMsg').textContent = e.message; }

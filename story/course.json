@@ -1,0 +1,539 @@
+{
+ "name": "Strange But True",
+ "strands": {
+  "Disasters": [
+   "Dancing plague of 1518",
+   "Great Stink",
+   "Tunguska event",
+   "Great Fire of London",
+   "Tay Bridge disaster",
+   "Year Without a Summer",
+   "1883 eruption of Krakatoa",
+   "Carrington Event",
+   "Great Smog of London",
+   "Vasa (ship)",
+   "Erfurt latrine disaster",
+   "Tulip mania",
+   "Halifax Explosion",
+   "Lake Nyos disaster"
+  ],
+  "Strange trials": [
+   "Cadaver Synod",
+   "Animal trial",
+   "Trial of Socrates",
+   "Dreyfus affair",
+   "Salem witch trials",
+   "Scopes trial",
+   "Galileo affair",
+   "Affair of the Poisons",
+   "Gunpowder Plot",
+   "Affair of the Diamond Necklace",
+   "Trial of Joan of Arc",
+   "Tichborne case"
+  ],
+  "Silly wars": [
+   "Emu War",
+   "Pig War (1859)",
+   "War of the Bucket",
+   "Football War",
+   "Pastry War",
+   "Anglo-Zanzibar War",
+   "War of the Stray Dog",
+   "Aroostook War",
+   "Whiskey Rebellion",
+   "Defenestrations of Prague",
+   "Battle of Karansebes",
+   "Cod Wars",
+   "Kettle War"
+  ],
+  "Hoaxes": [
+   "Great Moon Hoax",
+   "Cottingley Fairies",
+   "Piltdown Man",
+   "Mechanical Turk",
+   "Cardiff Giant",
+   "Spaghetti-tree hoax",
+   "The War of the Worlds (1938 radio drama)",
+   "Dreadnought hoax",
+   "Berners Street hoax",
+   "Princess Caraboo",
+   "Gregor MacGregor",
+   "Ern Malley"
+  ],
+  "Odd inventions": [
+   "Antikythera mechanism",
+   "Greek fire",
+   "Project Pigeon",
+   "Bat bomb",
+   "Sound mirror",
+   "Project Habakkuk",
+   "Panjandrum",
+   "Hughes H-4 Hercules",
+   "Analytical engine",
+   "Voynich manuscript",
+   "Nazca Lines",
+   "Damascus steel",
+   "Longitude prize",
+   "Semaphore line",
+   "Atmospheric railway"
+  ],
+  "Strange places": [
+   "Principality of Sealand",
+   "Kowloon Walled City",
+   "Bir Tawil",
+   "Pheasant Island",
+   "Baarle-Hertog",
+   "Neutral Moresnet",
+   "Centralia, Pennsylvania",
+   "Hashima Island",
+   "Diomede Islands",
+   "Republic of Indian Stream",
+   "Kingdom of Redonda",
+   "Derinkuyu underground city",
+   "Winchester Mystery House",
+   "Coober Pedy"
+  ],
+  "Odd lives": [
+   "Emperor Norton",
+   "Tycho Brahe",
+   "Phineas Gage",
+   "Ignaz Semmelweis",
+   "Hiroo Onoda",
+   "Timothy Dexter",
+   "Zheng Yi Sao",
+   "Pope Benedict IX",
+   "Puyi",
+   "William Buckland",
+   "Mansa Musa",
+   "Wojtek (bear)",
+   "Greyfriars Bobby",
+   "Hachikō",
+   "Cher Ami",
+   "Nils Olav"
+  ]
+ },
+ "first": {
+  "title": "Floods That Were Not Water",
+  "wiki": [
+   "London Beer Flood",
+   "Great Molasses Flood"
+  ],
+  "note": "In 1814 a wave of beer broke through a London brewery wall, and afterwards the brewery got a tax refund on the beer.",
+  "moments": [
+   {
+    "text": "Ishai finds a seat as Dr. Sasson opens the first lecture of Strange But True.",
+    "lines": [
+     {
+      "who": "sasson",
+      "say": "Sit anywhere, Ishai. Welcome to Strange But True. Everything in this course really happened, and that's the problem."
+     },
+     {
+      "who": "ishai",
+      "say": "Sorry I'm late. The bus stopped at every stop. I think it stopped at a few that aren't stops."
+     },
+     {
+      "who": "sasson",
+      "say": "You're on time. Look at the board. Every lecture has a title, and the next one is always written underneath."
+     },
+     {
+      "who": "sasson",
+      "say": "Today: Floods That Were Not Water. Two cities, about a hundred years apart, two tanks, and one very old question."
+     },
+     {
+      "who": "student1",
+      "say": "What's the question?"
+     },
+     {
+      "who": "sasson",
+      "say": "When a tank bursts and people die, who pays? Keep that in your notebook. We'll come back to it at the end."
+     },
+     {
+      "who": "student6",
+      "say": "Is that going to be on the test?"
+     },
+     {
+      "who": "sasson",
+      "say": "There's no test. There's one question at the end of each lecture, and I will look at you while I ask it."
+     },
+     {
+      "who": "sasson",
+      "say": "We start in London, October 1814. The Horse Shoe Brewery, where Tottenham Court Road meets Oxford Street."
+     },
+     {
+      "who": "sasson",
+      "say": "It belongs to Meux and Company, one of the two biggest brewers in the city. They brew one thing only: porter."
+     },
+     {
+      "who": "sasson",
+      "say": "And big brewers like big vats. Size is how you show the rest of London who you are."
+     },
+     {
+      "who": "sasson",
+      "say": "Henry Meux's father built the largest vat in London. So Henry builds a giant of his own, and straps it with iron."
+     },
+     {
+      "who": "ishai",
+      "say": "So this is basically two men comparing barrels."
+     },
+     {
+      "who": "sasson",
+      "say": "That is the most accurate summary of the Industrial Revolution I've heard this year."
+     }
+    ],
+    "commentary": [
+     {
+      "who": "zohar",
+      "say": "A lecture hall. He has entered a building with no snacks on purpose."
+     }
+    ]
+   },
+   {
+    "text": "Dr. Sasson tells the class about the clerk and the slipped iron band.",
+    "lines": [
+     {
+      "who": "sasson",
+      "say": "Behind the brewery lies New Street, a dead end in the St Giles rookery. Eight acres of slum, many of them Irish families."
+     },
+     {
+      "who": "sasson",
+      "say": "Keep that picture in mind: the richest brewers in the city on one side of a wall, the poorest families on the other."
+     },
+     {
+      "who": "sasson",
+      "say": "Now meet George Crick, storehouse clerk. Around four thirty on the seventeenth, he sees a problem on one of the vats."
+     },
+     {
+      "who": "sasson",
+      "say": "An iron band has slipped. Each band weighs about 320 kilos. The vat is 6.7 metres tall and filled almost to the top."
+     },
+     {
+      "who": "student3",
+      "say": "So he tells someone."
+     },
+     {
+      "who": "sasson",
+      "say": "He does! He tells his supervisor. The supervisor says no harm will come of it. Bands slip a few times a year."
+     },
+     {
+      "who": "sasson",
+      "say": "Crick is told to write a note to Mr Young, a partner, so it can be fixed later. So he goes and writes the note."
+     },
+     {
+      "who": "student7",
+      "say": "Oh no."
+     },
+     {
+      "who": "sasson",
+      "say": "An hour later he's standing about nine metres from the vat, with the note in his hand."
+     },
+     {
+      "who": "sasson",
+      "say": "The vat bursts with no warning. The blast knocks the stopcock off a neighbouring vat, and that one empties too."
+     },
+     {
+      "who": "student2",
+      "say": "With the note still in his hand?"
+     },
+     {
+      "who": "sasson",
+      "say": "With the note in his hand. If this course teaches you one thing, let it be this: paperwork has never stopped a flood."
+     },
+     {
+      "who": "sasson",
+      "say": "Nobody agrees how much beer got out. The sources say anywhere from 580,000 to almost one and a half million litres."
+     }
+    ],
+    "commentary": [
+     {
+      "who": "oren",
+      "say": "A man wrote a note. History remembers the note."
+     }
+    ]
+   },
+   {
+    "text": "The room goes quiet as Dr. Sasson describes New Street.",
+    "lines": [
+     {
+      "who": "sasson",
+      "say": "The rear wall of the brewery was 7.6 metres high and two and a half bricks thick. The beer went through it."
+     },
+     {
+      "who": "sasson",
+      "say": "Bricks landed on roofs in Great Russell Street. Then a wave about 4.5 metres high went down New Street."
+     },
+     {
+      "who": "sasson",
+      "say": "Two houses were destroyed and two more badly damaged. The ground was low and flat, so the beer filled the cellars."
+     },
+     {
+      "who": "sasson",
+      "say": "People climbed onto their furniture to keep from drowning. Eight people died."
+     },
+     {
+      "who": "sasson",
+      "say": "I'll stop joking for a minute. Five of them were at a wake, in a cellar, mourning a two-year-old boy."
+     },
+     {
+      "who": "student5",
+      "say": "They were at a funeral?"
+     },
+     {
+      "who": "sasson",
+      "say": "Yes. A four-year-old girl was killed at home, at tea. A fourteen-year-old servant died under the wall, washing pots."
+     },
+     {
+      "who": "sasson",
+      "say": "A three-year-old was found in another house. Every worker at the brewery survived."
+     },
+     {
+      "who": "student8",
+      "say": "I remember hearing people ran out with buckets and got drunk in the street."
+     },
+     {
+      "who": "sasson",
+      "say": "Good, you've heard the legend. Later stories say hundreds came to collect the beer, and that someone drank himself to death."
+     },
+     {
+      "who": "sasson",
+      "say": "A brewing historian, Martyn Cornell, checked the newspapers from the time. No revelry. They describe the crowds as well-behaved."
+     },
+     {
+      "who": "sasson",
+      "say": "And those papers disliked the Irish of St Giles. Had anyone misbehaved, he argues, they'd have printed it gladly."
+     },
+     {
+      "who": "sasson",
+      "say": "So here's the historian's habit: when a story is too much fun, ask who wrote it down, and when."
+     }
+    ]
+   },
+   {
+    "text": "Dr. Sasson reads out the verdict of the inquest.",
+    "lines": [
+     {
+      "who": "sasson",
+      "say": "The inquest met two days later at the St Giles Workhouse. The jury was taken to look at the scene."
+     },
+     {
+      "who": "sasson",
+      "say": "George Crick gave evidence. So did the landlord of the Tavistock Arms, the pub where that young servant had worked."
+     },
+     {
+      "who": "sasson",
+      "say": "The verdict: the eight had died, and I quote, casually, accidentally and by misfortune."
+     },
+     {
+      "who": "student4",
+      "say": "Meaning what?"
+     },
+     {
+      "who": "sasson",
+      "say": "Meaning an act of God. And if God did it, nobody owes anybody anything. Meux and Company paid no compensation."
+     },
+     {
+      "who": "sasson",
+      "say": "Meanwhile the brewery had lost twenty-three thousand pounds. A huge sum. Now guess who they asked for help."
+     },
+     {
+      "who": "student2",
+      "say": "Their insurance?"
+     },
+     {
+      "who": "sasson",
+      "say": "Parliament. They petitioned to get back the tax they had paid on the beer. And they got about 7,250 pounds."
+     },
+     {
+      "who": "ishai",
+      "say": "Wait. The people who lost their kids got nothing, and the brewery got a refund on the beer that killed them?"
+     },
+     {
+      "who": "sasson",
+      "say": "Write down exactly what you just said, because you've done history for the first time. It's meant to annoy you."
+     },
+     {
+      "who": "sasson",
+      "say": "The public gave money for the funerals. The brewery reopened soon after, and the trade slowly gave up giant wooden vats."
+     },
+     {
+      "who": "sasson",
+      "say": "That's the first flood. The law looked at the tank and shrugged. Take a short break. The machine outside eats coins, so be careful."
+     }
+    ],
+    "commentary": [
+     {
+      "who": "oren",
+      "say": "Refund on the beer. Somebody call Gadi, that is a negotiation."
+     }
+    ]
+   },
+   {
+    "text": "The class comes back in and Dr. Sasson moves on to Boston.",
+    "lines": [
+     {
+      "who": "sasson",
+      "say": "Back to your seats. Second flood. Boston, 15 January 1919, the North End. It's about half past twelve in the afternoon."
+     },
+     {
+      "who": "sasson",
+      "say": "The Purity Distilling tank stands 15 metres tall and 27 metres across. Inside, around 13,000 tons of molasses."
+     },
+     {
+      "who": "student6",
+      "say": "Molasses like the sweet syrup? That's the flood?"
+     },
+     {
+      "who": "sasson",
+      "say": "Everyone laughs at this point, and I'd like you to enjoy it now, because you won't later."
+     },
+     {
+      "who": "sasson",
+      "say": "Why so much? Molasses makes industrial alcohol. And the owners were reportedly racing a deadline: Prohibition."
+     },
+     {
+      "who": "sasson",
+      "say": "The constitutional amendment that banned alcohol was ratified the very next day. You could not write this."
+     },
+     {
+      "who": "sasson",
+      "say": "The tank had been leaking since its first filling in 1915. The steel was reportedly half as thick as it should have been."
+     },
+     {
+      "who": "sasson",
+      "say": "The job was run by a company treasurer named Arthur Jell. He had no engineering or architectural experience."
+     },
+     {
+      "who": "student1",
+      "say": "And nobody checked him?"
+     },
+     {
+      "who": "sasson",
+      "say": "He skipped the basic safety tests, and ignored the warning signs. A treasurer. With a budget. And a deadline."
+     },
+     {
+      "who": "sasson",
+      "say": "Now the weather. Days of freezing, then it warms up. A ship delivers warmed molasses into the cold stuff in the tank."
+     },
+     {
+      "who": "sasson",
+      "say": "It expands. It may be fermenting too, adding gas. The pressure rises against a brittle tank with bad rivets."
+     },
+     {
+      "who": "sasson",
+      "say": "Witnesses heard a roar, like an elevated train going by. And they said rivets started shooting out of the sides."
+     }
+    ]
+   },
+   {
+    "text": "Dr. Sasson describes the wave of molasses and the rescue.",
+    "lines": [
+     {
+      "who": "sasson",
+      "say": "The wave was maybe 7.6 metres high, moving at about 56 kilometres an hour. Sources disagree, and the plaque says even more."
+     },
+     {
+      "who": "student3",
+      "say": "Nobody can outrun that."
+     },
+     {
+      "who": "sasson",
+      "say": "Nobody could. It flooded several blocks, up to about a metre deep. Steel panels hit the girders of the elevated railway."
+     },
+     {
+      "who": "sasson",
+      "say": "A streetcar was briefly tipped off its tracks, and a truck was thrown into the harbour. Twenty-one people died."
+     },
+     {
+      "who": "sasson",
+      "say": "About 150 were hurt. Here's the cruel part: as it cooled it thickened, and people were trapped in it."
+     },
+     {
+      "who": "sasson",
+      "say": "First to arrive were 116 navy cadets from a training ship. They walked straight into it to pull people out."
+     },
+     {
+      "who": "sasson",
+      "say": "They searched for four days. Some victims had been swept into the harbour, and were only found months later."
+     },
+     {
+      "who": "ishai",
+      "say": "I laughed earlier."
+     },
+     {
+      "who": "sasson",
+      "say": "Everyone does. That's why I told you. Now, how do you clean up a city covered in syrup?"
+     },
+     {
+      "who": "student7",
+      "say": "Hot water?"
+     },
+     {
+      "who": "sasson",
+      "say": "Salt water from a fireboat, and sand. It took weeks. The harbour ran brown until summer."
+     },
+     {
+      "who": "sasson",
+      "say": "People carried it across the whole city on their shoes. One account said everything a Bostonian touched was sticky."
+     }
+    ]
+   },
+   {
+    "text": "Dr. Sasson puts the two floods side by side and asks the question of the day.",
+    "lines": [
+     {
+      "who": "sasson",
+      "say": "So, who pays? This time 119 residents sued the owner, in one of the first class actions in Massachusetts."
+     },
+     {
+      "who": "sasson",
+      "say": "The company's defence: anarchists blew up the tank. It took three years of hearings to get an answer."
+     },
+     {
+      "who": "student5",
+      "say": "Did they get away with it? Like in London?"
+     },
+     {
+      "who": "sasson",
+      "say": "No. The court's auditor found them responsible. They paid 628,000 dollars, about seven thousand for each family who lost someone."
+     },
+     {
+      "who": "sasson",
+      "say": "And Boston's rules changed: now a licensed architect and a civil engineer had to oversee work like that."
+     },
+     {
+      "who": "sasson",
+      "say": "Look at the two side by side. 1814: act of God, the brewery gets a tax refund. 1919: somebody did this, so pay."
+     },
+     {
+      "who": "sasson",
+      "say": "A burst tank and dead neighbours, both times, a century apart. What changed wasn't the engineering. It was the question."
+     },
+     {
+      "who": "sasson",
+      "say": "Here is today's question, and yes, I'm looking at you. When something goes wrong, who decides it was nobody's fault?"
+     },
+     {
+      "who": "ishai",
+      "say": "Whoever's writing the report?"
+     },
+     {
+      "who": "sasson",
+      "say": "Not bad for a man who lost a coin to a machine. In 2019 they read the twenty-one names aloud. Remember that too."
+     }
+    ],
+    "commentary": [
+     {
+      "who": "zohar",
+      "say": "He answered a question in public. Mark the date."
+     }
+    ]
+   }
+  ]
+ },
+ "second": {
+  "title": "The War of Jenkins' Ear",
+  "wiki": [
+   "War of Jenkins' Ear"
+  ],
+  "strand": "Silly wars"
+ }
+}

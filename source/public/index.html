@@ -277,6 +277,8 @@
     market:    ['walking','idle','talking','eating','drinking','phoning'],
     store:     ['idle','talking','phoning'],
     bar:       ['idle','drinking','eating','talking','phoning','improv'],
+    campus:    ['walking','idle','talking','eating','drinking','phoning'],
+    classroom: ['idle','talking','phoning','lecture'],
     bus:       ['idle','talking','phoning','reading'],
     taxi:      ['idle','talking','phoning','reading'],
     offscreen: ['away'],
@@ -292,7 +294,8 @@
   let DREAMING = false;
   let BUILDER = false;  // /builder: this page only draws what the builder asks for
   let NO_CROWD = false; // builder: a background without its passers-by
-  const OUTSIDE = new Set(['street','park','shops','market','west1','west2','west3']);
+  const OUTSIDE = new Set(['street','park','shops','market','campus','west1','west2','west3']);
+  let COURSE = {name:'Strange But True', title:'Floods That Were Not Water', next:"The War of Jenkins' Ear", at:null};   // what is on the board (from the Worker)
   let MEDIA_UNTIL = 0;
   let TALK_AT = 0;       // last time a character of anyone's speech was typed (music fades under it)   // the story just put a live line on the radio/TV: our own DJ keeps quiet for a while
   let UMB = false;   // Ishai is outdoors (street/park) in the rain: he holds an umbrella
@@ -303,7 +306,7 @@
   let LAST_TALK = NOW();
   function setSpeaking(w){ SPEAKING = w; if (w) LAST_TALK = NOW(); }
   const LABEL = {phoning:'ON THE PHONE',drinking:'DRINKING',bathroom:'BATHROOM',showering:'SHOWER',watching:'WATCHING TV',listening:'RADIO ON',sleeping:'SLEEPING',waking:'WAKING UP',idle:'IDLE',walking:'WALKING',working:'WORKING',gaming:'GAMING',
-    eating:'EATING',cooking:'COOKING',reading:'READING',exercising:'EXERCISING',talking:'TALKING',improv:'IMPROV CLASS',away:'UNKNOWN'};
+    eating:'EATING',cooking:'COOKING',reading:'READING',exercising:'EXERCISING',talking:'TALKING',improv:'IMPROV CLASS',lecture:'IN CLASS',away:'UNKNOWN'};
 
   const params = new URLSearchParams(location.search);
   let forceHour = params.has('hour') ? parseFloat(params.get('hour')) : null;
@@ -838,6 +841,8 @@
     if (loc==='apartment') return 135;                      // front door
     if (loc==='bathroom') return 9;                         // bathroom door
     if (loc==='corridor') return id==='levi' ? 106 : 180;   // Mrs. Levi's door, otherwise the stairs
+    if (loc==='classroom') return W+8;                       // the classroom door, on the right
+    if (loc==='campus') return 60;                          // the lecture building's doors
     if (loc==='cafe' || loc==='gym' || loc==='bar' || loc==='store') return 4;   // café / gym / bar entrance door (left)
     return nearX > W/2 ? W+8 : -18;                         // street and park: nearest edge
   }
@@ -1881,6 +1886,89 @@
     }
   };
 
+  // ---------- Tel Herzl University: the courtyard (a bus ride away, its own stop) and the lecture room behind the doors ----------
+  const chalk = s => String(s || '').toUpperCase().replace(/[^A-Z0-9 .!%]/g, '');
+  function wrapChalk(s, n, max){ const out = []; let l = ''; chalk(s).split(' ').forEach(w => { if ((l + ' ' + w).trim().length > n){ out.push(l); l = w; } else l = (l + ' ' + w).trim(); }); out.push(l); return out.slice(0, max); }
+  SCENES.campus = {
+    cam:'CAM-17', place:'TEL HERZL UNIVERSITY // COURTYARD', walkY:66, entry:128, exit:128,
+    stand:{idle:96, walking:96, talking:30, eating:92, drinking:40, phoning:96},
+    draw(t,hf,a,settled,actor){
+      drawSky(0,0,W,40,hf,t); const night = isNight(hf);
+      // the lecture building: pale stone, two floors of windows, the name over the doors
+      R(0,10,W,72,'#d9cfb8'); R(0,10,W,2,'#b8ad96'); for (let y=18;y<80;y+=9) R(0,y,W,1,'#cbbfa6');
+      for (let x=8;x<W;x+=18){ if (x>44 && x<78) continue; R(x,20,10,12,'#5a4a3a'); R(x+1,21,8,10, night ? '#ffd36a' : '#8fa8b8'); R(x+5,21,1,10,'#5a4a3a'); }
+      R(46,12,100,9,'#2c3a66'); word('TEL HERZL UNIVERSITY',57,14,'#f0e6c8');
+      // the doors to the lecture room
+      R(48,34,26,48,'#b8ad96'); R(50,36,22,46,'#3a4a58'); R(51,37,9,45,'#9fc3d8'); R(62,37,9,45,'#9fc3d8'); if (doorBusy(60)){ R(51,37,9,45,'#1a1612'); R(62,37,9,45,'#1a1612'); } R(59,58,1,5,'#d8d8d8'); R(62,58,1,5,'#d8d8d8');
+      // the moving sign: what is on next, for anyone who walks by (and anyone watching)
+      R(84,36,92,10,'#14141a'); const msg = chalk(`NEXT LECTURE ${COURSE.title}   THEN ${COURSE.next || ''}   `), len = msg.length * 4, off = Math.floor(NOW() / 90) % Math.max(1, len);
+      g.save(); g.beginPath(); g.rect(85,37,90,8); g.clip(); word(msg + msg + msg, 85 - off, 39, '#ffb030'); g.restore();
+      // notice board
+      R(84,50,34,20,'#8a6a4a'); R(86,52,30,16,'#c9a878'); [[88,53,'#f4f0e4'],[100,54,'#e8d48a'],[92,61,'#bfd8e8'],[106,60,'#f4f0e4']].forEach(([x,y,c]) => R(x,y,9,6,c));
+      // pavement and the road with the university's bus stop
+      R(0,76,W,16,'#b8ab92'); for (let x=0;x<W;x+=12) R(x,76,1,16,'#a89a80'); R(0,84,W,1,'#a89a80');
+      R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=0;x<W;x+=20) R(x+4,101,10,1,'#e8e8a0');
+      zOn();
+      zAdd(92, () => { R(146,58,1,34,'#555'); R(143,54,8,7,'#2f6fb5'); R(144,55,6,1,'#f2f2f2'); R(145,57,4,2,'#f2f2f2'); });
+      // the vending machine that eats coins, and a bench
+      zAdd(86, () => { R(8,44,18,40,'#2a1f3a'); R(9,45,16,10,COOOLA.bg); R(10,47,14,1,COOOLA.fg); R(10,50,14,1,COOOLA.fg); R(10,58,10,14,'#14141a'); for (let i=0;i<3;i++) R(11+i*3,60,2,10,['#c23b3b','#e0b04a','#4f9a3f'][i]); R(21,60,3,6,'#8a8a94'); R(10,76,14,4,'#0e0e12'); });
+      zAdd(84, () => { R(152,70,28,2,'#7a5a3a'); R(152,74,28,2,'#7a5a3a'); R(154,76,2,8,'#444'); R(176,76,2,8,'#444'); });
+      if (!NO_CROWD){ crowdWalk(t, 2, 26000, 3000, 62, 1, .8); crowdWalk(t, 6, 33000, 15000, 64, -1, .8);
+        if (Math.floor(t/70000) % 2) crowdStill(t, 3, 156, 58, {legs:'sit', face:-1}); if (Math.floor(t/90000) % 3) crowdVisit(t, 90000, 5, 164, 58, W+8, 66, {legs:'sit', face:-1}); }
+      drawFloor(t,a,settled,actor,this);
+      zAdd(200, () => {
+      if (actor.ride && !DREAMING){ const vx = rideX(actor.ride, NOW());
+        if (actor.ride.kind === 'bus') drawBus(vx+10, night, (NOW()-actor.ride.t0) > RIDE.come && (NOW()-actor.ride.t0) < RIDE.come + RIDE.stop); else drawTaxi(vx, night); }
+      });
+      liveLayer(t, this); zFlush();
+      if (night) alpha(.35,()=>R(0,0,W,H,'#050a1e'));
+    }
+  };
+  // the class stays in its seats through the break, until he has left for good
+  let classSeen = -1e15;
+  function classOn(a){ if (a==='lecture'){ if (!DREAMING) classSeen = NOW(); return true; } return !DREAMING && NOW() - classSeen < 480000; }
+  const ROW_BACK = [[104,'student1',0],[120,'student2',1],[136,'student3',2],[152,'student4',3],[168,'student5',4]], ROW_FRONT = [[96,'student6',5],[112,'student7',6],[144,'student8',7],[160,null,1]];
+  const SEAT = 128;   // Ishai's seat, in the front row
+  function classmate(id, idx, x, y, t){
+    const talking = !!id && SAY.who === id; if (id) markHead(id, x, y);
+    person(CROWD[idx % CROWD.length], x, y, t + idx*977, {face:-1, muted:true, legs:false, talking, seed: 20 + idx});
+  }
+  SCENES.classroom = {
+    cam:'CAM-18', place:'TEL HERZL UNIVERSITY // LECTURE ROOM', walkY:70, entry:W+8, exit:W+8,
+    stand:{idle:150, talking:150, phoning:150, lecture:SEAT},
+    draw(t,hf,a,settled,actor){
+      const night = isNight(hf), full = classOn(a);
+      R(0,0,W,62,'#d8d2c0'); R(0,0,W,3,'#c4bca8'); R(0,60,W,2,'#b0a890'); [34,86,138].forEach(x=>{ R(x,3,20,2,'#fffbe8'); });
+      R(0,62,W,46,'#8a7458'); for (let x=0;x<W;x+=14) R(x,62,1,46,'#7a6448'); for (let y=70;y<H;y+=8) R(0,y,W,1,'#7a6448');
+      // the blackboard: today's lecture and, always, the next one
+      R(6,5,92,48,'#6a4e38'); R(8,7,88,44,'#22402f'); R(10,51,84,2,'#8a6a4a'); R(70,50,8,1,'#f4f0e4'); R(82,50,5,1,'#e8d48a');
+      word('TODAY',11,9,'#e8d48a'); wrapChalk(COURSE.title, 20, 2).forEach((l,i) => word(l, 11, 16 + i*7, '#f4f0e4'));
+      word('NEXT',11,31,'#e8d48a'); wrapChalk(COURSE.next, 20, 2).forEach((l,i) => word(l, 11, 38 + i*7, '#d8e4d8'));
+      // a wall clock and the windows
+      R(106,8,10,10,'#f4f0e4'); R(106,8,10,1,'#3a3a44'); R(106,17,10,1,'#3a3a44'); R(106,8,1,10,'#3a3a44'); R(115,8,1,10,'#3a3a44'); R(111,10,1,3,'#222'); R(111,13,3,1,'#222');
+      [124,146,168].forEach(x => { R(x,8,16,24,'#6a5a4a'); R(x+1,9,14,22, night ? '#1a2238' : '#a8cce0'); R(x+8,9,1,22,'#6a5a4a'); R(x+1,20,14,1,'#6a5a4a'); });
+      // the door, on the right
+      R(182,34,10,60,'#6a4e38'); R(184,36,8,58, doorBusy(186) ? '#1a1612' : '#8a6a4a'); R(184,62,2,3,'#d8d8d8');
+      zOn();
+      // the lectern
+      zAdd(92, () => { R(64,62,14,3,'#6a4e38'); R(66,65,10,20,'#5a4030'); R(68,60,8,2,'#f4f0e4'); });
+      // the back row, on its step
+      zAdd(84, () => { R(96,62,88,3,'#a89878'); if (full) ROW_BACK.forEach(([x,id,k]) => classmate(id, k, x, 42, t)); R(98,58,84,3,'#c2a878'); R(98,61,84,8,'#8a6e50'); });
+      drawFloor(t,a,settled,actor,this);
+      // Dr. Sasson by the board
+      const sasson = settled && a==='lecture' && actor.with && companionLook(a), here = sasson && wantComp({id: actor.with, look: sasson, x: 54, kind:'seat'});
+      if (here) zAdd(this.walkY + 22, () => { markHead(actor.with, 54, this.walkY); person(sasson, 54, this.walkY, t+300, {face:1, talkPhase: SAY.who === actor.with}); });
+      // the front row, nearer the camera: people walk behind the desks
+      zAdd(104, () => { const sit = settled && a==='lecture' && !actor.hidden;
+        if (full) ROW_FRONT.forEach(([x,id,k]) => classmate(id, k, x, 64, t));
+        if (sit){ if (SAY.who === 'ishai') drawIshai('talking', SEAT, 64, t, {face:-1}); else drawIshai('idle', SEAT, 64, t); }
+        R(90,80,92,3,'#c2a878'); R(90,83,92,10,'#8a6e50'); R(92,93,3,10,'#5a4030'); R(177,93,3,10,'#5a4030');
+        if (sit) { R(SEAT-1,79,9,1,'#f4f0e4'); } });
+      liveLayer(t, this); zFlush();
+      if (night) alpha(.12,()=>R(0,0,W,H,'#050a1e'));
+    }
+  };
+
   // ---------- Everything Else: the big store for everything except food ----------
   SCENES.store = {
     cam:'CAM-11', place:'EVERYTHING ELSE // STORE', walkY:74, entry:4, exit:4,
@@ -2085,7 +2173,7 @@
     // companion standing / walking next to Ishai
     let face = 0;
     const atIsland = actor.loc==='apartment' && ['eating','drinking','cooking'].includes(a);
-    const cl = settled && !withIsPost() && !atIsland && a!=='sleeping' && a!=='waking' ? companionLook(a) : null;
+    const cl = settled && !withIsPost() && !atIsland && a!=='sleeping' && a!=='waking' && a!=='lecture' ? companionLook(a) : null;   // in a lecture Dr. Sasson has her own spot by the board
     if (cl){
       const dir = actor.paceDir||1;
       const gx = a==='walking' ? actor.x + 12 : (actor.x > W-40 ? actor.x-16 : actor.x+16);   // walking: side by side, always on his right (no jump when turning)
@@ -2147,6 +2235,9 @@
     store:  { tvs:     {alone:3, company:1, steps:[{to:52},{pose:'back',dur:5}]},
               shelves: {alone:3, company:1, steps:[{to:116},{pose:'back',dur:4}]},
               clothes: {alone:2, company:1, steps:[{to:170},{pose:'back',dur:4}]} },
+    campus: { notices: {alone:3, company:1, steps:[{to:96},{pose:'back',dur:4}]},
+              phone:   {alone:2, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
+    classroom: { board: {alone:1, company:0, steps:[{to:70},{pose:'back',dur:4}]} },
     bar:    { posters: {alone:2, company:0, steps:[{to:30},{pose:'back',dur:4}]},
               phone:   {alone:3, company:1, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} }
   };
@@ -2207,6 +2298,7 @@
                  gym: {exit:64, entry:64},                                            // Herzl Gym door (blue building)
                  bar: {exit:101, entry:101},                                          // The Black Candle door (next to the bench)
                  market: {exit:128, entry:128, ride:true},                            // bus stop: the bus (or a taxi) to Shuk Shalom
+                 campus: {exit:128, entry:128, ride:true},                            // the same stop: the bus (or a taxi) to the university
                  offscreen: {exit:128, entry:128, ride:true} },                       // bus stop: bus or taxi
     park:      { west3: {exit:W+8, entry:W+8} },                                      // right edge -> the park end of Herzl St.
     west3:     { park: {exit:-14, entry:-14}, west2: {exit:W+8, entry:W+8} },         // three blocks you walk through, on the way between the park and his building
@@ -2218,11 +2310,13 @@
     bar:       { street: {exit:4, entry:4} },                                         // bar door -> street
     market:    { street: {exit:128, entry:128, ride:true}, store: {exit:4, entry:4} },  // the market's own bus stop; the store door on the left
     store:     { market: {exit:4, entry:4} },                                         // store door -> market
-    bus:       { street: {ride:true}, market: {ride:true}, offscreen: {ride:true} },  // on board: he gets off at a stop
-    taxi:      { street: {ride:true}, market: {ride:true}, offscreen: {ride:true} },
-    offscreen: { street: {ride:true}, market: {ride:true}, bus: {ride:true}, taxi: {ride:true} }
+    campus:    { street: {exit:128, entry:128, ride:true}, classroom: {exit:60, entry:W+8} },  // the university's own bus stop; the lecture building's doors
+    classroom: { campus: {exit:W+8, entry:60} },                                      // the lecture room's door, on the right
+    bus:       { street: {ride:true}, market: {ride:true}, campus: {ride:true}, offscreen: {ride:true} },  // on board: he gets off at a stop
+    taxi:      { street: {ride:true}, market: {ride:true}, campus: {ride:true}, offscreen: {ride:true} },
+    offscreen: { street: {ride:true}, market: {ride:true}, campus: {ride:true}, bus: {ride:true}, taxi: {ride:true} }
   };
-  ['street','market'].forEach(p => { MAP[p].bus = {exit:128, entry:128, ride:true}; MAP[p].taxi = {exit:128, entry:128, ride:true}; });
+  ['street','market','campus'].forEach(p => { MAP[p].bus = {exit:128, entry:128, ride:true}; MAP[p].taxi = {exit:128, entry:128, ride:true}; });
   function route(from, to){ // shortest path through the map, e.g. cafe -> street -> corridor -> apartment
     if (from === to) return [];
     const prev = {[from]: null}, q = [from];
@@ -2342,12 +2436,12 @@
         if (actor.viaFinal != null && !actor.pending){ actor.viaUntil = now + 2200; return; }
         if (actor.loc !== 'bathroom') actor.fromLoc = null;
         actor.settledAt = NOW();
-        if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && (actor.loc==='street' || actor.loc==='market')) startRide('depart', VEH.has(actor.pending.route[0]) ? actor.pending.route[0] : null); else beginSwitch(); }
+        if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && (actor.loc==='street' || actor.loc==='market' || actor.loc==='campus')) startRide('depart', VEH.has(actor.pending.route[0]) ? actor.pending.route[0] : null); else beginSwitch(); }
         else if (BATH.has(actor.action)){ actor.hidden = true; actor.hiddenAt = now; actor.leftBath = null; }
       }
     } else if (actor.action==='walking' && !actor.pending){
       // pacing back and forth, position taken from the real clock
-      const lo = actor.loc==='street'?50:actor.loc==='park'?40:actor.loc==='shops'||actor.loc==='market'?36:52, hi = actor.loc==='street'?140:actor.loc==='shops'?150:actor.loc==='cafe'?110:124;
+      const lo = actor.loc==='street'?50:actor.loc==='park'?40:actor.loc==='shops'||actor.loc==='market'||actor.loc==='campus'?36:52, hi = actor.loc==='street'?140:actor.loc==='shops'?150:actor.loc==='cafe'?110:124;
       // every ~2 minutes he walks to a new spot somewhere in the room, then stands there (clock-driven, same for everyone)
       const span = hi - lo, D = 120, now = NOW()/1000, k = Math.floor(now / D), e = now % D;
       const spot = n => { const a = lo + hash(n*7 + 3) * span, b = lo + hash((n-1)*7 + 3) * span; return Math.abs(a - b) < 18 ? (a + span/2 - lo) % span + lo : a; };
@@ -2514,18 +2608,32 @@
       const v = voiceOf(id); tone(v.f*(.9+Math.random()*.25), .05, v.type, v.type==='sawtooth' ? .025 : .04);
     }
     function key(ch){ if (on() && mode==='blips' && ch!==' ' && Math.random()<.45) noise(.012,{vol:.02,type:'highpass',freq:3000}); }
-    let voices = [];
+    let voices = [], voiceState = 'not tried', blocked = false;
     const loadVoices = () => { try { voices = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); } catch(e){} };
     if ('speechSynthesis' in window){ loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
     function say(id, text){
       if (!on() || mode !== 'voices' || !('speechSynthesis' in window)) return Promise.resolve();
       return new Promise(res => {
-        const u = new SpeechSynthesisUtterance(text), v = voiceOf(id);
-        if (voices.length) u.voice = voices[hash(id) % voices.length];
-        u.pitch = Math.min(2, Math.max(0, v.pitch)); u.rate = v.rate; u.volume = .9;
-        const to = setTimeout(res, 4000 + text.length*120); const done = () => { clearTimeout(to); res(); };
+        const v = voiceOf(id), to = setTimeout(res, 4000 + text.length*120); const done = () => { clearTimeout(to); res(); };
         saying++; let once = false; const fin = () => { if (!once){ once = true; saying--; } done(); };
-        u.onend = fin; u.onerror = fin; setTimeout(() => { if (!once){ once = true; saying--; } }, 4000 + text.length*120); speechSynthesis.speak(u);
+        setTimeout(() => { if (!once){ once = true; saying--; } }, 4000 + text.length*120);
+        // the speaker's own voice first; a voice that fails or never starts gives way once to the device's default voice
+        const speak = (own) => {
+          const u = new SpeechSynthesisUtterance(text); let started = false;
+          if (own && voices.length) u.voice = voices[hash(id) % voices.length];
+          u.pitch = Math.min(2, Math.max(0, v.pitch)); u.rate = v.rate; u.volume = .9;
+          const fallback = () => { u.onerror = u.onend = null; try { speechSynthesis.cancel(); } catch(e){} speak(false); };
+          u.onstart = () => { started = true; voiceState = own ? 'speaking' : 'speaking (default voice)'; };
+          u.onend = fin;
+          u.onerror = e => { const why = e && e.error || 'error'; voiceState = 'failed: ' + why;
+            if (why === 'not-allowed'){ blocked = true; btn.textContent = 'TAP FOR VOICES'; return fin(); }
+            if (why === 'canceled' || why === 'interrupted' || !own || started) return fin();
+            fallback(); };
+          try { speechSynthesis.resume(); } catch(e){}
+          speechSynthesis.speak(u);
+          if (own) setTimeout(() => { if (!started && !once){ voiceState = 'no start: ' + (u.voice ? u.voice.name : 'default'); fallback(); } }, 2500);
+        };
+        speak(true);
       });
     }
 
@@ -2586,6 +2694,12 @@
         bed(brown,'bandpass',600,.2);
         loop(2500, 4000, () => { const f = 300 + Math.random()*200; for (let i=0;i<3;i++) tone(f*(1+(i%2)*.25), .14, 'square', .02, i*.16, dest, .9); });   // vendors calling prices
         loop(9000, 9000, () => noise(1.8,{vol:.1,type:'lowpass',freq:250,sweep:[1200,250],buf:brown,dest}));
+      } else if (loc === 'campus'){
+        bed(brown,'bandpass',520,.09);                                                                    // students talking across the courtyard
+        loop(1800, 3500, () => { const f = 2400 + Math.random()*1400; tone(f, .07, 'sine', .03, 0, dest, 1.3); });
+      } else if (loc === 'classroom'){
+        bed(brown,'lowpass',340,.05); hum(100,.004);                                                      // a quiet room and its lights
+        loop(7000, 12000, () => noise(.05,{vol:.03,type:'bandpass',freq:1800,q:3,dest}));                  // a pen on a desk
       } else if (loc === 'store'){
         bed(brown,'lowpass',500,.07); hum(120,.006);
         loop(5000, 7000, () => tone(1650, .08, 'square', .02, 0, dest));                                     // the checkout scanner
@@ -2673,12 +2787,13 @@
     function setMode(m){
       if (!init()){ btn.textContent = 'NO AUDIO'; return; }
       if (ac.state === 'suspended') ac.resume();
-      mode = m; btn.textContent = LABELS[mode];
+      mode = m; btn.textContent = LABELS[mode]; blocked = false;
+      if (mode === 'voices' && 'speechSynthesis' in window) try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch(e){}   // a tap is what allows speech: use it now
       try { sessionStorage.setItem('ishaiSound', mode); } catch(e){}
       if (mode !== 'voices' && 'speechSynthesis' in window) speechSynthesis.cancel();
       ambKey = ''; setAmbience(wanted);
     }
-    btn.onclick = (e) => { e.stopPropagation(); setMode(MODES[(MODES.indexOf(mode)+1) % MODES.length]); };
+    btn.onclick = (e) => { e.stopPropagation(); setMode(blocked ? 'voices' : MODES[(MODES.indexOf(mode)+1) % MODES.length]); };
     // after an automatic update the browser mutes the page; the first tap anywhere brings the sound back
     let saved = 'off'; try { saved = sessionStorage.getItem('ishaiSound') || 'off'; } catch(e){}
     if (saved !== 'off'){
@@ -2714,7 +2829,7 @@
       out.connect(dest); out.disconnect(ac.destination);
       return {stream: dest.stream, stop(){ try { o.stop(); out.disconnect(dest); out.connect(ac.destination); } catch(e){} }};
     }
-    return { blip, key, say, hush, popAudio, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
+    return { voiceInfo: () => `${voiceState} · ${voices.length} English voices`, blip, key, say, hush, popAudio, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -2741,6 +2856,7 @@
     if (id==='radio') return boolifyOn() ? {name:'BOOLIFY', color:'#ff7ad9'} : {name:'RADIO HERZL 88.2', color:'#ffd36a'};
     if (id==='tv') return {name: CUR_MEDIA === '8bittv' ? '8BITTV' : CUR_MEDIA === 'nesflicks' ? 'NESFLICKS' : CUR_MEDIA === 'rgbeat' ? 'RGBEAT' : 'CHANNEL 9', color:'#9fd0ff'};
     if (id==='ishai') return {name:'ISHAI', color:tint(CLOTH.teal,.45)};
+    if (/^student\d$/.test(id)) return {name:'STUDENT', color:'#b8c4b0'};
     const c = CAST[id]; return {name:(c?c.name:id).toUpperCase(), color: tint(CLOTH[c?.look?.shirt]||CLOTH.gray,.45)};
   }
   const charDelay = ch => 28 + (ch===','?120:ch==='.'?220:0);
@@ -2871,7 +2987,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', market:'SHUK SHALOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
@@ -2935,7 +3051,7 @@
     const full = m.host ? m.say : '"' + m.say + '"';
     if (!animate){ said.textContent = full; cur.remove(); scroll(); return Promise.resolve(); }
     const b = budget || {at: NOW(), ms: 0}, into = Math.max(0, NOW() - b.at); let i = charsAt(full, into);
-    if (into < 800) Sound.say(m.who, m.say);     // tuned in later than the start of a line: read it, no voice
+    if (into < 2000) Sound.say(m.who, m.say);    // tuned in well after the start of a line: read it, no voice
     const hold = () => Math.max(2500, b.at + b.ms - NOW());
     return new Promise(res => {
       if (i >= full.length){ said.textContent = full; scroll(); if (!m.host && into < b.ms + 2500){ showSay(m.who, m.say); holdSay(b.at + b.ms + 2500 - NOW()); } return res(); }
@@ -3262,7 +3378,7 @@
   function adTick(){
     const now = NOW(), slot = Math.floor(now / AD_EVERY), e = now % AD_EVERY - 20000;
     const quiet = !forceLoc && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
-      && (actor.action === 'sleeping' || !['talking','phoning','improv'].includes(actor.action));
+      && (actor.action === 'sleeping' || !['talking','phoning','improv','lecture'].includes(actor.action));
     const want = e >= 0 && e < AD_SHOW && quiet ? BANNERS[Math.floor(hash(slot * 5 + 11) * BANNERS.length)] : null;
     const el = $('adb');
     if (want !== adOn){ adOn = want; el.classList.toggle('on', !!want);
@@ -3324,9 +3440,11 @@
   let SHOW = null, SUMMARY = null, showOn = false;
   const stvCtx = $('stvCv').getContext('2d'), stvLive = $('stvLiveCv').getContext('2d');
   function renderSummary(){
-    const el = $('sumPanel'); if (!SUMMARY || (!SUMMARY.today && !SUMMARY.yesterday)) return;
+    const el = $('sumPanel'), any = SUMMARY && (SUMMARY.today || SUMMARY.yesterday); if (!any && !COURSE.at) return;
     el.textContent = '';
     const add = (title, x) => { if (!x) return; const h = document.createElement('h4'); h.textContent = title; const p = document.createElement('p'); p.textContent = x.text; el.append(h, p); };
+    if (COURSE.at) add(`${COURSE.name.toUpperCase()} · NEXT LECTURE · ${new Intl.DateTimeFormat('en-GB',{timeZone:TZ,weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(COURSE.at))}`, {text: COURSE.title + (COURSE.next ? ` — and after that: ${COURSE.next}` : '')});
+    if (!any) return;
     add('TODAY SO FAR' + (SUMMARY.today && SUMMARY.today.at ? ' · ' + fmtHM.format(new Date(SUMMARY.today.at)) : ''), SUMMARY.today);
     add('YESTERDAY', SUMMARY.yesterday);
   }
@@ -3476,7 +3594,7 @@
       play(m){ const e = event(m); ingest([e], false); },
       go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(e.location, e.action, true, e.with); },
       busy: () => !!actor.pending || actor.travelling || !!actor.ride || !!actor.switching || !!actor.rideUntil || held.size > 0 || queue.length > 0 || (!!tlLast && NOW() < tlLast.end),
-      state: () => ({regulars: Object.keys(REG).filter(regHere), say: SAY.who, loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
+      state: () => ({voice: Sound.voiceInfo(), regulars: Object.keys(REG).filter(regHere), say: SAY.who, loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
       world(o){ forceHour = o.hour; const code = {clear: 0, cloudy: 3, rain: 61, storm: 95}[o.weather]; const t = NOW();
         WORLD = {weather: {temp: o.temp, code, desc: o.weather, rain: o.weather === 'rain' || o.weather === 'storm', cloudy: o.weather !== 'clear'}, shabbat: o.shabbat ? {start: t - 3600000, end: t + 86400000, startLabel: '17:00', endLabel: '18:00'} : null};
         $('stNext').textContent = weatherLabel(); },
@@ -3758,6 +3876,7 @@
   // ================= data: live Worker or demo =================
   const DEMO_CAST = [
     {id:'tomer',name:'Tomer',role:"Ishai's friend from school, an electrician",personality:'loud, loyal, always has a plan',look:{hair:'short',hairColor:'brown',skin:'tan',shirt:'green',pants:'navy',extras:['beard']},memory:'Owes Ishai a rematch.',relationship:4},
+    {id:'sasson',name:'Dr. Sasson',role:'lectures on Strange But True at Tel Herzl University',personality:'dry, exact',look:{hair:'short',hairColor:'gray',skin:'light',shirt:'purple',pants:'black',extras:['glasses','scarf']},memory:'',relationship:0},
     {id:'yael',name:'Yael',role:"teaches the Thursday improv class at The Black Candle",personality:'warm, sharp, patient',look:{hair:'curly',hairColor:'black',skin:'tan',shirt:'yellow',pants:'black',extras:['earring']},memory:'',relationship:0},
     {id:'gadi',name:'Gadi',role:'runs Sababa Creative, the agency that gives Ishai most of his work; only ever on the phone',personality:'cheerful, always in a hurry',look:{hair:'bald',hairColor:'gray',skin:'fair',shirt:'gray',pants:'black',extras:['glasses']},memory:'Needs it by tomorrow.',relationship:1,remote:true},
     ...Object.entries(REG).map(([id, r]) => ({id, name: id[0].toUpperCase() + id.slice(1), role: 'a regular at the ' + r.place, personality: '', look: r.look, memory: '', relationship: 0})),
@@ -3839,7 +3958,9 @@
       if (s.studio) STUDIO = s.studio;
       if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;
-      if (s.summary){ SUMMARY = s.summary; renderSummary(); }
+      if (s.course) COURSE = s.course;
+      if (s.summary) SUMMARY = s.summary;
+      if (s.summary || s.course) renderSummary();
       if (s.world) { WORLD = s.world; $('stNext').textContent = weatherLabel(); }
       if (Array.isArray(s.dream)) DREAM = s.dream;
       // items appear when the moment that brings them is shown, not before (broadcast delay)
