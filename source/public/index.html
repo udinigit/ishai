@@ -3866,7 +3866,7 @@
   function overhear(force){
     const now = NOW(), slot = Math.floor(now / OVER_SLOT), at = slot * OVER_SLOT + hash(slot * 43 + 2) * 150000, list = OVERHEARD[actor.loc], h = hourNow();
     if (!force && (slot === overDone || now < at || now > at + 12000 || !list || h < 7 || h >= 23 || forceLoc || PREVIEW)) return false;
-    if (!list || (!force && (now - TALK_AT < 6000 || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || actor.hidden || actor.with || studioOn || showOn || callOn || talkSoon(8000)))) return false;
+    if (!list || (!force && (chatUntil || now - TALK_AT < 6000 || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || actor.hidden || actor.with || studioOn || showOn || callOn || talkSoon(8000)))) return false;
     overDone = slot; if (!force && hash(slot * 47 + 1) > .6) return false;                    // most slots pass by without a word
     const today = pack('overheard', actor.loc); showOver(fillPick(today.length && hash(slot * 67 + 1) < .6 ? today : list, slot, 6), 'overheard', OVER_MS);
     return true;
@@ -3887,7 +3887,7 @@
   const ambientClear = (ms) => !(NOW() - TALK_AT < ms || SPEAKING || (SAY.who && NOW() < SAY.until) || actor.switching || studioOn || showOn || callOn || talkSoon(8000));
   function cityTick(forced){
     const now = NOW(), slot = Math.floor(now / CITY_SLOT), at = slot * CITY_SLOT + hash(slot * 53 + 4) * 30000, e = forced || cityNow()[0];
-    if (!e || (!forced && (slot === cityDone || now < at || now > at + 15000 || forceLoc || PREVIEW || actor.action === 'sleeping' || !ambientClear(5000)))) return false;
+    if (!e || (!forced && (chatUntil || slot === cityDone || now < at || now > at + 15000 || forceLoc || PREVIEW || actor.action === 'sleeping' || !ambientClear(5000)))) return false;
     cityDone = slot; Sound.sfx(e.sfx);
     if (forced || hash(slot * 59 + 2) < .6) showOver(fillPick(e.cap, slot, 8), e.label, OVER_MS);
     return true;
@@ -3899,7 +3899,7 @@
   function showChat(who, say){ $('chatWho').textContent = who + ':'; $('chatSay').textContent = say; $('chatC').hidden = false; chatUntil = NOW() + CHAT_MS; Sound.sfx('ping'); }
   function chatTick(){
     const now = NOW(); if (chatUntil && now > chatUntil){ chatUntil = 0; $('chatC').hidden = true; }
-    if (forceLoc || PREVIEW || chatUntil || actor.action === 'sleeping' || !ambientClear(5000)) return;
+    if (forceLoc || PREVIEW || chatUntil || overUntil || actor.action === 'sleeping' || !ambientClear(5000)) return;
     const sh = WORLD && WORLD.shabbat; if (sh && now >= sh.start && now <= sh.end) return;      // the building keeps its phones down on Shabbat
     const w = cityWhen(now), list = pack('chat');
     for (const c of list){ const [h, m] = String(c.at || '').split(':').map(Number), d = w.min - (h * 60 + m), key = dayOf(now) + c.at + c.who;
