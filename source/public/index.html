@@ -2604,18 +2604,32 @@
       const v = voiceOf(id); tone(v.f*(.9+Math.random()*.25), .05, v.type, v.type==='sawtooth' ? .025 : .04);
     }
     function key(ch){ if (on() && mode==='blips' && ch!==' ' && Math.random()<.45) noise(.012,{vol:.02,type:'highpass',freq:3000}); }
-    let voices = [];
+    let voices = [], voiceState = 'not tried', blocked = false;
     const loadVoices = () => { try { voices = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); } catch(e){} };
     if ('speechSynthesis' in window){ loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
     function say(id, text){
       if (!on() || mode !== 'voices' || !('speechSynthesis' in window)) return Promise.resolve();
       return new Promise(res => {
-        const u = new SpeechSynthesisUtterance(text), v = voiceOf(id);
-        if (voices.length) u.voice = voices[hash(id) % voices.length];
-        u.pitch = Math.min(2, Math.max(0, v.pitch)); u.rate = v.rate; u.volume = .9;
-        const to = setTimeout(res, 4000 + text.length*120); const done = () => { clearTimeout(to); res(); };
+        const v = voiceOf(id), to = setTimeout(res, 4000 + text.length*120); const done = () => { clearTimeout(to); res(); };
         saying++; let once = false; const fin = () => { if (!once){ once = true; saying--; } done(); };
-        u.onend = fin; u.onerror = fin; setTimeout(() => { if (!once){ once = true; saying--; } }, 4000 + text.length*120); speechSynthesis.speak(u);
+        setTimeout(() => { if (!once){ once = true; saying--; } }, 4000 + text.length*120);
+        // the speaker's own voice first; a voice that fails or never starts gives way once to the device's default voice
+        const speak = (own) => {
+          const u = new SpeechSynthesisUtterance(text); let started = false;
+          if (own && voices.length) u.voice = voices[hash(id) % voices.length];
+          u.pitch = Math.min(2, Math.max(0, v.pitch)); u.rate = v.rate; u.volume = .9;
+          const fallback = () => { u.onerror = u.onend = null; try { speechSynthesis.cancel(); } catch(e){} speak(false); };
+          u.onstart = () => { started = true; voiceState = own ? 'speaking' : 'speaking (default voice)'; };
+          u.onend = fin;
+          u.onerror = e => { const why = e && e.error || 'error'; voiceState = 'failed: ' + why;
+            if (why === 'not-allowed'){ blocked = true; btn.textContent = 'TAP FOR VOICES'; return fin(); }
+            if (why === 'canceled' || why === 'interrupted' || !own || started) return fin();
+            fallback(); };
+          try { speechSynthesis.resume(); } catch(e){}
+          speechSynthesis.speak(u);
+          if (own) setTimeout(() => { if (!started && !once){ voiceState = 'no start: ' + (u.voice ? u.voice.name : 'default'); fallback(); } }, 2500);
+        };
+        speak(true);
       });
     }
 
@@ -2769,12 +2783,13 @@
     function setMode(m){
       if (!init()){ btn.textContent = 'NO AUDIO'; return; }
       if (ac.state === 'suspended') ac.resume();
-      mode = m; btn.textContent = LABELS[mode];
+      mode = m; btn.textContent = LABELS[mode]; blocked = false;
+      if (mode === 'voices' && 'speechSynthesis' in window) try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch(e){}   // a tap is what allows speech: use it now
       try { sessionStorage.setItem('ishaiSound', mode); } catch(e){}
       if (mode !== 'voices' && 'speechSynthesis' in window) speechSynthesis.cancel();
       ambKey = ''; setAmbience(wanted);
     }
-    btn.onclick = (e) => { e.stopPropagation(); setMode(MODES[(MODES.indexOf(mode)+1) % MODES.length]); };
+    btn.onclick = (e) => { e.stopPropagation(); setMode(blocked ? 'voices' : MODES[(MODES.indexOf(mode)+1) % MODES.length]); };
     // after an automatic update the browser mutes the page; the first tap anywhere brings the sound back
     let saved = 'off'; try { saved = sessionStorage.getItem('ishaiSound') || 'off'; } catch(e){}
     if (saved !== 'off'){
@@ -2810,7 +2825,7 @@
       out.connect(dest); out.disconnect(ac.destination);
       return {stream: dest.stream, stop(){ try { o.stop(); out.disconnect(dest); out.connect(ac.destination); } catch(e){} }};
     }
-    return { blip, key, say, hush, popAudio, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
+    return { voiceInfo: () => `${voiceState} · ${voices.length} English voices`, blip, key, say, hush, popAudio, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -3032,7 +3047,7 @@
     const full = m.host ? m.say : '"' + m.say + '"';
     if (!animate){ said.textContent = full; cur.remove(); scroll(); return Promise.resolve(); }
     const b = budget || {at: NOW(), ms: 0}, into = Math.max(0, NOW() - b.at); let i = charsAt(full, into);
-    if (into < 800) Sound.say(m.who, m.say);     // tuned in later than the start of a line: read it, no voice
+    if (into < 2000) Sound.say(m.who, m.say);    // tuned in well after the start of a line: read it, no voice
     const hold = () => Math.max(2500, b.at + b.ms - NOW());
     return new Promise(res => {
       if (i >= full.length){ said.textContent = full; scroll(); if (!m.host && into < b.ms + 2500){ showSay(m.who, m.say); holdSay(b.at + b.ms + 2500 - NOW()); } return res(); }
@@ -3575,7 +3590,7 @@
       play(m){ const e = event(m); ingest([e], false); },
       go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(e.location, e.action, true, e.with); },
       busy: () => !!actor.pending || actor.travelling || !!actor.ride || !!actor.switching || !!actor.rideUntil || held.size > 0 || queue.length > 0 || (!!tlLast && NOW() < tlLast.end),
-      state: () => ({regulars: Object.keys(REG).filter(regHere), say: SAY.who, loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
+      state: () => ({voice: Sound.voiceInfo(), regulars: Object.keys(REG).filter(regHere), say: SAY.who, loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
       world(o){ forceHour = o.hour; const code = {clear: 0, cloudy: 3, rain: 61, storm: 95}[o.weather]; const t = NOW();
         WORLD = {weather: {temp: o.temp, code, desc: o.weather, rain: o.weather === 'rain' || o.weather === 'storm', cloudy: o.weather !== 'clear'}, shabbat: o.shabbat ? {start: t - 3600000, end: t + 86400000, startLabel: '17:00', endLabel: '18:00'} : null};
         $('stNext').textContent = weatherLabel(); },

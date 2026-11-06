@@ -46,6 +46,7 @@ Workers AI output costs ~6.5x input, so the engine avoids AI calls where it can 
 - Studio recaps, the auto Studio break and callers start at times worked out from the moments, not from what one browser sees (`studioStart()`, `showStart()`, `callStart()`, `slotAfter()`). The picture-in-picture recap plays on even UTC hours, the full break on odd ones. Don't add `Math.random()` or per-browser checks to anything timed; the 📺 STUDIO button is the one personal exception.
 - Movement runs in fixed 33 ms steps on that clock (`advance()`, `STEP`): anything that moves must take its time from `NOW()`, never `performance.now()` or `setTimeout`, because `NOW()` is the simulated time while steps run (`SIM`). A refresh or a returning tab replays the current moment fast and unseen (`joinMoment()`), starting 12 s before it. `update()` may not touch sound or anything a replay would repeat. Companions and the dog move during `render()`, so the replay renders every third step.
 - Sound effects are picked from the 25 s clock slot, not at random.
+- Voices: `Sound.say()` tries the speaker's own voice and falls back once to the device's default if it fails or hasn't started in 2.5 s. If the browser blocks speech, the button says TAP FOR VOICES. The sandbox status line shows `Sound.voiceInfo()`.
 - Can't match exactly: voices finishing, the room-sound loops, real radio streams. `?syncdebug` adds `window.__ishaiSync()` with the positions, and `window.__ishaiJoinMs` shows the last replay's time.
 
 ## Pop out (picture-in-picture)

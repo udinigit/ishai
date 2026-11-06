@@ -267,7 +267,7 @@ Back to the cameras.</textarea>
     $('evRecap').onclick = () => api.recap(hostTurns());
     $('evShow').onclick = () => api.show(hostTurns());
     $('evDream').onclick = () => { running++; api.dream(); };
-    setInterval(() => { const s = api.state(); $('status').textContent = `${s.loc} · ${s.action}${s.moving ? ' · on the way' : ''}`; }, 500);
+    setInterval(() => { const s = api.state(); $('status').textContent = `${s.loc} · ${s.action}${s.moving ? ' · on the way' : ''} · voice: ${s.voice}`; }, 500);
   }
   $('stage').addEventListener('load', () => { if (!$('stage').contentWindow.__sandbox) { $('status').textContent = 'The picture did not load.'; return; } ready(); });
 })();
