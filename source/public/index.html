@@ -3286,7 +3286,7 @@
     if (UNLOCKED.has('dog')){
       const c = document.createElement('canvas'); c.width = 14; c.height = 12; const pc = c.getContext('2d'); const prev = g; g = pc;
       R(0,0,14,12,'#0b120b'); dogMap(DOG.sitA, 2, 3, false); g = prev;
-      const d = card(ISHAI_LOOK,'FALAFEL','#e8c48a',"Ishai's dog. Scruffy, sandy, adopted from Avi's kiosk." + (onCam ? NOW_TAG : ''),null,'Eats everything. Trusts Ishai and Avi, and gets along with every Siberian Husky he meets: huskies are his best friends after Ishai.', false);
+      const d = card(ISHAI_LOOK,'FALAFEL','#e8c48a',"Ishai's dog. Scruffy, sandy, adopted from Avi's kiosk." + (onCam ? NOW_TAG : ''),null,'Eats everything. Trusts Ishai and Avi, and gets along with every Siberian Hascii he meets: Hasciis are his best friends after Ishai.', false);
       d.replaceChild(c, d.firstChild); d.dataset.id = 'falafel'; fold(d, 'falafel', onCam);
     }
     Object.values(CAST).forEach(c=>{
