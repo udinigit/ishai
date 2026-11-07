@@ -13,3 +13,4 @@ Ideas and requests from the director. Newest at the bottom; mark done with the v
 - [x] Ambient layer: weekly city timetable with sound, building chat, daily texture pack from the planner. — v147
 - [x] Viewers' polls every hour: anonymous, 60 seconds, percentages with the winner highlighted; the winner plays out an hour or more later. — v148
 - [x] Google sign-in for voting (on when the GOOGLE_CLIENT_ID secret is set; see docs/GOOGLE_SIGNIN.md). — v148
+- [x] Home life: longer activities at home (sweeping, dishes, keyboard, phone on the bed or armchair, laundry, snacks, dancing...), idle spot off the bed, drop-in visits and Falafel's three walks a day as goals. — v156

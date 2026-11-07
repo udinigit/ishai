@@ -582,9 +582,9 @@
     try { return drawIshaiBody(pose, x, y, t, o); } finally { Object.assign(C, keep); }
   }
   function drawIshaiBody(pose, x, y, t, o={}){
-    if (pose==='sleeping' || pose==='listening') markHead('ishai', 9, 66); else markHead('ishai', x, y);
-    if (pose==='sleeping' || pose==='listening') return outlined(6, 56, 44, 26, () => drawIshaiRaw(pose, x, y, t, o));
-    const umb = UMB && !DREAMING && !['exercising','stretch','waking'].includes(pose);
+    if (pose==='sleeping' || pose==='listening' || pose==='lounge') markHead('ishai', 9, 66); else markHead('ishai', x, y);
+    if (pose==='sleeping' || pose==='listening' || pose==='lounge') return outlined(6, 56, 44, 26, () => drawIshaiRaw(pose, x, y, t, o));
+    const umb = UMB && !DREAMING && !['exercising','stretch','waking','sweep','dance','fold'].includes(pose);
     return outlined(x-12, y-10, 36, 36, () => { drawIshaiRaw(pose, x, y, t, o); if (umb) umbrella(x, y, t); });
   }
   function drawIshaiRaw(pose, x, y, t, o={}){
@@ -608,6 +608,7 @@
         R(x+2,y,6,2,C.hair); R(x+1,y+1,8,7,C.hair); R(x+1,y+5,1,2,C.skin); R(x+8,y+5,1,2,C.skin);
         torso(x,y); armsDown(x,y); legs(x,y,0);
         if (o.water){ R(x-1,y+10,3,2,'#c9ced4'); if (Math.floor(t/300)%2) R(x-2,y+12,1,1,'#9fd3f0'); }
+        if (o.mug){ R(x+8,y+10,3,3,'#e8e4d8'); R(x+11,y+11,1,1,'#e8e4d8'); if (Math.floor(t/700)%2) R(x+9,y+8,1,1,'#f2f2f2'); else R(x+10,y+7,1,1,'#f2f2f2'); }
         break; }
       case 'idle': {
         const k = o.fidget || (o.still ? 'none' : fid(11, t, false, false)); if (k==='shift') x += Math.floor(t/2000)%2;
@@ -678,6 +679,54 @@
         if (bite){ R(x+8,y+9,1,1,C.shirt); R(x+7,y+7,1,3,C.skin); R(x+6,y+6,1,2,food); }
         else { R(x+8,y+9,1,3,C.shirt); R(x+8,y+12,1,1,C.skin); R(x+8,y+13,1,2,food); }
         lower(); break; }
+      case 'sweep': {   // a broom, swept from side to side, a little dust where it lands
+        const sw = Math.floor(t/380)%2, d = o.dir || 1, bx = d > 0 ? x+9 : x;
+        head(x,y,{closed:blinkOn(t,400), look:d}); torso(x,y);
+        R(x+1,y+9,1,3,C.shirt); R(x+8,y+9,1,3,C.shirt); R(x+2,y+12,1,1,C.skin); R(x+7,y+12,1,1,C.skin);
+        line(bx-d*4+(d>0?-2:2), y+7, bx+d*(3+sw*2), y+19, '#a8794a');
+        R(bx+d*(1+sw*2)-(d<0?4:0), y+19, 6, 2, '#d9b24a'); R(bx+d*(1+sw*2)-(d<0?4:0), y+21, 6, 1, '#b8913a');
+        legs(x,y,Math.floor(t/760)%2 ? 1 : 0);
+        if (sw) alpha(.5,()=>{ R(bx+d*7, y+20, 1, 1, '#cfc6b4'); R(bx+d*9, y+19, 1, 1, '#cfc6b4'); });
+        break; }
+      case 'wipe': {    // at the counter, from behind: one arm working
+        const sw = Math.round(Math.sin(t/260)*2);
+        R(x+2,y,6,2,C.hair); R(x+1,y+1,8,7,C.hair); R(x+1,y+5,1,2,C.skin); R(x+8,y+5,1,2,C.skin);
+        torso(x,y); R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,1,C.skin);
+        R(x+8+Math.max(0,sw),y+7,1,3,C.shirt); R(x+8+sw,y+5,2,2,C.skin);
+        legs(x,y,0); break; }
+      case 'fold': {    // a shirt in both hands, shaken out and folded onto the pile
+        const f = Math.floor(t/900)%3, c = ['#c23b3b','#3b7bc2','#e8e4d8'][Math.floor(t/2700)%3];
+        head(x,y,{closed:blinkOn(t,250), look:-1}); torso(x,y);
+        R(x+1,y+9,1,3,C.shirt); R(x+8,y+9,1,3,C.shirt);
+        if (f===0){ R(x,y+11,10,5,c); R(x,y+11,10,1,shade(c,.8)); }
+        else if (f===1){ R(x+1,y+12,8,3,c); R(x+1,y+14,8,1,shade(c,.8)); }
+        else { R(x+2,y+13,6,2,c); }
+        R(x,y+12,1,1,C.skin); R(x+9,y+12,1,1,C.skin); legs(x,y,0); break; }
+      case 'dance': {   // badly, happily, alone
+        const b = Math.floor(t/330)%4, up = b%2;
+        head(x+(b===1?1:b===3?-1:0),y+up,{closed: b===2}); torso(x,y+up);
+        if (b<2){ R(x+8,y+9+up,1,2,C.shirt); R(x+9,y+5+up,1,4,C.skin); R(x+1,y+9+up,1,4,C.shirt); R(x+1,y+13+up,1,1,C.skin); }
+        else { R(x+1,y+9+up,1,2,C.shirt); R(x,y+5+up,1,4,C.skin); R(x+8,y+9+up,1,4,C.shirt); R(x+8,y+13+up,1,1,C.skin); }
+        legs(x,y+up,b===1?1:b===3?2:0);
+        const ph = (t%1400)/1400; alpha(1-ph,()=>{ R(x+11,y+2-Math.floor(ph*8),2,2,'#ffd36a'); R(x+12,y-1-Math.floor(ph*8),1,3,'#ffd36a'); });
+        break; }
+      case 'keys': {    // at the desk, both hands on the little keyboard, nodding along
+        const nod = Math.floor(t/420)%2, a1 = Math.floor(t/210)%3, a2 = Math.floor(t/290)%3;
+        head(x,y+nod,{closed: Math.floor(t/2600)%3===0}); torso(x,y); armsFront(x,y);
+        R(x+a1,y+11,1,1,C.skin); R(x+7+a2,y+11,1,1,C.skin); lower(); break; }
+      case 'scroll': {  // in the armchair, thumb on the phone, face lit
+        head(x,y,{closed:blinkOn(t,900), look: Math.floor(t/7000)%4===0 ? 1 : 0}); torso(x,y); armsFront(x,y);
+        R(x+3,y+11,4,4,'#2a2a2a'); R(x+4,y+12,2,2,['#7fd0ff','#ffd36a','#ff9a9a'][Math.floor(t/2300)%3]);
+        R(x+2,y+13,1,1,C.skin); R(x+7,y+12+(Math.floor(t/500)%2),1,1,C.skin);
+        alpha(.18,()=>R(x+2,y+3,6,5,'#9fd0ff')); break; }
+      case 'lounge': {  // on top of the bed, ankles crossed; a phone held up over his face, or hands behind his head
+        R(11,69,2,5,C.hair); R(13,69,5,5,C.skin); R(13,69,5,1,C.hair); R(15,70,1,1,C.eye); R(15,72,1,1,C.eye); R(17,71,1,2,C.skinShade);
+        R(18,70,13,5,C.shirt); R(18,74,13,1,C.shirtShade);
+        R(31,71,11,4,C.pants); R(42,70,2,2,C.shoe); R(42,72,2,3,C.shoe); R(40,70,2,1,C.pants);
+        if (o.phone){ const k = Math.floor(t/600)%2; R(19,67,1,3,C.skin); R(17,64,4,3,'#2a2a2a'); R(18,65,2,1,['#7fd0ff','#ffd36a'][Math.floor(t/2500)%2]); R(20,66-k,1,1,C.skin);
+          alpha(.2,()=>R(13,68,6,4,'#9fd0ff')); }
+        else { R(10,68,2,2,C.skin); R(10,70,1,2,C.shirt); }
+        break; }
       case 'cooking': {
         const st = Math.floor(t/300)%2;
         head(x,y,{closed:blinkOn(t,900), look:1}); torso(x,y);
@@ -1178,8 +1227,9 @@
   // ---------- apartment ----------
   SCENES.apartment = {
     cam:'CAM-01', place:'ISHAI // APARTMENT 4', walkY:74, entry:135, exit:135,
-    stand:{bathroom:48, showering:48, drinking:158, idle:34, walking:58, working:75, gaming:75, reading:111, watching:111, exercising:52, eating:158, cooking:159, waking:30, sleeping:30, listening:30},
+    stand:{bathroom:48, showering:48, drinking:158, idle:144, walking:58, working:75, gaming:75, reading:111, watching:111, exercising:52, eating:158, cooking:159, waking:30, sleeping:30, listening:30},
     draw(t,hf,a,settled,actor){
+      const seat = actor.err && actor.err.seat && actor.loc === 'apartment' && !DREAMING ? actor.err : null, tag = actor.err && actor.loc === 'apartment' ? actor.err.tag : null;
       R(0,0,W,80,C.wall); for (let x=0;x<W;x+=16) R(x,0,1,78,C.wallDark);
       R(0,78,W,2,C.trim); R(0,80,W,28,C.floor);
       for (let y=84;y<H;y+=6) R(0,y,W,1,C.floorLine);
@@ -1223,6 +1273,10 @@
       const fridgeOpen = (actor.err && actor.err.tag==='fridge') || (actor.viaUntil && actor.loc==='apartment'); R(179,44,1,5,'#9aa3ad'); R(179,55,1,7,'#9aa3ad'); R(182,40,3,3,'#e0605a'); R(184,46,5,6,COOOLA.bg); bolt(185,46,COOOLA.fg);
       if (fridgeOpen){ R(178,39,12,40,'#f4f8ff'); R(178,52,12,1,'#c9d0d6'); R(178,64,12,1,'#c9d0d6'); R(180,57,3,5,COOOLA.bg); R(184,58,3,4,COOOLA.bg); R(181,46,6,4,'#e0b04a'); R(180,68,8,3,'#7fbf6a');
         R(170,38,7,42,C.fridge); R(170,38,1,42,'#b8bec4'); alpha(.15,()=>R(150,40,40,50,'#f4f8ff')); }
+      if (tag==='wipe' || tag==='dishes'){ const sx = Math.round(actor.x) + 2 + Math.round(Math.sin(NOW()/260)*3);
+        if (tag==='wipe'){ R(sx,63,3,1,'#e0d050'); R(sx,62,3,1,'#7fbf6a'); if (Math.floor(t/500)%3===0) R(sx-4,63,1,1,'#ffffff'); }
+        else { R(152,62,7,2,'#f2f2f2'); R(153,61,5,1,'#cfd6dc'); R(sx+1,62,3,1,'#c9ced4');
+          for (let i=0;i<3;i++){ const ph=(t/1300+i/3)%1; alpha(1-ph,()=>R(153+i*3,61-Math.floor(ph*8),1,1,'#e8f6ff')); } } }
       if (actor.err && actor.err.tag==='kettle') for (let i=0;i<3;i++){ const ph=(t/700+i/3)%1; alpha(1-ph,()=>R(163+i*2,46-Math.floor(ph*10),1,1,'#f2f2f2')); }
       R(96,95,44,10,C.rug); R(98,97,40,6,C.rugLight); R(100,99,36,2,C.rug);
       if (UNLOCKED.has('dog')){ R(50,90,16,6,'#8a3b3b'); R(51,91,14,3,'#c96a5a'); R(134,93,7,2,'#3b7bc2'); R(135,92,5,1,'#c9a26a'); }
@@ -1231,34 +1285,45 @@
       // armchair back
       R(104,64,24,17,C.arm); R(106,66,20,1,C.armLight);
 
-      const S = (p)=>settled && a===p;
+      // a home activity in a seat (keys at the desk, the phone in the armchair or on the bed, a snack at the counter): drawn here like the real action
+      const S = (p)=>(settled && a===p) || (seat && seat.seat===p), SP = (p)=>seat && seat.seat===p ? seat.sp : p, real = (p)=>settled && a===p;
       if (S('sleeping')) drawIshai('sleeping',0,0,t);
-      if (S('listening')) drawIshai('listening',0,0,t);
+      if (S('listening')) drawIshai(SP('listening'),0,0,t,{phone: tag==='bedphone'});
       if (S('waking')) drawIshai('waking',27,60,t);
       // bed front
       if (S('sleeping')){ const b=Math.floor(t/1400)%2; R(18,71+b,30,6-b,C.blanket); R(18,77,30,7,C.blanket); R(18,74,30,1,C.blanketDark); R(18,71+b,1,13-b,C.blanketDark); }
       else if (S('waking')){ R(20,76,29,8,C.blanket); R(20,76,29,1,C.blanketDark); }
       else { R(19,75,30,9,C.blanket); R(19,75,30,1,C.blanketDark); R(19,79,30,1,C.blanketDark); }
+      if (tag==='laundry'){ // a laundry pile on the bed, and the folded stack growing beside it
+        const n = Math.floor((NOW() % HOME_BLOCK) / 9000) % 4;
+        [['#c23b3b',22],['#3b7bc2',25],['#e8e4d8',28],['#4f9a3f',31],['#d8b43a',24]].forEach(([c,x],i)=>{ R(x,71+(i%2),5,3,c); R(x,71+(i%2),5,1,shade(c,.8)); });
+        for (let i=0;i<=n;i++){ const c = ['#e8e4d8','#3b7bc2','#c23b3b','#7d7d85'][i]; R(38,73-i*2,7,2,c); R(38,74-i*2,7,1,shade(c,.8)); } }
       R(8,84,42,8,C.wood); R(8,84,42,1,C.woodLight); R(9,92,2,4,C.woodDark); R(47,92,2,4,C.woodDark);
       // armchair
       if (S('reading')) drawIshai('reading',111,62,t);
-      if (S('watching')) drawIshai('watching',111,62,t);
+      if (S('watching')) drawIshai(SP('watching'),111,62,t);
       R(104,80,24,8,C.armDark); R(102,72,4,17,C.armLight); R(126,72,4,17,C.armLight);
       R(102,72,4,1,'#6d8c55'); R(126,72,4,1,'#6d8c55'); R(104,88,2,4,C.woodDark); R(126,88,2,4,C.woodDark);
       zOn();
       // desk: its base is nearer the camera than the walking line, so people walk behind it (and behind whoever sits there)
       zAdd(102, () => {
       R(73,63,14,13,C.chair); R(74,64,12,1,'#4a4a58');
-      if (S('working')||S('gaming')) drawIshai(a,75,70,t);
+      if (S('working')||S('gaming')) drawIshai(seat && seat.seat==='working' ? seat.sp : a,75,70,t);
       R(60,84,40,2,C.woodLight); R(60,86,40,10,C.wood); R(61,96,2,6,C.woodDark); R(97,96,2,6,C.woodDark); R(64,88,10,1,C.woodDark);
       const lx = a==='gaming' ? 88 : 77;
-      R(lx,78,7,6,C.metal); R(lx,78,7,1,'#c4cbd3'); R(lx-1,83,9,1,C.metalDark); R(lx+3,80,1,1,'#d0d6dc');
+      if (tag==='keys'){ // the little 49-key keyboard, pulled out in front of the laptop; notes float up while he plays
+        R(lx+1,79,6,1,C.metal); R(lx,80,8,1,C.metalDark);
+        R(67,81,24,3,'#2a2a2e'); R(68,81,22,2,'#eeeeee'); for (let i=0;i<7;i++) if (i%7!==2 && i%7!==6) R(70+i*3,81,1,1,'#1b1b1b');
+        R(68,83,2,1,'#e0605a'); R(87,83,2,1,'#7fbf6a');
+        for (let i=0;i<3;i++){ const ph=(t/1500+i/3)%1, nx=72+i*6+Math.floor(ph*4), ny=72-Math.floor(ph*16);
+          alpha(1-ph,()=>{ R(nx,ny,2,2,'#ffd36a'); R(nx+1,ny-3,1,3,'#ffd36a'); }); } }
+      else { R(lx,78,7,6,C.metal); R(lx,78,7,1,'#c4cbd3'); R(lx-1,83,9,1,C.metalDark); R(lx+3,80,1,1,'#d0d6dc'); }
       R(64,80,3,4,'#e8e4d8'); R(67,81,1,2,'#e8e4d8'); cooolaCan(92,79);
       });
       if (UNLOCKED.has('tv')) zAdd(100, () => { // TV on a low stand, seen from behind (screen faces the armchair): people walk between it and the armchair
         R(105,93,26,2,C.woodDark); R(107,95,2,5,C.woodDark); R(127,95,2,5,C.woodDark);
         R(108,82,20,11,'#2b2b31'); R(109,83,18,1,'#3a3a42'); R(112,86,12,1,'#232328'); R(112,88,12,1,'#232328'); R(117,93,2,1,'#3a3a42');
-        if (S('watching')){ const c = ['#9fd0ff','#ffd36a','#ff9a9a','#a0ffb0'][Math.floor(t/1500)%4];
+        if (real('watching')){ const c = ['#9fd0ff','#ffd36a','#ff9a9a','#a0ffb0'][Math.floor(t/1500)%4];
           alpha(.5,()=>{ R(107,82,1,11,c); R(128,82,1,11,c); R(108,81,20,1,c); }); }
       });
       // a guest at the kitchen island (Shabbat dinner, coffee with a friend)
@@ -1291,9 +1356,9 @@
       let dark = 0; if (isNight(hf)) dark = S('sleeping') ? .62 : .28; else if (hf<7||hf>=18) dark=.12;
       if (dark) alpha(dark,()=>R(0,0,W,H,'#050a1e'));
       if (S('sleeping') && !DREAMING && sleepPhase() >= 2) drawDream(t);
-      if (S('watching')){ const c = ['#9fd0ff','#ffd36a','#ff9a9a','#a0ffb0'][Math.floor(t/1500)%4];
+      if (real('watching')){ const c = ['#9fd0ff','#ffd36a','#ff9a9a','#a0ffb0'][Math.floor(t/1500)%4];
         alpha(isNight(hf)?.4:.2,()=>R(112,63,8,15,c)); }
-      if (S('working')||S('gaming')){
+      if (real('working')||real('gaming')){
         const cols = a==='gaming' ? ['#5ab0ff','#ff6a6a','#7dff8a','#ffd36a'] : ['#9fd0ff','#bfe0ff'];
         const c = cols[Math.floor(t/(a==='gaming'?260:2000))%cols.length];
         alpha(isNight(hf)?.35:.18,()=>R(76,71,8,14,c));
@@ -2270,7 +2335,7 @@
     if (actor.hidden) return;
     const y = scene.walkY;
     if (actor.wash > 1){ drawIshai('idle', actor.x, y, t); return; }
-    if (actor.err && !DREAMING){ drawIshai(actor.err.pose, actor.x, y, t, actor.err.o); return; }
+    if (actor.err && !DREAMING){ if (actor.err.seat) return; drawIshai(actor.err.pose, actor.x, y, t, actor.err.o); return; }   // a seat: the scene draws him in it
     if (actor.viaUntil && !DREAMING){ drawIshai('back', actor.x, y, t); return; }
     // companion standing / walking next to Ishai
     let face = 0;
@@ -2369,6 +2434,61 @@
       const to = typeof st.to === 'string' ? x0 + Number(st.to) : st.to, d = Math.abs(to - x) / 24;
       if (e < d){ const nx = x + Math.sign(to - x) * e * 24; return {x: nx, pose:'walk', o:{}, walking:true, dir: Math.sign(to - x)}; }
       e -= d; x = to;
+    }
+    return null;
+  }
+
+  // ================= home life: longer things he does in the flat when he is alone with nothing on =================
+  // Every 150 s block may hold one activity (most do): he walks there, does it for a minute or so, and walks back to his spot.
+  // Like the errands, the pick and the timeline come from the clock, so every viewer sees the same thing.
+  // A step is {to:x} (walk), {pose, dur, to?} (standing; with `to` he moves slowly while doing it) or {seat, sp, dur} (the scene draws him in that seat).
+  const HOME_BLOCK = 150000;
+  const HOME = {
+    sweep:   {w:3, label:'SWEEPING', shabbat:false, steps:[{to:140},{pose:'sweep',dur:16,to:84,tag:'sweep'},{pose:'sweep',dur:14,to:130,tag:'sweep'},{pose:'sweep',dur:10,to:100,tag:'sweep'}]},
+    counter: {w:2, label:'CLEANING UP', shabbat:false, steps:[{to:156},{pose:'wipe',dur:30,tag:'wipe'}]},
+    dishes:  {w:3, label:'WASHING UP', shabbat:false, steps:[{to:156},{pose:'wipe',dur:38,tag:'dishes'},{pose:'back',dur:3}]},
+    keys:    {w:4, label:'PLAYING KEYS', shabbat:false, steps:[{to:75},{seat:'working',sp:'keys',dur:70,tag:'keys'}]},
+    couch:   {w:3, label:'CHILLING', steps:[{to:111},{seat:'watching',sp:'scroll',dur:70,tag:'scroll'}]},
+    bed:     {w:3, label:'CHILLING', steps:[{to:30},{seat:'listening',sp:'lounge',dur:75,tag:'bedphone'}]},
+    laundry: {w:2, label:'FOLDING LAUNDRY', shabbat:false, steps:[{to:28},{pose:'fold',dur:32,tag:'laundry'}]},
+    snack:   {w:3, label:'MAKING A SNACK', shabbat:false, steps:[{to:168},{pose:'back',dur:2,tag:'fridge'},{to:159},{seat:'cooking',dur:35,tag:'snack'},{seat:'eating',dur:25,x:158}]},
+    dance:   {w:1, label:'DANCING', shabbat:false, steps:[{to:142},{pose:'dance',dur:16}]},
+    workout: {w:1, label:'WORKING OUT', steps:[{to:52},{pose:'exercising',dur:30}]},
+    window:  {w:2, label:'COFFEE BREAK', shabbat:false, steps:[{to:156},{pose:'back',dur:5,tag:'kettle'},{to:24},{pose:'back',dur:20,o:{mug:true}}]},
+    plant:   {w:2, label:'WATERING MOSHE', shabbat:false, steps:[{to:31},{pose:'back',dur:6,o:{water:true},tag:'basil'},{pose:'back',dur:8}]},
+    nap:     {w:0, sw:4, label:'RESTING', steps:[{to:30},{seat:'listening',sp:'lounge',dur:80,tag:'rest'}]},           // Shabbat only: on the bed, no phone
+    read:    {w:0, sw:4, label:'READING', steps:[{to:111},{seat:'reading',sp:'reading',dur:75,tag:'read'}]}           // Shabbat only: a real book in the armchair
+  };
+  // the story's own words pick the activity while that moment plays ("he sweeps the floor", "plays his keyboard")
+  const HOME_HINT = [['sweep',/\b(sweep|swept|broom|mops?|mopping|vacuum)/i],['dishes',/\b(dishes|washing up|washes up|the sink)\b/i],['counter',/\b(wipes?|cleans?|cleaning|tid(y|ies)|tidying)\b/i],
+    ['keys',/\b(keyboard|keys|piano|plays? (a |some )?(tune|song|music)|chords?)\b/i],['laundry',/\b(laundry|folds?|folding|clothes)\b/i],['snack',/\b(snack|toast|sandwich|omelet|eggs|fries|makes? (himself )?(food|lunch|something to eat))\b/i],
+    ['dance',/\b(danc\w*)\b/i],['workout',/\b(push-?ups|sit-?ups|work(s|ing)? out|exercis\w*)\b/i],['bed',/\b(lies|lying|lays|sprawl\w*|flops?) (down )?(on|onto) (the|his) bed\b/i],
+    ['couch',/\b(scroll\w*|armchair)\b/i],['plant',/\bwaters? moshe\b|\bwatering\b/i],['window',/\b(window|coffee|kettle)\b/i]];
+  function homeHint(text){ for (const [k, re] of HOME_HINT) if (re.test(text || '')) return k; return null; }
+  const shabbatNow = () => { const sh = WORLD && WORLD.shabbat; return !!sh && !!sh.start && NOW() >= sh.start && NOW() <= (sh.end || sh.start + 26 * 3600000); };
+  function homeNow(){
+    if (actor.loc !== 'apartment' || actor.action !== 'idle' || actor.with || actor.travelling || actor.hidden || actor.pending || actor.switching || actor.dressTo || actor.viaUntil || actor.wash) return null;
+    const now = NOW(), h = storyHour(now); if (!actor.homeTest && (h < 7 || h >= 23)) return null;
+    const block = Math.floor(now / HOME_BLOCK), start = block * HOME_BLOCK + 3000;
+    if (!actor.homeTest && (now < start || actor.settledAt == null || actor.settledAt > start)) return null;
+    const sh = shabbatNow(), weight = k => sh ? (HOME[k].shabbat === false ? 0 : (HOME[k].sw ?? HOME[k].w)) : HOME[k].w;
+    const pick = b => { const ks = Object.keys(HOME).filter(k => weight(k) > 0), tot = ks.reduce((n, k) => n + weight(k), 0); let r = hash(b * 19 + 7) * tot;
+      for (const k of ks){ r -= weight(k); if (r < 0) return k; } return ks[ks.length - 1]; };
+    let kind = actor.hint && weight(actor.hint) > 0 && actor.hintUntil > now ? actor.hint : null;
+    if (!kind){ if (hash(block * 23 + 3) > .85) return null;          // now and then a block of just standing about
+      kind = pick(block); if (kind === pick(block - 1)) kind = pick(block + 7919); }
+    const x0 = standX('apartment', 'idle', null); let x = x0, e = (now - start) / 1000;
+    if (actor.homeTest){ kind = actor.homeTest.k; e = (now - actor.homeTest.t0) / 1000; }   // sandbox: this activity, from its start
+    else if (!actor.err && Math.abs(actor.x - x0) > 3) return null;
+    const act = HOME[kind], base = {home: kind, label: act.label};
+    for (const st of [...act.steps, {to: x0}]){
+      if (st.seat){ const sx = st.x ?? x; if (e < st.dur) return {...base, x: sx, seat: st.seat, sp: st.sp || st.seat, tag: st.tag, walking:false}; e -= st.dur; x = sx; continue; }
+      if (st.pose){ const to = st.to ?? x;
+        if (e < st.dur){ const k = e / st.dur, dir = Math.sign(to - x); return {...base, x: x + (to - x) * k, pose: st.pose, o: {...(st.o || {}), dir: dir || 1}, tag: st.tag, walking:false}; }
+        e -= st.dur; x = to; continue; }
+      const d = Math.abs(st.to - x) / 24;
+      if (e < d){ const dir = Math.sign(st.to - x); return {...base, x: x + dir * e * 24, pose:'walk', o:{}, walking:true, dir}; }
+      e -= d; x = st.to;
     }
     return null;
   }
@@ -2544,7 +2664,9 @@
 
   function update(dt, now){
     if (actor.switching){ if (now >= actor.switching) finishSwitch(); return; }
-    { const was = actor.err; actor.err = errandNow();
+    { const was = actor.err; actor.err = homeNow() || errandNow();
+      { const lab = actor.err && actor.err.label || null, hud = $('hudAction');   // the corner label says what he is doing at home
+        if (lab && !actor.dressTo && !actor.dressUntil && hud.textContent !== lab) hud.textContent = lab; else if (!lab && actor.homeLab) updateLabels(); actor.homeLab = lab; }
       if (actor.err) actor.x = actor.err.x;
       else if (was && !actor.travelling){ actor.targetX = standX(actor.loc, actor.action, actor.with); actor.travelling = Math.abs(actor.x - actor.targetX) > 1; } } // walk back, never jump
     if (actor.dressUntil){ if (now >= actor.dressUntil) doneDressing(); return; }   // changing at the closet
@@ -2631,7 +2753,7 @@
     // the moment before, settled: a few seconds of it put him where he really was (pacing, on an errand)
     if (p){ sim -= 12000; SIM = sim; NEXT_RIDE = p.ev.ride || null; setState(...where(p), true, p.ev.with || null); render(wall());
       while (sim < begin){ sim += STEP; SIM = sim; update(STEP/1000, sim); if (++n % 3 === 0) render(wall()); } }
-    NEXT_RIDE = e.ev.ride || null; setState(...where(e), !p, e.ev.with || null);
+    NEXT_RIDE = e.ev.ride || null; setState(...where(e), !p, e.ev.with || null); actor.hint = homeHint(e.ev.text); actor.hintUntil = e.end;
     while (sim < real && n < 15000){
       if (actor.rideUntil && actor.rideUntil - 2*STEP > sim) sim = Math.min(stepTo(real), stepTo(actor.rideUntil) - STEP);
       else if (rideQuiet() && sim < real - 8000) sim = stepTo(real - 8000);
@@ -2901,6 +3023,14 @@
         case 'snore': noise(1.4,{vol:.05,type:'lowpass',freq:250,sweep:[500,180],buf:brown}); break;
         case 'breath': noise(.4,{vol:.03,type:'bandpass',freq:900,q:1.5}); noise(.4,{vol:.025,type:'bandpass',freq:700,q:1.5,when:.55}); break;
         case 'bark': bark(); break;
+        case 'keys': { // a few bars on the little keyboard: a wandering pentatonic tune over a slow bass, now and then a wrong note
+          const sc = [262,294,330,392,440,523,587,659]; let i = 2 + Math.floor(r()*3), w = 0;
+          for (let n = 0; n < 16; n++){ i = Math.max(0, Math.min(sc.length - 1, i + Math.floor(r()*5) - 2)); const d = r() < .25 ? .5 : .28;
+            tone(sc[i] * (r() < .06 ? 1.06 : 1), d * .9, 'triangle', .028, w); if (n % 4 === 0) tone(sc[i % 3] / 2, .9, 'sine', .022, w); w += d; }
+          break; }
+        case 'sweep': for (let i = 0; i < 4; i++) noise(.32,{vol:.05,type:'bandpass',freq:2600,q:.8,sweep:[3400,1800],when:i*.62}); break;
+        case 'wipe':  for (let i = 0; i < 5; i++) noise(.16,{vol:.035,type:'bandpass',freq:1800,q:1.2,when:i*.3}); break;
+        case 'splash': noise(.6,{vol:.05,type:'bandpass',freq:900,q:.6,sweep:[1500,600]}); tone(2600,.2,'sine',.025,.5); break;
         case 'ping': tone(1320,.07,'sine',.05); tone(1760,.1,'sine',.04,.08); break;
         case 'truck': noise(3.2,{vol:.07,type:'lowpass',freq:220,sweep:[320,160],buf:brown}); for (let i = 0; i < 3; i++) tone(95,.12,'square',.03,.7 + i*.8); noise(.12,{vol:.05,type:'bandpass',freq:1400,when:2.4}); break;
         case 'megaphone': [392,392,466,349].forEach((f,i) => { tone(f,.32,'sawtooth',.016,i*.38); tone(f*1.01,.32,'square',.01,i*.38); }); break;
@@ -3040,6 +3170,7 @@
       // already over with more waiting (tab came back): no walking through old moments; well into this one: be where he is by now
       NEXT_RIDE = ev.ride || null; CUR_MEDIA = ev.media || null;
       if (!forceLoc && !ev._joined && !(queue.length && entry && NOW() >= entry.end)) setState(ev.location||'apartment', ev.action, ev._late > 20000, ev.with||null);
+      actor.hint = homeHint(ev.text); actor.hintUntil = entry ? entry.end : NOW() + 360000;
       actor.delivery = ev.delivery && ev._late < 35000 ? {at: start} : null;   // an ateBite courier at the door
       enterScene(ev.location, ev.with);
       if (DEV){ addTalk(ev, true); await addLine(ev,true); }   // talk + hosts play in their own time (hosts wait for the picture)
@@ -3401,7 +3532,8 @@
     if (now - TALK_AT < 5000 || SPEAKING || Sound.busy() || SAY.who && NOW() < SAY.until || actor.switching || (actor.hidden && !BATH.has(actor.action)) || actor.loc === 'offscreen' || studioOn || showOn || callOn) return;
     sfxDone = slot;
     const dogHere = UNLOCKED.has('dog') && dog.loc === actor.loc && actor.action !== 'sleeping';
-    let list = actor.travelling ? ['steps'] : (SFX[actor.action] || []);
+    const HOME_SFX = {keys:['keys'], sweep:['sweep'], wipe:['wipe'], dishes:['splash','clink'], snack:['sizzle'], laundry:['page'], scroll:['mouse'], bedphone:['mouse'], read:['page'], kettle:['clink']};
+    let list = actor.travelling ? ['steps'] : actor.err && HOME_SFX[actor.err.tag] ? HOME_SFX[actor.err.tag] : (SFX[actor.action] || []);
     if (actor.loc === 'bar') list = list.concat(['clink']);
     if (dogHere && hash(slot * 11 + 2) < .25) list = ['bark'];
     if (actor.action === 'sleeping' && hash(slot * 13 + 3) < .5) return;   // a quiet night now and then
@@ -3754,6 +3886,8 @@
       poll(o){ const t = NOW(), id = 'sb-poll-' + (++n); POLL = {id, sandbox: true, question: o.question || 'How will Avi make Ishai\'s next falafel?', options: o.options || ['Extremely spicy', 'Drowning in tahini', 'Just the usual'],
         opensAt: t + (o.inSec ?? 5) * 1000, closesAt: t + ((o.inSec ?? 5) + 60) * 1000, result: null}; if (o.result){ POLL.opensAt = t - 70000; POLL.closesAt = t - 10000; POLL.result = pollFake(POLL); } pollSig = ''; },
       fillLine: slot => hostFillLine(slot), sfx: k => Sound.sfx(k),
+      home: (k, skip) => { actor.homeTest = k ? {k, t0: NOW() - (skip || 0) * 1000} : null; },   // play one home activity now, from its start (or `skip` seconds in)
+      homeNow: () => actor.err ? {home: actor.err.home, pose: actor.err.pose, seat: actor.err.seat, tag: actor.err.tag, x: Math.round(actor.x)} : null,
       recap(lines){ if (!studioOn) playStudio({id: 'sb-st' + (++n), t: NOW(), lines}, NOW()); },
       show(lines){ if (showOn) return; SHOW = {id: 'sb-sh' + (++n), t: NOW(), lines}; playShow(); SHOW = null; },
       dream(){ reset(); setState('apartment', 'sleeping', true); SLEEP_SINCE = NOW() - 20 * 60000; DREAM = [{t: NOW(), loc: 'park', a: 'idle', w: null}, {t: NOW(), loc: 'cafe', a: 'drinking', w: null}, {t: NOW(), loc: 'bus', a: 'idle', w: null}]; }
@@ -3930,6 +4064,22 @@
     phoning: ['Phone at the ear, nodding at someone who cannot see him.', 'He says yes a lot on the phone. We have noticed that.'],
     waking: ['He is up, in the legal sense.', 'The eyes are open. The rest of him is waiting for an update.']
   };
+  const FILL_HOME = {
+    sweep: ['He is sweeping. Voluntarily. Mark the date.', 'Look at that technique. Wrong, but committed.', 'The dust is just moving to a new neighbourhood.', 'Somebody is coming over, or he has run out of excuses.'],
+    counter: ['Wiping the counter. The same spot. Again.', 'That counter has never been this clean, and it still is not clean.', 'A man and his sponge, against the world.'],
+    dishes: ['The dishes. They were not going to wash themselves, he checked.', 'Every plate he owns, in one sink. A brave man.', 'Listen to that. Clink, splash, sigh.'],
+    keys: ['He is on the keyboard. Forty-nine keys and he trusts about six of them.', 'Is that a song? It is becoming a song.', 'Mrs. Levi has heard this one before. Through the wall. Many times.', 'He plays like nobody is listening. We are all listening.', 'Somewhere in there is a jingle he will sell to Gadi.'],
+    couch: ['Armchair, phone, thumb. The holy trinity.', 'He is scrolling. Something made him smile and he will never tell us what.', 'That is the look of a man reading comments he should not read.'],
+    bed: ['Flat on his back, phone over his face. Brave. It will fall.', 'He is not napping. He is horizontal with intent.', 'Ankles crossed. Official chill status.'],
+    nap: ['A Shabbat lie-down. Phone off, eyes almost.', 'Resting. The most traditional thing he does all week.'],
+    read: ['A real book, with pages. On Shabbat he reads like it is 1985.', 'Armchair and a book. Moshe approves.'],
+    laundry: ['Folding laundry. He folds everything the same way: badly, into a square.', 'The pile is winning, but he is not giving up.', 'Every sock is a mystery and he is the detective.'],
+    snack: ['Snack o\'clock. Something in the pan, and hope.', 'Cooking for one, with the confidence of cooking for twelve.', 'Falafel the dog is watching that pan like a hawk.'],
+    dance: ['Is he dancing? He is dancing.', 'Nobody look. He thinks nobody is looking.', 'That move has a name, and the name is no.'],
+    workout: ['A little workout. Very little. But a workout.', 'Squats in the living room. The floor below has opinions.'],
+    window: ['Coffee by the window. The thinking spot.', 'He is watching the street with a mug. The street is watching him back.'],
+    plant: ['Watering Moshe. The only relationship here with a schedule.', 'He talks to that basil. We have the tapes.']
+  };
   const FILL_NIGHT = ['Night shift. Still horizontal, still our favourite.', 'Listen to that. A man, a dog, a fridge humming.', 'If you are watching this at this hour, we should talk.', 'Moshe has the watch. Moshe always has the watch.', 'Nothing to report. We are reporting it anyway.', 'Tomorrow he will say he slept badly. We have the tapes.'];
   const FILL_BATH = ['Door closed. We respect that door.', 'That door stays shut, and so does this subject.', 'A moment of privacy, the one thing we do not sell.', 'Let us all look at the door together.'];
   const FILL_OFF = ['Still no picture. Our best people are looking at the static.', 'He is out of coverage, and I do not like how well he is doing without us.', 'Static. Honestly, a nice change of pace.', 'Wherever he is, it is not on our map.', 'We have no idea what he is doing. For once, neither does he.'];
@@ -3965,6 +4115,7 @@
     if (BATH.has(a)) return fillPick(FILL_BATH, slot, 2);
     if (a === 'sleeping') return slot % 4 ? null : fillPick(FILL_NIGHT, slot / 4, 3);        // a quiet night: one line in four
     if (fillMoving() && place.length) return fillPick(place, slot, 4);                        // on the way: they say what he is passing
+    { const hk = actor.err && actor.err.home; if (hk && FILL_HOME[hk] && r < .55) return fillPick(FILL_HOME[hk], slot, 11); }   // what he is doing at home
     const city = cityNow()[0], today = pack('hosts');
     if (city && r < .4) return fillPick(city.host, slot, 7);                                  // something is going on outside
     if (today.length && hash(slot * 71 + 5) < .45) return fillPick(today, slot, 10);          // today's lines from the planner

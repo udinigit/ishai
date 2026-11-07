@@ -149,6 +149,7 @@ Back to the cameras.</textarea>
         <button id="evPoll">Viewers' poll</button>
         <button id="evPollRes">Poll result</button>
         <button id="evChat">Building chat</button>
+        <select id="evHome"><option value="">Home activity: by the clock</option><option>sweep</option><option>counter</option><option>dishes</option><option>keys</option><option>couch</option><option>bed</option><option>laundry</option><option>snack</option><option>dance</option><option>workout</option><option>window</option><option>plant</option><option>nap</option><option>read</option></select>
       </div>
     </div>
   </div>
@@ -280,6 +281,7 @@ Back to the cameras.</textarea>
     $('evOver').onclick = () => api.overhear();
     $('evCity').onclick = () => api.city();
     $('evChat').onclick = () => api.chat();
+    $('evHome').onchange = e => { api.go({location:'apartment', action:'idle', lines:[], commentary:[], text:''}); api.home(e.target.value); };
     $('evPoll').onclick = () => api.poll({inSec: 5});            // opens in 5 s for 60 s; vote, then see the pretend result
     $('evPollRes').onclick = () => api.poll({result: true});
     setInterval(() => { const s = api.state(); $('status').textContent = `${s.loc} · ${s.action}${s.moving ? ' · on the way' : ''} · voice: ${s.voice}`; }, 500);

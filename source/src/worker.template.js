@@ -197,7 +197,7 @@ const LOCATIONS = {
   offscreen: ["away"]
 };
 const PLACES = {
-  apartment: "his one-room flat: bed, desk with laptop, armchair, small kitchen, a bathroom door (the camera never sees inside; use bathroom/showering), window with Moshe the basil",
+  apartment: "his one-room flat: bed, desk with laptop and a small 49-key keyboard he plays badly, armchair, small kitchen with a sink, a broom, a closet, a bathroom door (the camera never sees inside; use bathroom/showering), window with Moshe the basil. When he is home alone with nothing on (action idle) the camera shows him doing ordinary things: sweeping, washing up, wiping the counter, folding laundry, playing the keyboard, lying on the bed or in the armchair with his phone, making a snack, coffee by the window, watering Moshe, a little dance. Say which in what happens",
   corridor:  "the building hallway outside his door",
   street:    "Herzl Street outside his building (west end): Avi's falafel kiosk, a bus stop bench, the doors of Herzl Gym and The Black Candle bar, traffic. Going west, three more blocks of Herzl Street lead to the park: PicSell (pictures, posters, printed shirts), a pharmacy, the Soap Opera launderette, a barber, a makolet, a bakery, a second-hand bookshop and a bicycle shop. He only walks past those on his way to the park; he never stops in them",
   shops:     "the SIDEWALK of Herzl Street east, the next block toward the cafe (the camera only sees the sidewalk and the shop windows; he cannot be inside a shop here - shopping for electronics, clothes or home stuff happens at the Everything Else store - bus from the street to the market, then walk in): Herzl Hardware, the Tahini Tower Savings Bank with an ATM, a flower shop with buckets of flowers on the sidewalk, a pedestrian crossing with traffic lights, ficus trees; Cafe Nahat is on the corner at the end",
@@ -308,6 +308,7 @@ export default {
         studio: { lastShowAt: s.show ? s.show.t : null, lastSummaryAt: s.daySum ? s.daySum.at : null, err: s.studioErr || null },
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
+        homeLife: s.homeLife || null, homeErr: s.homeErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: Math.round(s.usage.inTok * 4625 / 1e6 + s.usage.outTok * 30475 / 1e6) } : null,
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
@@ -599,7 +600,8 @@ async function tick(env, force) {
     if (!ev){ ev = fallback(last, clock.hour, s); ev.stuck = true; ev.src = s.lastError && s.lastError.at === now ? "backup line (AI error)" : "backup line (AI reply dropped: repeat)"; }
   }
   { const q = quietHosts(s, ev, s.nextId); if (q.length) ev.commentary = q; }   // nobody speaks: the hosts fill the silence
-  if (!force) try { await pollTick(env, s, ev, now, last); } catch (e) { s.pollErr = { at: now, why: [String(e && e.message || e).slice(0, 160)] }; }   // viewers' poll: count the last one, write the next
+  if (!force) try { await pollTick(env, s, ev, now, last); } catch (e) { s.pollErr = { at: now, why: [String(e && e.message || e).slice(0, 160)] }; }
+  if (!force) try { homeLifeTick(s, now, ev); } catch (e) { s.homeErr = String(e && e.message || e).slice(0, 160); }   // visits and dog walks   // viewers' poll: count the last one, write the next
   if (goal && goal.status !== "done" && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
 
   if (ev.newCard) { s.cast[ev.newCard.id] = ev.newCard; s.lastNewAt = now; }
@@ -734,6 +736,62 @@ function cityNote(now, sh) {
   const d = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(f.weekday), m = (+f.hour % 24) * 60 + +f.minute;
   const on = CITY.filter(e => e.days.includes(d) && m >= e.from && m < e.from + e.min);
   return on.length ? `\nAround the neighbourhood right now (only where he could see or hear it; he may react, it need not matter): ${on.map(e => `${e.note} (${e.places.join(", ")})`).join("; ")}.` : "";
+}
+// ---------- home life: friends and neighbours drop in, and Falafel gets his walks ----------
+// No AI here: each one becomes a director goal like a poll result, so the story writes it when it starts. pollFree() keeps it clear of planned beats.
+const VISITS_A_DAY = 3, VISIT_GAP_MIN = 150, VISIT_ALONE_MIN = 30;
+const VISITS = {   // [why they come, what happens if the story never gets to it, weekdays only]
+  levi: [["brings a pot of soup, sure he looks thin, and stays to ask nosy questions", "Mrs. Levi knocks with a pot of soup: 'You look thin, motek. Eat.'"],
+    ["has a parcel the courier left with her, and wants to know what is in it", "Mrs. Levi brings up a parcel the courier left with her and waits to see him open it."],
+    ["wants to borrow two eggs, and returns his last plate with a review of the food", "Mrs. Levi knocks to borrow two eggs and hands back his plate, with notes."],
+    ["has the building's latest gossip and cannot wait until the stairs", "Mrs. Levi knocks with fresh building gossip and tells it all at the door."]],
+  noa: [["drops by unannounced with a bag of snacks after a long session at the tattoo studio", "Noa turns up unannounced with snacks: 'I was in the area. I wasn't.'"],
+    ["needs to borrow his phone charger, and stays to complain about a client", "Noa comes over to borrow a charger and stays to vent about a client."],
+    ["wants his honest opinion on a tattoo design, and does not want his honest opinion", "Noa drops by with a tattoo sketch and asks what he really thinks."]],
+  tomer: [["comes to borrow the drill and stays for coffee and football talk", "Tomer drops in to borrow the drill and stays for a coffee.", true],
+    ["was working on the building's fuse box downstairs and pops up to say hi", "Tomer, in his work clothes, pops up after fixing the fuse box downstairs.", true],
+    ["returns a ladder he borrowed months ago, as if it was yesterday", "Tomer brings back the ladder he borrowed in the summer."]],
+  avi: [["brings a bag of leftover falafel at the end of his shift, and a bone for Falafel", "Avi knocks with a bag of leftover falafel and something for the dog."]]
+};
+const VISIT_WEIGHT = { levi: 3, noa: 3, tomer: 2, avi: 1 };
+const WALKS = [["m", 7, 9.5, "park", "the morning walk: quick and sleepy, round to the park and back"],
+  ["n", 12.5, 14.5, "street", "the midday walk: a short one along Herzl Street, past Avi's kiosk, and back up"],
+  ["e", 18, 21, "park", "the evening walk: a longer one to the park, sniffing everything; they may run into someone"]];
+function homeLifeTick(s, now, last) {
+  const h = storyClock(now).hour, day = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now));
+  const hl = s.homeLife && s.homeLife.date === day ? s.homeLife : (s.homeLife = { date: day, visits: 0, lastVisit: (s.homeLife || {}).lastVisit || 0, walks: [], log: [] });
+  if (last.action === "sleeping" || h < 7 || h >= 22) return;
+  const busy = from => !pollFree(s, from, from + 50 * 60000);
+  const at = (ms, len) => ({ startAt: new Date(ms).toISOString(), deadlineAt: new Date(ms + len * 60000).toISOString() });
+  // Falafel's walks
+  if (s.unlocked.includes("dog")) {
+    const w = WALKS.find(x => h >= x[1] && h < x[2]);
+    const since = (now + DELAY_MIN * 60000 - (s.done.dogwalk || 0)) / 3600000;
+    if (w && !hl.walks.includes(w[0]) && since > 3.5 && ["apartment", "corridor"].includes(last.location) && !busy(now)) {
+      const start = now + 3 * 60000, id = `walk-${day.slice(5)}-${w[0]}`;
+      s.director.push(newGoal({ id, ...at(start, 55), location: w[3], forceAction: "walking",
+        goal: `Falafel needs ${w[4]}. Ishai clips on the leash and takes him out (out the front door, down the stairs, along Herzl Street${w[3] === "park" ? " to the park" : ""}), then home again. Falafel pulls, sniffs, greets everyone. If anyone is with Ishai they can come along.`,
+        forceText: "Ishai clips on Falafel's leash and takes him out for his walk." }, now));
+      hl.walks.push(w[0]); hl.log.push({ at: now, walk: w[0] }); return;
+    }
+  }
+  // a friend or neighbour knocks
+  if (hl.visits >= VISITS_A_DAY || h < 9 || h >= 21 || last.location !== "apartment" || last.with || now - hl.lastVisit < VISIT_GAP_MIN * 60000 || busy(now)) return;
+  let alone = 0; for (let i = s.events.length - 1; i >= 0 && !s.events[i].with; i--) alone = (now - (s.events[i].created || s.events[i].t)) / 60000;
+  if (alone < VISIT_ALONE_MIN || Math.random() > .4) return;
+  const recent = new Set(s.events.filter(e => e.with && now - (e.created || e.t) < 4 * 3600000).map(e => e.with));
+  const sh = s.world && s.world.shabbat, shabbat = !!sh && now >= sh.start && now <= (sh.end || sh.start + 26 * 3600000);
+  const who = Object.keys(VISITS).filter(id => s.cast[id] && !recent.has(id) && !(hl.log || []).some(l => l.who === id));
+  if (!who.length) return;
+  let r = Math.random() * who.reduce((n, id) => n + VISIT_WEIGHT[id], 0), id = who[who.length - 1];
+  for (const k of who) { r -= VISIT_WEIGHT[k]; if (r < 0) { id = k; break; } }
+  const why = VISITS[id].filter(v => !(shabbat && v[2])), v = why[Math.floor(Math.random() * why.length)], c = s.cast[id];
+  if (!v) return;
+  s.director.push(newGoal({ id: `visit-${day.slice(5)}-${hl.visits + 1}`, ...at(now + 3 * 60000, 45), location: "apartment", with: c.name, forceWith: id, forceAction: "talking",
+    goal: `${c.name} knocks on Ishai's front door: ${c.name} ${v[0]}. Ishai lets them in; they talk in the apartment for two to four moments, true to who ${c.name} is and what they both remember, then ${c.name} leaves by the front door. Small and real, nobody planned it.`,
+    forceText: v[1] }, now));
+  hl.visits++; hl.lastVisit = now; hl.log.push({ at: now, who: id });
+  hl.log = hl.log.slice(-12);
 }
 // the longer memory of the show: what happened yesterday and today, and where each arc stands. Background for the writers, never to be rushed.
 const clip = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); if (t.length <= n) return t; const c = t.slice(0, n), i = Math.max(c.lastIndexOf(". "), c.lastIndexOf("! "), c.lastIndexOf("? ")); return i > n / 2 ? c.slice(0, i + 1) : c.slice(0, c.lastIndexOf(" ")) + "..."; };
