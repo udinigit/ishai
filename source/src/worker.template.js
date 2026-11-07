@@ -248,6 +248,9 @@ const SANDBOX_HTML = __SANDBOX_HTML__;
 const INTRO_HTML = __INTRO_HTML__;   // the trailer: /intro, public; first-time visitors land here once
 const BUILDER_HTML = __BUILDER_HTML__;
 const SW_JS = __SW_JS__;
+const ICONS = __ICONS__;   // /favicon.ico, /favicon.svg, /apple-touch-icon.png, /icon-192.png, /icon-512.png, /og.png (source/public/icons)
+const iconBytes = {};
+const iconOf = p => ICONS[p] && (iconBytes[p] ||= Uint8Array.from(atob(ICONS[p].b64), c => c.charCodeAt(0)));
 const VAPID_PUBLIC = "BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI";
 const BUILD = "__BUILD__";
 // The story plan (story/plan.json in the repository), written ahead by the daily planner.
@@ -360,7 +363,9 @@ export default {
       return json({ ok: true });
     }
     if (url.pathname === "/sw.js") return new Response(SW_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } });
-    if (url.pathname === "/manifest.json") return json({ name: "Watching Ishai", short_name: "Ishai", start_url: "/", display: "standalone", background_color: "#050705", theme_color: "#050705" });
+    if (url.pathname === "/manifest.json") return json({ name: "Watching Ishai", short_name: "Ishai", start_url: "/", display: "standalone", background_color: "#050705", theme_color: "#050705",
+      icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png" }] });
+    if (ICONS[url.pathname]) return new Response(iconOf(url.pathname), { headers: { "content-type": ICONS[url.pathname].type, "cache-control": "public, max-age=86400" } });
     if (url.pathname === "/api/alert") { const s = await loadState(env); return json(s.alert ? { title: s.alert.title, body: s.alert.body } : {}, { "cache-control": "no-store" }); }
     if (url.pathname === "/api/push" && (req.method === "POST" || req.method === "DELETE")) {
       const b = await req.json().catch(() => ({})), ep = String(b.endpoint || ""), key = ep.length < 700 && pushAllowed(ep) ? await pushKey(ep) : null;

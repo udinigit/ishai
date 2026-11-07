@@ -7,6 +7,7 @@ Owner (the director): udinigit. Read `docs/SCENE_GUIDELINES.md` before adding or
 - `source/public/index.html` — the page (all drawing, animation, sound). `source/public/director.html` — director page. `source/public/sandbox.html` — test stage.
 - `source/src/worker.template.js` — story engine (AI prompt, validation, director goals, plan merge, real-world data).
 - `story/season.md`, `story/plan.json` — season arcs and the day's beats (written by the daily planner).
+- `source/public/icons/` — favicons and `og.png` (link preview for WhatsApp etc.), embedded by the build and served by the worker. Favicon = the studio eye; preview = Ishai under the eye.
 - `src/vendor/` — third-party code the worker imports.
 - `src/index.js` — generated. Build with `cd source && node build.mjs`. Never edit `src/index.js` by hand.
 - Bump `VERSION` and commit with a clear message; Cloudflare deploys in ~30 s and open pages auto-reload.
