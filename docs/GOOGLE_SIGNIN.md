@@ -13,5 +13,10 @@ Nothing is stored about voters except a hash of their Google account number (see
 5. Cloudflare dashboard → Workers → ishai → Settings → Variables and Secrets → Add → type **Secret**, name `GOOGLE_CLIENT_ID`, value the Client ID → Deploy.
    (A secret is kept on every deploy from git; a plain variable set in the dashboard is not.)
 
+6. Director mode by Google account: add another **Secret**, `DIRECTOR_EMAILS`, with the Google email(s) allowed to direct, separated by commas
+   (e.g. `you@gmail.com, friend@gmail.com`). Signing in with one of them, on the show page or on `/director`, opens director mode
+   (director page, sandbox, builder, test views) in that browser with no password. Signing out ends it. The `ADMIN_KEY` password keeps working as a backup.
+   The list stays private: it is a secret, never in the code.
+
 Open pages pick it up on their next reload. `/api/health` → `polls.google` shows `true`.
 To go back to anonymous voting, delete the `GOOGLE_CLIENT_ID` secret.

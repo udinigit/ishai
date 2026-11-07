@@ -36,7 +36,8 @@
   <div class="muted" style="font-size:17px"><a href="/sandbox" style="color:var(--phos)">Open the sandbox</a> to test scenes, weather and characters by hand, or the <a href="/builder" style="color:var(--phos)">scene builder</a> to compose pictures and export them. It never reaches the live show.</div>
 
   <div class="box" id="login">
-    <label for="key">Password (the ADMIN_KEY you set in Cloudflare)</label>
+    <div id="gBox" hidden style="margin-bottom:14px"><div style="margin-bottom:6px">Sign in with a director's Google account</div><div id="gBtn"></div></div>
+    <label for="key">Or the password (the ADMIN_KEY you set in Cloudflare)</label>
     <div class="bar"><input id="key" type="password" style="flex:1"><button id="go">Open</button></div>
     <div id="loginMsg" class="err"></div>
   </div>
@@ -123,7 +124,7 @@
   async function api(body){
     const r = await fetch('/api/director', {method: body ? 'POST' : 'GET', headers:{'x-admin-key':KEY,'content-type':'application/json'}, body: body ? JSON.stringify(body) : undefined});
     const j = await r.json().catch(()=>({error:'bad response ('+r.status+')'}));
-    if (!r.ok) throw new Error(j.error || ('error '+r.status));
+    if (!r.ok){ const e = new Error(j.error || ('error '+r.status)); e.google = j.google; throw e; }
     return j;
   }
   function renderCourse(c){
@@ -228,9 +229,24 @@
   $('courseSet').onclick = () => courseDo({action:'courseSet', title:$('courseTopic').value}, 'Checking Wikipedia...');
   $('courseNew').onclick = () => courseDo({action:'courseNew'}, 'Picking...');
   $('courseGen').onclick = () => courseDo({action:'courseGen'}, 'Writing the lecture, this takes up to a minute...');
-  async function open(){
-    try { const v = await api(); localStorage.setItem('ishaiKey', KEY); $('login').hidden = true; $('main').hidden = false; render(v); }
-    catch(e){ $('loginMsg').textContent = e.message; }
+  async function open(quiet){
+    try { const v = await api(); if (KEY) localStorage.setItem('ishaiKey', KEY); $('login').hidden = true; $('main').hidden = false; render(v); }
+    catch(e){ if (!quiet) $('loginMsg').textContent = e.message; if (e.google) googleBox(e.google); }
+  }
+  // Google sign-in: an account listed in the DIRECTOR_EMAILS secret gets the director cookie, no password needed
+  let gisOn = false;
+  function googleBox(clientId){
+    if (gisOn) return; gisOn = true; $('gBox').hidden = false;
+    const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
+    sc.onload = () => { google.accounts.id.initialize({client_id: clientId, ux_mode: 'popup', itp_support: true, callback: async resp => {
+      $('loginMsg').textContent = 'Signing in…';
+      try { const r = await fetch('/api/signin', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({credential: resp.credential})}), j = await r.json();
+        if (!r.ok) $('loginMsg').textContent = 'Sign-in failed: ' + (j.error || r.status);
+        else if (!j.director) $('loginMsg').textContent = 'Signed in, but this Google account is not a director.';
+        else { $('loginMsg').textContent = ''; open(); }
+      } catch(e){ $('loginMsg').textContent = 'No connection, try again.'; } } });
+      google.accounts.id.renderButton($('gBtn'), {theme: 'filled_black', size: 'large', text: 'signin_with', shape: 'pill'}); };
+    document.head.appendChild(sc);
   }
   $('go').onclick = () => { KEY = $('key').value.trim(); open(); };
   $('key').addEventListener('keydown', e => { if (e.key==='Enter') $('go').click(); });
@@ -252,7 +268,7 @@
     catch(e){ $('tickMsg').className='err'; $('tickMsg').textContent = 'Error: ' + e.message; }
     $('tick').disabled = false;
   };
-  if (KEY) open();
+  open(!KEY);   // the director cookie (Google sign-in or an earlier password login) opens the page without the password
 })();
 </script>
 </body>

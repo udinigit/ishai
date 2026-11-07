@@ -264,6 +264,12 @@ async function isDev(req, env) {
   const c = (req.headers.get("cookie") || "").match(/(?:^|;\s*)ishai_dev=([0-9a-f]{64})/);
   return !!c && c[1] === await devToken(key);
 }
+// the director: the ADMIN_KEY password in the x-admin-key header, or the ishai_dev cookie (set by the password login or by a Google sign-in on DIRECTOR_EMAILS)
+async function isDirector(req, env) {
+  const key = env.ADMIN_KEY || env.TICK_SECRET;
+  return !!key && (req.headers.get("x-admin-key") === key || await isDev(req, env));
+}
+const directorEmail = (env, c) => !!(c && c.email && c.email_verified !== false && String(env.DIRECTOR_EMAILS || "").toLowerCase().split(/[\s,;]+/).filter(Boolean).includes(String(c.email).toLowerCase()));
 const TEST_PARAMS = ["sandbox", "builder", "preview", "demo", "loc"];
 
 export default {
@@ -274,7 +280,7 @@ export default {
       try {
         const state = await loadState(env);
         // narration is for the director only; viewers get places, actions and spoken lines
-        const dev = !!env.ADMIN_KEY && req.headers.get("x-admin-key") === env.ADMIN_KEY;
+        const dev = await isDirector(req, env);
         return json(publicState(state, dev), dev ? { "cache-control": "no-store" } : { "cache-control": "public, max-age=15" });
       } catch (e) { return json({ error: "state: " + String(e && e.message || e).slice(0, 120) }, {}, 500); }
     }
@@ -321,8 +327,11 @@ export default {
     // the planned day, for the preview player (/?preview)
     if (url.pathname === "/api/vote" && req.method === "POST") return pollVote(req, env);
     if (url.pathname === "/api/signin" && req.method === "POST") return googleSignIn(req, env);
-    if (url.pathname === "/api/signout" && req.method === "POST") return json({ ok: true }, { "set-cookie": "ishai_voter=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax", "cache-control": "no-store" });
-    if (url.pathname === "/api/me") return json({ google: env.GOOGLE_CLIENT_ID || null, signedIn: !!(env.GOOGLE_CLIENT_ID && await voterOf(req, env)) }, { "cache-control": "no-store" });
+    if (url.pathname === "/api/signout" && req.method === "POST") {   // signing out also ends director mode in this browser
+      const r = json({ ok: true }, { "set-cookie": "ishai_voter=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax", "cache-control": "no-store" });
+      r.headers.append("set-cookie", "ishai_dev=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict"); return r;
+    }
+    if (url.pathname === "/api/me") return json({ google: env.GOOGLE_CLIENT_ID || null, signedIn: !!(env.GOOGLE_CLIENT_ID && await voterOf(req, env)), director: await isDev(req, env) }, { "cache-control": "no-store" });
     if (url.pathname === "/privacy") return new Response(PRIVACY_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
     if (url.pathname === "/api/poll") {   // the current poll and, once it has closed, its result
       const s = await loadState(env), p = s.poll, id = url.searchParams.get("id");
@@ -377,7 +386,7 @@ export default {
       return new Response(DIRECTOR_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
     if (url.pathname === "/api/director") {
       const key = env.ADMIN_KEY || env.TICK_SECRET;
-      if (!key || req.headers.get("x-admin-key") !== key) return json({ error: "wrong password (or ADMIN_KEY is not set)" }, {}, 403);
+      if (!await isDirector(req, env)) return json({ error: key ? "wrong password, or this account is not a director" : "ADMIN_KEY is not set", google: env.GOOGLE_CLIENT_ID || null }, {}, 403);
       const r = await directorApi(req, env);
       if (r.ok) r.headers.append("set-cookie", `ishai_dev=${await devToken(key)}; Path=/; Max-Age=31536000; HttpOnly; Secure; SameSite=Strict`);
       return r;
@@ -2140,7 +2149,10 @@ async function googleSignIn(req, env) {
   if (typeof c === "string") return json({ error: c }, {}, 401);
   const id = "g-" + hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("ishai-google:" + c.sub))).slice(0, 32), exp = Date.now() + VOTER_DAYS * 86400000;
   const cookie = `ishai_voter=${id}.${exp}.${await voterSig(env, id + "." + exp)}; Path=/; Max-Age=${VOTER_DAYS * 86400}; HttpOnly; Secure; SameSite=Lax`;
-  return json({ ok: true, name: String(c.given_name || c.name || "").slice(0, 30) }, { "set-cookie": cookie, "cache-control": "no-store" });
+  const director = directorEmail(env, c) && !!(env.ADMIN_KEY || env.TICK_SECRET);   // a director's account also gets the director cookie
+  const r = json({ ok: true, name: String(c.given_name || c.name || "").slice(0, 30), director }, { "set-cookie": cookie, "cache-control": "no-store" });
+  if (director) r.headers.append("set-cookie", `ishai_dev=${await devToken(env.ADMIN_KEY || env.TICK_SECRET)}; Path=/; Max-Age=${VOTER_DAYS * 86400}; HttpOnly; Secure; SameSite=Strict`);
+  return r;
 }
 const PRIVACY_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Privacy · Watching Ishai</title>
 <style>body{background:#050805;color:#b8f5b8;font:18px/1.5 ui-monospace,monospace;max-width:640px;margin:0 auto;padding:24px 16px}h1{color:#6f6;font-size:24px}a{color:#ffb84d}</style></head><body>
