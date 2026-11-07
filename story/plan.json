@@ -1,11 +1,11 @@
 {
-  "version": "2026-11-07b",
+  "version": "2026-11-07c",
   "written": "2026-11-07T08:45:00+02:00",
   "arcs": [
     {
       "id": "dana-basil",
       "title": "Dana and the basil cups",
-      "stage": "3/5 going to 4/5 — Fri Nov 6 she drew a chickpea on his napkin at the cafe. Tonight after havdalah she comes to see Moshe (her Nov 5 promise isn't in the log we could read). Next: a first date."
+      "stage": "3/5 going to 4/5 — Thu Nov 5 she agreed to see Moshe; Fri Nov 6 she drew a chickpea on his napkin. Tonight after havdalah (Shabbat ends 17:24) she comes to see Moshe. Next: a first date."
     },
     {
       "id": "moshe",
@@ -30,7 +30,7 @@
     {
       "id": "improv",
       "title": "Improv on Thursdays",
-      "stage": "Lesson 1 planned Nov 5 (not verified). Tonight he uses 'yes, and' for real: he names his fee to Gadi. Next: lesson 2, Thu Nov 12."
+      "stage": "Lesson 1 played Thu Nov 5; Friday at dinner he didn't say sorry back to Noa. Tonight he names his fee to Gadi. Next: lesson 2, Thu Nov 12."
     }
   ],
   "beats": [

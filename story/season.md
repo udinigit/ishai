@@ -25,7 +25,7 @@ You (the director) can edit anything here; changes go live with the next deploy.
 - 3-6 key beats per day, each with a time window. New props, places or animals need art first ("art" field).
 
 ## Arcs
-1. **Dana and the basil cups** — Dana, the deadpan barista, draws basil leaves on Ishai's cups. Slow, shy romance. Stages: he notices → he asks → a real conversation → she visits Moshe → first date. *Now: stage 3 → 4; Sat Nov 7 after havdalah she visits Moshe, he asks why she draws the basil, she puts her number in his phone (wants a Moshe photo in a week). Next: first date.*
+1. **Dana and the basil cups** — Dana, the deadpan barista, draws basil leaves on Ishai's cups. Slow, shy romance. Stages: he notices → he asks → a real conversation → she visits Moshe → first date. *Now: stage 3 → 4; Thu Nov 5 she agreed to see Moshe (played as planned); Sat Nov 7 after havdalah she visits Moshe, he asks why she draws the basil, she puts her number in his phone (wants a Moshe photo in a week). Next: first date.*
 2. **Saving Moshe** — Moshe the basil is wilting. Ends with Moshe thriving. *Now: Sat Nov 7 Dana's diagnosis: sunburn from the afternoon window and pinching the wrong leaves. Moved to morning light; pinch the tops.*
 3. **The chickpea** — Gadi's client wants the chickpea logo friendlier by Sunday morning; Ishai finally brings up his fee. Follows the earlier 'bigger but smaller' client, last seen when v7 was sent. Fri Nov 6: two pages of friendliness notes. Sat Nov 7 after havdalah: Gadi texts for 9am Sunday and Ishai sends a fee: 4,500. Next: Gadi's answer on Sunday.
 4. **Noa** — best friend, keeps telling him to raise his prices. Missed the cafe and the bar on Nov 4; apologises by phone and comes for Shabbat dinner Fri Nov 6 (planned, not verified). Will want a report on Dana.
@@ -37,6 +37,7 @@ Done: the TV (Nov 1) and Mrs. Levi's radio (Nov 3) both arrived.
 ## Already scheduled — plan around these, do not overlap or move them
 - Every Sunday, Tuesday and Wednesday, 11:00 — Ishai's history lecture at Tel Herzl University. The engine schedules it by itself: write NO beat for it, and keep him free from 10:25 to 11:50.
 - Sun Nov 8, evening — Tomer comes with a ladder to fix the flickering hallway light (promised Sat Nov 7).
+- Mon Nov 9 — Sigd (Ethiopian Jewish holiday); a mention at most.
 - About Sat Nov 14 — Ishai texts Dana a photo of Moshe (she asked for one in a week).
 - Every Thursday, 17:00 — improv class at The Black Candle (not during a holiday). Plan one beat: `startAt` 16:42, `sceneAt` 16:58 (the first moment then plays at 16:59 and the class starts at 17:00), `deadlineAt` 17:20, `location` bar, `forceWith` yael, and 5 `preview.moments` with Yael (about 30 minutes): the first 4 in the bar with action `improv` (Ishai and Yael stand on the cleared floor, the class watches from a half circle of chairs), the last one on the street with action `talking`, so the room is reset out of sight. Yael is the only other speaker. Keep 15:45-17:45 free of other beats.
 
@@ -53,7 +54,7 @@ Done: the TV (Nov 1) and Mrs. Levi's radio (Nov 3) both arrived.
 **Today:** Gadi calls about the chickpea and the fee → real talk with Dana, who agrees to see Moshe → Mr. Zelig's accidental logo advice → Mrs. Levi's soup in the corridor → first improv lesson at 17:00 → the bar with Tomer, Noa's apology text, Kobi.
 
 ## Day 8 — Friday, Nov 6 (planned by Claude, 05:30; WITHOUT live data)
-**Previously:** Not known. The live log, state and health could not be reached this run, so what actually happened on Thu Nov 5 is unverified. Thursday's plan was Gadi's fee call, Dana agreeing to see Moshe, Mr. Zelig, Mrs. Levi, improv lesson 1 and the bar with Tomer. Any of those goals still open were cancelled so they don't fire today. Correct this section from the log on the next run.
+**Previously:** (Corrected Nov 7 from the log.) Every Thursday beat played as written: Gadi's fee call, Dana agreeing to see Moshe, Mr. Zelig, Mrs. Levi's soup, improv lesson 1 with Yael, and the bar with Tomer.
 **Today:** Gadi's friendliness notes → Shabbat shopping at Shuk Shalom, Noa phones → Mrs. Levi's challah → candles → Shabbat dinner with Noa.
 
 ## Day 9 — Saturday, Nov 7 (planned by Claude, 05:30; corrected 08:45 with live data)
