@@ -17,7 +17,8 @@
   html,body{margin:0;background:var(--bg);color:var(--phos);font-family:'VT323',ui-monospace,Menlo,monospace}
   body{min-height:100vh;display:flex;justify-content:center;padding:16px}
   .wrap{width:100%;max-width:760px;display:flex;flex-direction:column;gap:10px}
-  .titleR{display:inline-flex;align-items:baseline;gap:10px} #bell,#eye{margin:0;padding:0 6px;line-height:1.2} #eye[aria-pressed=false]{opacity:.4}
+  .titleR{display:inline-flex;align-items:baseline;gap:6px;margin-left:auto;white-space:nowrap}
+  .title{flex-wrap:wrap;row-gap:4px} .title>span:first-child{white-space:nowrap}   /* narrow phones: the buttons move under the name as one row */ #bell,#eye,#acct{margin:0;padding:0 4px;line-height:1.2} #acct.on{border-color:var(--amber);box-shadow:0 0 6px rgba(255,184,77,.5)} #eye[aria-pressed=false]{opacity:.4}
   .title{display:flex;justify-content:space-between;align-items:baseline;padding:0 4px;
     font-size:clamp(22px,5.5vw,32px);letter-spacing:1px;text-shadow:0 0 8px rgba(77,255,122,.45)}
   .title small{font-size:.55em;color:var(--phos-dim)}
@@ -202,6 +203,13 @@
   <div style="font-size:14px;opacity:.75">Times are Israel time.</div>
   <div class="row"><span id="alertM" style="font-size:15px"></span><button id="alertC" class="snd">CANCEL</button><button id="alertS" class="snd">SAVE</button></div>
 </div></div>
+<div class="bugf" id="acctF" hidden><div class="in">
+  <div id="acctT">SIGN IN / SIGN UP</div>
+  <div id="acctX" style="font-size:16px;opacity:.85"></div>
+  <div id="acctG" style="min-height:44px;display:flex;align-items:center"></div>
+  <div id="acctM" style="font-size:15px;color:#ffb84d" aria-live="polite"></div>
+  <div class="row"><a href="/privacy" target="_blank" rel="noopener" style="font-size:15px;color:var(--phos-dim);margin-right:auto">Privacy</a><a id="acctDir" class="snd" href="/director" hidden style="text-decoration:none;margin-left:0">🎬 DIRECTOR</a><button id="acctOut" class="snd" hidden>SIGN OUT</button><button id="acctC" class="snd">CLOSE</button></div>
+</div></div>
 <div class="bugf" id="bugF" hidden><div class="in">
   <div>REPORT A BUG</div>
   <div style="font-size:15px;opacity:.75">What went wrong? The time and what is on screen right now are added automatically.</div>
@@ -209,7 +217,7 @@
   <div class="row"><span id="bugM" style="font-size:15px"></span><button id="bugC" class="snd">CANCEL</button><button id="bugS" class="snd">SEND</button></div>
 </div></div>
 <div class="wrap">
-  <div class="title"><span>&gt; WATCHING_ISHAI</span><span class="titleR"><button id="eye" class="snd" title="Keep the screen on" aria-label="Keep the screen on" aria-pressed="true" hidden>👁</button><button id="bell" class="snd" title="Tell me before key moments" aria-label="Alerts are off" hidden>🔕</button><small id="day">DAY --</small></span></div>
+  <div class="title"><span>&gt; WATCHING_ISHAI</span><span class="titleR"><button id="eye" class="snd" title="Keep the screen on" aria-label="Keep the screen on" aria-pressed="true" hidden>👁</button><button id="bell" class="snd" title="Tell me before key moments" aria-label="Alerts are off" hidden>🔕</button><button id="acct" class="snd" title="Sign in or sign up" aria-label="Sign in or sign up" hidden>👤</button><small id="day">DAY --</small></span></div>
 
   <div class="cam">
     <div class="hud top"><span class="rec"><span class="dot"></span>REC <span id="cam">CAM-01</span></span><span id="clock">--:--:--</span></div>
@@ -3955,7 +3963,7 @@
     if (which==='talk') talkEl.scrollTop = talkEl.scrollHeight;
   }
   $('tabTalk').onclick = ()=>showTab('talk'); $('tabFeed').onclick = ()=>showTab('feed'); $('tabCast').onclick = ()=>showTab('cast'); $('tabSum').onclick = ()=>showTab('sum');
-  function enableDev(){ if (DEV) return; DEV = true; $('tabFeed').hidden = false; $('bugBtn').hidden = false; $('dirLink').hidden = false; }
+  function enableDev(){ if (DEV) return; DEV = true; $('tabFeed').hidden = false; $('bugBtn').hidden = false; $('dirLink').hidden = false; acctShow(); }
 
   // ================= data: live Worker or demo =================
   const DEMO_CAST = [
@@ -4027,29 +4035,57 @@
   const MYVOTES = (() => { try { return JSON.parse(localStorage.getItem('ishaiVotes')) || {}; } catch(e){ return {}; } })();
   const keepVote = (id, i) => { MYVOTES[id] = i; try { const k = Object.keys(MYVOTES).slice(-30), o = {}; k.forEach(x => o[x] = MYVOTES[x]); localStorage.setItem('ishaiVotes', JSON.stringify(o)); } catch(e){} };
   // Google sign-in (only when the worker has GOOGLE_CLIENT_ID; otherwise anyone votes anonymously)
-  const AUTH = {google: null, signedIn: false, name: (() => { try { return localStorage.getItem('ishaiVoterName') || ''; } catch(e){ return ''; } })(), gis: 0, sig: ''};
+  const AUTH = {google: null, signedIn: false, director: false, name: (() => { try { return localStorage.getItem('ishaiVoterName') || ''; } catch(e){ return ''; } })(), gis: 0, sig: ''};
   const needSignIn = p => !!(AUTH.google && !AUTH.signedIn && !(p && p.sandbox));
-  async function authLoad(){ try { const r = await (await fetch('/api/me', {cache: 'no-store'})).json(); AUTH.google = r.google || null; AUTH.signedIn = !!r.signedIn; } catch(e){} AUTH.sig = ''; pollSig = ''; }
+  async function authLoad(){ try { const r = await (await fetch('/api/me', {cache: 'no-store'})).json(); AUTH.google = r.google || null; AUTH.signedIn = !!r.signedIn; AUTH.director = !!r.director; } catch(e){} AUTH.sig = ''; pollSig = ''; acctShow(); }
+  function gisButton(el){   // Google's own button, drawn into el once the script is ready
+    el.textContent = '';
+    if (AUTH.gis === 2) try { google.accounts.id.renderButton(el, {theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill'}); return; } catch(e){}
+    gisLoad(); el.textContent = 'Loading Google sign-in…';
+  }
+  // the header button: SIGN IN, or the signed-in name; opens a small dialog. Shown once sign-in is set up (and to the director before that)
+  function acctShow(){
+    const b = $('acct'); if (!b) return;
+    b.hidden = !(AUTH.google || DEV) || PREVIEW || BUILDER || (demoMode && !DEV);
+    b.classList.toggle('on', AUTH.signedIn);
+    b.title = AUTH.signedIn ? 'Signed in' + (AUTH.name ? ' as ' + AUTH.name : '') : 'Sign in or sign up'; b.setAttribute('aria-label', b.title);
+    if (!$('acctF').hidden) acctFill();
+  }
+  function acctFill(){
+    const x = $('acctX'), g = $('acctG');
+    $('acctOut').hidden = !AUTH.signedIn; $('acctDir').hidden = !(AUTH.director || DEV);
+    if (!AUTH.google){ $('acctT').textContent = 'SIGN IN'; g.textContent = ''; x.textContent = 'Google sign-in is not switched on yet. Add the GOOGLE_CLIENT_ID secret in Cloudflare (steps in docs/GOOGLE_SIGNIN.md). Only you see this button until then.'; return; }
+    if (AUTH.signedIn){ $('acctT').textContent = 'SIGNED IN' + (AUTH.name ? ' AS ' + AUTH.name.toUpperCase() : ''); g.textContent = '';
+      x.textContent = 'You can vote in the hourly viewers\' poll, once per poll.' + (AUTH.director ? ' This account is a director.' : ''); return; }
+    $('acctT').textContent = 'SIGN IN / SIGN UP';
+    x.textContent = 'One tap with your Google account, no password. New here? The same button creates your account. Signing in lets you vote in the hourly viewers\' poll. We keep no name or email.';
+    if (!g.firstChild || AUTH.dlg !== AUTH.gis){ AUTH.dlg = AUTH.gis; gisButton(g); }
+  }
   function gisLoad(){   // Google's sign-in script, loaded only when someone needs it
     if (AUTH.gis) return; AUTH.gis = 1;
     const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
-    sc.onload = () => { try { google.accounts.id.initialize({client_id: AUTH.google, callback: onGoogle, ux_mode: 'popup', itp_support: true}); AUTH.gis = 2; AUTH.sig = ''; } catch(e){ AUTH.gis = 0; } };
+    sc.onload = () => { try { google.accounts.id.initialize({client_id: AUTH.google, callback: onGoogle, ux_mode: 'popup', itp_support: true}); AUTH.gis = 2; AUTH.sig = ''; if (!$('acctF').hidden) gisButton($('acctG')); } catch(e){ AUTH.gis = 0; } };
     sc.onerror = () => { AUTH.gis = 0; pollMsg = 'Google sign-in did not load. Check your connection.'; pollSig = ''; };
     document.head.appendChild(sc);
   }
   async function onGoogle(resp){
     pollMsg = 'Signing you in…'; pollSig = '';
     try { const r = await fetch('/api/signin', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({credential: resp.credential})}), j = await r.json().catch(() => ({}));
-      if (r.ok){ AUTH.signedIn = true; AUTH.name = j.name || ''; try { localStorage.setItem('ishaiVoterName', AUTH.name); } catch(e){} pollMsg = ''; }
-      else pollMsg = 'Sign-in failed: ' + (j.error || 'try again') + '.';
-    } catch(e){ pollMsg = 'No connection, try again.'; }
-    AUTH.sig = ''; pollSig = '';
+      if (r.ok){ AUTH.signedIn = true; AUTH.director = !!j.director; AUTH.name = j.name || ''; try { localStorage.setItem('ishaiVoterName', AUTH.name); } catch(e){} pollMsg = ''; $('acctM').textContent = ''; if (j.director) enableDev(); }
+      else { pollMsg = 'Sign-in failed: ' + (j.error || 'try again') + '.'; $('acctM').textContent = pollMsg; }
+    } catch(e){ pollMsg = 'No connection, try again.'; $('acctM').textContent = pollMsg; }
+    AUTH.sig = ''; pollSig = ''; acctShow();
   }
   async function signOut(){
     try { await fetch('/api/signout', {method: 'POST'}); } catch(e){}
     try { google.accounts.id.disableAutoSelect(); } catch(e){}
-    AUTH.signedIn = false; AUTH.name = ''; try { localStorage.removeItem('ishaiVoterName'); } catch(e){} AUTH.sig = ''; pollSig = '';
+    const wasDirector = AUTH.director; AUTH.signedIn = false; AUTH.director = false; AUTH.name = ''; try { localStorage.removeItem('ishaiVoterName'); } catch(e){} AUTH.sig = ''; pollSig = ''; acctShow();
+    let pw = false; try { pw = !!localStorage.getItem('ishaiKey'); } catch(e){}
+    if (wasDirector && !pw) location.reload();   // director mode ends with the sign-out
   }
+  $('acct').onclick = e => { e.stopPropagation(); $('acctM').textContent = ''; $('acctF').hidden = false; acctFill(); };
+  $('acctC').onclick = () => { $('acctF').hidden = true; };
+  $('acctOut').onclick = () => { signOut(); };
   function authBox(p){   // under the card: the Google button, or who is signed in
     const el = $('pollG'), want = !AUTH.google || p.sandbox ? 'none' : AUTH.signedIn ? 'in:' + AUTH.name : 'out:' + AUTH.gis;
     if (want === AUTH.sig) return; AUTH.sig = want; el.textContent = '';
