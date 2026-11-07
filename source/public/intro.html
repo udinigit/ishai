@@ -97,6 +97,7 @@
   <div id="cards"></div>
   <div class="ctrl" id="ctrl" hidden>
     <button id="snd" type="button" aria-pressed="true">SOUND ON</button>
+    <button id="vox" type="button" aria-pressed="true">VOICES ON</button>
     <button id="skip" type="button">SKIP ▸▸</button>
   </div>
   <div class="prog" id="prog"></div>
@@ -104,7 +105,7 @@
   <div class="over" id="gate">
     <div class="eyebrow">CAM-00 · TEL HERZL · THE TRAILER</div>
     <h1>WATCHING ISHAI</h1>
-    <p class="sub">80 seconds. Sound on.</p>
+    <p class="sub">90 seconds. Sound on, with voices.</p>
     <button class="btn main" id="play" type="button" disabled>LOADING…</button>
     <a class="skip" href="/" target="_top">Skip it and go straight to the show</a>
   </div>
@@ -215,15 +216,15 @@
   // ---------- the shots ----------
   const CAST_ST = [ {id:'noa', fx:74, v:-7, role:'plays NOA'}, {id:'tomer', fx:100, v:9, role:'plays TOMER'}, {id:'kobi', fx:124, v:-5, role:'plays KOBI'}, {id:'levi', fx:148, v:6, role:'plays MRS. LEVI'} ];
   const STREET_D = 5.5;
-  const IV = (who, name, role, col, bgk, tape, quote) => ({d: 3.7, cards: [[0.45, 3.6, quote, 'quote']], draw: t => interview(t, {who, name, role, col, bg: bgk, tape})});
+  const IV = (who, name, role, col, bgk, tape, quote) => ({d: 4.4, voice: who, cards: [[0.45, 4.3, quote, 'quote']], draw: t => interview(t, {who, name, role, col, bg: bgk, tape})});
   const SHOTS = [
     {d: 2.8, cards: [[0.3, 2.6, 'Meet Ishai.', 'big']], draw(t) { bg('apt_dawn', 0); dim(.8 - clamp(t / 2.8) * .3); }},
-    {d: 6.2, cut: 1, cards: [[0.5, 3.0, 'He designs logos.'], [3.3, 6.1, 'He talks to a basil plant called Moshe.']],
+    {d: 6.4, cut: 1, cards: [[0.5, 3.0, 'He designs logos.'], [3.2, 6.3, 'He talks to a basil plant called Moshe.']], say: [[5.35, 'Morning, Moshe.', 'ishai']],
       draw(t) {
         bg('apt_dawn', t);
         if (t < 2.4) spr('ishai_waking', t, 34, 96, 4);
         else if (t < 4.1) spr('ishai_walk', t, lerp(34, 40, clamp((t - 2.4) / 1.7)), 96);
-        else { spr('ishai_talking', t, 40, 96, 6); if (t > 4.4) bubble(40, 47, 'Morning, Moshe.'); }
+        else { spr('ishai_talking', t, 40, 96, 6); if (t > 5.3) bubble(40, 47, 'Morning, Moshe.'); }
         spr(t < 3.6 ? 'dog_sleep' : 'dog_sit', t, 78, 96, 3);
         hud('CAM-01 · APT 4', '07:12:04', t);
       }},
@@ -253,15 +254,16 @@
     IV('noa', 'NOA', 'plays the best friend', '#ffd84d', 'shops', '031', 'I tell him to raise his prices in every single episode.'),
     IV('tomer', 'TOMER', 'plays the fixer friend', '#7fdc8a', 'bar', '047', "I owe him forty shekels. In character. It still hurts."),
     IV('zelig', 'MR. ZELIG', 'plays the park regular', '#9fd0ff', 'park_rain', '052', "I improvise with the pigeons. They are not actors. I think."),
-    {d: 9, cut: 1, cards: [[0.3, 4.2, 'Meet the hosts: Zohar and Oren.'], [4.5, 8.9, 'They watch every minute, so you can skip some.']],
+    {d: 10.6, cut: 1, cards: [[0.3, 2.6, 'Meet the hosts: Zohar and Oren.'], [8.5, 10.5, 'They watch every minute, so you can skip some.']],
+      say: [[2.7, "He's opening the fridge again.", 'zohar'], [4.3, 'Third time this hour.', 'oren'], [5.7, 'Riveting television.', 'zohar'], [7.0, "Honestly? Can't look away.", 'oren']],
       draw(t) {
         const g = c.createLinearGradient(0, 0, 0, 108); g.addColorStop(0, '#1d1238'); g.addColorStop(1, '#0c0718'); c.fillStyle = g; c.fillRect(0, 0, 192, 108);
         for (let i = 0; i < 12; i++) { const on = Math.floor(t * 4 + i) % 3 === 0; R(8 + i * 16, 6, 6, 2, on ? '#ffd27a' : '#5a4a2a'); }
-        const lines = [[0.8, 'z', "He's opening the fridge again."], [2.6, 'o', 'Third time this hour.'], [4.4, 'z', 'Riveting television.'], [6.2, 'o', "Honestly? Can't look away."]];
-        let who = null; lines.forEach(([at, w]) => { if (t > at && t < at + 1.7) who = w; });
+        const lines = [[2.7, 'z', "He's opening the fridge again."], [4.3, 'o', 'Third time this hour.'], [5.7, 'z', 'Riveting television.'], [7.0, 'o', "Honestly? Can't look away."]];
+        let who = null; lines.forEach(([at, w]) => { if (t > at && t < at + 1.4) who = w; });
         R(30, 16, 132, 84, '#000'); box(30, 16, 132, 84, '#ff9ad0');
         spr(who === 'z' ? 'studio_zohar' : who === 'o' ? 'studio_oren' : 'studio_quiet', t, 96, 98, 8, 2);
-        lines.forEach(([at, w, s]) => { if (t > at && t < at + 1.7) bubble(w === 'z' ? 60 : 132, 22, s, w === 'z' ? '#b0306e' : '#2a5a9a'); });
+        lines.forEach(([at, w, s]) => { if (t > at && t < at + 1.4) bubble(w === 'z' ? 60 : 132, 22, s, w === 'z' ? '#b0306e' : '#2a5a9a'); });
         R(152, 2, 34, 9, Math.floor(t * 2) % 2 ? '#ff3b3b' : '#8a1c1c'); T('ON AIR', 169, 2, 7, '#fff', 'center');
         T('STUDIO', 8, 2, 7, '#ff9ad0');
       }},
@@ -285,7 +287,7 @@
         }
         hud('CAM-03 · HERZL ST', '22:52:10', t);
       }},
-    {d: 9.6, cut: 1, cards: [[0.5, 4.6, 'Once an hour, you vote.'], [5.3, 9.5, 'You decide what the actors do next.']],
+    {d: 9.6, cut: 1, cards: [[0.5, 4.6, 'Once an hour, you vote.'], [5.3, 9.5, 'You decide what the actors do next.']], say: [[8.35, 'Soup, motek!', 'levi']],
       draw(t) {
         bg('corridor', t);
         if (t > 5.4) {
@@ -322,7 +324,7 @@
     {d: 1.35, cut: 1, draw(t) { bg('classroom', t); spr('sasson_gesture', t, 112, 92, 4); hud('CAM-18 · LECTURE', '11:12:30', t); }},
     {d: 1.35, cut: 1, draw(t) { bg('gym', t, 6); spr('ishai_exercising', t, 146, 92, 8); hud('CAM-07 · GYM', '18:31:09', t); }},
     {d: 1.35, cut: 1, draw(t) { bg('market', t); const x = 60 + t * 14; spr('ishai_walk', t, x, 88); hud('CAM-10 · SHUK SHALOM', '12:31:09', t); }},
-    {d: 6.6, cut: 1, cards: [[0.6, 3.2, "He doesn't know he's on TV."], [3.6, 6.4, "Let's not tell him."]],
+    {d: 6.6, cut: 1, voice: 'hush', cards: [[0.6, 3.2, "He doesn't know he's on TV."], [3.6, 6.4, "Let's not tell him."]],
       draw(t) {
         const z = RM ? 1 : 1 + clamp(t / 6.6) * .14;
         c.save(); c.translate(40, 60); c.scale(z, z); c.translate(-40, -60);
@@ -335,11 +337,46 @@
   let acc = 0; SHOTS.forEach(s => { s.at = acc; acc += s.d; });
   const TOTAL = acc, AT = i => SHOTS[i].at;
 
-  const CARDS = [];
-  SHOTS.forEach(s => (s.cards || []).forEach(([a, b, txt, cls]) => {
-    const el = document.createElement('div'); el.className = 'card' + (cls ? ' ' + cls : ''); el.textContent = txt;
-    $('cards').appendChild(el); CARDS.push({a: s.at + a, b: s.at + b, el});
-  }));
+  const CARDS = [], CUES = [];
+  SHOTS.forEach(s => {
+    (s.cards || []).forEach(([a, b, txt, cls], i) => {
+      const el = document.createElement('div'); el.className = 'card' + (cls ? ' ' + cls : ''); el.textContent = txt;
+      $('cards').appendChild(el); CARDS.push({a: s.at + a, b: s.at + b, el});
+      CUES.push({at: s.at + a + .05, text: txt, who: s.voice === 'hush' ? (i ? 'hush' : 'narr') : s.voice || 'narr'});
+    });
+    (s.say || []).forEach(([a, txt, who]) => CUES.push({at: s.at + a, text: txt, who}));
+  });
+  CUES.sort((x, y) => x.at - y.at);
+
+  // ---------- voices: the browser's own speech, a narrator and one voice per character ----------
+  const SPEECH = 'speechSynthesis' in window ? window.speechSynthesis : null;
+  const VOX = {
+    narr:  {g: 'm', n: 0, pitch: .85, rate: 1.0},  hush: {g: 'm', n: 0, pitch: .8, rate: .9, vol: .75},
+    ishai: {g: 'm', n: 1, pitch: 1.05, rate: 1.05},
+    dana:  {g: 'f', n: 0, pitch: 1.0, rate: 1.1},  levi: {g: 'f', n: 1, pitch: 1.35, rate: .95},
+    noa:   {g: 'f', n: 2, pitch: 1.25, rate: 1.15}, zohar: {g: 'f', n: 3, pitch: 1.2, rate: 1.1},
+    tomer: {g: 'm', n: 2, pitch: .9, rate: 1.15},   zelig: {g: 'm', n: 3, pitch: .6, rate: .9}, oren: {g: 'm', n: 4, pitch: .75, rate: 1.05},
+  };
+  let VOICES = {m: [], f: [], all: []}, voxOn = true, cueI = 0;
+  function loadVoices(){
+    if (!SPEECH) return; const all = SPEECH.getVoices().filter(v => /^en/i.test(v.lang));
+    const F = /female|samantha|karen|moira|tessa|victoria|zira|susan|serena|fiona|kate|allison|ava|jenny|aria|sonia|libby|hazel|emma|joanna|salli|kimberly|ivy|google us english/i;
+    const M = /\bmale|daniel|alex|fred|david|mark|guy|ryan|george|james|oliver|aaron|arthur|rishi|matthew|joey|justin|brian|thomas/i;
+    const f = all.filter(v => F.test(v.name) && !/\bmale/i.test(v.name)), m = all.filter(v => M.test(v.name) && !/female/i.test(v.name));
+    VOICES = {m, f, all};
+  }
+  if (SPEECH){ loadVoices(); try { SPEECH.addEventListener('voiceschanged', loadVoices); } catch (e) { SPEECH.onvoiceschanged = loadVoices; } }
+  function duck(on){ if (master && ac) master.gain.setTargetAtTime(muted ? 0 : on ? .3 : .85, ac.currentTime, .08); }
+  function speak(text, who){
+    if (!SPEECH || !voxOn || muted) return;
+    const p = VOX[who] || VOX.narr, list = VOICES[p.g].length ? VOICES[p.g] : VOICES.all;
+    const u = new SpeechSynthesisUtterance(text);
+    if (list.length) u.voice = list[p.n % list.length];
+    u.pitch = p.pitch; u.rate = p.rate; u.volume = p.vol ?? 1;
+    u.onstart = () => duck(true); u.onend = u.onerror = () => duck(false);
+    if (SPEECH.speaking || SPEECH.pending){ SPEECH.cancel(); setTimeout(() => SPEECH.speak(u), 40); } else SPEECH.speak(u);
+  }
+  function hush(){ if (SPEECH) SPEECH.cancel(); duck(false); }
 
   // ---------- music: a little chiptune, all synthesised ----------
   let ac = null, master = null, nbuf = null, t0 = 0, muted = false;
@@ -421,6 +458,7 @@
     const s = SHOTS[i], t = clamp(T0 - s.at, 0, s.d);
     s.draw(t);
     if (s.cut && t < .1) noiseOver(.8);
+    while (running && cueI < CUES.length && T0 >= CUES[cueI].at){ const q = CUES[cueI++]; if (T0 - q.at < 1.2) speak(q.text, q.who); }
     CARDS.forEach(k => k.el.classList.toggle('on', running && T0 >= k.a && T0 < k.b));
     $('prog').style.width = (running ? clamp(T0 / TOTAL) * 100 : 0) + '%';
   }
@@ -428,13 +466,16 @@
     if (ac) try { ac.close(); } catch (e) {}
     audioInit(); try { await ac.resume(); } catch (e) {}
     t0 = ac.currentTime + .1; score();
+    cueI = 0; hush(); if (SPEECH){ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; SPEECH.speak(u); }   // unlocks speech on phones (needs the tap)
     running = true; ended = false;
     $('gate').hidden = true; $('end').hidden = true; $('ctrl').hidden = false; stage.classList.remove('open');
   }
   function finish(skipped) {
     running = false; ended = true;
     CARDS.forEach(k => k.el.classList.remove('on'));
+    hush();
     if (skipped && ac) { try { ac.close(); } catch (e) {} audioInit(); endOnly(); }
+    setTimeout(() => speak('Watching Ishai. On air now, all day, every day.', 'narr'), 700);
     $('ctrl').hidden = true; $('end').hidden = false; stage.classList.add('open'); $('prog').style.width = '0';
     try { localStorage.setItem('ishaiIntroSeen', '1'); } catch (e) {}
     $('live').focus({preventScroll: true});
@@ -444,10 +485,17 @@
   });
   $('play').addEventListener('click', start);
   $('again').addEventListener('click', start);
+  window.addEventListener('pagehide', hush);
   $('skip').addEventListener('click', () => finish(true));
   $('snd').addEventListener('click', e => {
     muted = !muted; e.currentTarget.textContent = muted ? 'SOUND OFF' : 'SOUND ON'; e.currentTarget.setAttribute('aria-pressed', String(!muted));
     if (master) master.gain.setTargetAtTime(muted ? 0 : .85, ac.currentTime, .05);
+    if (muted) hush();
+  });
+  if (!SPEECH) $('vox').hidden = true;
+  $('vox').addEventListener('click', e => {
+    voxOn = !voxOn; e.currentTarget.textContent = voxOn ? 'VOICES ON' : 'VOICES OFF'; e.currentTarget.setAttribute('aria-pressed', String(voxOn));
+    if (!voxOn) hush();
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && running) finish(true); });
   requestAnimationFrame(frame);
