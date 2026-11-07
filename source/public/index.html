@@ -217,7 +217,7 @@
   <div class="row"><span id="bugM" style="font-size:15px"></span><button id="bugC" class="snd">CANCEL</button><button id="bugS" class="snd">SEND</button></div>
 </div></div>
 <div class="wrap">
-  <div class="title"><span>&gt; WATCHING_ISHAI</span><span class="titleR"><button id="eye" class="snd" title="Keep the screen on" aria-label="Keep the screen on" aria-pressed="true" hidden>👁</button><button id="bell" class="snd" title="Tell me before key moments" aria-label="Alerts are off" hidden>🔕</button><button id="acct" class="snd" title="Sign in or sign up" aria-label="Sign in or sign up" hidden>👤</button><small id="day">DAY --</small></span></div>
+  <div class="title"><span>&gt; WATCHING_ISHAI</span><span class="titleR"><a id="trailer" class="snd" href="/intro" title="Watch the trailer" aria-label="Watch the trailer" style="text-decoration:none;margin:0;padding:0 4px;line-height:1.2">▶</a><button id="eye" class="snd" title="Keep the screen on" aria-label="Keep the screen on" aria-pressed="true" hidden>👁</button><button id="bell" class="snd" title="Tell me before key moments" aria-label="Alerts are off" hidden>🔕</button><button id="acct" class="snd" title="Sign in or sign up" aria-label="Sign in or sign up" hidden>👤</button><small id="day">DAY --</small></span></div>
 
   <div class="cam">
     <div class="hud top"><span class="rec"><span class="dot"></span>REC <span id="cam">CAM-01</span></span><span id="clock">--:--:--</span></div>
@@ -273,6 +273,10 @@
   <div class="foot">Story written by AI. Ishai is fictional.</div>
 </div>
 
+<script>
+  // first visit (no test view in the address): play the trailer once; /intro sets ishaiIntroSeen when it ends or is skipped
+  try { if (!location.search && !localStorage.getItem('ishaiIntroSeen')) location.replace('/intro'); } catch (e) {}
+</script>
 <script>
 (() => {
   // ================= one clock for everybody: the server's =================

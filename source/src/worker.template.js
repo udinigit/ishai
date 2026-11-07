@@ -245,6 +245,7 @@ const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && 
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
 const SANDBOX_HTML = __SANDBOX_HTML__;
+const INTRO_HTML = __INTRO_HTML__;   // the trailer: /intro, public; first-time visitors land here once
 const BUILDER_HTML = __BUILDER_HTML__;
 const SW_JS = __SW_JS__;
 const VAPID_PUBLIC = "BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI";
@@ -373,6 +374,9 @@ export default {
       if (!await isDev(req, env)) return json({ error: "director only" }, {}, 403);
       const c = courseOf(await loadState(env)), cur = c.queue[0];
       return json({ title: cur.title, moments: lectureMoments(cur, c.queue[1]) || lectureMoments(firstLecture(), c.queue[1]) }, { "cache-control": "no-store" });
+    }
+    if (url.pathname === "/intro") {
+      return new Response(INTRO_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
     }
     if (url.pathname === "/sandbox") {
       if (!await isDev(req, env)) return Response.redirect(url.origin + "/director", 302);
