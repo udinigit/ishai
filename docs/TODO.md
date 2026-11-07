@@ -12,3 +12,4 @@ Ideas and requests from the director. Newest at the bottom; mark done with the v
 - [x] Hosts describe what viewers can't read (travel, waiting) and fill silences; rare overheard captions from passers-by; planned scenes update memory; the story writer gets the summaries and arcs. — v144
 - [x] Ambient layer: weekly city timetable with sound, building chat, daily texture pack from the planner. — v147
 - [x] Viewers' polls every hour: anonymous, 60 seconds, percentages with the winner highlighted; the winner plays out an hour or more later. — v148
+- [x] Google sign-in for voting (on when the GOOGLE_CLIENT_ID secret is set; see docs/GOOGLE_SIGNIN.md). — v148

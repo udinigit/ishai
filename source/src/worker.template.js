@@ -302,7 +302,7 @@ export default {
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
-        polls: { db: !!env.DB, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3) } }, { "cache-control": "no-store" });
+        polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3) } }, { "cache-control": "no-store" });
     }
     // quick story fix for the scheduled health check: /api/fix?token=...&endScene=1&note=...&minutes=45
     if (url.pathname === "/api/fix") {
@@ -320,6 +320,10 @@ export default {
     }
     // the planned day, for the preview player (/?preview)
     if (url.pathname === "/api/vote" && req.method === "POST") return pollVote(req, env);
+    if (url.pathname === "/api/signin" && req.method === "POST") return googleSignIn(req, env);
+    if (url.pathname === "/api/signout" && req.method === "POST") return json({ ok: true }, { "set-cookie": "ishai_voter=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax", "cache-control": "no-store" });
+    if (url.pathname === "/api/me") return json({ google: env.GOOGLE_CLIENT_ID || null, signedIn: !!(env.GOOGLE_CLIENT_ID && await voterOf(req, env)) }, { "cache-control": "no-store" });
+    if (url.pathname === "/privacy") return new Response(PRIVACY_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
     if (url.pathname === "/api/poll") {   // the current poll and, once it has closed, its result
       const s = await loadState(env), p = s.poll, id = url.searchParams.get("id");
       if (!p || (id && id !== p.id)) { const old = (s.pollLog || []).find(x => x.id === id); return json({ poll: null, old: old || null }, { "cache-control": "no-store" }); }
@@ -2095,18 +2099,72 @@ async function pollResult(env, p) {
   if (Date.now() > p.closesAt + 5000) await env.DB.prepare("INSERT OR IGNORE INTO results (poll, counts, total, winner, at) VALUES (?, ?, ?, ?, ?)").bind(p.id, JSON.stringify(counts), total, r.winner, Date.now()).run();
   return r;
 }
+// ---------- Google sign-in for voting (on when the GOOGLE_CLIENT_ID variable is set; without it voting is anonymous) ----------
+// The page gets a signed token from Google; we check it against Google's public keys, then give the browser our own signed cookie.
+// Nothing about the person is stored: the vote is kept under a hash of their Google account number.
+const VOTER_DAYS = 180, GOOGLE_ISS = ["accounts.google.com", "https://accounts.google.com"];
+let googleKeys = null, googleKeysAt = 0;
+const jwtBytes = str => Uint8Array.from(atob(str.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(str.length / 4) * 4, "=")), c => c.charCodeAt(0));
+async function googleKey(kid) {
+  if (!googleKeys || Date.now() - googleKeysAt > 6 * 3600000 || !googleKeys.some(k => k.kid === kid)) {
+    const r = await fetch("https://www.googleapis.com/oauth2/v3/certs", { cf: { cacheTtl: 3600 } });
+    if (!r.ok) throw new Error("Google keys " + r.status);
+    googleKeys = (await r.json()).keys || []; googleKeysAt = Date.now();
+  }
+  const k = googleKeys.find(k => k.kid === kid);
+  return k ? crypto.subtle.importKey("jwk", k, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]) : null;
+}
+async function googleCheck(token, clientId) {   // returns the token's claims, or a reason
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3) return "not a Google token";
+  let head, body;
+  try { head = JSON.parse(new TextDecoder().decode(jwtBytes(parts[0]))); body = JSON.parse(new TextDecoder().decode(jwtBytes(parts[1]))); } catch (e) { return "unreadable token"; }
+  if (head.alg !== "RS256") return "wrong token type";
+  const key = await googleKey(head.kid);
+  if (!key || !await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, jwtBytes(parts[2]), new TextEncoder().encode(parts[0] + "." + parts[1]))) return "the token's signature is wrong";
+  if (!GOOGLE_ISS.includes(body.iss) || body.aud !== clientId) return "the token is for another site";
+  if (!(body.exp * 1000 > Date.now()) || !body.sub) return "the token has expired";
+  return body;
+}
+const voterKey = async env => crypto.subtle.importKey("raw", new TextEncoder().encode("ishai-voter:" + (env.ADMIN_KEY || env.TICK_SECRET || "ishai")), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+const voterSig = async (env, data) => hex(await crypto.subtle.sign("HMAC", await voterKey(env), new TextEncoder().encode(data))).slice(0, 32);
+async function voterOf(req, env) {   // the signed-in voter from our cookie, or null
+  const m = (req.headers.get("cookie") || "").match(/(?:^|;\s*)ishai_voter=(g-[0-9a-f]{32})\.(\d{10,13})\.([0-9a-f]{32})/);
+  if (!m || Number(m[2]) < Date.now()) return null;
+  return m[3] === await voterSig(env, m[1] + "." + m[2]) ? m[1] : null;
+}
+async function googleSignIn(req, env) {
+  if (!env.GOOGLE_CLIENT_ID) return json({ error: "sign-in is not set up" }, {}, 503);
+  const b = await req.json().catch(() => ({}));
+  let c; try { c = await googleCheck(b.credential, env.GOOGLE_CLIENT_ID); } catch (e) { return json({ error: "could not reach Google, try again" }, {}, 503); }
+  if (typeof c === "string") return json({ error: c }, {}, 401);
+  const id = "g-" + hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("ishai-google:" + c.sub))).slice(0, 32), exp = Date.now() + VOTER_DAYS * 86400000;
+  const cookie = `ishai_voter=${id}.${exp}.${await voterSig(env, id + "." + exp)}; Path=/; Max-Age=${VOTER_DAYS * 86400}; HttpOnly; Secure; SameSite=Lax`;
+  return json({ ok: true, name: String(c.given_name || c.name || "").slice(0, 30) }, { "set-cookie": cookie, "cache-control": "no-store" });
+}
+const PRIVACY_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Privacy · Watching Ishai</title>
+<style>body{background:#050805;color:#b8f5b8;font:18px/1.5 ui-monospace,monospace;max-width:640px;margin:0 auto;padding:24px 16px}h1{color:#6f6;font-size:24px}a{color:#ffb84d}</style></head><body>
+<h1>Privacy</h1>
+<p>Watching Ishai is a fictional, AI-written show. You can watch it without an account.</p>
+<p><b>Voting.</b> To vote in the hourly viewers' poll you sign in with Google. From Google we use only your account number, and we store only a scrambled (hashed) version of it next to your vote, so each account votes once. We never store your name, email or picture. Your first name is shown back to you in your own browser only.</p>
+<p><b>Cookies.</b> Signing in leaves one cookie, <code>ishai_voter</code>, valid for ${VOTER_DAYS} days, which proves you signed in. Signing out removes it. Your browser also keeps a random id and the polls you voted in, on your device only.</p>
+<p><b>Votes</b> are counted to show the results and to steer the story. They are never sold or shared.</p>
+<p><a href="/">Back to the show</a></p></body></html>`;
+
 async function pollVote(req, env) {
   if (!env.DB) return json({ error: "voting is not set up yet" }, {}, 503);
+  const google = !!env.GOOGLE_CLIENT_ID, gVoter = google ? await voterOf(req, env) : null;
+  if (google && !gVoter) return json({ error: "please sign in to vote", signIn: true }, {}, 401);
   const b = await req.json().catch(() => ({})), s = await loadState(env), p = s.poll, now = Date.now();
   if (!p || p.id !== b.poll) return json({ error: "this vote is over" }, {}, 409);
   if (now < p.opensAt - 2000) return json({ error: "voting has not opened yet" }, {}, 409);
   if (now > p.closesAt + 3000) return json({ error: "voting has closed" }, {}, 409);
-  const opt = Number(b.opt), voter = String(b.voter || "");
+  const opt = Number(b.opt), voter = gVoter || String(b.voter || "");
   if (!Number.isInteger(opt) || opt < 0 || opt >= p.options.length) return json({ error: "no such option" }, {}, 400);
-  if (!/^[0-9a-f-]{36}$/i.test(voter)) return json({ error: "bad voter id" }, {}, 400);
+  if (!gVoter && !/^[0-9a-f-]{36}$/i.test(voter)) return json({ error: "bad voter id" }, {}, 400);
   const ip = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(p.id + ":" + (req.headers.get("cf-connecting-ip") || "?")))).slice(0, 24);
-  const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM votes WHERE poll = ? AND ip = ?").bind(p.id, ip).first("n");
-  if (n >= POLL_IP_MAX) return json({ error: "too many votes from this connection" }, {}, 429);
+  const n = gVoter ? 0 : await env.DB.prepare("SELECT COUNT(*) AS n FROM votes WHERE poll = ? AND ip = ?").bind(p.id, ip).first("n");   // signed-in voters: one per account, no limit per connection
+  if (!gVoter && n >= POLL_IP_MAX) return json({ error: "too many votes from this connection" }, {}, 429);
   const r = await env.DB.prepare("INSERT OR IGNORE INTO votes (poll, voter, ip, opt, at) VALUES (?, ?, ?, ?, ?)").bind(p.id, voter.toLowerCase(), ip, opt, now).run();
   return json({ ok: true, counted: r.meta.changes === 1 }, { "cache-control": "no-store" });
 }

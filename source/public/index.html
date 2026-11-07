@@ -101,6 +101,9 @@
   .pollB.win .fill{background:rgba(255,184,77,.38)}
   .pollB.lose{opacity:.7}
   .pollF{margin-top:6px;font-size:.8em;color:#c9a96a}
+  .pollG{margin-top:7px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:.75em;color:#c9a96a}
+  .pollG a,.pollG button.link{color:var(--amber);background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline}
+  .pollG .gbtn{min-height:40px}
   .over small{display:block;font-style:normal;font-size:.72em;letter-spacing:1px;text-transform:uppercase;opacity:.65}
   .say b{font-weight:normal;margin-right:5px;font-size:.85em;letter-spacing:.5px}
   .say.edge::after{display:none}
@@ -230,7 +233,7 @@
     <div class="hud bot"><span id="place">ISHAI // APARTMENT</span><span id="hudAction">--</span></div>
   </div>
 
-  <div class="pollC" id="pollC" hidden><div class="pollH"><span>🗳 VIEWERS' VOTE</span><b id="pollT"></b></div><div class="pollQ" id="pollQ"></div><div class="pollO" id="pollO"></div><div class="pollF" id="pollF" aria-live="polite"></div></div>
+  <div class="pollC" id="pollC" hidden><div class="pollH"><span>🗳 VIEWERS' VOTE</span><b id="pollT"></b></div><div class="pollQ" id="pollQ"></div><div class="pollO" id="pollO"></div><div class="pollF" id="pollF" aria-live="polite"></div><div class="pollG" id="pollG" hidden></div></div>
 
   <div class="status">
     <div class="info">
@@ -4023,6 +4026,46 @@
     try { let v = localStorage.getItem('ishaiVoter'); if (!v){ v = mk(); localStorage.setItem('ishaiVoter', v); } return v; } catch(e){ return mk(); } })();
   const MYVOTES = (() => { try { return JSON.parse(localStorage.getItem('ishaiVotes')) || {}; } catch(e){ return {}; } })();
   const keepVote = (id, i) => { MYVOTES[id] = i; try { const k = Object.keys(MYVOTES).slice(-30), o = {}; k.forEach(x => o[x] = MYVOTES[x]); localStorage.setItem('ishaiVotes', JSON.stringify(o)); } catch(e){} };
+  // Google sign-in (only when the worker has GOOGLE_CLIENT_ID; otherwise anyone votes anonymously)
+  const AUTH = {google: null, signedIn: false, name: (() => { try { return localStorage.getItem('ishaiVoterName') || ''; } catch(e){ return ''; } })(), gis: 0, sig: ''};
+  const needSignIn = p => !!(AUTH.google && !AUTH.signedIn && !(p && p.sandbox));
+  async function authLoad(){ try { const r = await (await fetch('/api/me', {cache: 'no-store'})).json(); AUTH.google = r.google || null; AUTH.signedIn = !!r.signedIn; } catch(e){} AUTH.sig = ''; pollSig = ''; }
+  function gisLoad(){   // Google's sign-in script, loaded only when someone needs it
+    if (AUTH.gis) return; AUTH.gis = 1;
+    const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
+    sc.onload = () => { try { google.accounts.id.initialize({client_id: AUTH.google, callback: onGoogle, ux_mode: 'popup', itp_support: true}); AUTH.gis = 2; AUTH.sig = ''; } catch(e){ AUTH.gis = 0; } };
+    sc.onerror = () => { AUTH.gis = 0; pollMsg = 'Google sign-in did not load. Check your connection.'; pollSig = ''; };
+    document.head.appendChild(sc);
+  }
+  async function onGoogle(resp){
+    pollMsg = 'Signing you in…'; pollSig = '';
+    try { const r = await fetch('/api/signin', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({credential: resp.credential})}), j = await r.json().catch(() => ({}));
+      if (r.ok){ AUTH.signedIn = true; AUTH.name = j.name || ''; try { localStorage.setItem('ishaiVoterName', AUTH.name); } catch(e){} pollMsg = ''; }
+      else pollMsg = 'Sign-in failed: ' + (j.error || 'try again') + '.';
+    } catch(e){ pollMsg = 'No connection, try again.'; }
+    AUTH.sig = ''; pollSig = '';
+  }
+  async function signOut(){
+    try { await fetch('/api/signout', {method: 'POST'}); } catch(e){}
+    try { google.accounts.id.disableAutoSelect(); } catch(e){}
+    AUTH.signedIn = false; AUTH.name = ''; try { localStorage.removeItem('ishaiVoterName'); } catch(e){} AUTH.sig = ''; pollSig = '';
+  }
+  function authBox(p){   // under the card: the Google button, or who is signed in
+    const el = $('pollG'), want = !AUTH.google || p.sandbox ? 'none' : AUTH.signedIn ? 'in:' + AUTH.name : 'out:' + AUTH.gis;
+    if (want === AUTH.sig) return; AUTH.sig = want; el.textContent = '';
+    if (want === 'none'){ el.hidden = true; return; }
+    el.hidden = false;
+    if (AUTH.signedIn){
+      const t = document.createElement('span'); t.textContent = 'Signed in' + (AUTH.name ? ' as ' + AUTH.name : ''); el.appendChild(t);
+      const b = document.createElement('button'); b.className = 'link'; b.type = 'button'; b.textContent = 'Sign out'; b.onclick = signOut; el.appendChild(b);
+    } else {
+      gisLoad();
+      const g = document.createElement('div'); g.className = 'gbtn'; el.appendChild(g);
+      if (AUTH.gis === 2) try { google.accounts.id.renderButton(g, {theme: 'filled_black', size: 'large', text: 'signin_with', shape: 'pill'}); } catch(e){}
+      else g.textContent = 'Loading Google sign-in…';
+    }
+    const a = document.createElement('a'); a.href = '/privacy'; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Privacy'; el.appendChild(a);
+  }
   const forgetVote = id => { delete MYVOTES[id]; try { localStorage.setItem('ishaiVotes', JSON.stringify(MYVOTES)); } catch(e){} };
   function setPoll(p){
     if (!p){ if (POLL && !POLL.sandbox) POLL = null; return; }
@@ -4042,12 +4085,13 @@
   }
   async function pollVote(i){
     const p = POLL; if (!p || MYVOTES[p.id] != null) return;
+    if (needSignIn(p)){ pollMsg = 'Sign in with Google first (the button below).'; pollSig = ''; return; }
     keepVote(p.id, i); pollMsg = 'Sending your vote…'; pollSig = ''; pollTick();
     if (p.sandbox){ pollMsg = 'Vote counted (sandbox: nothing is sent). Results when the minute is up.'; pollSig = ''; return; }
     try { const r = await fetch('/api/vote', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({poll: p.id, opt: i, voter: pollVoter})});
       const j = await r.json().catch(() => ({}));
       if (r.ok) pollMsg = j.counted === false ? 'You already voted in this one.' : 'Vote counted. Results when the minute is up.';
-      else { pollMsg = j.error ? j.error.charAt(0).toUpperCase() + j.error.slice(1) + '.' : 'That did not work.'; if (r.status !== 429) forgetVote(p.id); }
+      else { pollMsg = j.error ? j.error.charAt(0).toUpperCase() + j.error.slice(1) + '.' : 'That did not work.'; if (r.status !== 429) forgetVote(p.id); if (j.signIn){ AUTH.signedIn = false; AUTH.sig = ''; } }
     } catch(e){ pollMsg = 'No connection, try again.'; forgetVote(p.id); }
     pollSig = ''; pollTick();
   }
@@ -4058,7 +4102,8 @@
     if (phase === 'count' && now > p.closesAt + 6000 && now >= pollFetch && pollTries < 15){ pollFetch = now + 4000; pollGetResult(p); }
     if (phase === 'open' && pollPinged !== p.id){ pollPinged = p.id; if (now - p.opensAt < 3000) Sound.sfx('ping'); }
     $('pollT').textContent = phase === 'soon' ? 'OPENS IN ' + mmss(p.opensAt - now) : phase === 'open' ? mmss(p.closesAt - now) + ' LEFT' : phase === 'count' ? 'CLOSED' : 'RESULT';
-    const sig = p.id + phase + mine + pollMsg;
+    authBox(p);
+    const login = needSignIn(p), sig = p.id + phase + mine + pollMsg + login;
     if (sig === pollSig) return;
     pollSig = sig; card.hidden = false;
     $('pollQ').textContent = p.question;
@@ -4073,16 +4118,18 @@
         b.classList.add(i === r.winner ? 'win' : 'lose');
       } else if (mine === i){ const n = document.createElement('span'); n.className = 'pct'; n.textContent = '✓ YOUR VOTE'; b.appendChild(n); }
       if (mine === i) b.classList.add('mine');
-      if (phase !== 'open' || mine != null) b.disabled = true;
+      if (phase !== 'open' || mine != null || login) b.disabled = true;
       if (phase === 'soon') b.classList.add('wait');
       b.onclick = () => pollVote(i);
       box.appendChild(b);
     });
-    $('pollF').textContent = phase === 'soon' ? 'Anyone can vote once. You get 60 seconds.' : phase === 'open' ? (pollMsg || 'Tap your pick. One vote each.')
+    $('pollF').textContent = pollMsg && phase !== 'done' && phase !== 'count' ? pollMsg : login && (phase === 'soon' || phase === 'open') ? 'Sign in with Google to vote. One vote per account; we keep no name or email.'
+      : phase === 'soon' ? (AUTH.google ? 'One vote per account. You get 60 seconds.' : 'Anyone can vote once. You get 60 seconds.') : phase === 'open' ? 'Tap your pick. One vote each.'
       : phase === 'count' ? 'Counting the votes…' : !total ? 'No votes this time, so nothing changes.'
       : `${total} vote${total === 1 ? '' : 's'}.` + (r.tie ? ' A tie, settled by the studio coin.' : '') + ' It plays out in the story later today.';
   }
   setInterval(pollTick, 250);
+  if (!new URLSearchParams(location.search).has('sandbox')) authLoad();
 
   async function poll(){
     let s;
