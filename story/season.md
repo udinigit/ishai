@@ -25,22 +25,20 @@ You (the director) can edit anything here; changes go live with the next deploy.
 - 3-6 key beats per day, each with a time window. New props, places or animals need art first ("art" field).
 
 ## Arcs
-1. **Dana and the basil cups** — Dana, the deadpan barista, draws basil leaves on Ishai's cups. Slow, shy romance. Stages: he notices → he asks → a real conversation → she visits Moshe → first date. *Now: stage 3; planned Thu Nov 5: she agrees to see Moshe after Shabbat (not verified, see Day 8).*
-2. **Saving Moshe** — Moshe the basil is wilting. Ends with Moshe thriving. *Now: watered less, but leaves are drying and Ishai plucks them. Dana's house call is Sat Nov 7, after havdalah.*
-3. **The chickpea** — Gadi's client wants the chickpea logo friendlier by Sunday morning; Ishai finally brings up his fee. Follows the earlier 'bigger but smaller' client, last seen when v7 was sent. Fri Nov 6: two pages of friendliness notes, still no fee number.
-4. **Noa** — best friend, keeps telling him to raise his prices. Missed the cafe and the bar on Nov 4; apologises by phone and comes for Shabbat dinner Fri Nov 6.
+1. **Dana and the basil cups** — Dana, the deadpan barista, draws basil leaves on Ishai's cups. Slow, shy romance. Stages: he notices → he asks → a real conversation → she visits Moshe → first date. *Now: stage 3 → 4; Sat Nov 7 after havdalah she visits Moshe, he asks why she draws the basil, she puts her number in his phone (wants a Moshe photo in a week). Next: first date.*
+2. **Saving Moshe** — Moshe the basil is wilting. Ends with Moshe thriving. *Now: Sat Nov 7 Dana's diagnosis: sunburn from the afternoon window and pinching the wrong leaves. Moved to morning light; pinch the tops.*
+3. **The chickpea** — Gadi's client wants the chickpea logo friendlier by Sunday morning; Ishai finally brings up his fee. Follows the earlier 'bigger but smaller' client, last seen when v7 was sent. Fri Nov 6: two pages of friendliness notes. Sat Nov 7 after havdalah: Gadi texts for 9am Sunday and Ishai sends a fee: 4,500. Next: Gadi's answer on Sunday.
+4. **Noa** — best friend, keeps telling him to raise his prices. Missed the cafe and the bar on Nov 4; apologises by phone and comes for Shabbat dinner Fri Nov 6 (planned, not verified). Will want a report on Dana.
 5. **Falafel the dog** — adopted Nov 1, walks with Ishai and sleeps by the desk. The hosts adore him; Oren worries about Moshe.
-6. **The wider circle** — Tomer, Kobi and his lottery system, Mr. Zelig, Mrs. Levi, Lior, the gym regulars. Use the whole cast over the week.
+6. **The wider circle** — Tomer (Sat Nov 7: his mother's meatballs; fixes the flickering hallway light Sunday evening Nov 8), Kobi and his lottery system, Mr. Zelig, Mrs. Levi, Lior, the gym regulars. Use the whole cast over the week.
 7. **Improv on Thursdays** — Noa paid for four beginners' lessons with Yael at the back of The Black Candle. He over-apologizes and can't hold a price; "yes, and" slowly helps him say what he wants, including to Gadi. Keep it a real class: he is awkward, never a polished comic. *Now: lesson 1 on Thu Nov 5; homework: once this week, don't say sorry to someone who should be saying it to you.*
 Done: the TV (Nov 1) and Mrs. Levi's radio (Nov 3) both arrived.
 
 ## Already scheduled — plan around these, do not overlap or move them
 - Every Sunday, Tuesday and Wednesday, 11:00 — Ishai's history lecture at Tel Herzl University. The engine schedules it by itself: write NO beat for it, and keep him free from 10:25 to 11:50.
-- Sat Nov 7, after havdalah — Dana comes to see Moshe (promised on screen Nov 5; plan it Saturday).
+- Sun Nov 8, evening — Tomer comes with a ladder to fix the flickering hallway light (promised Sat Nov 7).
+- About Sat Nov 14 — Ishai texts Dana a photo of Moshe (she asked for one in a week).
 - Every Thursday, 17:00 — improv class at The Black Candle (not during a holiday). Plan one beat: `startAt` 16:42, `sceneAt` 16:58 (the first moment then plays at 16:59 and the class starts at 17:00), `deadlineAt` 17:20, `location` bar, `forceWith` yael, and 5 `preview.moments` with Yael (about 30 minutes): the first 4 in the bar with action `improv` (Ishai and Yael stand on the cleared floor, the class watches from a half circle of chairs), the last one on the street with action `talking`, so the room is reset out of sight. Yael is the only other speaker. Keep 15:45-17:45 free of other beats.
-
-## Day 1 — Friday, Oct 30 (planned by Claude, 14:30)
-Cafe with Dana (he notices the basil cup) → invites Noa for Shabbat → Mrs. Levi's challah in the hallway → candle lighting at home → Shabbat dinner with Noa.
 
 ## Day 2 — Saturday, Oct 31 (planned by Claude, 07:20)
 **Previously:** Friday afternoon Ishai went to Avi's kiosk for falafel and walked to the park with Avi, who talked about Shabbat and "falafel without tahini". The planned Friday beats (cafe with Dana, Noa's invite, Mrs. Levi's challah, candles, dinner with Noa) never fired, so they're cancelled. Saturday dawn: Ishai is up early, digging through an empty fridge.
@@ -57,3 +55,7 @@ Cafe with Dana (he notices the basil cup) → invites Noa for Shabbat → Mrs. L
 ## Day 8 — Friday, Nov 6 (planned by Claude, 05:30; WITHOUT live data)
 **Previously:** Not known. The live log, state and health could not be reached this run, so what actually happened on Thu Nov 5 is unverified. Thursday's plan was Gadi's fee call, Dana agreeing to see Moshe, Mr. Zelig, Mrs. Levi, improv lesson 1 and the bar with Tomer. Any of those goals still open were cancelled so they don't fire today. Correct this section from the log on the next run.
 **Today:** Gadi's friendliness notes → Shabbat shopping at Shuk Shalom, Noa phones → Mrs. Levi's challah → candles → Shabbat dinner with Noa.
+
+## Day 9 — Saturday, Nov 7 (planned by Claude, 05:30; WITHOUT live data again)
+**Previously:** Not known. The live log, state and health could not be fetched this run either (permission prompt unanswered), so Friday's market trip, Mrs. Levi's challah, the candles and Shabbat dinner with Noa are planned, not verified, and neither is Thursday. Yesterday's open goals were cancelled so they don't fire today. Correct Days 7-9 from the log on the next run.
+**Today:** Slow Shabbat morning tidy → Mr. Zelig adopts Falafel as a listener → Tomer's meatballs and the hallway light → havdalah and the fee to Gadi (4,500) → Dana's house call for Moshe.
