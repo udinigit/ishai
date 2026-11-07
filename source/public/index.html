@@ -89,10 +89,11 @@
   .foot{font-size:15px;color:var(--phos-dim);padding:0 4px;opacity:.8}
   .line.say{margin:-4px 0 9px 1.2em}
   .talk{display:flex;flex-direction:column;gap:10px}
-  .say{position:absolute;z-index:4;pointer-events:none;transform:translate(-50%,-100%);max-width:44%;
-    background:#f7f7f2;color:#151515;border:2px solid #151515;border-radius:8px;padding:2px 7px 3px;
+  /* a speech bubble: wide before tall, outlined in the speaker's own colour, their name in a tab of that colour */
+  .say{position:absolute;z-index:4;pointer-events:none;transform:translate(-50%,-100%);width:max-content;max-width:min(94%,560px);
+    background:#f7f7f2;color:#151515;border:3px solid var(--who,#151515);border-radius:8px;padding:2px 7px 3px;
     font-size:clamp(14px,3.7vw,20px);line-height:1.1;text-shadow:none;box-shadow:0 2px 0 rgba(0,0,0,.35)}
-  .say::after{content:"";position:absolute;left:var(--tail,50%);bottom:-8px;margin-left:-6px;border:6px solid transparent;border-top-color:#151515;border-bottom:0}
+  .say::after{content:"";position:absolute;left:var(--tail,50%);bottom:-9px;margin-left:-7px;border:7px solid transparent;border-top-color:var(--who,#151515);border-bottom:0}
   /* a passer-by's words: small, grey, no name, no bubble, so it never reads as a character talking */
   .over{position:absolute;z-index:3;left:6px;top:26px;max-width:62%;pointer-events:none;padding:1px 6px;background:rgba(0,0,0,.5);color:#b9b9ad;font-style:italic;font-size:clamp(10px,2.6vw,14px);line-height:1.15}
   /* the building chat on Ishai's phone: a plain notification card, top right */
@@ -122,7 +123,7 @@
   .pollG a,.pollG button.link{color:var(--amber);background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline}
   .pollG .gbtn{min-height:40px}
   .over small{display:block;font-style:normal;font-size:.72em;letter-spacing:1px;text-transform:uppercase;opacity:.65}
-  .say b{font-weight:normal;margin-right:5px;font-size:.85em;letter-spacing:.5px}
+  .say b{font-weight:normal;margin-right:6px;font-size:.72em;letter-spacing:.5px;background:var(--who,#151515);color:var(--whoInk,#fff);border-radius:4px;padding:0 5px 1px;vertical-align:.12em;white-space:nowrap}
   .say.edge::after{display:none}
   .caption{position:absolute;left:8px;right:8px;bottom:34px;z-index:3;pointer-events:none;text-align:center;
     font-size:clamp(15px,4vw,22px);line-height:1.15;color:#fff;text-shadow:0 0 3px #000,0 0 6px #000}
@@ -2805,7 +2806,8 @@
     const sp = speaker(SAY.who), head = HEADS[SAY.who];
     const remote = CAST[SAY.who] && CAST[SAY.who].remote;
     if (!head && !remote && !(SAY.who === 'radio' || SAY.who === 'tv' || (actor.action === 'phoning' && actor.with === SAY.who))){ el.hidden = true; return; }
-    $('sayWho').textContent = head ? '' : (SAY.who==='radio' ? '\u{1F4FB} ' : SAY.who==='tv' ? '\u{1F4FA} ' : remote && actor.with !== SAY.who ? '\u2709 ' : '\u260E ') + sp.name + ':'; $('sayWho').style.color = sp.color;
+    $('sayWho').textContent = (head ? '' : SAY.who==='radio' ? '\u{1F4FB} ' : SAY.who==='tv' ? '\u{1F4FA} ' : remote && actor.with !== SAY.who ? '\u2709 ' : '\u260E ') + sp.name;
+    el.style.setProperty('--who', sp.ink); el.style.setProperty('--whoInk', inkText(sp.ink));
     let txt = SAY.text; if (txt.length > 110 && SAY.who !== 'radio' && SAY.who !== 'tv'){ const cut = txt.slice(-105); txt = '\u2026' + cut.slice(cut.indexOf(' ') + 1); }   // long lines: the bubble shows the latest part (the full line is in the chat)
     $('sayText').textContent = txt;
     el.hidden = false;
@@ -3134,7 +3136,14 @@
     zohar:{name:'ZOHAR', color:'#ff9ad0', look:{hair:'long',hairColor:'red',skin:'fair',shirt:'pink',pants:'black',extras:['earring']}},
     oren:{name:'OREN', color:'#9fd0ff', look:{hair:'short',hairColor:'gray',skin:'tan',shirt:'navy',pants:'gray',extras:['glasses','beard']}}
   };
-  function speaker(id){
+  // every character's own colour: the bubble's outline and name tab use it as is; dark backgrounds (chat, cast) use a lighter tint
+  const INK = {ishai:'#24998a', noa:'#d0479a', levi:'#8a4fd0', avi:'#e07b1f', dana:'#c99a12', tomer:'#2f6fd6', gadi:'#5f7088', michal:'#d23c3c',
+    sivan:'#2f9e4a', zelig:'#8a6a3a', kobi:'#a8306a', lior:'#3f8fae', yael:'#e0603a', sasson:'#5a5ad0', radio:'#c9a227', tv:'#3f8fd0'};
+  const INK_MORE = ['#b5523b','#2c8c6e','#7a5fc0','#c07a1a','#3b7bc2','#a83f8f','#5c8a2a','#c04848'];   // anyone new: picked by name, always the same
+  const inkOf = id => INK[id] || (/^student\d$/.test(id) ? '#7d857a' : INK_MORE[strHash(id) % INK_MORE.length]);
+  const inkText = hex => { const n = parseInt(hex.slice(1), 16), l = .299 * (n >> 16) + .587 * ((n >> 8) & 255) + .114 * (n & 255); return l > 150 ? '#151515' : '#ffffff'; };
+  function speaker(id){ const s = speakerBase(id); if (!HOSTS[id]){ s.ink = inkOf(id); if (id !== 'radio' && id !== 'tv') s.color = tint(s.ink, .45); } else s.ink = HOSTS[id].color; return s; }
+  function speakerBase(id){
     if (HOSTS[id]) return {name:HOSTS[id].name, color:HOSTS[id].color};
     if (id==='radio') return boolifyOn() ? {name:'BOOLIFY', color:'#ff7ad9'} : {name:'RADIO HERZL 88.2', color:'#ffd36a'};
     if (id==='tv') return {name: CUR_MEDIA === '8bittv' ? '8BITTV' : CUR_MEDIA === 'nesflicks' ? 'NESFLICKS' : CUR_MEDIA === 'rgbeat' ? 'RGBEAT' : 'CHANNEL 9', color:'#9fd0ff'};
