@@ -1,11 +1,11 @@
 {
-  "version": "2026-11-07a",
-  "written": "2026-11-07T05:30:00+02:00",
+  "version": "2026-11-07b",
+  "written": "2026-11-07T08:45:00+02:00",
   "arcs": [
     {
       "id": "dana-basil",
       "title": "Dana and the basil cups",
-      "stage": "3/5 going to 4/5 — tonight after havdalah she comes to see Moshe at the apartment (her Nov 5 promise was never verified from the log). Next: a first date."
+      "stage": "3/5 going to 4/5 — Fri Nov 6 she drew a chickpea on his napkin at the cafe. Tonight after havdalah she comes to see Moshe (her Nov 5 promise isn't in the log we could read). Next: a first date."
     },
     {
       "id": "moshe",
@@ -15,17 +15,17 @@
     {
       "id": "chickpea",
       "title": "Gadi and the chickpea logo",
-      "stage": "Due Sunday morning. Tonight, after havdalah, Gadi texts; Ishai finally writes a fee number in his reply and sends it."
+      "stage": "Logo files sent Friday night; Gadi wants vectors by Sunday, a client meeting Monday and to 'sort the fee Sunday morning'. Tonight Ishai sends his number first: 4,500."
     },
     {
       "id": "noa",
       "title": "Noa, the best friend",
-      "stage": "Shabbat dinner Fri Nov 6 was planned (not verified). Today she stays offstage; next week she wants a report on Dana."
+      "stage": "Fri Nov 6 she apologised for Wednesday at the market, came late to Shabbat dinner and left in the storm; he called to check she got home. Next: she'll want a report on Dana."
     },
     {
       "id": "falafel",
       "title": "Falafel the dog",
-      "stage": "Settled in. Today a long Shabbat walk; Mr. Zelig decides Falafel is a better listener than the pigeons."
+      "stage": "Settled in. Loves the park even in a thunderstorm; today Mrs. Levi complains about muddy paw prints and feeds him a crust anyway."
     },
     {
       "id": "improv",
@@ -39,7 +39,7 @@
       "startAt": "2026-11-07T08:30:00+02:00",
       "deadlineAt": "2026-11-07T09:45:00+02:00",
       "location": "apartment",
-      "goal": "A slow Shabbat morning at home: no phone, no laptop. Ishai has coffee by the window, looks at Moshe's dry leaves and starts tidying the apartment for tonight, when Dana comes to see the basil after havdalah. He talks to Falafel and Moshe.",
+      "goal": "A slow, rainy Shabbat morning at home after the wet dog walk: the laptop closes, the phone goes back in the drawer. Ishai has coffee by the window, looks at Moshe's dry leaves and starts tidying the apartment for tonight, when Dana comes to see the basil after havdalah.",
       "forceAction": "idle",
       "forceText": "Ishai stands by the window with coffee, looking at Moshe, then picks a sock up off the floor.",
       "forceLines": [
@@ -60,7 +60,7 @@
             "location": "apartment",
             "action": "drinking",
             "with": null,
-            "text": "Shabbat morning light. Ishai, in an old T-shirt, holds a mug of coffee by the window and studies Moshe's brown-edged leaves. Falafel stretches on the rug.",
+            "text": "Grey storm light through the window, rain still on the glass. Ishai, in an old T-shirt, holds a mug of coffee and studies Moshe's brown-edged leaves. Falafel, still damp, stretches on the rug.",
             "lines": [
               {
                 "who": "ishai",
@@ -86,7 +86,7 @@
             "lines": [
               {
                 "who": "ishai",
-                "say": "Does it look like a person lives here, or like a person gave up?"
+                "say": "Laptop, no. It's Shabbat. Does this look like a person lives here, or gave up?"
               }
             ],
             "commentary": [
@@ -100,142 +100,142 @@
       }
     },
     {
-      "id": "1107-park-zelig",
+      "id": "1107-levi-pawprints",
       "startAt": "2026-11-07T10:30:00+02:00",
       "deadlineAt": "2026-11-07T12:00:00+02:00",
-      "location": "park",
-      "with": "Mr. Zelig (zelig)",
-      "goal": "A long Shabbat walk with Falafel in the park. Mr. Zelig is on his bench talking to the pigeons. He wants a new listener and adopts Falafel as one. Ishai, who never says no, ends up hearing about tonight from the old man's odd angle: Zelig guesses there is a woman, because a man doesn't walk a dog this slowly unless he is thinking.",
+      "location": "corridor",
+      "with": "Mrs. Levi (levi)",
+      "goal": "Rainy Shabbat late morning. Ishai steps into the corridor to dry Falafel's paws with a towel, and Mrs. Levi comes out about the muddy paw prints from this morning's walk in the storm. She heard Noa leave last night in the rain and wants to know everything; when she hears someone is coming tonight to look at the basil, she guesses there is a woman and gives him one piece of advice: ask her one question that isn't about the plant.",
       "forceAction": "talking",
-      "forceWith": "zelig",
-      "forceText": "On the park bench Mr. Zelig talks to Falafel while the pigeons wait for crumbs.",
+      "forceWith": "levi",
+      "forceText": "Mrs. Levi stands in the corridor pointing at a trail of muddy paw prints while Ishai kneels with a towel over Falafel.",
       "forceLines": [
         {
-          "who": "zelig",
-          "say": "The dog listens. The pigeons only want bread."
+          "who": "levi",
+          "say": "Motek. Paw prints. On Shabbat. In my corridor."
         }
       ],
       "forceCommentary": [
         {
-          "who": "zohar",
-          "say": "Zelig found a new audience. The pigeons are filing a complaint."
+          "who": "oren",
+          "say": "Mrs. Levi has tracked the dog's movements better than the weather service."
         }
       ],
       "preview": {
         "moments": [
           {
-            "location": "park",
+            "location": "corridor",
             "action": "talking",
-            "with": "zelig",
-            "text": "Quiet Shabbat park, joggers and pigeons. Mr. Zelig sits on his bench throwing crumbs and lecturing the birds. Falafel pulls Ishai straight to him and sits at the old man's feet.",
+            "with": "levi",
+            "text": "Rain drums on the stairwell window. Ishai kneels in the corridor rubbing Falafel's paws with an old towel. Mrs. Levi's door opens and she points at a trail of dried mud leading to his door.",
             "lines": [
               {
-                "who": "zelig",
-                "say": "Finally. Someone who listens. The pigeons only want bread."
+                "who": "levi",
+                "say": "Motek. Paw prints. On Shabbat. From your door to the stairs and back."
               },
               {
                 "who": "ishai",
-                "say": "Shabbat shalom, Mr. Zelig. He'll listen to anyone with crumbs."
+                "say": "Shabbat shalom, Mrs. Levi. We went out in the storm. I'm cleaning him now."
               },
               {
-                "who": "zelig",
-                "say": "So he's honest. Better than most people on this bench."
-              },
-              {
-                "who": "ishai",
-                "say": "You're the only one on this bench."
-              },
-              {
-                "who": "zelig",
-                "say": "Exactly. Sit. You walk slow today. A man walks slow when he's thinking."
+                "who": "levi",
+                "say": "Clean the floor, not only the dog. Who goes out in this?"
               },
               {
                 "who": "ishai",
-                "say": "I'm just walking the dog."
+                "say": "He doesn't care about rain. He cares about the park."
               },
               {
-                "who": "zelig",
-                "say": "The dog wants to run. You want to think. Who is she?"
-              },
-              {
-                "who": "ishai",
-                "say": "There's no she. Someone's coming to look at my basil."
-              },
-              {
-                "who": "zelig",
-                "say": "Ha. In 1971 a girl came to look at my tomatoes. Forty years married."
+                "who": "levi",
+                "say": "And last night, the girl with the loud shoes, running down in the storm."
               },
               {
                 "who": "ishai",
-                "say": "It's really about the basil."
+                "say": "Noa. She came for Shabbat dinner. She got home fine, I called her."
+              },
+              {
+                "who": "levi",
+                "say": "Good. You called. A man who calls, that's something."
+              },
+              {
+                "who": "ishai",
+                "say": "And tonight someone's coming to look at my basil. After havdalah."
+              },
+              {
+                "who": "levi",
+                "say": "To look at a basil. At night. Motek, who comes at night for a basil?"
+              },
+              {
+                "who": "ishai",
+                "say": "Dana. From the cafe. She knows about plants."
               }
             ],
             "commentary": [
               {
-                "who": "oren",
-                "say": "Forty years from one tomato visit. Moshe, no pressure."
+                "who": "zohar",
+                "say": "She heard Noa's shoes through a thunderstorm. The building has no secrets."
               },
               {
-                "who": "zohar",
-                "say": "The pigeon guy has better radar than me. I'm furious."
+                "who": "oren",
+                "say": "Paw prints on Shabbat. Somewhere a rabbi is drafting a ruling."
               }
             ]
           },
           {
-            "location": "park",
-            "action": "idle",
-            "with": "zelig",
-            "text": "Ishai sits at the other end of the bench. Mr. Zelig hands him a piece of bread for the pigeons and keeps one for Falafel, who takes it very gently.",
+            "location": "corridor",
+            "action": "talking",
+            "with": "levi",
+            "text": "Mrs. Levi folds her arms and looks at him the way she looks at underripe tomatoes. Falafel sits between them, paws clean, waiting for a crust.",
             "lines": [
               {
-                "who": "zelig",
-                "say": "Advice. When she comes, don't talk too much about the plant."
+                "who": "levi",
+                "say": "Listen to me. When she comes, don't talk only about the plant."
               },
               {
                 "who": "ishai",
                 "say": "She's coming for the plant. What else would I talk about?"
               },
               {
-                "who": "zelig",
-                "say": "Ask her one question that isn't about leaves. One. Then shut up."
+                "who": "levi",
+                "say": "Ask her one question about her. One. Then be quiet and listen."
               },
               {
                 "who": "ishai",
                 "say": "What question?"
               },
               {
-                "who": "zelig",
-                "say": "If I knew questions, would I be talking to pigeons?"
+                "who": "levi",
+                "say": "If I tell you, it's my question. Think of your own."
               },
               {
                 "who": "ishai",
-                "say": "Fair."
+                "say": "Okay. One question. Not about leaves."
               },
               {
-                "who": "zelig",
-                "say": "Leave me the dog. Take the pigeons. Fair trade."
+                "who": "levi",
+                "say": "And make tea. Not coffee, at night coffee is for criminals."
               },
               {
                 "who": "ishai",
-                "say": "No deal, Mr. Zelig. But thank you. Really."
+                "say": "Tea. Got it. Thank you, Mrs. Levi."
               },
               {
-                "who": "zelig",
-                "say": "Thank me at the wedding. Go, go, he's bored of you."
+                "who": "levi",
+                "say": "Don't thank me. Wash the floor. And here, for him. Only a crust."
               }
             ],
             "commentary": [
               {
                 "who": "zohar",
-                "say": "One question that isn't about leaves. Write it on your hand, Ishai."
+                "say": "One question, not about leaves. Mrs. Levi is a better host than us."
               },
               {
                 "who": "oren",
-                "say": "He offered pigeons for a dog. Best business deal on this show."
+                "say": "She fed the dog she hates. Again. This is a love story, we just missed it."
               }
             ],
             "update": {
-              "memory": "Ishai walks a brown dog called Falafel, listens patiently. Someone is coming to see his basil; Zelig told him to ask her one non-plant question.",
+              "memory": "Thinks Ishai's music is too loud; brings soup. Knows Dana from the cafe comes tonight for the basil; told him to ask her one question and make tea.",
               "mood": 1
             }
           }
@@ -246,12 +246,12 @@
       "id": "1107-tomer-street",
       "startAt": "2026-11-07T14:30:00+02:00",
       "deadlineAt": "2026-11-07T15:45:00+02:00",
-      "location": "street",
+      "location": "corridor",
       "with": "Tomer (tomer)",
-      "goal": "Ishai takes Falafel out on Herzl Street in the quiet Shabbat afternoon. Tomer, loud as ever, walks by from his parents' lunch with a container of leftovers and stops. He hears about Dana tonight and wants to help in all the wrong ways; then he spots the flickering hallway light through the building door and promises to fix it after Shabbat, because Ishai never asks.",
+      "goal": "Rainy Shabbat afternoon. Tomer, who cancelled this morning's walk because of the storm, drops by on his way back from his parents' lunch with a container of his mother's leftovers, dripping on the landing. He hears about Dana tonight and wants to help in all the wrong ways; then he notices the flickering hallway light and promises to fix it after Shabbat, because Ishai never asks.",
       "forceAction": "talking",
       "forceWith": "tomer",
-      "forceText": "Tomer stops Ishai on the quiet Shabbat street, a container of his mother's leftovers under one arm.",
+      "forceText": "Tomer stands dripping on the landing outside Ishai's door, a container of his mother's leftovers under one arm.",
       "forceLines": [
         {
           "who": "tomer",
@@ -267,18 +267,18 @@
       "preview": {
         "moments": [
           {
-            "location": "street",
+            "location": "corridor",
             "action": "talking",
             "with": "tomer",
-            "text": "Herzl Street is empty and quiet, Avi's kiosk shut. Tomer comes down the sidewalk with a plastic container under his arm and sees Ishai with Falafel from far away.",
+            "text": "A loud knock on a quiet rainy Shabbat afternoon. Ishai opens the door to Tomer, soaked on the landing, a plastic container under his arm and water running off his hood.",
             "lines": [
               {
                 "who": "tomer",
-                "say": "Ishai! On Shabbat, outside, in daylight! Who are you?"
+                "say": "I cancelled the walk, so I brought the walk to you. Shabbat shalom!"
               },
               {
                 "who": "ishai",
-                "say": "Tomer, it's a quiet street. People are sleeping."
+                "say": "Tomer, it's Shabbat afternoon. The whole building is sleeping."
               },
               {
                 "who": "tomer",
@@ -320,15 +320,15 @@
               },
               {
                 "who": "oren",
-                "say": "Meatballs for the basil date. The mothers have a plan."
+                "say": "He cancelled a walk and showed up anyway, wetter. That's friendship."
               }
             ]
           },
           {
-            "location": "street",
+            "location": "corridor",
             "action": "talking",
             "with": "tomer",
-            "text": "Tomer looks past him through the glass of the building door, where the hallway light flickers on and off.",
+            "text": "Halfway in the door, Tomer looks up at the hallway light, which flickers on and off over the wet landing.",
             "lines": [
               {
                 "who": "tomer",
@@ -390,7 +390,7 @@
       "startAt": "2026-11-07T17:45:00+02:00",
       "deadlineAt": "2026-11-07T18:40:00+02:00",
       "location": "apartment",
-      "goal": "Shabbat is out. Ishai does a simple havdalah at home (wine, spices, the braided candle), then takes his phone out of the drawer. A text from Gadi is waiting about Sunday morning. This time, with Noa's push and Yael's homework in his head, he answers with an actual fee number and sends it before he can change his mind. Then he panics a little, and Dana is due soon.",
+      "goal": "Shabbat is out. Ishai does a simple havdalah at home (wine, spices, the braided candle), then takes his phone out of the drawer. Gadi, who on Friday wanted vector files by Sunday, a meeting Monday and to 'sort the fee Sunday morning', has texted again. This time, with Noa's push and Yael's homework in his head, Ishai doesn't wait for Sunday: he answers with an actual fee number and sends it. Then he panics a little, and Dana is due soon.",
       "forceAction": "working",
       "forceText": "After havdalah Ishai takes his phone out of the drawer, reads a text from Gadi and types a reply with a number in it.",
       "forceLines": [
@@ -437,12 +437,12 @@
             "message": {
               "from": "gadi",
               "kind": "text",
-              "say": "Shavua tov! Chickpea for 9am tomorrow? Client's very excited. Just make it friendly. Thanks!!"
+              "say": "Shavua tov! Vectors by 9 tomorrow? Monday 10:00 meeting with the client. We'll sort the money thing, no stress!!"
             },
             "lines": [
               {
                 "who": "ishai",
-                "say": "Nine. Friendly. Excited. And not one word about money."
+                "say": "No stress. The money thing. We'll sort it. We've been sorting it for a month."
               },
               {
                 "who": "ishai",
@@ -513,7 +513,7 @@
             "location": "apartment",
             "action": "talking",
             "with": "dana",
-            "text": "A knock. Dana stands at the door in a dark jacket, hands in her pockets, no smile. Falafel rushes her; she crouches and lets him sniff her hand before she looks up at Ishai.",
+            "text": "A knock. Dana stands at the door in a dark jacket still wet from the rain, hands in her pockets, no smile. Falafel rushes her; she crouches and lets him sniff her hand before she looks up at Ishai.",
             "lines": [
               {
                 "who": "dana",
@@ -734,11 +734,30 @@
     }
   ],
   "overrides": [
-    { "id": "1106-chickpea-notes", "cancel": true },
-    { "id": "1106-market-noa", "cancel": true },
-    { "id": "1106-levi-challah", "cancel": true },
-    { "id": "1106-candles", "cancel": true },
-    { "id": "1106-shabbat-noa", "cancel": true }
+    {
+      "id": "1106-chickpea-notes",
+      "cancel": true
+    },
+    {
+      "id": "1106-market-noa",
+      "cancel": true
+    },
+    {
+      "id": "1106-levi-challah",
+      "cancel": true
+    },
+    {
+      "id": "1106-candles",
+      "cancel": true
+    },
+    {
+      "id": "1106-shabbat-noa",
+      "cancel": true
+    },
+    {
+      "id": "1107-park-zelig",
+      "cancel": true
+    }
   ],
   "texture": {
     "date": "2026-11-07",
@@ -751,7 +770,6 @@
       "Tonight is the house call. I've been ready since Thursday.",
       "Oren, are you nervous for Moshe? Be honest. Your hands are shaking.",
       "A basil with a doctor's appointment. This is the most important night of his life.",
-      "Herzl Street on Shabbat: one cat, two pigeons, zero buses.",
       "The kiosk is closed. Avi is somewhere, resting, dreaming of tahini.",
       "He shaved. On Shabbat afternoon. For a plant.",
       "If you see Ishai fluff a cushion, no you didn't.",
@@ -768,7 +786,9 @@
       "Nothing happened for ten minutes and I loved every one of them.",
       "Rest day. Even the hosts deserve one. We don't get one.",
       "A quiet Shabbat apartment is just a man, a dog and a basil, listening to the fridge.",
-      "Tomorrow there's a lecture at eleven. Tonight there's mint tea. Priorities."
+      "Tomorrow there's a lecture at eleven. Tonight there's mint tea. Priorities.",
+      "A thunderstorm, a wet dog and a dry basil. Moshe is the only one not getting water.",
+      "Falafel walked through every puddle in the park. Every single one. Thorough dog."
     ],
     "radio": [
       "Shavua tov from Radio Herzl 88.2. The week is back, put your shoes on.",
@@ -786,9 +806,8 @@
     ],
     "mutter": {
       "zelig": [
-        "On Shabbat even the pigeons are lazy.",
+        "Rain. Even the pigeons stayed home.",
         "Forty years, one tomato. You never know.",
-        "A man walks slow when he's thinking. I walk slow because I'm old.",
         "You. Grey one. You had bread yesterday. Wait your turn."
       ],
       "michal": [
@@ -838,12 +857,36 @@
       ]
     },
     "chat": [
-      { "at": "18:20", "who": "Mrs. Levi", "say": "Shavua tov to everybody. Who left a bicycle on the second floor? It's not a parking." },
-      { "at": "18:45", "who": "Apt 2", "say": "Sorry, mine. Moving it now. Shavua tov!" },
-      { "at": "19:30", "who": "Committee", "say": "Reminder: the hallway light is flickering again. Somebody's friend is an electrician?" },
-      { "at": "20:10", "who": "Apt 7", "say": "Does anyone have a spare charger? Mine died over Shabbat." },
-      { "at": "20:40", "who": "Mrs. Levi", "say": "I heard a woman on the stairs. Just saying. Shavua tov." },
-      { "at": "21:15", "who": "Apt 1", "say": "Recycling day tomorrow. Bottles out tonight please, not at 6 am." }
+      {
+        "at": "18:20",
+        "who": "Mrs. Levi",
+        "say": "Shavua tov to everybody. Who left a bicycle on the second floor? It's not a parking."
+      },
+      {
+        "at": "18:45",
+        "who": "Apt 2",
+        "say": "Sorry, mine. Moving it now. Shavua tov!"
+      },
+      {
+        "at": "19:30",
+        "who": "Committee",
+        "say": "Reminder: the hallway light is flickering again. Somebody's friend is an electrician?"
+      },
+      {
+        "at": "20:10",
+        "who": "Apt 7",
+        "say": "Does anyone have a spare charger? Mine died over Shabbat."
+      },
+      {
+        "at": "20:40",
+        "who": "Mrs. Levi",
+        "say": "I heard a woman on the stairs. Just saying. Shavua tov."
+      },
+      {
+        "at": "21:15",
+        "who": "Apt 1",
+        "say": "Recycling day tomorrow. Bottles out tonight please, not at 6 am."
+      }
     ]
   }
 }
