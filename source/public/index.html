@@ -127,10 +127,10 @@
   .caption{position:absolute;left:8px;right:8px;bottom:34px;z-index:3;pointer-events:none;text-align:center;
     font-size:clamp(15px,4vw,22px);line-height:1.15;color:#fff;text-shadow:0 0 3px #000,0 0 6px #000}
   .caption span{background:rgba(0,0,0,.6);padding:1px 8px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
-  /* the hosts' booth: newest line at the bottom, scrolls itself, viewers can't scroll back */
-  .booth{display:flex;flex-direction:column;gap:6px;height:clamp(118px,24vh,170px);overflow:hidden;
-    border:2px solid var(--phos-faint);border-radius:10px;padding:8px;background:#020502;touch-action:none;overscroll-behavior:contain}
-  .booth .head{color:var(--red);font-size:.8em;letter-spacing:2px;flex:none}
+  /* the hosts' booth: newest line at the bottom; scroll up inside it to read the last 10 lines */
+  .booth{display:flex;flex-direction:column;gap:6px;height:clamp(118px,24vh,170px);overflow-y:auto;overflow-x:hidden;
+    border:2px solid var(--phos-faint);border-radius:10px;padding:0 8px 8px;background:#020502;touch-action:pan-y;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:var(--phos-faint) transparent}
+  .booth .head{color:var(--red);font-size:.8em;letter-spacing:2px;flex:none;position:sticky;top:0;z-index:1;background:#020502;padding:8px 0 4px}
   .host{display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:start;border:1px dashed var(--phos-faint);border-radius:8px;padding:5px 8px;background:#020502;flex:none;opacity:.7}
   .host:last-child{opacity:1}
   .host canvas{width:30px;height:30px;image-rendering:pixelated;animation:none;background:#0b120b;border:1px solid var(--phos-faint);border-radius:6px}
@@ -992,11 +992,21 @@
     if (comp.loc !== actor.loc || actor.switching){
       if (comp.id && comp.loc === 'apartment' && comp.mode !== 'out') comp.parked = {id: comp.id, look: comp.look, x: comp.x, until: NOW() + 20 * 60000}; // waits while he is in the bathroom
       if (actor.loc !== 'bathroom' && actor.loc !== 'apartment' && !actor.switching) comp.parked = null;
-      comp.id = null; comp.mode = null; comp.loc = actor.loc; }
+      comp.id = null; comp.mode = null; comp.loc = actor.loc; comp.boarded = false; }
     const posted = id => !!id && POST[actor.loc] === id;
     if (posted(comp.id)){ comp.id = null; comp.mode = null; }
     let w = compWant; compWant = null;
     if (w && posted(w.id)) w = null;
+    // he has just got on the bus or taxi: a friend going with him follows him to the door and gets on too (never walks off down the street)
+    const rider = actor.ride && actor.ride.mode === 'depart' && actor.hidden && actor.pending ? actor.pending.w || actor.with : null;
+    if (rider && comp.id === rider){
+      if (comp.boarded) return;
+      const door = actor.x, d = door - comp.x, step = 30 * dts;
+      if (Math.abs(d) <= step + .5){ comp.boarded = true; return; }
+      comp.x += Math.sign(d) * step; comp.mode = 'in';
+      markHead(comp.id, comp.x, scene.walkY); person(comp.look, comp.x, scene.walkY, t+300, {walk:true, face: Math.sign(d) || 1}); return;
+    }
+    comp.boarded = false;
     // a friend going somewhere WITH Ishai walks behind him, through the same doors, place after place
     const goer = actor.pending && actor.pending.w ? actor.pending.w : (actor.travelling ? actor.with : null);
     if (!w && goer && !posted(goer) && lookOf(goer) && !actor.hidden && (actor.pending || actor.travelling)){
@@ -1729,6 +1739,7 @@
     {hair:'short',hairColor:'brown',skin:'dark',shirt:'yellow',pants:'navy',extras:[]}];
 
   // ---------- park ----------
+  const PIGEONS = [];   // per pigeon: when it took off in this 40 s slot, and which way
   SCENES.park = {
     cam:'CAM-04', place:'GAN HA-IR // PARK', walkY:66, entry:4, exit:4,
     stand:{idle:70, walking:70, talking:70, reading:122, eating:122, exercising:76},
@@ -1758,7 +1769,10 @@
       zAdd(72, () => drawCat(36, 72, t, 'sleep', 0, 1));
       const eating = settled && a==='eating';
       zAdd(80.5, () => drawCat(eating ? 104 : 76, 80, t, 'sit', 2, eating ? 1 : -1));
-      { const cp = (NOW() % 70000) / 70000; if (cp < .6) zAdd(60, () => drawCat(Math.round(cp / .6 * (W + 30)) - 15, 60, t, 'walk', 1, 1)); }
+      { const cp = (NOW() % 70000) / 70000, END = 136;   // strolls across the far lawn to the pond's edge, sits a while, and strolls back (never onto the water)
+        if (cp < .3) zAdd(60, () => drawCat(Math.round(-15 + cp / .3 * (END + 15)), 60, t, 'walk', 1, 1));
+        else if (cp < .45) zAdd(60, () => drawCat(END, 60, t, 'sit', 1, 1));
+        else if (cp < .75) zAdd(60, () => drawCat(Math.round(END - (cp - .45) / .3 * (END + 15)), 60, t, 'walk', 1, -1)); }
       if (!regular('zelig', 156 + Math.round(Math.sin(t/9000)*9), 66, t, {face: Math.cos(t/9000) > 0 ? 1 : -1, walk: Math.floor(t/18000) % 3 === 0, talking: SAY.who === 'zelig'}) && Math.floor(t/120000) % 2) crowdVisit(t, 120000, 1, 156, 66, W+8, 66, {face:1}); // someone watching the duck, on the path
       // Cooola vending machine
       zAdd(80, () => { R(60,52,12,28,COOOLA.bg); R(61,54,10,10,'#2a1240'); for (let i=0;i<3;i++) cooolaCan(62+i*3,57);
@@ -1771,10 +1785,18 @@
         if (seated){ markHead(actor.with, 134, 62); person(pl,134,62,t,{legs:'sit',face:-1,talkPhase:true}); }
         R(108,77,38,3,'#9a7048'); R(110,80,2,6,'#333'); R(142,80,2,6,'#333'); });
       // pigeons on the path: they peck, and flutter off when someone comes close (crumbs by the bench when he eats there)
-      { const near = x => (!actor.hidden && OUTSIDE.has(actor.loc) && Math.abs(actor.x + 5 - x) < 14) || jx.some(j => Math.abs(j + 5 - x) < 12);
+      // pigeons on the path: they peck; when someone comes close they fly off, away from them, and stay gone until the flock lands again (every 40 s)
+      { const P_SLOT = 40000, now = NOW(), slot = Math.floor(now / P_SLOT), into = now - slot * P_SLOT;
+        const threat = x => { if (!actor.hidden && actor.loc === 'park' && Math.abs(actor.x + 5 - x) < 14) return actor.x + 5; const j = jx.find((j, k) => j != null && !(k === 2 && Math.floor(t/60000) % 2) && Math.abs(j + 5 - x) < 12); return j != null ? j + 5 : null; };
         for (let i = 0; i < 6; i++){
-          const px = sit && a==='eating' && i < 3 ? 112 + i*9 : 8 + Math.floor(hash(Math.floor(NOW()/40000)*11 + i) * 170), scared = !(sit && a==='eating' && i < 3) && near(px);
-          zAdd(93, () => drawPigeon(scared ? px + (i%2 ? 9 : -9) : px, scared ? 76 - (i%3)*3 : 91, t, i, scared)); } }
+          const crumbs = sit && a==='eating' && i < 3, px = crumbs ? 112 + i*9 : 8 + Math.floor(hash(slot*11 + i) * 170), st = PIGEONS[i] && PIGEONS[i].slot === slot ? PIGEONS[i] : (PIGEONS[i] = {slot, fled:0, dir:1});
+          if (!crumbs && !st.fled){ const th = threat(px); if (th != null){ st.fled = now; st.dir = th > px + 2 ? -1 : 1; } }
+          if (!crumbs && !st.fled && into > P_SLOT - 1600){ st.fled = slot * P_SLOT + P_SLOT - 1600; st.dir = i % 2 ? 1 : -1; }   // the flock moves on
+          let x = px, y = 91, fly = false;
+          if (st.fled){ const e = (now - st.fled) / 1000; x = px + st.dir * (40 * e + 30 * e * e); y = 91 - 30 * e - 12 * e * e; fly = true; if (y < -6 || x < -10 || x > W + 10) continue; }
+          else if (into < 1500 && !crumbs){ const k = 1 - into / 1500; x = px - (i % 2 ? 1 : -1) * k * 40; y = 91 - k * 60; fly = k > .08; }   // landing
+          const fx = Math.round(x), fy = Math.round(y), f = fly;
+          zAdd(f ? 300 : 93, () => drawPigeon(fx, fy, t, i, f)); } }
       if (!sit) drawFloor(t,a,settled,actor,this);
       liveLayer(t, this); zFlush();
       if (night) alpha(.38,()=>R(0,0,W,H,'#050a1e'));
@@ -2293,35 +2315,30 @@
       if (c.night) alpha(.07, () => R(0,0,W,H,'#ffeab8'));
     }
   };
+  // a small yellow taxi, the size of the cars on Herzl Street, seen from the pavement as it drives through the looping city
+  function taxiSide(cx, dy, t, night, D, mate){
+    const y = dy, wob = D.sp > .3 ? Math.floor(t/120) % 2 : 0;
+    R(cx,96+y,26,6,'#f2c230'); R(cx,101+y,26,1,'#c99a1e'); R(cx+5,92+y,15,4,'#f2c230'); R(cx+4,95+y,1,1,'#f2c230'); R(cx+20,95+y,1,1,'#f2c230');
+    R(cx+6,93+y,6,3,'#9fd3f0'); R(cx+13,93+y,6,3,'#9fd3f0'); R(cx+12,93+y,1,3,'#c99a1e');   // back window, front window
+    for (let k=0;k<6;k++) R(cx+2+k*4,99+y,2,1,(k%2)?'#1b1b1b':'#f2c230');                  // checker stripe
+    R(cx+9,90+y,7,2,'#222'); R(cx+10,90+y,5,1, night?'#fff3b0':'#f2f2f2');                  // TAXI light
+    // heads in the windows: the driver in front, Ishai (and a friend) in the back
+    const head = (hx, hair, skin) => { R(hx,93+y,2,1,hair); R(hx,94+y,2,2,skin); };
+    head(cx+16, '#2a2a2a', '#c98b5e');
+    if (mate && mate.look){ const P = lookPal(mate.look); head(cx+7, P.hair, P.skin); markHead(mate.id, cx+2, 82+y); }
+    if (!actor.hidden){ head(mate && mate.look ? cx+10 : cx+8, C.hair, C.skin); markHead('ishai', cx+6, 82+y); }
+    // wheels turning
+    [cx+3, cx+18].forEach(wx => { R(wx,102,5,3,'#111'); R(wx+1+(wob?2:0),103,1,1,'#8a8f94'); R(wx+(wob?1:3),103,1,1,'#555'); });
+    if (D.brake || D.stopped) R(cx,97+y,1,2,'#ff3b3b');
+    R(cx+25,97+y,1,2, night ? '#fff3b0' : '#e8e4d8');
+    if (night){ alpha(.3,()=>R(cx-1,89+y,28,16,'#050a1e')); R(cx+25,97+y,2,2,'#fff3b0'); alpha(.22,()=>R(cx+27,96+y,22,5,'#fff3c0')); }
+  }
   SCENES.taxi = {
-    cam:'CAM-13', place:'TAXI // BACK SEAT', walkY:78, entry:128, exit:128, stand:{idle:128,talking:128,phoning:128,reading:128},
+    cam:'CAM-13', place:'TAXI // ON THE ROAD', walkY:78, entry:128, exit:128, stand:{idle:128,talking:128,phoning:128,reading:128},
     draw(t,hf,a,settled,actor){
-      const c = cityDrive(0,6,W,58,t,hf), D = c.D, bump = D.sp > .5 && (Math.floor(t/390) % 6 === 0) ? 1 : 0, y = 37 + bump;
-      // roof, pillars, the sloping windscreen on the left
-      R(0,0,W,7,'#b9b0a0'); R(0,6,W,1,'#8f8778');
-      for (let i=0;i<40;i++) R(0,7+i,Math.max(0,28-i*.45),1,'#262320');
-      R(30,7,2,22,'#262320'); R(104,6,7,58,'#262320'); R(105,6,1,58,'#3f3a34'); R(180,6,12,58,'#262320'); for (let i=0;i<30;i++) R(176+i*.1,7+i,5,1,'#262320');
-      // the mirror and the little air freshener, swinging with the road
-      R(40,6,1,4,'#222'); R(32,10,14,4,'#1c1c1c'); R(33,11,12,2,'#7f93a3');
-      const sw = D.brake ? -3 : D.pull ? 3 : Math.round(Math.sin(t/500)*1.5); R(38,14,1,6,'#d8d4c4'); R(37+sw,20,4,6,'#e2c23c'); R(38+sw,22,2,1,'#2f7f6f');
-      // front seat and driver
-      R(79,27,12,36,'#3a3530'); R(81,20,8,9,'#3a3530'); R(82,21,6,1,'#55504a');
-      markHead('driver', 62, y); alpha(1, () => person(CROWD[(Math.floor(t/21600000)) % CROWD.length], 62, y, t, {legs:false, face:-1, muted:true, seed:61}));
-      R(0,48,48,16,'#2c2925'); R(0,47,46,2,'#3f3b35');
-      for (let i=0;i<14;i++) R(46+i*.45,36+i,3,1,'#16181a'); R(45,47,12,2,'#16181a');      // the wheel, seen from the side
-      // back seat
-      R(156,24,12,40,'#3a3530'); R(112,53,56,11,'#3a3530'); R(158,17,9,9,'#3a3530'); R(159,18,7,1,'#55504a');
-      const m = rideMate(actor), ix = 128;
-      if (m && m.look){ markHead(m.id, 146, y); person(m.look, 146, y, t+300, {legs:false, face:-1, talkPhase:true}); }
-      if (!actor.hidden) seatedIshai(a, ix, y, t, false);
-      // the door: panel, armrest, handle
-      R(0,62,W,46,'#26231f'); R(0,62,W,2,'#d9b13c'); R(0,64,W,1,'#14110e');
-      R(112,70,64,28,'#332f2a'); R(116,74,56,3,'#46413a'); R(146,80,12,2,'#8a8f94'); R(120,88,40,6,'#201d1a');
-      R(8,70,92,28,'#332f2a'); R(12,74,84,3,'#46413a'); R(66,80,12,2,'#8a8f94'); R(16,88,50,6,'#201d1a'); R(106,64,2,44,'#14110e');
-      if (c.night) alpha(.34, () => R(0,0,W,H,'#050a1e'));
-      // the meter glows at any hour
-      R(6,50,26,10,'#0e0e0e'); R(7,51,24,8,'#1c0606'); const fare = 14 + Math.floor((t/20000) % 60);
-      word(String(fare).padStart(2,'0'), 10, 52, '#ff4a3a'); R(18,56,1,1,'#ff4a3a'); word(String(Math.floor(t/2000) % 10), 20, 52, '#ff4a3a');
+      const c = cityDrive(0,0,W,H,t,hf), D = c.D;
+      const bump = D.sp > .5 && (Math.floor(t/390) % 6 === 0) ? -1 : 0, lean = D.brake ? 2 : D.pull ? -2 : 0;
+      taxiSide(84 + lean, bump, t, c.night, D, rideMate(actor));
     }
   };
   const VEH = new Set(['bus','taxi']);
@@ -3264,8 +3281,10 @@
   // the hosts' booth: each host keeps only their latest line
   function boothInit(){
     const h = document.createElement('div'); h.className = 'head'; h.textContent = '● ON AIR — ZOHAR & OREN'; $('booth').appendChild(h);
+    $('booth').addEventListener('scroll', e => { const b = e.currentTarget; boothFollow = b.scrollHeight - b.scrollTop - b.clientHeight < 24; }, {passive: true});
   }
-  const boothScroll = () => { const b = $('booth'); b.scrollTop = b.scrollHeight; };
+  let boothFollow = true;   // the viewer scrolled up to read: leave them there until they come back to the bottom
+  const boothScroll = () => { const b = $('booth'); if (boothFollow) b.scrollTop = b.scrollHeight; };
   function hostLine(m, animate, budget){
     if (!talkShown.has(m.id) && HOSTS[m.who] && animate !== false) fsPush(m.who, m.say);
     if (talkShown.has(m.id) || !HOSTS[m.who]) return Promise.resolve(); talkShown.add(m.id);
@@ -3277,14 +3296,15 @@
     const line = document.createElement('div'); line.className = 'hl';
     body.append(hn, line); card.append(faceCanvas(m.who), body); booth.appendChild(card);
     card.classList.toggle('ad', /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga|nesflicks|8bittv|boolify|rgbeat|picsell/i.test(m.say));
-    while (booth.querySelectorAll('.host').length > 8) booth.removeChild(booth.querySelector('.host'));
+    while (booth.querySelectorAll('.host').length > 10) booth.removeChild(booth.querySelector('.host'));
     if (!animate){ line.textContent = m.say; boothScroll(); return Promise.resolve(); }
     const full = m.say, b = budget || {at: NOW(), ms: 0}, into = Math.max(0, NOW() - b.at); let i = charsAt(full, into);
-    if (into < 800) Sound.say(m.who, m.say);     // tuned in later than the start of a line: read it, no voice
+    const quiet = studioOn || showOn;            // the studio recap is on: the booth goes on in text only
+    if (into < 800 && !quiet) Sound.say(m.who, m.say);     // tuned in later than the start of a line: read it, no voice
     card.classList.add('live');
     return new Promise(res => {
       if (i >= full.length){ line.textContent = full; card.classList.remove('live'); boothScroll(); return res(); }
-      const step = () => { i = Math.min(full.length, Math.max(i + 1, charsAt(full, NOW() - b.at))); line.textContent = full.slice(0,i); boothScroll(); Sound.blip(m.who, full[i-1]);
+      const step = () => { i = Math.min(full.length, Math.max(i + 1, charsAt(full, NOW() - b.at))); line.textContent = full.slice(0,i); boothScroll(); if (!quiet) Sound.blip(m.who, full[i-1]);
         if (i < full.length) setTimeout(step, charDelay(full[i-1])); else { setTimeout(()=>card.classList.remove('live'), 1500); res(); } };
       step();
     });
@@ -3796,7 +3816,7 @@
     const body = document.createElement('div'), hn = document.createElement('div'); hn.className = 'hn'; hn.textContent = `📞 ${c.name.toUpperCase()} · ${c.from}`;
     const line = document.createElement('div'); line.className = 'hl'; line.textContent = say;
     body.append(hn, line); card.append(face, body); booth.appendChild(card);
-    while (booth.querySelectorAll('.host').length > 8) booth.removeChild(booth.querySelector('.host'));
+    while (booth.querySelectorAll('.host').length > 10) booth.removeChild(booth.querySelector('.host'));
     boothScroll();
   }
   async function playCall(c, start){
@@ -3874,7 +3894,7 @@
       play(m){ const e = event(m); ingest([e], false); },
       go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(e.location, e.action, true, e.with); },
       busy: () => !!actor.pending || actor.travelling || !!actor.ride || !!actor.switching || !!actor.rideUntil || held.size > 0 || queue.length > 0 || (!!tlLast && NOW() < tlLast.end),
-      state: () => ({voice: Sound.voiceInfo(), regulars: Object.keys(REG).filter(regHere), say: SAY.who, loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
+      state: () => ({comp: comp.id ? {id: comp.id, x: Math.round(comp.x), mode: comp.mode, boarded: !!comp.boarded} : null, voice: Sound.voiceInfo(), regulars: Object.keys(REG).filter(regHere), say: SAY.who, loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
       world(o){ forceHour = o.hour; const code = {clear: 0, cloudy: 3, rain: 61, storm: 95}[o.weather]; const t = NOW();
         WORLD = {weather: {temp: o.temp, code, desc: o.weather, rain: o.weather === 'rain' || o.weather === 'storm', cloudy: o.weather !== 'clear'}, shabbat: o.shabbat ? {start: t - 3600000, end: t + 86400000, startLabel: '17:00', endLabel: '18:00'} : null};
         $('stNext').textContent = weatherLabel(); },
