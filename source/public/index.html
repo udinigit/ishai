@@ -90,10 +90,10 @@
   .line.say{margin:-4px 0 9px 1.2em}
   .talk{display:flex;flex-direction:column;gap:10px}
   /* a speech bubble: wide before tall, outlined in the speaker's own colour, their name in a tab of that colour */
-  .say{position:absolute;z-index:4;pointer-events:none;transform:translate(-50%,-100%);width:max-content;max-width:min(94%,560px);
+  #say{position:absolute;z-index:4;pointer-events:none;transform:translate(-50%,-100%);width:max-content;max-width:min(94%,560px);
     background:#f7f7f2;color:#151515;border:3px solid var(--who,#151515);border-radius:8px;padding:2px 7px 3px;
     font-size:clamp(14px,3.7vw,20px);line-height:1.1;text-shadow:none;box-shadow:0 2px 0 rgba(0,0,0,.35)}
-  .say::after{content:"";position:absolute;left:var(--tail,50%);bottom:-9px;margin-left:-7px;border:7px solid transparent;border-top-color:var(--who,#151515);border-bottom:0}
+  #say::after{content:"";position:absolute;left:var(--tail,50%);bottom:-9px;margin-left:-7px;border:7px solid transparent;border-top-color:var(--who,#151515);border-bottom:0}
   /* a passer-by's words: small, grey, no name, no bubble, so it never reads as a character talking */
   .over{position:absolute;z-index:3;left:6px;top:26px;max-width:62%;pointer-events:none;padding:1px 6px;background:rgba(0,0,0,.5);color:#b9b9ad;font-style:italic;font-size:clamp(10px,2.6vw,14px);line-height:1.15}
   /* the building chat on Ishai's phone: a plain notification card, top right */
@@ -123,8 +123,8 @@
   .pollG a,.pollG button.link{color:var(--amber);background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline}
   .pollG .gbtn{min-height:40px}
   .over small{display:block;font-style:normal;font-size:.72em;letter-spacing:1px;text-transform:uppercase;opacity:.65}
-  .say b{font-weight:normal;margin-right:6px;font-size:.72em;letter-spacing:.5px;background:var(--who,#151515);color:var(--whoInk,#fff);border-radius:4px;padding:0 5px 1px;vertical-align:.12em;white-space:nowrap}
-  .say.edge::after{display:none}
+  #say b{font-weight:normal;margin-right:6px;font-size:.72em;letter-spacing:.5px;background:var(--who,#151515);color:var(--whoInk,#fff);border-radius:4px;padding:0 5px 1px;vertical-align:.12em;white-space:nowrap}
+  #say.edge::after{display:none}
   .caption{position:absolute;left:8px;right:8px;bottom:34px;z-index:3;pointer-events:none;text-align:center;
     font-size:clamp(15px,4vw,22px);line-height:1.15;color:#fff;text-shadow:0 0 3px #000,0 0 6px #000}
   .caption span{background:rgba(0,0,0,.6);padding:1px 8px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
@@ -612,13 +612,13 @@
         if (o.mug){ R(x+8,y+10,3,3,'#e8e4d8'); R(x+11,y+11,1,1,'#e8e4d8'); if (Math.floor(t/700)%2) R(x+9,y+8,1,1,'#f2f2f2'); else R(x+10,y+7,1,1,'#f2f2f2'); }
         break; }
       case 'idle': {
-        const k = o.fidget || (o.still ? 'none' : fid(11, t, false, false)); if (k==='shift') x += Math.floor(t/2000)%2;
+        const k = o.fidget || (o.still ? 'none' : fid(11, t, false, !!o.seated)); if (k==='shift' && !o.seated) x += Math.floor(t/2000)%2;   // seated: facing front, no look back
         head(x,y,{closed:blinkOn(t), look: lookFid(t, k, (Math.floor(t/4000)%3)-1)}); if (k==='turn') backHair(x,y,C.hair);
         torso(x,y); armsFid(x,y,t,k); legs(x,y,legsFid(t,k)); break; }
       case 'talking': {
         const mine = SPEAKING==='ishai';
         head(x,y,{closed:blinkOn(t), look:o.face||1, talk: mine && Math.floor(t/160)%2}); torso(x,y);
-        const k = fid(11, t, true, false);
+        const k = fid(11, t, true, !!o.seated);
         if (mine && f2){ R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10,1,2,C.skin); }
         else armsFid(x,y,t, mine ? 'gesture' : (k==='gesture' ? 'cross' : k));
         legs(x,y,legsFid(t,k));
@@ -773,7 +773,8 @@
   }
   // ---- fidgets: little things real people do while standing around or listening (clock-driven, same for every viewer) ----
   const strHash = str => { let h = 7; for (const ch of String(str)) h = (h*31 + ch.charCodeAt(0)) >>> 0; return h; };
-  function fid(seed, t, talking, seated){
+  function fid(seed, t, talking, seated){ const k = fidRaw(seed, t, talking, seated); return seated && (k === 'turn' || k === 'shift' || k === 'stretch') ? 'none' : k; }
+  function fidRaw(seed, t, talking, seated){
     if ((g !== ctx && g !== lctx) || DREAMING) return 'none';     // portraits and dreams stay still
     const w = Math.floor(t/5000), r = hash(w*131 + seed*7 + 3);
     const list = seated ? (talking ? ['nod','gesture','look','none','none','scratch'] : ['look','scratch','none','none','none','phone'])
@@ -1845,8 +1846,8 @@
       R(66,60,22,14,'#3a3a46'); // chair back
       if (seated){ markHead(actor.with, 90, 68); person(cl,90,68,t,{legs:false,face:-1,talkPhase:true}); }
       if (atTable){
-        if (a==='talking') drawIshai('talking',72,68,t,{face:1});
-        else drawIshai(a,72,68,t,{food:'#e0b04a'});
+        if (a==='talking') drawIshai('talking',72,68,t,{face:1, seated:true});
+        else drawIshai(a,72,68,t,{food:'#e0b04a', seated:true});
       }
       R(58,82,44,2,'#9a7048'); R(78,84,4,18,'#5e4027'); R(70,102,20,2,'#5e4027');
       R(66,78,4,4,'#e8e4d8'); R(70,79,1,2,'#e8e4d8'); // cup
@@ -2014,7 +2015,7 @@
       if (!lesson) zAdd(104, () => {
       R(54,60,22,14,'#2a1c1c');
       if (seated){ markHead(actor.with, 78, 68); person(tl,78,68,t,{legs:false,face:-1,talkPhase:true}); }
-      if (atTable){ if (a==='talking') drawIshai('talking',60,68,t,{face:1}); else drawIshai(a,60,68,t,{food: a==='drinking' ? '#d9a03a' : '#e0c060'}); }
+      if (atTable){ if (a==='talking') drawIshai('talking',60,68,t,{face:1, seated:true}); else drawIshai(a,60,68,t,{food: a==='drinking' ? '#d9a03a' : '#e0c060', seated:true}); }
       R(46,82,44,2,'#3a2418'); R(66,84,4,18,'#2a1810'); R(58,102,20,2,'#2a1810');
       R(72,77,4,5,'#d9a03a'); R(72,76,4,1,'#f4f1ea'); R(61,76,3,6,'#e8e0d0');                    // a beer, the candle
       });
@@ -2153,7 +2154,7 @@
       // the front row, nearer the camera: people walk behind the desks
       zAdd(104, () => { const sit = settled && a==='lecture' && !actor.hidden;
         if (full) ROW_FRONT.forEach(([x,id,k]) => classmate(id, k, x, 64, t));
-        if (sit){ if (SAY.who === 'ishai') drawIshai('talking', SEAT, 64, t, {face:-1}); else drawIshai('idle', SEAT, 64, t); }
+        if (sit){ if (SAY.who === 'ishai') drawIshai('talking', SEAT, 64, t, {face:-1, seated:true}); else drawIshai('idle', SEAT, 64, t, {seated:true}); }
         R(90,80,92,3,'#c2a878'); R(90,83,92,10,'#8a6e50'); R(92,93,3,10,'#5a4030'); R(177,93,3,10,'#5a4030');
         if (sit) { R(SEAT-1,79,9,1,'#f4f0e4'); } });
       liveLayer(t, this); zFlush();
@@ -2284,7 +2285,7 @@
   function sitter(L, x, y, t, o){ person(L, x, y, t, Object.assign({legs:false, face:-1, muted:true}, o)); R(x+1,y+16,8,2,'#3f4650'); R(x+1,y+18,2,4,'#3f4650'); R(x+1,y+22,3,1,'#222'); }
   // Ishai from the waist up, with his legs bent on the seat (no lower = nothing below the seat, a door hides it)
   function seatedIshai(a, x, y, t, lower){
-    g.save(); g.beginPath(); g.rect(0,0,W,y+16); g.clip(); drawIshai(seatedPose(a), x, y, t, {face:-1}); g.restore();
+    g.save(); g.beginPath(); g.rect(0,0,W,y+16); g.clip(); drawIshai(seatedPose(a), x, y, t, {face:-1, seated:true}); g.restore();
     if (lower) sitLegs(x, y);
   }
   const seatedPose = a => ['talking','phoning','reading'].includes(a) ? a : 'idle';
@@ -2429,10 +2430,12 @@
               phone:   {alone:3, company:1, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} }
   };
   // which actions can be interrupted, and how often (share of 45 s blocks that get a routine), alone / with company
+  const SEATED_AT = { cafe:['eating','drinking','working','reading','talking'], bar:['eating','drinking','talking'], park:['eating','reading'], classroom:['lecture','idle','talking'] };
   const ERR_CHANCE = { idle:[.45,.3], talking:[0,.2], eating:[0,.12], drinking:[0,.12] };   // seated activities fidget in the seat instead (seatFid)
   const hash = n => { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4); n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; };
   function errandNow(){
     const a = actor.action, list = ERRANDS[actor.loc], co = actor.with ? 1 : 0;
+    if (SEATED_AT[actor.loc] && SEATED_AT[actor.loc].includes(a)) return null;   // he is drawn sitting: never jump up for a look back or a phone check
     if (!list || !(a in ERR_CHANCE) || actor.travelling || actor.hidden || actor.pending || actor.switching || actor.ride || actor.dressTo) return null;
     if (co && (SPEAKING === 'ishai' || actor.action === 'phoning')) return null;   // not in the middle of his own line
     const now = NOW(), block = Math.floor(now / ERR_BLOCK), start = block * ERR_BLOCK + 4000;

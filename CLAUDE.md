@@ -57,7 +57,11 @@ Workers AI output costs ~6.5x input, so the engine avoids AI calls where it can 
 - Worker: `homeLifeTick()` in `tick()` adds director goals with no AI: Falafel's walks (morning, midday, evening, `WALKS`, when he is home and has not walked him for 3.5 hours) and drop-in visits (`VISITS`, up to 3 a day, 09:00-21:00, after 30 minutes alone at home, 150 minutes apart, never someone he saw in the last 4 hours; Levi, Noa, Tomer, Avi). `pollFree()` keeps both clear of planned beats. `/api/health` shows `homeLife`.
 
 ## Speech bubbles
+The bubble's CSS is on `#say` only: the director's transcript uses the class `say` for spoken lines (`newLine('say')`), so a `.say` rule would float those lines over the page.
 `placeSay()` puts the speaker's line over their head (`HEADS`), or at the edge for phone, radio and TV. It grows wide before tall (`max-width: min(94%, 560px)`) and is outlined, with its tail, in the speaker's own colour (`--who`); the line starts with their name in a tab of that colour (`#sayWho`). Colours: `INK` per character (Ishai teal, Noa pink, Mrs. Levi purple, Avi orange, Dana mustard, Tomer blue...), anyone new gets one from `INK_MORE` by name, always the same. `speaker()` gives `ink` (the colour itself) and `color` (a lighter tint for the dark chat and captions). New cast members should get an `INK` entry that no one else uses.
+
+## Sitting
+Wherever the scene draws Ishai in a seat (café and bar tables, the lecture room, the bus, the park bench), he faces front: the pose gets `seated:true`, and `fid()` never returns the look back (`turn`), a foot shift or a stretch for a seated pose, for him or anyone else. `SEATED_AT` keeps the errands (which stand him up) away from those seats.
 
 ## The hosts' booth
 The last 10 host lines (`hostLine()`). It scrolls: a viewer can scroll up inside it, and it follows new lines only while they are at the bottom (`boothFollow`). While the studio recap plays (`studioOn`, `showOn`) the booth goes on in text only, with no voices or blips.
