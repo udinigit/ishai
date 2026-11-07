@@ -16,3 +16,4 @@ Ideas and requests from the director. Newest at the bottom; mark done with the v
 - [x] Home life: longer activities at home (sweeping, dishes, keyboard, phone on the bed or armchair, laundry, snacks, dancing...), idle spot off the bed, drop-in visits and Falafel's three walks a day as goals. — v156
 - [x] Fixes: friends get on the bus or taxi with him; taxi seen from outside driving through the city; pigeons fly away; the cat stays off the pond; no host voices during the recap; the booth scrolls (last 10). — v157
 - [x] Speech bubbles wider than tall, each character's own colour as the outline and a name tab. — v159
+- [x] Things only the narration says (an object brought, a wet coat) are said out loud by the characters or a host. — v161

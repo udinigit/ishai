@@ -600,6 +600,7 @@ async function tick(env, force) {
     if (!ev){ ev = fallback(last, clock.hour, s); ev.stuck = true; ev.src = s.lastError && s.lastError.at === now ? "backup line (AI error)" : "backup line (AI reply dropped: repeat)"; }
   }
   { const q = quietHosts(s, ev, s.nextId); if (q.length) ev.commentary = q; }   // nobody speaks: the hosts fill the silence
+  { const u = unseenHosts(s, ev, s.nextId); if (u) ev.commentary = [...(ev.commentary || []), u]; }   // something only the narration says: a host names it
   if (!force) try { await pollTick(env, s, ev, now, last); } catch (e) { s.pollErr = { at: now, why: [String(e && e.message || e).slice(0, 160)] }; }
   if (!force) try { homeLifeTick(s, now, ev); } catch (e) { s.homeErr = String(e && e.message || e).slice(0, 160); }   // visits and dog walks   // viewers' poll: count the last one, write the next
   if (goal && goal.status !== "done" && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
@@ -919,6 +920,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - ${allowNew
   ? `You MAY introduce one new person, only if the story really needs someone new. Describe them in "newCharacter" and use their name as "with". Look options: hair ${LOOK.hair.join("/")}; hairColor ${LOOK.hairColor.join("/")}; skin ${LOOK.skin.join("/")}; shirt and pants ${LOOK.cloth.join("/")}; extras any of ${LOOK.extras.join("/")}.`
   : `Do NOT introduce new people right now; "newCharacter" must be null.`}
+- VIEWERS NEVER READ "text". They see small pixel people and hear the lines. Anything in "text" the picture cannot show (something brought, held, handed over or given; what is in a bag or a pot; wet clothes, a cut, a new haircut; a smell; a sound off camera; a message he reads) must reach them in "lines": someone names it naturally ("You brought Moshe a little brother?", "Why are you soaked?"), never as a stage direction. In a moment with no talking, keep "text" to what the picture shows.
 - Do not repeat the previous event.${direction}
 
 COMMENTATORS (they talk to the viewers, who do NOT see your "text", only the picture and the spoken lines):
@@ -963,7 +965,7 @@ async function addHosts(env, s, moments, clock, now) {
 - ${HOSTS.zohar}
 - ${HOSTS.oren}
 - ${HOSTS.rules}
-For EACH moment below write 0-2 short lines (max 20 words each). The viewers see only the picture (the camera and what Ishai is doing) and hear the spoken lines; they cannot read "what happens", so usually one line says plainly what is going on, then a joke, an opinion or a guess. React only to what is visible or said: never invent drinks, food, objects, visitors, calls or plans. If the CAMERA is STATIC, they cannot see him: they wonder where he is, guess, or joke about losing him. Fresh every time: never repeat the lines below, their jokes, openings or catchphrases.${sponsor ? `\nIN ONE OF THESE MOMENTS one host slips in an obvious, cheesy "secret" plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending with a wink like "...not sponsored, by the way"; the other host reacts.` : ""}
+For EACH moment below write 0-2 short lines (max 20 words each). The viewers see only the picture (the camera and what Ishai is doing) and hear the spoken lines; they cannot read "what happens", so usually one line says plainly what is going on, then a joke, an opinion or a guess. React only to what is visible or said: never invent drinks, food, objects, visitors, calls or plans. When "what happens" has a detail the picture can't show and nobody says it (an object someone brings, holds or hands over, wet clothes, a smell, a sound), one line names it plainly, for example: Dana's at the door with a wet coat and a little pot of basil. If the CAMERA is STATIC, they cannot see him: they wonder where he is, guess, or joke about losing him. Fresh every time: never repeat the lines below, their jokes, openings or catchphrases.${sponsor ? `\nIN ONE OF THESE MOMENTS one host slips in an obvious, cheesy "secret" plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending with a wink like "...not sponsored, by the way"; the other host reacts.` : ""}
 Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..."}]}]} with exactly ${moments.length} entries, in order.` },
       { role: "user", content: `${s.daySum ? `TODAY SO FAR (to connect with earlier moments): ${clip(s.daySum.text, 300)}\n\n` : ""}ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
     // read whatever came back, even a cut-off or slightly broken reply: every {"commentary":[...]} found, in order
@@ -1334,6 +1336,30 @@ function relayHosts(s, text, n, jokes) {
   if (jokes && n % 2 === 0) { const prev = recentHostLines(s, 16); const fresh = jokes.filter(j => !prev.includes(j));
     if (fresh.length) out.push({ who: other, say: fresh[(Math.floor(n / 2) * 5) % fresh.length] }); }
   return out;
+}
+// Something in the narration the picture can't show (a pot Dana brings, a wet coat) that nobody says out loud: a host names it. No AI.
+const UNSEEN_CUE = /\b(holding|holds|carrying|carries|clutching|with|brings|brought|bringing|hands(?: (?:him|ishai|over))?|handing|gives(?: (?:him|ishai))?|gave(?: (?:him|ishai))?|wearing|drenched|soaked|dripping)\s+(?:(?:him|ishai|over)\s+)?((?:a|an|some|two|three|his|her|their|the)\s+[^.;!?]{3,110})/i;
+const UNSEEN_STOP = new Set("with that this from into onto over under about after before their there them they then than have just very some what when where which while your little small big large really and the his her for him are was one two old new hot".split(" "));
+function unseenHosts(s, ev, n) {
+  if (!ev.text || !(ev.lines || []).length || ev.action === "sleeping" || ev.location === "offscreen" || (ev.commentary || []).length >= 3) return null;   // no talking: quietHosts() already reads it out
+  const said = [...(ev.lines || []), ...(ev.commentary || [])].map(l => String(l.say || "")).join(" ").toLowerCase();
+  const whoIn = sent => ev.with && s.cast[ev.with] && sent.toLowerCase().includes(s.cast[ev.with].name.toLowerCase().replace(/^mrs?\. /, "")) ? s.cast[ev.with].name : (/^(he|ishai)\b/i.test(sent) ? "Ishai" : null);
+  const wet = String(ev.text).split(/(?<=[.!?])\s+/).find(x => /\b(soaked|drenched|dripping wet)\b/i.test(x));
+  if (wet && !/\b(soak|drench|wet|rain|umbrella|dripping)/.test(said)) { const w = whoIn(wet); if (w) return { who: n % 2 ? "zohar" : "oren", say: `${w}'s ${wet.match(/\b(soaked|drenched|dripping wet)\b/i)[1].toLowerCase()}, if you can't tell from here.` }; }
+  const sent = String(ev.text).split(/(?<=[.!?])\s+/).find(x => UNSEEN_CUE.test(x)); if (!sent) return null;
+  const m = sent.match(UNSEEN_CUE), verb = m[1].toLowerCase();
+  let obj = m[2].replace(/\s*,\s*(?:and\s+)?(?:who|which|as|while|then|before|after|smiling|looking|saying|asking|grinning)\b.*$/i, "").replace(/[,\s]+$/, "");
+  if (/^(?:the|his|her|their)\s+(?:door|hallway|phone|dog|leash|hand|hands|head|eyes|face|friend|shoulder)\b/i.test(obj) && !/\band\b/i.test(obj)) return null;   // ordinary, or something the picture shows
+  const words = obj.toLowerCase().match(/[a-z]{3,}/g)?.filter(w => !UNSEEN_STOP.has(w)) || []; if (!words.length) return null;
+  if (words.some(w => w.length < 5 ? new RegExp(`\\b${w}`).test(said) : said.includes(w.slice(0, 5)))) return null;          // somebody already said it
+  const who = whoIn(sent);
+  if (!who) return null;
+  obj = obj.replace(/^(?:his|her|their)\s+/i, who === "Ishai" ? "his " : "their ");
+  if (obj.length > 95) { obj = obj.slice(0, 95); obj = obj.slice(0, obj.lastIndexOf(" ")); }
+  const say = /^(brings|brought|bringing|hands|handing|gives|gave)/.test(verb) ? `${who} brought ${obj}. Look closely.`
+    : /^(wearing|drenched|soaked|dripping)/.test(verb) ? `${who}'s ${verb === "wearing" ? "wearing" : verb} ${obj}, in case your screen is small.`
+    : `${who}'s got ${obj}, in case you missed it.`;
+  return { who: n % 2 ? "zohar" : "oren", say: say.replace(/\s+/g, " ") };
 }
 // a moment nobody speaks in (travel, waiting, listening, working alone): viewers can't read the narration, so the hosts say what is going on. No AI.
 const QUIET_QUIPS = ["Riveting television, ladies and gentlemen.", "I've seen less walking in a marathon.", "Nobody say anything. It's going so well.", "Our sound guy thinks his headphones broke.",
