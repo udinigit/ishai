@@ -82,6 +82,9 @@ Once an hour viewers vote on something small that someone else does to or for Is
 ## Trailer intro
 `/intro` (`source/public/intro.html`, public, no AI, no writes) is an 80-second animated trailer: what the show is, the AI actors (with short in-character interviews), the hosts in the studio, the hourly vote (the cast only, never Ishai). Its pictures are the show's real art, exported from the scene builder as PNG data URIs inside the file (`ASSETS`), so new looks or places need a re-export. Music and sound are synthesised in the page. A first-time visitor to `/` with no query string is sent there once (`ishaiIntroSeen` in `localStorage`, set as soon as the trailer page opens); the header's ▶ button (`#trailer`) opens it any time.
 
+## Cast tab
+`renderCast()` lists everyone: Ishai, Falafel (once adopted) and the whole `CAST`. Whoever is on camera right now (`settledOnCamera()`, plus Ishai and Falafel whenever Ishai is on camera) is open at the top; everyone else is a closed row in cast order that opens or closes on tap (`CAST_OPEN`, kept for the visit only).
+
 ## Sandbox
 `/sandbox` (`source/public/sandbox.html`, linked from the director page, with Quick scenes buttons for the bar, the improv lesson, the university and the lecture) is a test stage around the real page in `/?sandbox` mode (`startSandbox()`, `window.__sandbox`): no live feed, no AI, no writes. Moments go through `ingest()` like the story's. Saved moments and characters stay in the browser's `localStorage`. New places, actions and special events should get a control here too. Special events has buttons for a host fill line, an overheard line, a city event and the building chat (`hostFill()`, `overhear()`, `city()`, `chat()`).
 

@@ -148,6 +148,12 @@
   .card .meta{color:var(--phos-dim);font-size:.85em;line-height:1.1}
   .card .mem{font-size:.9em;margin-top:3px}
   .card .rel{font-size:.85em;letter-spacing:1px}
+  /* cast tab: whoever is on camera is open on top; everyone else is a closed row that opens on tap */
+  .card.fold{cursor:pointer} .card.fold .nm::before{content:"▾ ";color:var(--phos-dim)}
+  .card.closed{grid-template-columns:28px 1fr;align-items:center;padding-bottom:8px}
+  .card.closed canvas{width:28px} .card.closed .nm::before{content:"▸ "}
+  .card.closed .meta,.card.closed .rel,.card.closed .mem{display:none}
+  .card.fold:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
   [hidden]{display:none !important}
   .snd{font:inherit;font-size:clamp(15px,3.8vw,20px);background:transparent;color:var(--phos);border:1px solid var(--phos-faint);
     border-radius:6px;padding:0 10px;cursor:pointer;margin-left:auto}
@@ -3181,24 +3187,39 @@
     const me = document.createElement('div'); me.className='mem'; me.textContent = mem; b.appendChild(me);
     d.appendChild(b); return d;
   }
+  const CAST_OPEN = new Set();   // closed rows the viewer opened (on-camera rows are always open)
   function renderCast(){
     const el = $('castPanel'); el.textContent = '';
-    // only who is in the scene right now
+    // everyone, with whoever is on camera right now open at the top; the rest closed, in cast order
     const visible = settledOnCamera();
     const onCam = actor.loc !== 'offscreen' && !actor.switching;
-    if (onCam) el.appendChild(card(ISHAI_LOOK,'ISHAI',tint(CLOTH.teal,.45),'The subject. 31, freelance designer, apartment 4. ● ON CAMERA NOW',null,'STORY SO FAR: ' + (NOTES||'—'), true));
-    if (onCam && UNLOCKED.has('dog')){
+    const NOW_TAG = ' ● ON CAMERA NOW', rows = [];
+    const fold = (d, id, live) => {
+      if (live) { rows.push([0, d]); return; }
+      const open = CAST_OPEN.has(id);
+      d.classList.add('fold'); if (!open) d.classList.add('closed');
+      d.tabIndex = 0; d.setAttribute('role', 'button'); d.setAttribute('aria-expanded', String(open));
+      const flip = () => { CAST_OPEN.has(id) ? CAST_OPEN.delete(id) : CAST_OPEN.add(id); renderCast(); const again = el.querySelector(`[data-id="${id}"]`); if (again) again.focus({preventScroll: true}); };
+      d.onclick = flip; d.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } };
+      rows.push([1, d]);
+    };
+    const ishai = card(ISHAI_LOOK,'ISHAI',tint(CLOTH.teal,.45),'The subject. 31, freelance designer, apartment 4.' + (onCam ? NOW_TAG : ''),null,'STORY SO FAR: ' + (NOTES||'—'), true);
+    ishai.dataset.id = 'ishai'; fold(ishai, 'ishai', onCam);
+    if (UNLOCKED.has('dog')){
       const c = document.createElement('canvas'); c.width = 14; c.height = 12; const pc = c.getContext('2d'); const prev = g; g = pc;
       R(0,0,14,12,'#0b120b'); dogMap(DOG.sitA, 2, 3, false); g = prev;
-      const d = card(ISHAI_LOOK,'FALAFEL','#e8c48a',"Ishai's dog. Scruffy, sandy, adopted from Avi's kiosk. ● ON CAMERA NOW",null,'Eats everything. Trusts nobody but Ishai and Avi.', false);
-      d.replaceChild(c, d.firstChild); el.appendChild(d);
+      const d = card(ISHAI_LOOK,'FALAFEL','#e8c48a',"Ishai's dog. Scruffy, sandy, adopted from Avi's kiosk." + (onCam ? NOW_TAG : ''),null,'Eats everything. Trusts Ishai and Avi, and gets along with every Siberian Husky he meets: huskies are his best friends after Ishai.', false);
+      d.replaceChild(c, d.firstChild); d.dataset.id = 'falafel'; fold(d, 'falafel', onCam);
     }
-    Object.values(CAST).filter(c => visible.has(c.id)).forEach(c=>{
-      el.appendChild(card(c.look, c.name.toUpperCase(), tint(CLOTH[c.look?.shirt]||CLOTH.gray,.45),
-        `${c.role.charAt(0).toUpperCase()+c.role.slice(1)}. ${c.personality ? c.personality.charAt(0).toUpperCase()+c.personality.slice(1)+'.' : ''} ● ON CAMERA NOW`,
-        c.relationship||0, 'MEMORY: ' + (c.memory||'—')));
+    Object.values(CAST).forEach(c=>{
+      const live = visible.has(c.id);
+      const d = card(c.look, c.name.toUpperCase(), tint(CLOTH[c.look?.shirt]||CLOTH.gray,.45),
+        `${c.role.charAt(0).toUpperCase()+c.role.slice(1)}. ${c.personality ? c.personality.charAt(0).toUpperCase()+c.personality.slice(1)+'.' : ''}${live ? NOW_TAG : ''}`,
+        c.relationship||0, 'MEMORY: ' + (c.memory||'—'));
+      d.dataset.id = c.id; fold(d, c.id, live);
     });
-    if (!onCam){ const p = document.createElement('div'); p.className='meta'; p.textContent = 'Nobody on camera right now.'; el.appendChild(p); }
+    if (!rows.some(r => r[0] === 0)){ const p = document.createElement('div'); p.className='meta'; p.textContent = 'Nobody on camera right now.'; el.appendChild(p); }
+    rows.sort((a, b) => a[0] - b[0]).forEach(r => el.appendChild(r[1]));
   }
   function settledOnCamera(){
     const v = new Set();
