@@ -2314,23 +2314,33 @@
       // a gap kept at Ishai's spot in the crowd (and his friend's, 16 px to his right) all night, from where they will stand, not where he is
       // right now, so nobody blinks out while he walks past: people he passes stay and are simply drawn in front of or behind him by depth
       if (!walk && p.row >= 1 && (Math.abs(p.x - CC_SPOT) < 10 || Math.abs(p.x - CC_SPOT - 16) < 9)) return;
-      // dancing: during a song the jumpers bounce on every other beat (half the room up, half down, swapping each beat),
-      // the rest sway side to side; in the quiet parts they just stand and film
-      // each on their own timing: a little late on the beat (p.lag), now and then sitting a bar out (p.rest), so the room never moves as one
-      const kb = c.beat - (c.since < p.lag ? 1 : 0), bar = Math.floor(kb / 8), resting = hash(strHash(e.id) + i * 131 + bar * 17) < p.rest;
-      const dance = !walk && live && !quiet && !resting, up = dance && p.jumps && (p.ph + kb) % 2 === 0 ? p.hop : 0;
-      const sway = !walk && live && !quiet && !p.jumps ? (resting ? 0 : ((kb + p.ph) % (p.slow ? 4 : 2) < (p.slow ? 2 : 1) ? 1 : -1)) : 0, y = p.y - up, X = Math.round(x) + sway;
+      // each on their own timing (a little late on the beat, p.lag) and each doing their own thing, changing every few bars at their own moment:
+      // jumping, swaying, a fist on the beat, arms up, a phone up filming, or just standing; clapping before and after songs (most, not all)
+      const kb = c.beat - (c.since < p.lag ? 1 : 0), act = walk ? 'walk' : ccDo(p, i, c, kb, clap, quiet, peak, live);
+      const up = act === 'jump' && (p.ph + kb) % 2 === 0 ? p.hop : 0;
+      const sway = act === 'sway' ? ((kb + p.ph) % (p.slow ? 4 : 2) < (p.slow ? 2 : 1) ? 1 : -1) : 0, y = p.y - up, X = Math.round(x) + sway;
       zAdd(p.y + 22, () => {
         if (walk) person(p.look, X, p.y, t + i * 300, {muted: true, walk: true, face: dir});
         else person(p.look, X, y, t + i * 300, {muted: true, fid: 'turn'});
         if (walk) return;
         const sk = (SKINC[p.look.skin] || SKINC.fair)[0];
-        if (clap && p.claps){ const k = Math.floor((NOW() + i * 70) / 140) % 2; R(X + 2 + k, y - 2, 1, 2, sk); R(X + 7 - k, y - 2, 1, 2, sk); }   // hands up, clapping
-        else if (peak && p.claps && i % 2){ R(X + 1, y - 4, 1, 5, sk); R(X + 8, y - 4, 1, 5, sk); }                                   // arms in the air
-        else if (dance && i % 3 === 0){ const k = (kb + p.ph) % 2; R(X + (k ? 8 : 1), y - 4, 1, 5, sk); if (c.lvl.low > .6) R(X + (k ? 1 : 8), y - 2, 1, 3, sk); }   // a fist pumping on the beat
-        else if (quiet && i % 5 === 0) { R(X + 3, y - 5, 2, 3, '#1a1a1a'); R(X + 3, y - 5, 2, 2, night || true ? '#e8f4ff' : '#9ab'); }   // a phone up, filming
+        if (act === 'clap'){ const k = Math.floor((NOW() + i * 70) / (120 + (i % 4) * 20)) % 2; R(X + 2 + k, y - 2, 1, 2, sk); R(X + 7 - k, y - 2, 1, 2, sk); }   // hands up, clapping (each at their own speed)
+        else if (act === 'arms'){ const w = (kb + p.ph) % 4 < 2 ? 0 : 1; R(X + 1 - w, y - 4, 1, 5, sk); R(X + 8 + w, y - 4, 1, 5, sk); }   // arms in the air, waving a little
+        else if (act === 'fist'){ const k = (kb + p.ph) % 2; R(X + 8, y - 4 + k, 1, 5 - k, sk); }                                     // a fist pumping on the beat
+        else if (act === 'phone'){ const hx = X + (p.ph ? 6 : 2); R(hx + 1, y - 2, 1, 3, sk); R(hx, y - 6, 3, 4, '#1a1a1a'); R(hx, y - 6, 3, 3, '#e8f4ff'); if (Math.floor((NOW() + i * 911) / 3000) % 7 === 0 && (NOW() / 120 | 0) % 2) R(hx + 1, y - 7, 1, 1, '#ffffff'); }   // a phone up, filming (now and then a flash: a photo)
       });
     });
+  }
+  // what one person in the crowd is doing right now: their own pick, for a few bars at a time (the same for every viewer: seeded by the night)
+  function ccDo(p, i, c, kb, clap, quiet, peak, live){
+    const seg = live ? Math.floor((kb + p.off) / (p.slow ? 12 : 8)) : Math.floor((c.T + p.off * 900) / 7000), r = hash(strHash(c.e.id) + i * 131 + seg * 17 + (clap ? 7 : 0));
+    const pick = tbl => { let a = 0; for (const [k, w] of tbl){ a += w; if (r < a) return k; } return 'stand'; };
+    if (clap) return p.claps ? pick([['clap', .82], ['phone', .1]]) : pick([['phone', .4], ['stand', .6]]);
+    if (!live) return pick([['stand', .62], ['phone', .14], ['sway', .08]]);   // waiting for the band: standing, chatting, a photo of the stage
+    if (quiet) return pick([['sway', .34], ['stand', .26], ['phone', .26], ['arms', .1]]);
+    const J = p.jumps ? 'jump' : 'sway';
+    if (peak) return pick([[J, .32], ['arms', .26], ['fist', .14], ['sway', .12], ['phone', .1]]);
+    return pick([[J, .32], ['sway', .26], ['fist', .12], ['phone', .1], ['arms', .08]]);
   }
   // who comes to a concert: seeded by the night, so everyone sees the same crowd arrive
   const CC_DOOR = 182, CC_ROWS = [61, 66, 72], CC_SPOT = 96;   // CC_SPOT: where Ishai stands at a concert (SCENES.arena.stand.concert)
@@ -2342,7 +2352,7 @@
     for (let i = 0; i < N; i++){
       const row = i % 3, slot = Math.floor(i / 3), x = Math.round(4 + slot * 15 + (row === 1 ? 7 : row === 2 ? 3 : 0) + (r(i * 5 + 1) - .5) * 6);
       if (x > 168) continue;
-      out.push({x, row, y: CC_ROWS[row], lag: Math.floor(r(i * 5 + 5) * 230), ph: r(i * 5 + 6) < .5 ? 0 : 1, rest: .1 + r(i * 5 + 7) * .25, hop: r(i * 5 + 8) < .3 ? 1 : (row === 2 ? 2 : 1), slow: r(i * 5 + 9) < .5, arrive: -9 * 60000 + Math.floor(r(i * 5 + 2) * 9.5 * 60000), jumps: r(i * 5 + 3) < .7, claps: r(i * 5 + 4) < .85,
+      out.push({x, row, y: CC_ROWS[row], off: Math.floor(r(i * 5 + 10) * 8), lag: Math.floor(r(i * 5 + 5) * 230), ph: r(i * 5 + 6) < .5 ? 0 : 1, rest: .1 + r(i * 5 + 7) * .25, hop: r(i * 5 + 8) < .3 ? 1 : (row === 2 ? 2 : 1), slow: r(i * 5 + 9) < .5, arrive: -9 * 60000 + Math.floor(r(i * 5 + 2) * 9.5 * 60000), jumps: r(i * 5 + 3) < .7, claps: r(i * 5 + 4) < .85,
         look: {hair: H[Math.floor(r(i*11+1) * H.length)], hairColor: HC[Math.floor(r(i*11+2) * HC.length)], skin: SK[Math.floor(r(i*11+3) * SK.length)], shirt: CL[Math.floor(r(i*11+4) * CL.length)], pants: ['black','navy','gray','brown','blue'][Math.floor(r(i*11+5) * 5)], extras: r(i*11+6) < .2 ? ['glasses'] : []}});
     }
     return ccCache[e.id] = out.sort((a, b) => a.arrive - b.arrive);
@@ -2351,7 +2361,7 @@
   function concertClap(c){
     const T = c.T, e = c.e, w = (a, len) => T >= a && T < a + len;
     if (w(16000, 6000)) return true;
-    return e.songs.some(sg => w(sg.t0 + sg.dur, 7000)) || w(e.endT - 4000, 8000);
+    return e.songs.some(sg => w(sg.t0 - 5000, 4500) || w(sg.t0 + sg.dur, 7000)) || w(e.endT - 4000, 8000);   // as the band gets ready, and after every song
   }
   // the music itself: the current song, at the right second for everyone; checked every second
   let CAUD = null, caudSong = null;
@@ -2374,6 +2384,7 @@
     const T = c.T, near = (a, ms) => T >= a && T - a < ms;
     if (near(16000, 1500)) fire('clap-open', () => Sound.sfx('applause'));
     c.e.songs.forEach((sg, i) => {
+      if (near(sg.t0 - 5000, 1500)) fire('pre' + i, () => Sound.sfx('applause'));
       if (near(sg.t0 - 2200, 1200)) fire('count' + i, () => Sound.sfx('sticks'));
       if (near(sg.t0 + sg.dur, 1500)) fire('clap' + i, () => Sound.sfx(i === c.e.songs.length - 1 ? 'ovation' : 'applause'));
     });
@@ -2985,13 +2996,24 @@
         const cx = comp.x;   // comp.x follows gx smoothly (see compUpdate), so there is never a jump   // standing friends may wander a step or two (see compUpdate)
         markHead(actor.with, cx, y);
         if (a==='walking') person(cl, cx, y, t+300, actor.pacePause ? {face:-1} : {walk:true, face:dir});
-        else if ((a==='concert' || a==='gallery') && SAY.who !== actor.with) person(cl, cx, y, t, {fid:'turn'});   // watching the stage (or the art) with him, back to the camera; turns round only to talk
+        else if ((a==='concert' || a==='gallery') && SAY.who !== actor.with){ const cc = a==='concert' && concertNow(), sw = cc && cc.song && !concertClap(cc) ? ((cc.beat + 1) % 4 < 2 ? 1 : -1) : 0; person(cl, cx + sw, y, t, {fid:'turn'}); }   // the friend sways along during songs   // watching the stage (or the art) with him, back to the camera; turns round only to talk
         else { face = cx > actor.x ? 1 : -1; person(cl, cx, y, t, {face:-face, talkPhase:a==='talking'||a==='improv'||a==='concert'||a==='gallery'}); }
       }
     }
     if (withIsPost() && settled) face = actor.loc==='street' ? 0 : 1;
     if (a==='gallery' && settled && !actor.travelling){ drawIshai(actor.gpose || 'idle', actor.x, y, t); return; }
-    if (a==='concert' && settled && !actor.travelling){ drawIshai(SAY.who === 'ishai' ? 'talking' : 'back', actor.x, y, t); return; }   // in the crowd, watching the stage
+    if (a==='concert' && settled && !actor.travelling){   // in the crowd, watching the stage, dancing in his own careful way
+      if (SAY.who === 'ishai'){ drawIshai('talking', actor.x, y, t); return; }
+      const c = concertNow(), live = c && c.song && c.since < 2000, sk = (SKINC[ISHAI_LOOK.skin] || SKINC.fair)[0];
+      if (!c){ drawIshai('back', actor.x, y, t); return; }
+      const kb = c.beat - (c.since < 90 ? 1 : 0), seg = Math.floor(kb / 8), r = hash(seg * 53 + 11), clap = concertClap(c);
+      const mode = clap ? 'clap' : !live ? 'stand' : c.lvl.low > .82 ? (r < .5 ? 'arms' : 'hop') : r < .45 ? 'sway' : r < .8 ? 'hop' : 'fist';
+      const up = mode === 'hop' && kb % 2 === 0 ? 1 : 0, sx = mode === 'sway' ? (kb % 4 < 2 ? 1 : -1) : 0, X = Math.round(actor.x) + sx, Y = y - up;
+      drawIshai('back', X, Y, t);
+      if (mode === 'clap'){ const k = Math.floor(NOW() / 150) % 2; R(X + 2 + k, Y - 2, 1, 2, sk); R(X + 7 - k, Y - 2, 1, 2, sk); }
+      else if (mode === 'arms'){ R(X + 1, Y - 4, 1, 5, sk); R(X + 8, Y - 4, 1, 5, sk); }
+      else if (mode === 'fist'){ const k = kb % 2; R(X + 8, Y - 4 + k, 1, 5 - k, sk); }
+      return; }
     if (a==='walking' && actor.pacePause && !actor.travelling && !actor.pending) drawIshai('idle', actor.x, y, t);
     else if (actor.travelling || a==='walking') drawIshai('walk', actor.x, y, t);
     else if (actor.dressTo) drawIshai(actor.dressBath ? 'back' : 'idle', actor.x, y, t);   // at the closet: changing (under the bar), or taking clothes out with his back to us
