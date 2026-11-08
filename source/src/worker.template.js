@@ -176,6 +176,18 @@ const SEED_CAST = [
   { id: "hagit", name: "Hagit", role: "runs the Pump House, the old pump hall by the park she is turning into a small venue; sits in its ticket window most afternoons", regular: "plaza",
     personality: "a former sound engineer, dry and passionate, explains everything with her hands, stubborn about doing things properly", speech: "short, practical, then one sudden sentence about why art matters",
     hangouts: ["plaza"], look: { hair: "bun", hairColor: "red", skin: "fair", shirt: "black", pants: "black", extras: ["glasses", "scarf"] }, memory: "", relationship: 0 },
+  { id: "boaz", name: "Boaz", role: "Ishai's downstairs neighbour in apartment 2 (first floor), 47, drives the line 88 bus; hosts poker every second Monday; 'Apt 2' in the building chat",
+    personality: "dry, orderly, keeps the bank and counts the chips twice; kind under the deadpan; divorced, his teenagers stay some weekends", speech: "few words and bus lines ('Last stop.', 'Exact change.'), calls Ishai 'Upstairs'",
+    hangouts: ["street"], look: { hair: "short", hairColor: "gray", skin: "tan", shirt: "navy", pants: "gray", extras: ["mustache"] }, memory: "Invited Ishai from upstairs to fill the empty seat at poker. Knows him from the stairs and the bus.", relationship: 0 },
+  { id: "ronit", name: "Ronit", role: "Boaz's friend since high school, 47, teaches maths at a high school; plays at Boaz's poker nights",
+    personality: "sharp, warm, teasing, reads everyone, a teacher who can't stop marking", speech: "uses full names and a classroom voice ('Wrong answer. Sit down.'), says out loud what she notices",
+    hangouts: [], look: { hair: "long", hairColor: "black", skin: "brown", shirt: "red", pants: "black", extras: ["glasses", "earring"] }, memory: "Boaz says the new one is quiet. Quiet ones bluff or apologise.", relationship: 0 },
+  { id: "moti", name: "Moti", role: "68, retired surveyor in apartment 1, head of the building committee ('Committee' in the building chat); plays at Boaz's poker nights",
+    personality: "chatty, generous, a little deaf, runs committee business everywhere", speech: "long sentences that start in 1987 and end at the elevator vote, calls everyone 'neighbour'",
+    hangouts: ["street"], look: { hair: "bald", hairColor: "white", skin: "fair", shirt: "white", pants: "brown", extras: ["glasses", "scarf"] }, memory: "Ishai still owes the committee for the stair light. Seems a good boy.", relationship: 0 },
+  { id: "yossi", name: "Yossi", role: "31, a mechanic at the bus depot, Boaz's colleague; plays at Boaz's poker nights in his lucky cap",
+    personality: "loud, superstitious, fast, big-hearted, terrible with money", speech: "numbers and omens ('I feel it', 'suited means it's meant'), calls Ishai 'professor'",
+    hangouts: [], look: { hair: "cap", hairColor: "black", skin: "dark", shirt: "orange", pants: "black", extras: ["beard"] }, memory: "Never met Ishai. Lucky cap is washed and ready.", relationship: 0 },
   { id: "sasson", name: "Dr. Sasson", role: "lectures on Strange But True, a history course at Tel Herzl University, on Sundays, Tuesdays and Wednesdays at 11:00",
     personality: "dry, exact, loves a good footnote, stops joking when the subject deserves it", speech: "calm and precise, ends a point with a quiet joke",
     hangouts: ["classroom"], look: { hair: "short", hairColor: "gray", skin: "light", shirt: "purple", pants: "black", extras: ["glasses", "scarf"] }, memory: "", relationship: 0 }
@@ -196,6 +208,7 @@ const LOCATIONS = {
   campus:    ["walking","idle","talking","eating","drinking","phoning"],
   plaza:     ["walking","idle","talking","eating","drinking","phoning"],
   arena:     ["idle","walking","talking","drinking","phoning","gallery"],
+  apt2:      ["idle","talking","eating","drinking","phoning","poker"],
   classroom: ["idle","talking","phoning","lecture"],
   bus:       ["idle","talking","phoning","reading"],
   taxi:      ["idle","talking","phoning","reading"],
@@ -208,6 +221,7 @@ const PLACES = {
   shops:     "the SIDEWALK of Herzl Street east, the next block toward the cafe (the camera only sees the sidewalk and the shop windows; he cannot be inside a shop here - shopping for electronics, clothes or home stuff happens at the Everything Else store - bus from the street to the market, then walk in): Herzl Hardware, the Tahini Tower Savings Bank with an ATM, a flower shop with buckets of flowers on the sidewalk, a pedestrian crossing with traffic lights, ficus trees; Cafe Nahat is on the corner at the end",
   park:      "a small park at the west end of Herzl Street, a few blocks' walk from his building: a bench, a pond with one duck, a big tree. On its far (west) side stands the Pump House",
   plaza:     "the plaza in front of the Pump House, an old red-brick water-pump hall on the far side of the park, now a small venue for concerts and art (walk through the park; no bus): its iron sign, double doors, a ticket window where Hagit sits, a poster board, rope lanes for queues, the park's trees at the edge. The board says it opens soon, with events on Wednesdays",
+  apt2:      "Boaz's flat, apartment 2 on the first floor of Ishai's building (down one flight): old patterned floor tiles, a china cabinet, a fish tank, an old TV, a long dining table. Ishai only goes in when he is invited, on poker nights",
   arena:     "inside the Pump House hall: a stage under old pipes, a pixel screen, speaker stacks, a merch table, a concrete floor. Only open for its events; Ishai only goes in on an event night",
   cafe:      "Cafe Nahat, a corner cafe (soft pop and soft rock on the radio, quietly)",
   market:    "Shuk Shalom, an open-air food market a short bus ride away (bus or taxi from the stop on Herzl Street; it has its own bus stop): stalls of tomatoes, cucumbers, oranges, bananas, spices, fresh pita, olives and fresh juice, vendors calling out prices, crowds. Food only. He can eat a snack or drink a fresh juice there. Open 07:00-19:00 (Friday until 14:00, closed on Shabbat). Its vendors also deliver through ateBite",
@@ -223,8 +237,9 @@ const PLACES = {
 // The world map (must match MAP in the page). Far places are reached by bus or taxi from the street bus stop.
 const NEXT = {
   apartment: ["corridor"],
-  corridor:  ["apartment","street"],
-  street:    ["corridor","park","shops","gym","bar","market","campus","bus","taxi","offscreen"],
+  corridor:  ["apartment","street","apt2"],
+  apt2:      ["corridor","street"],
+  street:    ["corridor","park","shops","gym","bar","market","campus","bus","taxi","offscreen","apt2"],
   market:    ["street","store","bus","taxi"],
   campus:    ["street","classroom","bus","taxi"],
   classroom: ["campus"],
@@ -249,7 +264,7 @@ const LOOK = {
   extras: ["glasses","beard","mustache","earring","apron","scarf"]
 };
 
-const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && a !== "lecture" && a !== "gallery" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" and "lecture" are only for planned classes
+const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && a !== "lecture" && a !== "gallery" && a !== "poker" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" and "lecture" are only for planned classes
 
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
@@ -319,7 +334,7 @@ export default {
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: Math.round(s.usage.inTok * 4625 / 1e6 + s.usage.outTok * 30475 / 1e6) } : null,
-        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s),
+        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
         polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3) } }, { "cache-control": "no-store" });
@@ -384,6 +399,15 @@ export default {
       const dev = JSON.stringify({ ep, from: num(b.from, 0, 23, 8), to: num(b.to, 0, 24, 23), max: num(b.max, 1, ALERTS_A_DAY, ALERTS_A_DAY) });
       if (req.method === "DELETE") await env.ISHAI.delete(key); else if ((await env.ISHAI.get(key)) !== dev) await env.ISHAI.put(key, dev);
       return json({ ok: true }, { "cache-control": "no-store" });
+    }
+    if (url.pathname === "/api/poker") {   // a poker night as the page plays it; ?sample=1 (director) simulates a short one for the sandbox
+      if (url.searchParams.get("sample")) {
+        if (!await isDev(req, env)) return json({ error: "director only" }, {}, 403);
+        const s = await loadState(env), G = pokerNew(s, "sample-" + (url.searchParams.get("seed") || "1"), Date.now()); G.endAt = 20 * 60000; G.pizzaAt = 8 * 60000; G.breakAt = 14 * 60000;
+        pokerSimStep(G, 30); return json({ id: G.id, date: G.date, at: G.at, seats: G.seats, hands: G.hands, talk: G.talk.sort((a, b) => a.t - b.t), pizzaAt: G.pizzaAt, breakAt: G.breakAt, endT: G.endT || G.t, results: G.results, buyin: POKER_BUYIN, moments: pokerMoments({ ...G, endT: G.endT || G.t }) }, { "cache-control": "no-store" });
+      }
+      const date = String(url.searchParams.get("date") || "").replace(/[^0-9-]/g, "").slice(0, 10), v = date && await env.ISHAI.get("poker:" + date);
+      return v ? new Response(v, { headers: { "content-type": "application/json", "cache-control": "public, max-age=600" } }) : json({ error: "no poker night on that date" }, {}, 404);
     }
     if (url.pathname === "/api/arena") {   // the next Pump House night; the director also gets its moments as they will air (the sandbox plays them)
       const s = await loadState(env), now = Date.now(), dev = await isDev(req, env), t = nextArenaAt(s, now) || now, date = dayOfTZ(t);
@@ -481,7 +505,7 @@ function publicState(s, dev) {
     studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
-    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()),
+    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()),
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [], barStations: s.world.barStations || [], cafeStations: s.world.cafeStations || [] } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
@@ -575,6 +599,7 @@ async function tick(env, force) {
 
   HOSTS_APART = !!env.GEMINI_API_KEY;
   if (!force) try { await courseTick(env, s, now); } catch (e) { courseOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
+  if (!force) try { await pokerTick(env, s, now); } catch (e) { pokerOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   if (!force) try { arenaTick(s, now); } catch (e) { arenaOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   geminiOutUntil = Math.max(geminiOutUntil, s.geminiOutUntil || 0);   // a pause set by another isolate still counts
   // director: activate the next goal, or force it if its deadline passed
@@ -953,7 +978,7 @@ newCharacter format: {"name":"...","role":"...","personality":"...","speech":"..
   const user =
 `Story time now: ${clock.label} (${TZ}).
 He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
-Plot notes: ${s.notes || "none"}${storySoFar(s)}${cityNote(now, s.world && s.world.shabbat)}${courseNote(s, now, cw)}
+Plot notes: ${s.notes || "none"}${storySoFar(s)}${cityNote(now, s.world && s.world.shabbat)}${courseNote(s, now, cw)}${eventNote(s, now, cw)}
 ${body}
 ${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
@@ -967,7 +992,7 @@ ${block ? `What happens in the next ${block} moments?` : "What happens next?"}`;
 
 // the hosts react to the moments the story just wrote (one call for a whole block)
 const CAMERA = { apartment: "his apartment", bathroom: "closed bathroom door", corridor: "the building hallway", street: "Herzl Street outside his building", shops: "the shops block of Herzl Street (sidewalk)",
-  park: "the park", cafe: "Cafe Nahat", gym: "Herzl Gym", bar: "The Black Candle bar", market: "Shuk Shalom market", store: "the Everything Else store", plaza: "the plaza in front of the Pump House, by the park", arena: "inside the Pump House hall", campus: "the courtyard of Tel Herzl University", classroom: "a lecture room at the university", bus: "inside the bus, the city going past the windows", taxi: "the back seat of a taxi, the city going past the window", offscreen: "STATIC - no camera, he is out of coverage" };
+  park: "the park", cafe: "Cafe Nahat", gym: "Herzl Gym", bar: "The Black Candle bar", market: "Shuk Shalom market", store: "the Everything Else store", plaza: "the plaza in front of the Pump House, by the park", apt2: "Boaz's flat, apartment 2, at the poker table", arena: "inside the Pump House hall", campus: "the courtyard of Tel Herzl University", classroom: "a lecture room at the university", bus: "inside the bus, the city going past the windows", taxi: "the back seat of a taxi, the city going past the window", offscreen: "STATIC - no camera, he is out of coverage" };
 async function addHosts(env, s, moments, clock, now) {
   try {
     const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : s.cast[id]?.name || id;
@@ -1225,6 +1250,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (ev.location === "gym" && last.location !== "gym" && (h >= 23 || h < 6)) return { ev, problem: "Herzl Gym is closed now (open 06:00-23:00)" };
     const wd = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(new Date(Date.now() + DELAY_MIN * 60000));
     const shut = (open, close) => wd === "Sat" || h < open || h >= (wd === "Fri" ? 14 : close);
+    if (ev.location === "apt2" && last.location !== "apt2" && !allowNoHosts) return { ev, problem: "apartment 2 is Boaz's flat; Ishai only goes in on poker nights (planned)" };
     if (ev.location === "arena" && last.location !== "arena" && !allowNoHosts) return { ev, problem: "the Pump House hall is only open on its event nights (Ishai can be on the plaza outside)" };
     if (ev.location === "campus" && last.location !== "campus" && last.location !== "classroom" && !allowNoHosts && (shut(8, 20) || wd === "Fri")) return { ev, problem: "the university is closed now (Sunday to Thursday, 08:00-20:00)" };
     if (ev.location === "classroom" && !allowNoHosts) return { ev, problem: "the lecture room is only used during a lecture; he stays in the courtyard" };
@@ -1336,7 +1362,7 @@ function cleanCard(c, s, loc) {
 function repair(ev, s, last) {
   let loc = LOCATIONS[ev.location] ? ev.location : last.location;
   if (loc !== last.location && !NEXT[last.location].includes(loc)) loc = last.location;
-  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : allowed(loc, s.unlocked);
+  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : ev.action === "poker" && loc === "apt2" ? ["poker"] : allowed(loc, s.unlocked);
   const act = legal.includes(ev.action) ? ev.action : (legal.includes("idle") ? "idle" : legal[0]);
   const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with) && act !== "sleeping";
   return { ...ev, location: loc, action: act, with: ok ? ev.with : null,
@@ -1452,7 +1478,7 @@ function sickEvent(s, last, hour) {
     { who: "zohar", say: "Rest up, Ishai. The whole country is whispering." },
     { who: "oren", say: "This is the most relaxing episode we have ever aired." }
   ];
-  const step = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
+  const step = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", apt2: "corridor", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   let ev;
   if (step) {
     const T = {
@@ -1502,7 +1528,7 @@ function sickEvent(s, last, hour) {
 }
 function fallback(last, hour, s) {
   const night = hour < 7 || hour >= 23;
-  const home = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
+  const home = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", apt2: "corridor", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   if (night && home) {
     const T = { park: "He walks back through the dark park toward Herzl Street.", plaza: "He walks out of the Pump House into the night air.", campus: "He walks out into the dark courtyard.", market: "He walks out of the store into the dark, empty market.", street: "Ishai heads back along Herzl Street toward home.", shops: "He walks back past the dark shop windows toward his building.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
     return { location: home, action: home === "apartment" ? "idle" : "walking", text: T[home], with: null, lines: [] };
@@ -1516,6 +1542,7 @@ function fallback(last, hour, s) {
     classroom: [["campus", "walking", "He walks out of the lecture room into the courtyard."]],
     plaza: [["plaza", "idle", "Ishai reads the Pump House poster board."], ["plaza", "walking", "He walks slowly past the old pump hall, looking up at the chimney."], ["park", "walking", "He walks back into the park."]],
     arena: [["plaza", "walking", "He walks out of the hall onto the plaza."]],
+    apt2: [["corridor", "walking", "He says goodnight at Boaz's door and climbs the stairs home."]],
     park: [["park", "idle", "Ishai watches the duck. The duck watches back."], ["park", "walking", "He does a slow lap around the pond."], ["street", "walking", "He leaves the park and walks back to Herzl Street."]],
     market: [["market", "walking", "Ishai weaves between the stalls, comparing tomato prices."], ["market", "drinking", "He buys a fresh orange juice at a stall and drinks it on the spot."],
       ["market", "eating", "He tears into a warm pita the baker hands him."], ["street", "walking", "He takes the bus back to Herzl Street, bags in both hands."]],
@@ -1576,7 +1603,7 @@ function travelEvent(s, last, hop, dest) {
   const T = { "apartment>corridor": `Ishai grabs his keys${dog ? ", clips on Falafel's leash" : ""} and heads out the door.`, "corridor>street": `He goes down the stairs and out onto Herzl Street${umb}.`,
     "street>shops": `He walks east along Herzl Street${umb}, past the hardware shop and the bank.`, "shops>cafe": `He crosses at the lights${umb} and goes into Cafe Nahat.`,
     "shops>street": `He walks back west along Herzl Street${umb} toward his building.`, "street>park": `He walks west along Herzl Street${umb}, past PicSell and the bakery, toward the park.`, "street>corridor": "He heads back into his building and up the stairs.",
-    "corridor>apartment": "He unlocks apartment 4 and goes in.", "park>plaza": `He walks across the park${umb}, past the pond, to the old Pump House on the far side.`, "plaza>park": `He walks back into the park${umb}.`, "plaza>arena": "He goes in through the Pump House's double doors.", "arena>plaza": "He walks out of the hall onto the plaza.", "park>street": `He walks back along Herzl Street${umb}, past the barber and PicSell, toward his building.`, "cafe>shops": `He steps out of the café onto Herzl Street${umb}, by the flower shop.`,
+    "corridor>apartment": "He unlocks apartment 4 and goes in.", "corridor>apt2": "He goes down one flight and knocks on apartment 2.", "apt2>corridor": "He climbs the stairs back up to his floor.", "street>apt2": "He goes into his building and knocks on apartment 2 on the first floor.", "apt2>street": "He leaves apartment 2 and goes down the stairs to the street.", "park>plaza": `He walks across the park${umb}, past the pond, to the old Pump House on the far side.`, "plaza>park": `He walks back into the park${umb}.`, "plaza>arena": "He goes in through the Pump House's double doors.", "arena>plaza": "He walks out of the hall onto the plaza.", "park>street": `He walks back along Herzl Street${umb}, past the barber and PicSell, toward his building.`, "cafe>shops": `He steps out of the café onto Herzl Street${umb}, by the flower shop.`,
     "street>gym": `He pushes open the glass door of Herzl Gym${dog ? ", Falafel trotting behind" : ""}.`, "gym>street": `He leaves the gym, towel round his neck, and steps out onto Herzl Street${umb}.`,
     "street>bar": "He pushes open the heavy door of The Black Candle; red light and a guitar riff spill out.", "bar>street": `He steps out of The Black Candle onto Herzl Street${umb}.`,
     "street>market": `He takes the bus to Shuk Shalom market${umb}.`, "market>street": "He takes the bus back to Herzl Street, shopping bags on his knees.",
@@ -2129,7 +2156,7 @@ const pollHM = ms => new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-d
 // is this place open at that time (the same hours validate() enforces)
 function placeOpen(loc, ms) {
   const h = storyClock(ms).hour, wd = weekday(ms), shut = (o, c) => wd === "Sat" || h < o || h >= (wd === "Fri" ? 14 : c);
-  if (!LOCATIONS[loc] || ["classroom", "arena", "bus", "taxi", "offscreen"].includes(loc)) return false;
+  if (!LOCATIONS[loc] || ["classroom", "arena", "apt2", "bus", "taxi", "offscreen"].includes(loc)) return false;
   return loc === "bar" ? !(h >= 2 && h < 17) : loc === "gym" ? !(h >= 23 || h < 6) : loc === "market" ? !shut(7, 19) : loc === "store" ? !shut(9, 21) : loc === "campus" ? !(shut(8, 20) || wd === "Fri") : true;
 }
 const pollShabbat = (s, ms) => { const sh = s.world && s.world.shabbat; return !!sh && ms >= sh.start - 30 * 60000 && ms <= (sh.end || sh.start + 26 * 3600000); };
@@ -2488,6 +2515,9 @@ function arenaTick(s, now) {
   for (const d of Object.keys(a.events)) if (Date.parse(d) < now - 8 * 86400000) delete a.events[d];
   const date = dayOfTZ(t);
   if (!a.events[date] && t - now < ARENA_AHEAD && !a.off) a.events[date] = galleryNight(s, date, t);
+  for (const e of Object.values(a.events)) { const g = e.goalId && !e.remembered && s.director.find(d => d.id === e.goalId);
+    if (g && g.status === "done") { e.remembered = true; const f = e.companion && s.cast[e.companion];
+      addLife(s, now, e.kind, e.kind === "gallery" ? `Went to the gallery night at the Pump House${f ? " with " + f.name : ""}: ${e.artist}, "${e.title}". The big picture at the end stayed with him; it was great.` : `Went to "${e.title}" at the Pump House${f ? " with " + f.name : ""}. It was great.`); } }
   const ev = a.events[date]; if (ev && !ev.goalId && !ev.skip && t - now < 30 * 3600000 && t - 50 * 60000 > now) scheduleArena(s, ev, now);
 }
 const arenaNext = (s, now) => { const a = s.arena; if (!a) return null; const t = nextArenaAt(s, now); return t ? a.events[dayOfTZ(t)] || null : null; };
@@ -2498,6 +2528,361 @@ function arenaPublic(s, now) {
     event: { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, sets: ev.sets } };
 }
 const arenaHealth = s => { const a = s.arena; if (!a) return null; return { events: Object.values(a.events).map(e => ({ id: e.id, kind: e.kind, title: e.title, artist: e.artist, companion: e.companion, goal: e.goalId || null, skip: !!e.skip })), off: !!a.off, err: a.err }; };
+// ---------- Poker night at Boaz's (apt 2, first floor): every second Monday at 20:00 (docs/POKER_PLAN.md) ----------
+// The whole game is simulated ahead from the date's seed, a few hands per tick (the free plan allows ~10 ms of CPU a run), then stored once in KV
+// (poker:<date>) and served by /api/poker. The page plays it by the clock: cards, chips, talk, the pizza. No AI.
+const POKER_FIRST = "2026-11-23", POKER_H = 20, POKER_LEN_MIN = 150, POKER_HANDS_PER_TICK = 12, POKER_BUYIN = 500, POKER_SB = 5, POKER_BB = 10;
+const POKER_SEATS = ["yossi", "ronit", "ishai", "boaz", "moti"];   // left to right at the table; Ishai in the middle, facing the camera
+const POKER_STYLE = {   // play: least preflop score to play; raise: to raise first; aggr, bluff, callDown, tilt, skill: 0..1
+  boaz:  { play: .55, raise: .70, aggr: .35, bluff: .03, callDown: .30, tilt: 0,   skill: .70, think: 0 },
+  ronit: { play: .48, raise: .58, aggr: .70, bluff: .12, callDown: .35, tilt: .10, skill: .90, think: 0, adapt: true },
+  moti:  { play: .28, raise: .88, aggr: .12, bluff: .02, callDown: .85, tilt: 0,   skill: .40, think: 1800 },
+  yossi: { play: .40, raise: .45, aggr: .85, bluff: .25, callDown: .50, tilt: .60, skill: .45, think: -700, suited: true },
+  ishai: { play: .45, raise: .62, aggr: .20, bluff: .04, callDown: .40, tilt: .05, skill: .75, think: 400, timid: true }
+};
+const P_NAME = { boaz: "Boaz", ronit: "Ronit", moti: "Moti", yossi: "Yossi", ishai: "Ishai" };
+const RANKS = "23456789TJQKA", RANK_WORD = ["two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "jack", "queen", "king", "ace"];
+const CAT_NAME = ["high card", "a pair", "two pair", "three of a kind", "a straight", "a flush", "a full house", "four of a kind", "a straight flush"];
+// best five of up to seven cards (0..51: rank = c >> 2, suit = c & 3) as one comparable number; Math.floor(v / 13 ** 5) is the category
+function handValue(cs) {
+  const rc = new Array(13).fill(0), sc = [0, 0, 0, 0], sb = [0, 0, 0, 0]; let m = 0;
+  for (const c of cs) { const r = c >> 2, s = c & 3; rc[r]++; sc[s]++; sb[s] |= 1 << r; m |= 1 << r; }
+  const top = bits => { const b = (bits << 1) | ((bits >> 12) & 1); for (let h = 13; h >= 4; h--) if (((b >> (h - 4)) & 31) === 31) return h - 1; return -1; };
+  const val = (cat, ks) => { let v = cat; for (let i = 0; i < 5; i++) v = v * 13 + (ks[i] || 0); return v; };
+  const fs = sc.findIndex(n => n >= 5);
+  if (fs >= 0) { const sf = top(sb[fs]); if (sf >= 0) return val(8, [sf]); }
+  const by = n => { const a = []; for (let r = 12; r >= 0; r--) if (rc[r] === n) a.push(r); return a; };
+  const q = by(4), t = by(3), p = by(2), single = by(1);
+  if (q.length) return val(7, [q[0], Math.max(...[...t, ...p, ...single].filter(r => r !== q[0]))]);
+  if (t.length && (t.length > 1 || p.length)) return val(6, [t[0], t.length > 1 ? t[1] : p[0]]);
+  if (fs >= 0) { const a = []; for (let r = 12; r >= 0 && a.length < 5; r--) if (sb[fs] >> r & 1) a.push(r); return val(5, a); }
+  const st = top(m); if (st >= 0) return val(4, [st]);
+  if (t.length) return val(3, [t[0], ...single.slice(0, 2)]);
+  if (p.length > 1) return val(2, [p[0], p[1], Math.max(...[...p.slice(2), ...single], 0)]);
+  if (p.length) return val(1, [p[0], ...single.slice(0, 3)]);
+  return val(0, single.slice(0, 5));
+}
+const catOf = v => Math.floor(v / 371293);
+const cardName = c => RANKS[c >> 2] + "shdc"[c & 3];
+function holeWords(h) {   // "two kings", "ace-queen suited"
+  const [a, b] = [h[0] >> 2, h[1] >> 2].sort((x, y) => y - x), s = (h[0] & 3) === (h[1] & 3);
+  return a === b ? `two ${RANK_WORD[a]}${a === 4 ? "es" : "s"}` : `${RANK_WORD[a]}-${RANK_WORD[b]}${s ? " suited" : ""}`;
+}
+function preScore(h) {
+  const a = h[0] >> 2, b = h[1] >> 2, hi = Math.max(a, b), lo = Math.min(a, b), suited = (h[0] & 3) === (h[1] & 3);
+  if (a === b) return Math.min(1, .5 + hi / 24);
+  return Math.min(1, hi / 12 * .45 + lo / 12 * .2 + (suited ? .08 : 0) + (hi - lo === 1 ? .06 : hi - lo === 2 ? .03 : 0));
+}
+// how good a hand is after the flop, 0..1, from what it makes and what it could make (cheap: no simulations)
+function postScore(h, board) {
+  const v = handValue([...h, ...board]), cat = catOf(v), bv = board.length >= 5 ? handValue(board) : null, bcat = board.length ? catOf(handValue(board)) : 0;
+  const hi = Math.max(...board.map(c => c >> 2));
+  let s;
+  if (cat >= 1 && cat === bcat && (bv === null || bv === v || cat <= 2)) s = cat === 1 ? .22 : cat === 2 ? .3 : .45;   // it's all on the board
+  else if (cat === 0) s = .06 + ((h[0] >> 2) > hi ? .05 : 0) + ((h[1] >> 2) > hi ? .05 : 0);
+  else if (cat === 1) { const pr = Math.floor(v / 28561) % 13, pocket = (h[0] >> 2) === (h[1] >> 2);
+    s = pocket && pr > hi ? .62 : pr >= hi ? .52 + Math.max(h[0] >> 2, h[1] >> 2) / 120 : pr >= hi - 3 ? .4 : .3; }
+  else s = [0, 0, .7, .8, .86, .88, .95, .99, 1][cat];
+  if (board.length < 5) {   // draws
+    const all = [...h, ...board], sc = [0, 0, 0, 0]; all.forEach(c => sc[c & 3]++);
+    if (cat < 5 && sc.some(n => n === 4)) s += .16;
+    let m = 0; all.forEach(c => { m |= 1 << (c >> 2); }); m = (m << 1) | ((m >> 12) & 1);
+    if (cat < 4) for (let k = 0; k <= 10; k++) if (((m >> k) & 15) === 15) { s += .1; break; }
+  }
+  return Math.min(1, s);
+}
+// ---- talk (written pools; picked by the seed) ----
+const POKER_TALK = {
+  boaz: { raise: ["Raise. Exact change only.", "I'll make it {amt}.", "Doors closing. Raise."], allin: ["All of it. Last stop.", "Everything. I don't do this often."],
+    win: ["The house thanks you.", "Next stop, my stack.", "Slow and steady. Like the 88 at rush hour."], lose: ["Fine. It's only money. Your money, next time.", "I was driving that hand very carefully. Into a wall."],
+    fold: ["Not my bus.", "I'll wait for the next one."], bad: ["Unbelievable. On the river. On my own table."], rebuy: ["Bank's open. Again."] },
+  ronit: { raise: ["Let's see who did their homework. {amt}.", "Raise. Show your working.", "{amt}. Wrong answers cost extra tonight."], allin: ["All in. Sit down, everyone.", "Everything. Prove me wrong."],
+    win: ["Thank you, class.", "Correct answer, full marks.", "I told you. I always tell you."], lose: ["Well played. Don't let it go to your head.", "Lucky. Statistically, lucky."],
+    fold: ["Not this one.", "I'll let you have it. This time."], bad: ["That's not maths, that's witchcraft."], rebuy: ["Fine. Again. Nobody say a word."], bluff: ["I had nothing. I had less than nothing."] },
+  moti: { raise: ["Raise? Why not. Life is short, the elevator is shorter.", "I'll raise. My wife would call."], allin: ["All in! In 1987 I did this with a bus pass."],
+    call: ["I call. I paid for the cards, I want to see them.", "Call. Always call. It's polite.", "I'm in. What is it, ten? I'm in."],
+    win: ["Ha! You see? You see!", "The committee wins one!"], lose: ["Easy come. Mostly easy go.", "Ah. Again. Pass me the seeds."], fold: ["Fine, fine. I fold. Under protest."],
+    bad: ["The river! The river always takes from Moti."], rebuy: ["Another fifty. Don't tell the committee."] },
+  yossi: { raise: ["Raise. I feel it.", "Suited, so it's meant. {amt}.", "Don't touch my chips. Raise."], allin: ["All in! The cap says yes!", "Everything, habibi. Everything."],
+    win: ["The cap! I told you about the cap!", "That's how it's done at the depot."], lose: ["Who touched my chips? Somebody touched my chips.", "That's it. Bad seat. This seat is cursed."],
+    fold: ["Fold. For now. The cap is resting."], bad: ["No. No no no. On the river? Again?"], rebuy: ["Rebuy. This time for real.", "Another fifty. The cap needed a warm-up."] },
+  ishai: { raise: ["Sorry. I'll, um, raise. {amt}.", "Sorry, raise. Is that okay? Raise.", "I'm going to... sorry. {amt}."], allin: ["Sorry. All in. Sorry."],
+    call: ["I'll call. I think.", "Call. Yes. Call."], win: ["Oh. Sorry. That's mine? Sorry.", "Sorry. I really didn't mean to win that.", "Oh. Thanks. Sorry."],
+    lose: ["Good hand. Really.", "Yeah, that's fair."], fold: ["Fold. Yeah. Fold.", "I'm out. Too rich for me."], bad: ["I had it. I had it, right?"], rebuy: ["I'll, um, buy back in. Fifty."] }
+};
+const POKER_SMALL = [   // two- or three-line exchanges between hands
+  [["moti", "The elevator vote is on Thursday. I want all of you there."], ["boaz", "Moti, I live on the first floor."], ["moti", "It's about principle, Boaz."]],
+  [["ronit", "Boaz copied my maths homework for two years."], ["boaz", "And you copied my chemistry. We both passed."]],
+  [["yossi", "Who's dealing? Not you, Moti, you deal like a lottery machine."], ["moti", "I deal like a gentleman."]],
+  [["ronit", "So, Ishai. What do you do?"], ["ishai", "Logos. Mostly chickpeas, lately."], ["ronit", "Chickpeas need logos?"]],
+  [["boaz", "The 88 was late today because of a goat. A real goat."], ["yossi", "I fixed that bus. It's not the bus, it's the goat."]],
+  [["moti", "You still owe the committee for the stair light, Ishai."], ["ishai", "I know. Sorry. Tomorrow."]],
+  [["yossi", "Nobody touches my chips. It's a whole system."], ["ronit", "Your system has lost twice tonight."]],
+  [["ronit", "You go quiet before you bet, Ishai. Very quiet."], ["ishai", "Do I? Sorry."]],
+  [["boaz", "Falafel, stop looking at me like that."], ["ishai", "He does that. He wants the crust."]],
+  [["moti", "In 1987 we played with matches. Real matches. Somebody lit one."], ["boaz", "Every time, Moti."]],
+  [["yossi", "Lucky cap's been washed. That's the problem. Washed the luck out."], ["ronit", "Or it's the cards you play."]],
+  [["boaz", "House rule: no phones at the table."], ["ishai", "Sorry. It's my client. He sends... sorry."]]
+];
+const POKER_PIZZA = { order: [["boaz", "Pizza. I'm ordering from ateBite. Two large."], ["moti", "Olives on one. I insist."], ["yossi", "Anything. Pizza is always lucky."], ["ronit", "Just get it here hot this time, Boaz."]],
+  ring: [["boaz", "Pizza's here. Nobody look at my cards."], ["yossi", "Hands off the last slice, it's the lucky slice."]], end: [["moti", "There's one slice left. I'm not saying who it's for. It's for me."]] };
+const POKER_HOSTS = {
+  big: ["Viewers can see it: {cards}. And he's apologising already.", "He has {cards}. His face says he has a parking ticket.", "{cards} for our man. Somebody tell him that's good."],
+  folded: ["He folded {cards}. Ronit had nothing. Oh, Ishai.", "{cards}, folded. He's being polite to the chips."],
+  won: ["He won {amt} and said sorry twice.", "A pot for Ishai! He's handling it like a lost wallet he has to return."],
+  lost: ["Ouch. He had {cards} and still lost {amt}.", "That one hurt. {amt} gone, and Falafel saw it."],
+  any: ["Poker night downstairs. Pizza, seeds and a very nervous man.", "Ronit is watching him. Ronit is always watching him.", "Yossi's lucky cap is having an off night.",
+    "Moti calls everything. It's a lifestyle.", "Boaz runs this table like a bus timetable."] };
+// a new night: seats, styles, the seed. The game itself is simulated a few hands at a time by pokerSimStep().
+function pokerNew(s, date, at) {
+  const last = s.poker && s.poker.last, nights = (s.poker && s.poker.nights) || 0, style = JSON.parse(JSON.stringify(POKER_STYLE));
+  style.ishai.aggr = Math.min(.55, style.ishai.aggr + nights * .04);   // he learns, a little each night
+  return { id: "poker-" + date, date, at, nights, style, seats: POKER_SEATS, stacks: Object.fromEntries(POKER_SEATS.map(p => [p, POKER_BUYIN])),
+    rebuys: Object.fromEntries(POKER_SEATS.map(p => [p, 0])), out: [], tilt: {}, btn: 0, n: 0, t: 3 * 60000, hands: [], talk: [], lastTalk: -1e9, lastSaid: {}, ishaiTell: 0, said: s.poker && s.poker.told ? { tell: true } : {}, done: false,
+    pizzaAt: 40 * 60000, breakAt: 75 * 60000, endAt: POKER_LEN_MIN * 60000, results: null, last: last || null };   // times are from 20:00
+}
+// one hand of hold'em, with the timeline for the page. Mutates G.
+function pokerHand(G) {
+  const r = seedRng(`${G.id}-hand-${G.n}`), live = G.seats.filter(p => !G.out.includes(p));
+  if (live.length < 2) { G.done = true; return; }
+  // the pizza and the break: nobody deals for a few minutes
+  if (!G.pizzaDone && G.t >= G.pizzaAt) { G.pizzaDone = true; const t0 = G.t; pokerSay(G, r, t0 + 4000, "ring", null, true); G.t += 4 * 60000; G.pizzaAt = t0; }
+  if (!G.breakDone && G.t >= G.breakAt) { G.breakDone = true; G.breakAt = G.t; pokerSmall(G, r, G.t + 20000, true); G.t += 5 * 60000; }
+  const deck = [...Array(52).keys()]; for (let i = 51; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+  while (G.out.includes(G.seats[G.btn % 5])) G.btn++;
+  const order = []; for (let k = 1; k <= 5; k++) { const p = G.seats[(G.btn + k) % 5]; if (!G.out.includes(p)) order.push(p); }   // small blind first
+  const H = { n: G.n, t0: G.t, btn: G.seats[G.btn % 5], stacks0: { ...G.stacks }, holes: {}, board: [], acts: [], streets: [], show: null, win: [] };
+  order.forEach(p => { H.holes[p] = [deck.pop(), deck.pop()]; });
+  const board = [deck.pop(), deck.pop(), deck.pop(), deck.pop(), deck.pop()]; H.board = board;
+  const st = Object.fromEntries(order.map(p => [p, { tot: 0, cur: 0, folded: false, allin: false }]));
+  let t = G.t + 22000, pot = 0;   // shuffle, deal, a sip, a joke
+  const put = (p, amt) => { const a = Math.min(amt, G.stacks[p]); G.stacks[p] -= a; st[p].cur += a; st[p].tot += a; pot += a; if (!G.stacks[p]) st[p].allin = true; return a; };
+  const heads = order.length === 2, sbP = heads ? order[order.length - 1] : order[0], bbP = heads ? order[0] : order[1];
+  put(sbP, POKER_SB); put(bbP, POKER_BB);
+  H.acts.push({ t: G.t + 17000, p: sbP, a: "sb", amt: POKER_SB, paid: POKER_SB, pot: POKER_SB }, { t: G.t + 18000, p: bbP, a: "bb", amt: POKER_BB, paid: POKER_BB, pot });
+  if (!G.lastTalkHand || G.n - G.lastTalkHand > 3) if (r() < .45 && t - G.lastTalk > 50000) { pokerSmall(G, r, G.t + 2000); G.lastTalkHand = G.n; }
+  const inHand = () => order.filter(p => !st[p].folded), canAct = () => order.filter(p => !st[p].folded && !st[p].allin);
+  for (let street = 0; street < 4; street++) {
+    const shown = street === 0 ? [] : board.slice(0, street + 2);
+    if (street) { if (inHand().length < 2) break; t += 4500; H.streets.push(t); order.forEach(p => { st[p].cur = 0; }); }
+    let bet = street === 0 ? POKER_BB : 0, raises = 0;
+    const first = street === 0 ? (heads ? 1 : 2 % order.length) : 0, seq = []; for (let k = 0; k < order.length; k++) seq.push(order[(first + k) % order.length]);
+    let queue = seq.filter(p => !st[p].folded && !st[p].allin), guard = 0;
+    while (queue.length && guard++ < 80) {
+      const p = queue.shift(), s0 = st[p]; if (s0.folded || s0.allin) continue;
+      if (inHand().length < 2) break;
+      if (canAct().length === 1 && bet - s0.cur <= 0) continue;   // everyone else is all in: nothing to decide
+      const sty = G.style[p], tl = (G.tilt[p] || 0) > 0, toCall = bet - s0.cur;
+      const noise = (r() - .5) * (1 - sty.skill) * .24;
+      let str = street === 0 ? preScore(H.holes[p]) : postScore(H.holes[p], shown);
+      str = Math.max(0, Math.min(1, str + noise));
+      let playT = sty.play - (tl ? .15 : 0), bluff = sty.bluff + (tl ? .15 : 0), aggr = Math.min(1, sty.aggr + (tl ? .2 : 0)), callDown = sty.callDown;
+      if (sty.adapt && G.n > 12) { const opp = inHand().filter(q => q !== p); if (opp.includes("yossi")) callDown += .1; if (opp.includes("moti")) bluff = .02; }
+      let a = "fold", amt = 0;
+      if (street === 0) {
+        const suitedPass = sty.suited && (H.holes[p][0] & 3) === (H.holes[p][1] & 3);
+        if (toCall <= 0) a = str >= sty.raise && r() < aggr + .3 ? "raise" : "check";
+        else if (raises === 0) a = (str >= sty.raise || (suitedPass && r() < .5)) && r() < aggr + .3 ? "raise" : (str >= playT || suitedPass) ? "call" : "fold";
+        else a = str >= sty.raise + .15 && r() < aggr && raises < 3 ? "raise" : (str >= playT + .08 || (callDown > .7 && str >= playT) || (suitedPass && toCall <= 40)) ? "call" : "fold";
+        if (a === "raise") amt = bet === POKER_BB && raises === 0 ? 30 + Math.floor(r() * 3) * 5 : bet * 3;
+      } else {
+        const potNow = pot;
+        if (toCall <= 0) {
+          const value = str > .62 && r() < (sty.timid && str > .7 ? aggr : aggr * 1.2 + .1);
+          a = value || (r() < bluff && raises === 0) ? "raise" : "check";
+          if (a === "raise") amt = Math.max(POKER_BB, Math.round(potNow * (.5 + r() * .25) / 5) * 5);
+        } else {
+          const po = toCall / (potNow + toCall), need = po + .12 - callDown * .25 + Math.min(.3, toCall / Math.max(1, G.stacks[p]) * .35);   // a big bet is harder to call
+          a = str > .82 && r() < aggr && raises < 3 ? "raise" : str >= need ? "call" : "fold";
+          if (a === "raise") amt = bet + Math.max(bet, Math.round(potNow * .6 / 5) * 5);
+        }
+      }
+      if (a === "check" && toCall > 0) a = "call";
+      let think = 3000 + r() * 4000 + sty.think * 1.5 + (toCall > 100 || amt > 100 ? 4000 : 0); if (think < 1500) think = 1500;
+      t += think;
+      if (a === "fold") { s0.folded = true; H.acts.push({ t, p, a, pot }); if (r() < .06) pokerSay(G, r, t + 400, "fold", p); }
+      else if (a === "check") H.acts.push({ t, p, a, pot });
+      else if (a === "call") { const paid = put(p, toCall); H.acts.push({ t, p, a: s0.allin ? "allin" : "call", amt: paid, paid, pot }); if (p === "moti" && r() < .08) pokerSay(G, r, t + 400, "call", p); }
+      else { const want = Math.min(amt - s0.cur, G.stacks[p]); if (p === "ishai" && str > .7 && r() < .7) { pokerSay(G, r, t - 1200, "raise", p, false, amt); G.ishaiTell++; }
+        const paid = put(p, want), up = s0.cur > bet; if (up) raises++;
+        H.acts.push({ t, p, a: s0.allin ? "allin" : up && bet > 0 ? "raise" : up ? "bet" : "call", amt: s0.cur, paid, pot });
+        if (p !== "ishai" && r() < (s0.allin ? .6 : bet >= 80 ? .3 : .08)) pokerSay(G, r, t + 500, s0.allin ? "allin" : "raise", p, false, s0.cur); }
+      if (a !== "fold" && s0.cur > bet) { bet = s0.cur; const ix = seq.indexOf(p);
+        queue = [...seq.slice(ix + 1), ...seq.slice(0, ix)].filter(q => !st[q].folded && !st[q].allin); }
+    }
+    if (inHand().length < 2) break;
+  }
+  // who takes the pot (side pots by what each put in)
+  const alive = inHand(), showdown = alive.length > 1;
+  const vals = Object.fromEntries(alive.map(p => [p, handValue([...H.holes[p], ...board])]));
+  const levels = [...new Set(order.map(p => st[p].tot))].filter(x => x > 0).sort((a, b) => a - b); let prev = 0; const won = {};
+  for (const lv of levels) {
+    const share = order.reduce((n, p) => n + Math.min(st[p].tot, lv) - Math.min(st[p].tot, prev), 0), elig = alive.filter(p => st[p].tot >= lv); prev = lv;
+    if (!share) continue; if (!elig.length) { const back = order.filter(p => st[p].tot >= lv); back.forEach(p => { won[p] = (won[p] || 0) + Math.floor(share / back.length); }); continue; }
+    const best = Math.max(...elig.map(p => vals[p])), ws = elig.filter(p => vals[p] === best);
+    ws.forEach((p, k) => { won[p] = (won[p] || 0) + Math.floor(share / ws.length) + (k === 0 ? share % ws.length : 0); });
+  }
+  if (showdown) { t += 3500; H.show = { t, cards: alive, hand: Object.fromEntries(alive.map(p => [p, CAT_NAME[catOf(vals[p])]])) }; t += 8000; }
+  else t += 3000;
+  Object.entries(won).forEach(([p, a]) => { G.stacks[p] += a; });
+  H.win = Object.entries(won).filter(([p, a]) => a > st[p].tot || (!showdown && a > 0)).map(([p, a]) => ({ p, amt: a }));
+  H.pot = pot; H.t1 = t + 9000; H.tot = Object.fromEntries(order.map(p => [p, st[p].tot])); H.folded = order.filter(p => st[p].folded);   // t1: the pot is pushed, chips stacked, cards gathered
+  H.board = board.slice(0, Math.min(5, H.streets.length ? H.streets.length + 2 : 0));
+  // talk after the pot: winners and losers, bad beats, a shown bluff
+  const w = H.win[0], big = pot >= 200;
+  if (w && showdown && catOf(vals[w.p]) === 0 && r() < .9) pokerSay(G, r, t + 800, "bluff", w.p);
+  else if (w && big && r() < .7) pokerSay(G, r, t + 800, "win", w.p);
+  const loser = order.filter(p => p !== (w && w.p) && st[p].tot >= 100).sort((a, b) => st[b].tot - st[a].tot)[0];
+  if (loser) { const badBeat = showdown && vals[loser] && catOf(vals[loser]) >= 3; pokerSay(G, r, t + 3200, badBeat ? "bad" : "lose", loser, badBeat ? false : r() > .5);
+    if (st[loser].tot >= 150 && G.style[loser].tilt) G.tilt[loser] = Math.round(6 * G.style[loser].tilt) + 1; }
+  Object.keys(G.tilt).forEach(p => { if (G.tilt[p] > 0) G.tilt[p]--; });
+  if (G.ishaiTell >= 3 && !G.said.tell) { G.said.tell = true; G.saidTellNow = true; pokerLines(G, t + 6000, [["ronit", "Ishai. You say sorry right before you bet big. Every single time."], ["ishai", "I do not. Sorry. Do I?"]]); }
+  // busted: one rebuy, then out
+  G.seats.forEach(p => { if (!G.out.includes(p) && G.stacks[p] <= 0) {
+    if (G.rebuys[p] < 1) { G.rebuys[p]++; G.stacks[p] = POKER_BUYIN; H.rebuy = [...(H.rebuy || []), p]; pokerSay(G, r, H.t1 - 1000, "rebuy", p, true); }
+    else { G.out.push(p); H.bust = [...(H.bust || []), p]; } }
+    if (G.stacks[p] === POKER_BUYIN && H.rebuy && H.rebuy.includes(p) || (H.bust || []).includes(p)) {   // he lost everything this hand: to whom, with what
+      const by = (H.win[0] || {}).p, theirs = by && vals[by] != null ? CAT_NAME[catOf(vals[by])] : null;
+      (G.busts || (G.busts = [])).push({ p, by, n: H.n, mine: H.holes[p] ? holeWords(H.holes[p]) : null, theirs, allin: true }); } });
+  H.stacks1 = { ...G.stacks };
+  G.hands.push(H); G.t = H.t1; G.btn++; G.n++;
+  if (G.t > G.endAt || G.seats.filter(p => !G.out.includes(p)).length < 2) G.done = true;
+}
+function pokerLines(G, t, pairs) { let k = t; pairs.forEach(([who, say]) => { G.talk.push({ t: Math.round(k), who, say }); k += 2500 + say.length * 55; }); G.lastTalk = k; }
+function pokerSay(G, r, t, kind, p, force, amt) {
+  if (!force && (t - G.lastTalk < 22000 || t - (G.lastSaid[p] || -1e9) < 60000)) return;
+  const list = p ? (POKER_TALK[p] || {})[kind] : null;
+  if (kind === "ring") { pokerLines(G, t, POKER_PIZZA.ring); return; }
+  if (!list || !list.length) return;
+  const say = list[Math.floor(r() * list.length)].replace("{amt}", amt || "");
+  G.talk.push({ t: Math.round(t), who: p, say }); G.lastTalk = t; G.lastSaid[p] = t;
+}
+function pokerSmall(G, r, t, force) {
+  const used = G.smallUsed || (G.smallUsed = []), left = POKER_SMALL.map((_, i) => i).filter(i => !used.includes(i)); if (!left.length) return;
+  if (!force && t - G.lastTalk < 30000) return;
+  const k = left[Math.floor(r() * left.length)]; used.push(k); pokerLines(G, t, POKER_SMALL[k]);
+}
+// simulate a few hands; when the night is done, work out who won what
+function pokerSimStep(G, k) {
+  if (!G.started) { G.started = true; pokerLines(G, 0, POKER_PIZZA.order);
+    const L = G.last;   // last time comes up: they remember, and so does he
+    if (L) pokerLines(G, 60000, L.bust ? [[L.bust.by, L.bust.by === "yossi" ? `Professor! Remember my ${L.bust.theirs.replace(/^a /, "")}? The cap remembers.` : `Last time I took all your chips, Ishai. ${L.bust.theirs.replace(/^a /, "").replace(/^./, c => c.toUpperCase())}. Don't take it personally.`], ["ishai", `I've been thinking about my ${L.bust.mine} for two weeks. Two weeks.`]]
+      : L.place <= 1 ? [["boaz", `Upstairs came ${ORD[L.place]} last time. Keep an eye on him.`], ["ishai", "That was luck. Sorry. Mostly luck."]]
+      : [["moti", `Last time you finished ${ORD[L.place]}, neighbour. Tonight is a new night.`], ["ishai", "Tonight I'm not saying sorry. Sorry. Starting now."]]);
+    G.lastTalk = -1e9; }
+  for (let i = 0; i < k && !G.done; i++) pokerHand(G);
+  if (G.done && !G.results) {
+    const last = G.hands[G.hands.length - 1], end = (last ? last.t1 : G.t) + 4000;
+    G.endT = end; G.results = Object.fromEntries(G.seats.map(p => [p, G.stacks[p] + (G.out.includes(p) ? 0 : 0) - POKER_BUYIN * (1 + G.rebuys[p])]));
+    G.story = pokerStory(G);
+    pokerLines(G, end + 1000, [["boaz", "Last hand. Cash out, everybody. Pizza money comes off the top."], ["moti", "Same time in two weeks. I'm bringing olives."], ["ishai", "Thanks, Boaz. Sorry about... everything. Thanks."]]);
+  }
+  return G.done;
+}
+// how the night went for Ishai, in a sentence he'd remember: his place, an all-in he lost, his best pot
+const ORD = ["first", "second", "third", "fourth", "last"];
+function pokerStory(G) {
+  const res = G.results, order = Object.keys(res).sort((a, b) => res[b] - res[a]), place = order.indexOf("ishai"), sh = Math.round(res.ishai / 10);
+  const bust = (G.busts || []).find(b => b.p === "ishai" && b.by && b.theirs), mine = G.hands.filter(h => h.holes.ishai);
+  let best = null; mine.forEach(h => { const w = h.win.find(x => x.p === "ishai"); if (!w) return; const net = w.amt - h.tot.ishai;
+    if (!best || net > best.net) best = { net, from: Object.keys(h.tot).filter(p => p !== "ishai").sort((a, b) => h.tot[b] - h.tot[a])[0], cards: holeWords(h.holes.ishai) }; });
+  const money = sh > 0 ? `${sh} shekels up` : sh < 0 ? `${-sh} shekels down` : "even";
+  let text = `Poker night at Boaz's: Ishai finished ${ORD[place]} of five, ${money}.`;
+  if (bust) text += ` He lost everything to ${P_NAME[bust.by]} in an all-in, his ${bust.mine} against ${bust.theirs}. What a bummer.`;
+  else if (best && best.net >= 100) { const n = Math.round(best.net / 10); text += ` His best moment: ${/^(8|11|18)/.test(String(n)) ? "an" : "a"} ${n}-shekel pot off ${P_NAME[best.from]} with ${best.cards}.`; }
+  if (G.saidTellNow) text += " Ronit told him he says sorry right before he bets big.";
+  return { place, sh, bust: bust ? { by: bust.by, mine: bust.mine, theirs: bust.theirs } : null, best: best && best.net >= 100 ? { sh: Math.round(best.net / 10), from: best.from, cards: best.cards } : null, text };
+}
+function lifeOf(s) { return s.life || (s.life = []); }
+function addLife(s, at, kind, text) { s.life = [...lifeOf(s), { at, kind, text: String(text).slice(0, 260), offered: 0 }].slice(-12); }
+function eventNote(s, now, company) {
+  const day = ms => new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "long" }).format(new Date(ms)); let out = "";
+  const a = arenaNext(s, now);
+  if (a && !a.skip && a.at > now && a.at - now < 4 * 86400000) out += ` Coming up: ${day(a.at)} at 20:00 at the Pump House, ${a.kind === "gallery" ? `a gallery night, "${a.title}" by ${a.artist}` : `"${a.title}"`}${a.companion && s.cast[a.companion] ? `, and ${s.cast[a.companion].name} is coming too` : ""}. He's looking forward to it.`;
+  const pk = s.poker && nextPokerAt(s, now); if (pk && pk > now && pk - now < 4 * 86400000) out += ` Coming up: poker night at Boaz's (apartment 2) on ${day(pk)} at 20:00.`;
+  const recent = lifeOf(s).filter(m => now - m.at < 10 * 86400000 && (m.offered || 0) < 3);
+  if (recent.length && Math.random() < (company ? .3 : .15)) { const m = recent[recent.length - 1 - Math.floor(Math.random() * Math.min(2, recent.length))]; m.offered = (m.offered || 0) + 1;
+    out += ` From the last few days he remembers: ${m.text} If, and only if, it fits naturally, he brings it up${company ? " with the person he is with" : " to himself (a muttered line, or to Falafel)"}, in his own words; otherwise ignore it.`; }
+  return out ? `\nIshai's evenings:${out}` : "";
+}
+// the hosts' line for a window of the night: they can see Ishai's cards
+function pokerHostLine(G, from, to, r) {
+  const hs = G.hands.filter(h => h.t0 >= from && h.t0 < to && h.holes.ishai);
+  const fill = (s, h, amt) => s.replace("{cards}", h ? holeWords(h.holes.ishai) : "").replace("{amt}", amt != null ? `${Math.round(amt / 10)} shekels` : "");
+  const won = hs.find(h => h.win.some(w => w.p === "ishai") && h.pot >= 150);
+  if (won) return fill(pickR(r, POKER_HOSTS.won), won, won.win.find(w => w.p === "ishai").amt - won.tot.ishai);
+  const lost = hs.find(h => h.tot.ishai >= 100 && !h.win.some(w => w.p === "ishai"));
+  if (lost) return fill(pickR(r, POKER_HOSTS.lost), lost, lost.tot.ishai);
+  const big = hs.find(h => preScore(h.holes.ishai) >= .75);
+  if (big) return fill(pickR(r, big.folded.includes("ishai") ? POKER_HOSTS.folded : POKER_HOSTS.big), big);
+  return pickR(r, POKER_HOSTS.any);
+}
+// the planned beat: he goes down to apt 2, plays, and goes home. Talk and cards are the page's (from /api/poker); the moments carry the hosts and the narration.
+function pokerMoments(G) {
+  const r = seedRng(G.id + "-moments"), n = Math.ceil((G.endT + 120000) / (INTERVAL_MIN * 60000)) + 1, out = [];
+  out.push({ location: "apt2", action: "poker", with: null, text: "Ishai goes down to apartment 2 for poker night at Boaz's: Boaz, his old school friend Ronit, Moti from the committee and Yossi from the bus depot. Boaz orders pizza on ateBite.",
+    lines: [], commentary: [{ who: "zohar", say: "Poker night downstairs at Boaz's. Five players, fifty shekels each, and viewers get to see Ishai's cards." }], art: { poker: G.id } });
+  for (let i = 1; i < n; i++) {
+    const from = (i - 1) * INTERVAL_MIN * 60000, to = i * INTERVAL_MIN * 60000, hs = G.hands.filter(h => h.t0 >= from && h.t0 < to);
+    const pizza = G.pizzaAt >= from && G.pizzaAt < to;
+    const text = pizza ? "The ateBite courier brings two large pizzas to Boaz's door; the game stops for slices."
+      : hs.length ? `Poker at Boaz's, hands ${hs[0].n + 1}-${hs[hs.length - 1].n + 1}. Ishai has ${hs.map(h => holeWords(h.holes.ishai || [0, 1])).slice(0, 3).join(", ")}.` : G.breakAt >= from && G.breakAt < to ? "A short break at the poker table: seeds, pizza crusts and committee business." : "Chips are counted out and Boaz reads the house rules off the card taped to the cabinet.";
+    out.push({ location: "apt2", action: "poker", with: null, text, lines: [], commentary: i % 2 ? [{ who: i % 4 === 1 ? "oren" : "zohar", say: pokerHostLine(G, from, to, r) }] : [], art: { poker: G.id }, delivery: pizza || undefined });
+  }
+  const res = G.results ? G.results.ishai : 0, sh = Math.round(Math.abs(res) / 10);
+  out.push({ location: "corridor", action: "walking", with: null, text: `Poker night is over. Ishai climbs the stairs home. ${G.story ? G.story.text : ""}`.slice(0, 250),
+    lines: [], commentary: [{ who: "oren", say: res > 0 ? `He won ${sh} shekels and he's going to feel bad about it all week.` : res < 0 ? `${sh} shekels lighter. Cheaper than therapy, says Zohar.` : "Even money. The most Ishai result possible." }] });
+  return out;
+}
+// every second Monday, counted from the first night
+function nextPokerAt(s, now) {
+  const first = Date.parse(POKER_FIRST + "T00:00:00Z");
+  for (let k = 0; k < 30; k++) {
+    const day = dayOfTZ(now + k * 86400000), d0 = Date.parse(day + "T00:00:00Z");
+    if (d0 < first || Math.round((d0 - first) / 86400000) % 14 || (s.world?.holidays || []).some(h => h.date === day)) continue;
+    const [y, m, d] = day.split("-").map(Number), u = Date.UTC(y, m - 1, d, POKER_H), t = u - tzOffset(u);
+    if (t + (POKER_LEN_MIN + 30) * 60000 > now) return t;
+  }
+  return null;
+}
+function pokerOf(s) { return s.poker || (s.poker = { nights: 0, build: null, ready: {}, err: null }); }
+async function pokerTick(env, s, now) {
+  const P = pokerOf(s), t = nextPokerAt(s, now); if (!t || P.off) return;
+  const date = dayOfTZ(t);
+  if (P.ready[date]) {   // built: schedule the beat a day ahead; afterwards, the players remember the night
+    const R = P.ready[date];
+    if (!R.goalId && t - now < 30 * 3600000 && t - 40 * 60000 > now) {
+      const g = newGoal({ id: R.id, goal: "Ishai goes down to apartment 2 for poker night at Boaz's.", startAt: new Date(t - 30 * 60000).toISOString(), sceneAt: new Date(t - 6 * 60000).toISOString(), deadlineAt: new Date(t + 10 * 60000).toISOString(), location: "apt2" }, now);
+      g.id = R.id; g.fixed = true; g.script = cleanScript(R.moments, 40); s.director = s.director.filter(d => d.id !== R.id || d.status !== "done"); s.director.push(g); R.goalId = R.id;
+    }
+    const g = R.goalId && s.director.find(d => d.id === R.goalId);
+    if (g && g.status === "done" && !R.remembered) { R.remembered = true; P.nights++;
+      if (R.story) { addLife(s, now, "poker", R.story.text); P.last = { place: R.story.place, bust: R.story.bust }; if (/Ronit told him/.test(R.story.text)) P.told = true; }
+      const res = R.results || {}, sh = p => Math.round((res[p] || 0) / 10), word = p => sh(p) > 0 ? `won ${sh(p)}` : sh(p) < 0 ? `lost ${-sh(p)}` : "broke even";
+      const mem = { boaz: `Hosts poker every second Monday. Ishai from upstairs plays now; last time he ${word("ishai")} shekels. Quiet, apologises too much.`,
+        ronit: `Plays at Boaz's. Noticed Ishai says sorry right before he bets big. Last time she ${word("ronit")} shekels.`,
+        moti: `Plays at Boaz's and calls every bet. Last time he ${word("moti")} shekels. Ishai still owes the committee for the stair light.`,
+        yossi: `Plays at Boaz's with his lucky cap. Last time he ${word("yossi")} shekels. Calls Ishai "professor".` };
+      if (R.story && R.story.bust && mem[R.story.bust.by]) mem[R.story.bust.by] = `Took all of Ishai's chips at Boaz's poker in an all-in (${R.story.bust.theirs} against his ${R.story.bust.mine}). ` + mem[R.story.bust.by].split(". ").slice(0, 1).join("") + ".";
+      Object.entries(mem).forEach(([id, m]) => { const c = s.cast[id]; if (c) { c.memory = m.slice(0, 180); c.relationship = clamp((c.relationship || 0) + 1, -5, 5); } });
+    }
+    for (const d of Object.keys(P.ready)) if (Date.parse(d) < now - 15 * 86400000) delete P.ready[d];
+    return;
+  }
+  if (t - now > 4 * 86400000) return;
+  if (!P.build || P.build.date !== date) P.build = pokerNew(s, date, t);
+  const G = P.build;
+  if (!pokerSimStep(G, POKER_HANDS_PER_TICK)) return;
+  const data = { id: G.id, date: G.date, at: G.at, seats: G.seats, hands: G.hands, talk: G.talk.sort((a, b) => a.t - b.t), pizzaAt: G.pizzaAt, breakAt: G.breakAt, endT: G.endT, results: G.results, buyin: POKER_BUYIN };
+  await env.ISHAI.put("poker:" + date, JSON.stringify(data));
+  P.ready[date] = { id: G.id, date, at: t, endT: G.endT, results: G.results, story: G.story, moments: pokerMoments(G) }; P.build = null;
+}
+function pokerPublic(s, now) {
+  const P = s.poker, t = P && nextPokerAt(s, now); if (!t) return null; const R = P.ready[dayOfTZ(t)];
+  return R ? { id: R.id, date: R.date, at: R.at, end: R.at + R.endT, live: now >= R.at - 20 * 60000 && now < R.at + R.endT + 15 * 60000 } : null;
+}
+const pokerHealth = s => { const P = s.poker; if (!P) return null; return { nights: P.nights, building: P.build ? { date: P.build.date, hands: P.build.hands.length } : null,
+  ready: Object.values(P.ready).map(R => ({ id: R.id, results: R.results, goal: R.goalId || null, remembered: !!R.remembered })), err: P.err }; };
 function newGoal(d, now) {
   const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
   return {

@@ -338,6 +338,8 @@
     park:      ['walking','idle','talking','reading','eating','drinking','exercising','phoning'],
     plaza:     ['walking','idle','talking','eating','drinking','phoning'],
     arena:     ['idle','walking','talking','drinking','phoning','gallery'],
+    apt2:      ['idle','talking','eating','drinking','phoning','poker'],
+    hall1:     ['walking','idle'],   // the first-floor landing, page only: on the way to and from apartment 2
     cafe:      ['idle','eating','drinking','working','reading','talking','phoning'],
     gym:       ['exercising','idle','talking','drinking','phoning'],
     market:    ['walking','idle','talking','eating','drinking','phoning'],
@@ -984,6 +986,8 @@
     if (loc==='campus') return 60;                          // the lecture building's doors
     if (loc==='plaza') return nearX > 110 ? W+8 : 60;       // the park path, or the Pump House doors
     if (loc==='arena') return W+8;                          // the hall's door, on the right
+    if (loc==='apt2') return 4;                             // Boaz's front door
+    if (loc==='hall1') return nearX > W/2 ? 178 : 8;        // stairs up or down
     if (loc==='cafe' || loc==='gym' || loc==='bar' || loc==='store') return 4;   // café / gym / bar entrance door (left)
     return nearX > W/2 ? W+8 : -18;                         // street and park: nearest edge
   }
@@ -2015,6 +2019,191 @@
     }
   };
 
+  // ---------- the first-floor landing (page only: on the way to and from apartment 2) ----------
+  SCENES.hall1 = {
+    cam:'CAM-21', place:'BUILDING // 1ST FLOOR HALL', walkY:74, entry:178, exit:178,
+    stand:{idle:70, walking:70},
+    draw(t,hf,a,settled,actor){
+      R(0,0,W,56,'#76685a'); R(0,56,W,24,'#57493d'); R(0,55,W,1,'#968670'); R(0,78,W,2,'#3a3129');
+      for (let x=0;x<W;x+=12) R(x,56,1,22,'#4c4034');
+      for (let y=80,i=0;y<H;y+=7,i++) for (let x=(i%2)*7-7;x<W;x+=14) { R(x,y,7,7,'#3f3f46'); R(x+7,y,7,7,'#4a4a52'); }
+      [40,110].forEach(x => { R(x,0,14,2,'#fff6c8'); alpha(.10,()=>R(x-10,2,34,40,'#fff6c8')); });
+      R(80,4,22,9,'#2a2a2a'); word('1ST',83,6,'#e8e0c8');   // the floor number
+      const door = (x, c, n) => { R(x,34,18,44,'#3e2f22'); R(x+2,36,14,42,c); R(x+13,56,2,2,C.gold); R(x+5,40,8,7,'#c9b37a'); word(String(n), x+7, 41, '#2a2018'); };
+      door(36,'#6a4e38',1); door(88,'#5a6a3a',2); door(136,'#6a4e38',3);
+      if (doorBusy(97)) openDoor(90,36,14,42);
+      R(86,96,22,3,'#3a6a3a'); word('BOAZ',90,97,'#d8e8c8');            // Boaz's doormat
+      R(110,50,4,6,'#d8d0c0'); R(111,52,2,2, Math.floor(t/4000)%2 ? '#ffb030' : '#7a5a20');   // the stair-light timer switch
+      // stairs down to the street (left), stairs up to the second floor (right)
+      R(0,34,22,44,'#1c1c1c'); R(2,62,18,4,'#2a2a2a'); R(2,68,16,4,'#2f2f2f'); R(2,74,14,4,'#333'); R(4,24,14,6,'#1f7a3a'); R(6,26,10,2,'#d8ffd8');
+      R(172,34,20,44,'#1c1c1c'); R(174,38,16,4,'#2a2a2a'); R(176,44,14,4,'#2f2f2f'); R(178,50,12,4,'#333'); R(180,56,10,4,'#383838');
+      // a bicycle chained to the rail
+      R(24,64,2,14,'#7a7a7a'); R(26,70,10,1,'#c23b3b'); R(24,72,5,5,'#222'); R(33,72,5,5,'#222'); R(25,73,3,3,'#57493d'); R(34,73,3,3,'#57493d');
+      drawFloor(t,a,settled,actor,this);
+      liveLayer(t, this);
+      if (isNight(hf)) alpha(.15,()=>R(0,0,W,H,'#050a1e'));
+    }
+  };
+  // ---------- poker night at Boaz's (apartment 2): the game comes from /api/poker and plays by the clock (docs/POKER_PLAN.md) ----------
+  let POKER = null; const POKER_SEATX = {yossi:20, ronit:56, ishai:88, boaz:120, moti:156}, POKER_FACE = {yossi:1, ronit:0, ishai:0, boaz:0, moti:-1};
+  const POKER_ARRIVE = {boaz:-1e9, moti:-10*60000, ronit:-60000, yossi:2*60000}, POKER_LEAVE = {yossi:60000, ronit:80000, moti:100000};
+  const POKER_LOOK = {boaz:{hair:'short',hairColor:'gray',skin:'tan',shirt:'navy',pants:'gray',extras:['mustache']}, ronit:{hair:'long',hairColor:'black',skin:'brown',shirt:'red',pants:'black',extras:['glasses','earring']},
+    moti:{hair:'bald',hairColor:'white',skin:'fair',shirt:'white',pants:'brown',extras:['glasses','scarf']}, yossi:{hair:'cap',hairColor:'black',skin:'dark',shirt:'orange',pants:'black',extras:['beard']}};
+  let pokerWant = null;
+  function pokerSync(p){   // the state says a poker night is near: fetch it once
+    if (!p || !p.date || (POKER && POKER.id === p.id) || pokerWant === p.id) return;
+    if (!p.live && actor.loc !== 'apt2') return;
+    pokerWant = p.id; fetch('/api/poker?date=' + p.date).then(r => r.ok ? r.json() : null).then(d => { if (d && d.hands) POKER = d; }).catch(() => {}).finally(() => { pokerWant = null; });
+  }
+  const PK_RANK = '23456789TJQKA', PK_SUIT = [['00100','01110','11111','11111','00100'], ['01010','11111','11111','01110','00100'], ['00100','01110','11111','01110','00100'], ['01110','01110','11111','11111','00100']];
+  function pkCard(c, x, y, dim){
+    if (c == null){ R(x,y,9,13,'#7a1a20'); R(x+1,y+1,7,11,'#a83a2a'); for (let i=0;i<3;i++) R(x+2+i*2,y+3+i*2,1,1,'#e0a080'); return; }
+    const red = (c & 3) === 1 || (c & 3) === 2, ink = dim ? '#9a9a9a' : red ? '#c8202a' : '#1a1a1a';
+    R(x,y,9,13, dim ? '#b8b6ae' : '#f4f2ea'); word(PK_RANK[c >> 2], x+1, y+1, ink);
+    PK_SUIT[c & 3].forEach((row, j) => [...row].forEach((b, i) => { if (b === '1') R(x+2+i, y+7+j, 1, 1, ink); }));
+  }
+  // the 7-card ranking, the same as the worker's
+  function pkValue(cs){
+    const rc = new Array(13).fill(0), sc = [0,0,0,0], sb = [0,0,0,0]; let m = 0;
+    for (const c of cs){ const r = c >> 2, s = c & 3; rc[r]++; sc[s]++; sb[s] |= 1 << r; m |= 1 << r; }
+    const top = bits => { const b = (bits << 1) | ((bits >> 12) & 1); for (let h = 13; h >= 4; h--) if (((b >> (h - 4)) & 31) === 31) return h - 1; return -1; };
+    const val = (cat, ks) => { let v = cat; for (let i = 0; i < 5; i++) v = v * 13 + (ks[i] || 0); return v; };
+    const fs = sc.findIndex(n => n >= 5); if (fs >= 0){ const sf = top(sb[fs]); if (sf >= 0) return val(8, [sf]); }
+    const by = n => { const a = []; for (let r = 12; r >= 0; r--) if (rc[r] === n) a.push(r); return a; };
+    const q = by(4), t3 = by(3), p = by(2), single = by(1);
+    if (q.length) return val(7, [q[0], Math.max(...[...t3, ...p, ...single].filter(r => r !== q[0]))]);
+    if (t3.length && (t3.length > 1 || p.length)) return val(6, [t3[0], t3.length > 1 ? t3[1] : p[0]]);
+    if (fs >= 0){ const a = []; for (let r = 12; r >= 0 && a.length < 5; r--) if (sb[fs] >> r & 1) a.push(r); return val(5, a); }
+    const st = top(m); if (st >= 0) return val(4, [st]);
+    if (t3.length) return val(3, [t3[0], ...single.slice(0, 2)]);
+    if (p.length > 1) return val(2, [p[0], p[1], Math.max(...[...p.slice(2), ...single], 0)]);
+    if (p.length) return val(1, [p[0], ...single.slice(0, 3)]);
+    return val(0, single.slice(0, 5));
+  }
+  // Ishai's chance to win against random hands of the players still in (so it gives nothing away), seeded: the same number for everyone
+  const pkEqCache = {};
+  function pkEquity(hole, board, opp, key){
+    if (pkEqCache[key] != null) return pkEqCache[key];
+    let seed = strHash(key) || 1; const rnd = () => { seed = (seed * 1103515245 + 12345) >>> 0; return seed / 4294967296; };
+    const used = new Set([...hole, ...board]), deck = [...Array(52).keys()].filter(c => !used.has(c)); let win = 0, N = 250;
+    for (let i = 0; i < N; i++){
+      for (let k = deck.length - 1; k > deck.length - 1 - (opp * 2 + 5 - board.length) && k > 0; k--){ const j = Math.floor(rnd() * (k + 1)); [deck[k], deck[j]] = [deck[j], deck[k]]; }
+      let at = deck.length - 1; const b = [...board]; while (b.length < 5) b.push(deck[at--]);
+      const mine = pkValue([...hole, ...b]); let best = 0, tie = 0;
+      for (let o = 0; o < opp; o++){ const v = pkValue([deck[at--], deck[at--], ...b]); if (v > best){ best = v; tie = 0; } if (v === best) tie++; }
+      if (mine > best) win++; else if (mine === best) win += 1 / (tie + 1);
+    }
+    return pkEqCache[key] = Math.round(win / N * 100);
+  }
+  // what the table looks like right now (all from the clock)
+  function pokerView(){
+    if (!POKER || DREAMING || BUILDER) return null;
+    const T = NOW() - POKER.at; if (T < -15 * 60000 || T > POKER.endT + 12 * 60000) return null;
+    const hs = POKER.hands; let h = null; for (const x of hs){ if (x.t0 <= T) h = x; else break; }
+    const v = {T, h, stacks: {}, contrib: {}, folded: new Set(), last: {}, board: [], pot: 0, show: false, done: false, winners: [], over: T > POKER.endT};
+    if (!h){ POKER.seats.forEach(p => { v.stacks[p] = POKER.buyin; }); return v; }
+    const pushT = h.t1 - 9000; v.done = T >= pushT;
+    POKER.seats.forEach(p => { v.stacks[p] = h.stacks0[p]; v.contrib[p] = 0; });
+    h.acts.forEach(a => { if (a.t > T) return; if (a.paid){ v.contrib[a.p] += a.paid; v.stacks[a.p] -= a.paid; v.pot += a.paid; } if (a.a === 'fold') v.folded.add(a.p); v.last[a.p] = a; });
+    v.board = h.board.slice(0, h.streets.filter(s => s <= T).length ? h.streets.filter(s => s <= T).length + 2 : 0);
+    v.show = !!(h.show && T >= h.show.t);
+    if (v.done){ v.stacks = {...h.stacks1}; v.pot = 0; v.winners = h.win; }
+    return v;
+  }
+  function pokerSeat(id, T){   // where a player is: walking in, seated, walking out, or not here
+    const x = POKER_SEATX[id], arr = POKER_ARRIVE[id] || 0, lv = POKER.endT + (POKER_LEAVE[id] || 1e12), d = Math.abs(x - 4) / 24 * 1000;
+    if (T < arr) return null;
+    if (T < arr + d) return {x: 4 + (x - 4) * (T - arr) / d, walk: true, dir: 1};
+    if (T < lv) return {x, seated: true};
+    if (T < lv + d) return {x: x + (4 - x) * (T - lv) / d, walk: true, dir: -1};
+    return null;
+  }
+  SCENES.apt2 = {
+    cam:'CAM-22', place:'APARTMENT 2 // BOAZ', walkY:50, entry:4, exit:4,
+    stand:{idle:60, talking:60, eating:60, drinking:60, phoning:60, poker:88},
+    draw(t,hf,a,settled,actor){
+      const night = isNight(hf), v = pokerView(), T = v ? v.T : 0;
+      // faded green walls, a dado rail, the old patterned tiles
+      R(0,0,W,72,'#6f8a6a'); R(0,44,W,28,'#5e7a5a'); R(0,43,W,1,'#8aa486');
+      R(0,72,W,36,'#c8b89a'); for (let x=0;x<W;x+=8) for (let y=72;y<H;y+=8) R(x+3,y+3,2,2,(x+y)%16 ? '#a8564a' : '#4a6a8a');
+      // the door (left), the china cabinet with the fish tank, the bus photo, the clock, the TV, the balcony door
+      R(0,24,16,48,'#3e2f22'); R(2,26,12,46,'#6a4e38'); R(11,48,2,2,C.gold); if (doorBusy(9)) openDoor(2,26,12,46);
+      R(22,14,30,46,'#5a3a24'); R(24,18,26,18,'#9ab0b8'); R(24,38,26,20,'#4a2e1a'); for (let i=0;i<4;i++) R(26+i*6,24,4,3,'#f4f0e4'); R(36,18,1,18,'#5a3a24');
+      R(24,6,18,8,'#2a4a5a'); R(25,7,16,6,'#3a7a9a'); { const f = Math.floor(t/600) % 12; R(26 + f, 9, 2, 1, '#ff8a3a'); R(38 - (f % 8), 11, 2, 1, '#ffd36a'); } R(30 + Math.floor(t/300)%3,8,1,1,'#cfefff');
+      R(62,10,18,13,'#3a2a1a'); R(63,11,16,11,'#a8c8e0'); R(64,16,12,5,'#2f6fb5'); R(65,17,2,2,'#f2f2f2'); R(70,17,2,2,'#f2f2f2'); R(64,21,2,1,'#111'); R(73,21,2,1,'#111');   // the 88 bus, with Boaz waving
+      R(92,6,12,12,'#f4f0e4'); R(92,6,12,1,'#3a3a44'); R(92,17,12,1,'#3a3a44'); R(92,6,1,12,'#3a3a44'); R(103,6,1,12,'#3a3a44');
+      { const d = new Date(NOW()), hh = (d.getHours() % 12) / 12, mm = d.getMinutes() / 60; R(97 + Math.round(Math.sin(hh*6.28)*2), 11 - Math.round(Math.cos(hh*6.28)*2), 1, 1, '#222'); R(97 + Math.round(Math.sin(mm*6.28)*4), 11 - Math.round(Math.cos(mm*6.28)*4), 1, 1, '#c22'); }
+      R(146,22,30,20,'#1a1a1a'); R(148,24,26,16, '#2a6a3a'); R(158,30,6,4,'#f2f2f2'); R(150,26,2,2,'#ffd36a'); R(156,42,10,14,'#4a2e1a');   // 8bitTV sports, sound off
+      R(180,18,12,54,'#d8d0c0'); R(182,20,8,50,'#8ab0c8'); R(178,64,6,8,C.terracotta); R(179,58,1,6,C.leaf); R(181,57,1,7,C.leafDark);
+      // the lamp low over the table
+      R(95,0,1,26,'#2a2a2a'); R(86,26,20,5,'#2f5a3a'); R(88,31,16,1,'#ffe9a8');
+      zOn();
+      // the players: seated behind the table, or walking in from the door / out to it
+      const here = v && !actor.hidden ? Object.keys(POKER_SEATX).filter(id => id !== 'ishai').map(id => [id, pokerSeat(id, T)]).filter(([, s]) => s) : [];
+      here.forEach(([id, s]) => { const X = Math.round(s.x);
+        zAdd(s.seated ? 70 : 72, () => { if (s.seated){ R(X-2,44,14,12,'#4a2e1a'); markHead(id, X, 50); person(POKER_LOOK[id], X, 50, t + strHash(id) % 900, {legs:false, face: POKER_FACE[id], talkPhase: SAY.who === id}); }
+          else { markHead(id, X, this.walkY); person(POKER_LOOK[id], X, this.walkY, t, {walk:true, face: s.dir}); } }); });
+      const seated = settled && a === 'poker' && !actor.travelling;
+      if (seated) zAdd(70.5, () => { R(86,44,14,12,'#4a2e1a'); drawIshai(SAY.who === 'ishai' ? 'talking' : 'idle', 88, 50, t, {seated:true}); });
+      else drawFloor(t,a,settled,actor,this);
+      // the table: felt, chips, cards, pizza
+      zAdd(100, () => {
+        R(8,68,176,1,'#4a8a50'); R(8,69,176,6,'#2f6b3a'); R(8,75,176,9,'#5a3a24'); R(8,75,176,1,'#7a5234'); R(14,84,4,12,'#4a2e1a'); R(174,84,4,12,'#4a2e1a');
+        R(80,70,4,3,'#e8dcc0'); R(84,71,3,2,'#6a5a3a'); R(108,70,3,4,'#5a3a1a'); R(112,70,3,4,'#5a3a1a'); R(150,70,3,4,'#7a1abf');   // seeds, shells, bottles, a Cooola
+        if (v && v.T > POKER.pizzaAt + 40000){ R(10,64,20,5,'#e8dcc0'); R(10,64,20,1,'#e86a1a'); R(12,62,16,2,'#e8dcc0'); R(40,70,6,3,'#e8b84a'); R(41,70,2,1,'#c8402a'); }   // the ateBite boxes, a slice
+        if (!v || !v.h) return;
+        const h = v.h;
+        Object.keys(POKER_SEATX).forEach(id => { if (!(id in v.stacks)) return; const X = POKER_SEATX[id], n = Math.min(6, Math.ceil(v.stacks[id] / 150));
+          for (let k = 0; k < n; k++) R(X + 1 + (k % 3) * 3, 72 - Math.floor(k / 3) * 2, 2, 2, ['#e8e8e8','#c23b3b','#2f6fb5'][k % 3]);
+          if (id === h.btn){ R(X + 11, 71, 3, 3, '#f4f4f4'); R(X + 12, 72, 1, 1, '#222'); }
+          if (h.holes[id] && !v.folded.has(id) && !v.done){ if (v.show && h.show.cards.includes(id)) { pkCard(h.holes[id][0], X - 4, 56); pkCard(h.holes[id][1], X + 6, 56); } else { R(X, 68, 4, 3, '#a83a2a'); R(X + 3, 67, 4, 3, '#c84a3a'); } } });
+        if (v.pot) for (let k = 0; k < Math.min(8, Math.ceil(v.pot / 40)); k++) R(92 + (k % 4) * 3, 72 - Math.floor(k / 4) * 2, 2, 2, ['#e8e8e8','#c23b3b','#2f6fb5','#3a9a4a'][k % 4]);
+        v.board.forEach((c, i) => { R(66 + i * 12, 69, 10, 4, '#f4f2ea'); R(67 + i * 12, 70, 3, 1, (c & 3) === 1 || (c & 3) === 2 ? '#c8202a' : '#1a1a1a'); });
+      });
+      // the pizza courier (ateBite) at the door
+      if (v && POKER.pizzaAt){ const e = (v.T - POKER.pizzaAt) / 1000; if (e >= 0 && e < 40){ const X = e < 6 ? 4 + e * 5 : e < 32 ? 34 : 34 - (e - 32) * 5;
+        zAdd(73, () => { person(EXTRA.courier, X, this.walkY, t, {walk: e < 6 || e > 32, face: e < 32 ? 1 : -1}); ateHelmet(X, this.walkY); if (e < 30) ateBox(X + (e < 32 ? 9 : -5), this.walkY + 8); }); } }
+      liveLayer(t, this); zFlush();
+      if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
+      alpha(.16,()=>{ R(30,32,132,44,'#fff0b8'); R(50,28,92,4,'#fff0b8'); });   // the lamp's pool of light
+      if (v && v.h && !actor.hidden && actor.loc === 'apt2') pokerOverlay(v, t);
+    }
+  };
+  // the TV-style strip: Ishai's cards (the viewers' secret), the board, the pot, his chance; tags over the players
+  function pokerOverlay(v, t){
+    const h = v.h, me = h.holes.ishai, out = !me || v.folded.has('ishai');
+    Object.keys(POKER_SEATX).forEach(id => { if (!(id in v.stacks) || (id !== 'ishai' && !pokerSeat(id, v.T)?.seated)) return;
+      const X = POKER_SEATX[id] + 5, ink = INK[id] || '#e8e8e8', st = String(v.stacks[id]);
+      R(X - st.length * 2 - 1, 38, st.length * 4 + 1, 7, '#0b0d10'); word(st, X - st.length * 2, 39, ink);
+      const la = v.last[id], fresh = la && v.T - la.t < 4000 && !v.done;
+      const win = v.done && v.T < v.h.t1 && v.winners.find(w => w.p === id);
+      const tag = win ? 'WINS ' + win.amt : fresh ? ({fold:'FOLD', check:'CHECK', call:'CALL', bet:'BET ' + la.amt, raise:'RAISE ' + la.amt, allin:'ALL IN', sb:'', bb:''})[la.a] : '';
+      if (tag){ const w = tag.length * 4; R(X - w/2 - 1, 30, w + 1, 7, win ? '#2f6b3a' : '#2a2a30'); word(tag, Math.round(X - w/2), 31, win ? '#d8ffd8' : '#f2f2f2'); } });
+    alpha(.9, () => R(0, 79, W, 17, '#0b0d10')); R(0, 79, W, 1, '#2a6a5a');
+    if (me){ alpha(out ? .45 : 1, () => { pkCard(me[0], 3, 81); pkCard(me[1], 14, 81); }); }
+    word('ISHAI', 26, 81, INK.ishai || '#24998a'); word(String(v.stacks.ishai ?? ''), 26, 88, '#e8e8e8');
+    for (let i = 0; i < 5; i++) pkCard(v.board[i] ?? null, 56 + i * 11, 81);
+    word('POT', 116, 81, '#a8a8a8'); word(String(v.pot), 116, 88, '#ffd36a');
+    let eq = '-'; if (me && !out && !v.done){ const opp = Object.keys(h.holes).filter(p => p !== 'ishai' && !v.folded.has(p)).length; if (opp) eq = pkEquity(me, v.board, opp, `${POKER.id}-${h.n}-${v.board.length}-${opp}`) + '%'; }
+    word('WIN', 146, 81, '#a8a8a8'); word(eq, 146, 88, '#7dff8a');
+    word('HAND ' + (h.n + 1), 162, 88, '#6a6a6a');
+  }
+  // the table's talk and sounds, on the clock (nothing is replayed: a viewer who joins late just hears what comes next)
+  let pkTalkI = 0, pkActI = '', pkLastT = 0;
+  setInterval(() => {
+    if (!POKER || actor.loc !== 'apt2' || actor.hidden || forceLoc) return;
+    const T = NOW() - POKER.at; if (T < pkLastT - 5000) { pkTalkI = 0; pkActI = ''; } pkLastT = T;
+    const talk = POKER.talk || [];
+    while (pkTalkI < talk.length && talk[pkTalkI].t <= T){ const c = talk[pkTalkI++]; if (T - c.t > 4000) continue;
+      if (c.who === 'ishai' && !(actor.action === 'poker')) continue;
+      showSay(c.who, c.say); holdSay(2400 + c.say.length * 55); Sound.say(c.who, c.say); }
+    const v = pokerView(); if (!v || !v.h) return; const h = v.h;
+    const key = (k) => `${h.n}:${k}`; const fire = (k, fn) => { if (pkActI.includes('|' + key(k) + '|')) return; pkActI = (pkActI + '|' + key(k) + '|').slice(-400); fn(); };
+    if (T - h.t0 < 6000) fire('shuffle', () => Sound.sfx('shuffle'));
+    h.acts.forEach((a, i) => { if (a.t <= T && T - a.t < 1500 && a.paid) fire('a' + i, () => Sound.sfx('chips')); });
+    h.streets.forEach((s, i) => { if (s <= T && T - s < 1500) fire('s' + i, () => Sound.sfx('card')); });
+    if (POKER.pizzaAt && T - POKER.pizzaAt > 0 && T - POKER.pizzaAt < 2500) fire('pizza', () => Sound.bell());
+  }, 300);
   // ---------- cafe ----------
   SCENES.cafe = {
     cam:'CAM-05', place:'CAFE NAHAT // CORNER TABLE', walkY:74, entry:4, exit:4,
@@ -2645,7 +2834,7 @@
               phone:   {alone:3, company:1, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} }
   };
   // which actions can be interrupted, and how often (share of 45 s blocks that get a routine), alone / with company
-  const SEATED_AT = { cafe:['eating','drinking','working','reading','talking'], bar:['eating','drinking','talking'], park:['eating','reading'], classroom:['lecture','idle','talking'] };
+  const SEATED_AT = { cafe:['eating','drinking','working','reading','talking'], bar:['eating','drinking','talking'], park:['eating','reading'], apt2:['poker'], classroom:['lecture','idle','talking'] };
   const ERR_CHANCE = { idle:[.45,.3], talking:[0,.2], eating:[0,.12], drinking:[0,.12] };   // seated activities fidget in the seat instead (seatFid)
   const hash = n => { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4); n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; };
   function errandNow(){
@@ -2753,8 +2942,10 @@
   const MAP = {
     apartment: { corridor: {exit:135, entry:135}, bathroom: {exit:48, entry:48} },   // front door, bathroom door
     bathroom:  { apartment: {exit:9, entry:9} },                                      // bathroom door -> apartment
-    corridor:  { apartment: {exit:40, entry:40}, street: {exit:178, entry:178} },     // apt 4 door, stairs
-    street:    { corridor: {exit:26, entry:26},                                       // building entrance
+    corridor:  { apartment: {exit:40, entry:40}, street: {exit:178, entry:178}, hall1: {exit:178, entry:178} },     // apt 4 door, stairs (down to the street, or to the first floor)
+    hall1:     { corridor: {exit:178, entry:178}, street: {exit:8, entry:8}, apt2: {exit:92, entry:92} },  // first-floor landing (page only): stairs up, stairs down, apt 2's door
+    apt2:      { hall1: {exit:4, entry:4} },                                         // Boaz's front door
+    street:    { corridor: {exit:26, entry:26}, hall1: {exit:26, entry:26},          // building entrance (up to his floor, or to the first floor)
                  west1: {exit:-14, entry:-14},                                        // left edge -> Herzl St. west, on the way to the park
                  shops: {exit:W+8, entry:W+8},                                        // right edge -> Herzl St. east (the shops)
                  gym: {exit:64, entry:64},                                            // Herzl Gym door (blue building)
@@ -3189,6 +3380,10 @@
         bed(brown,'bandpass',600,.2);
         loop(2500, 4000, () => { const f = 300 + Math.random()*200; for (let i=0;i<3;i++) tone(f*(1+(i%2)*.25), .14, 'square', .02, i*.16, dest, .9); });   // vendors calling prices
         loop(9000, 9000, () => noise(1.8,{vol:.1,type:'lowpass',freq:250,sweep:[1200,250],buf:brown,dest}));
+      } else if (loc === 'apt2'){
+        bed(brown,'lowpass',260,.05); hum(110,.003);                                                     // a lived-in flat, the fish tank's pump
+        loop(1500, 2500, () => tone(900 + Math.random()*500, .04, 'sine', .015, 0, dest, 1.6));          // bubbles
+      } else if (loc === 'hall1'){ bed(brown,'lowpass',300,.07); hum(100,.008);
       } else if (loc === 'plaza'){
         bed(brown,'lowpass',460,.08);                                                                    // the park next door, a little traffic far off
         loop(2600, 4500, () => { const f = 2300 + Math.random()*1300; tone(f, .07, 'sine', .03, 0, dest, 1.3); });
@@ -3264,6 +3459,9 @@
       switch(kind){
         case 'type': { let w = 0; for (let i = 0; i < 7 + Math.floor(r()*6); i++){ noise(.012,{vol:.045,type:'highpass',freq:3200+r()*800,when:w}); w += .06 + r()*.09; } if (r() < .5) noise(.03,{vol:.05,type:'lowpass',freq:500,when:w+.05}); break; }
         case 'mouse': tone(1900,.01,'square',.03); tone(1900,.01,'square',.03,.13); break;
+        case 'chips': for (let i = 0; i < 3 + Math.floor(r()*3); i++) tone(2600 + r()*900, .025, 'triangle', .03, i*.05 + r()*.02); break;   // chips on felt
+        case 'shuffle': { let w = 0; for (let i = 0; i < 18; i++){ noise(.02,{vol:.04,type:'highpass',freq:2500+r()*1500,when:w}); w += .025 + r()*.02; } break; }
+        case 'card': noise(.03,{vol:.04,type:'bandpass',freq:3200,q:2}); break;
         case 'chair': tone(130 + r()*40,.35,'sawtooth',.018,0,out,1.5); break;
         case 'game':  [880,1175,1568].forEach((f,i) => tone(f*(r()<.5?1:.75),.06,'square',.028,i*.08)); break;
         case 'page':  noise(.18,{vol:.05,type:'highpass',freq:2500,sweep:[5000,1500]}); break;
@@ -3369,7 +3567,7 @@
   };
   // every character's own colour: the bubble's outline and name tab use it as is; dark backgrounds (chat, cast) use a lighter tint
   const INK = {ishai:'#24998a', noa:'#d0479a', levi:'#8a4fd0', avi:'#e07b1f', dana:'#c99a12', tomer:'#2f6fd6', gadi:'#5f7088', michal:'#d23c3c',
-    sivan:'#2f9e4a', zelig:'#8a6a3a', kobi:'#a8306a', lior:'#3f8fae', yael:'#e0603a', sasson:'#5a5ad0', hagit:'#4f8a8b', radio:'#c9a227', tv:'#3f8fd0'};
+    sivan:'#2f9e4a', zelig:'#8a6a3a', kobi:'#a8306a', lior:'#3f8fae', yael:'#e0603a', sasson:'#5a5ad0', hagit:'#4f8a8b', boaz:'#7d8f2a', ronit:'#ff6f61', moti:'#c47b9a', yossi:'#9acd32', radio:'#c9a227', tv:'#3f8fd0'};
   const INK_MORE = ['#b5523b','#2c8c6e','#7a5fc0','#c07a1a','#3b7bc2','#a83f8f','#5c8a2a','#c04848'];   // anyone new: picked by name, always the same
   const inkOf = id => INK[id] || (/^student\d$/.test(id) ? '#7d857a' : INK_MORE[strHash(id) % INK_MORE.length]);
   const inkText = hex => { const n = parseInt(hex.slice(1), 16), l = .299 * (n >> 16) + .587 * ((n >> 8) & 255) + .114 * (n & 255); return l > 150 ? '#151515' : '#ffffff'; };
@@ -3511,7 +3709,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', hall1:'1ST FLOOR HALL', apt2:'APARTMENT 2', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
@@ -4137,6 +4335,7 @@
       cast: () => Object.values(CAST), setCast: list => setCast([...base, ...list]), reset,
       play(m){ const e = event(m); ingest([e], false); },
       arena(a){ ARENA = a || null; arenaPreload(); },
+      poker(d, minAgo){ POKER = d ? {...d, at: NOW() - (minAgo || 0) * 60000} : null; },
       go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(e.location, e.action, true, e.with); },
       busy: () => !!actor.pending || actor.travelling || !!actor.ride || !!actor.switching || !!actor.rideUntil || held.size > 0 || queue.length > 0 || (!!tlLast && NOW() < tlLast.end),
       state: () => ({comp: comp.id ? {id: comp.id, x: Math.round(comp.x), mode: comp.mode, boarded: !!comp.boarded} : null, voice: Sound.voiceInfo(), regulars: Object.keys(REG).filter(regHere), say: SAY.who, loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
@@ -4296,6 +4495,8 @@
   // Everything is picked from the clock slot and the moments, so all viewers get the same line. Nothing here is written to the story.
   const FILL_SLOT = 45000, FILL_QUIET = 10000;
   const FILL = {
+    hall1: ['The first floor. Apartment 2 is Boaz, the bus driver. The doormat says so.', 'One floor down from his own. A whole other country.'],
+    apt2: ['Boaz\'s flat. China cabinet, fish tank, a lamp over a green felt table. Poker night.', 'Five players, fifty shekels each, and a bowl of seeds that will not survive the night.', 'Look at Ronit watching him. She has graded a thousand faces like his.', 'Moti calls everything. It is less a strategy than a worldview.', 'Yossi\'s lucky cap. Washed, he says, which is the problem.'],
     plaza: ['The Pump House. It pumped the neighbourhood its water for ninety years; now it wants to pump out a little culture.', 'Brick, a chimney and a sign that says THE PUMP HOUSE. Opening soon, says the board.', 'That woman at the ticket window is Hagit. She runs the place, and the place runs her.', 'Rope lanes for a queue that is not here yet. Optimism, in red rope.'],
     arena: ['Inside the Pump House. A stage, a screen, and old pipes overhead that once moved half the city\'s water.', 'The hall is quiet tonight. You can hear the pipes thinking.', 'A stage that is waiting for someone. He knows the feeling.', 'Concrete floor, brick walls, and a merch table with two shirts on it. Every venue starts somewhere.'],
     apartment: ['Apartment 4. One room, one man, one basil, no secrets.', 'Look at that windowsill. Moshe is holding the whole place together.', 'That desk has seen more revisions than a constitution.', 'The sofa, the desk, the fridge. The three stops of his daily commute.', 'Somewhere under that pile is a clean shirt. Allegedly.', 'You can tell a lot about a man by his one kitchen chair.'],
@@ -4492,6 +4693,10 @@
   const DEMO_CAST = [
     {id:'tomer',name:'Tomer',role:"Ishai's friend from school, an electrician",personality:'loud, loyal, always has a plan',look:{hair:'short',hairColor:'brown',skin:'tan',shirt:'green',pants:'navy',extras:['beard']},memory:'Owes Ishai a rematch.',relationship:4},
     {id:'sasson',name:'Dr. Sasson',role:'lectures on Strange But True at Tel Herzl University',personality:'dry, exact',look:{hair:'short',hairColor:'gray',skin:'light',shirt:'purple',pants:'black',extras:['glasses','scarf']},memory:'',relationship:0},
+    {id:'boaz',name:'Boaz',role:'downstairs neighbour, apt 2, drives the 88; hosts poker',personality:'dry, orderly',look:POKER_LOOK.boaz,memory:'',relationship:0},
+    {id:'ronit',name:'Ronit',role:"Boaz's friend from high school, a maths teacher",personality:'sharp, teasing',look:POKER_LOOK.ronit,memory:'',relationship:0},
+    {id:'moti',name:'Moti',role:'head of the building committee, apt 1',personality:'chatty, generous',look:POKER_LOOK.moti,memory:'',relationship:0},
+    {id:'yossi',name:'Yossi',role:'bus depot mechanic with a lucky cap',personality:'loud, superstitious',look:POKER_LOOK.yossi,memory:'',relationship:0},
     {id:'yael',name:'Yael',role:"teaches the Thursday improv class at The Black Candle",personality:'warm, sharp, patient',look:{hair:'curly',hairColor:'black',skin:'tan',shirt:'yellow',pants:'black',extras:['earring']},memory:'',relationship:0},
     {id:'gadi',name:'Gadi',role:'runs Sababa Creative, the agency that gives Ishai most of his work; only ever on the phone',personality:'cheerful, always in a hurry',look:{hair:'bald',hairColor:'gray',skin:'fair',shirt:'gray',pants:'black',extras:['glasses']},memory:'Needs it by tomorrow.',relationship:1,remote:true},
     ...Object.entries(REG).map(([id, r]) => ({id, name: id[0].toUpperCase() + id.slice(1), role: 'a regular at the ' + r.place, personality: '', look: r.look, memory: '', relationship: 0})),
@@ -4716,7 +4921,7 @@
       if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;
       if (s.course) COURSE = s.course;
-      ARENA = s.arena || null; arenaPreload();
+      ARENA = s.arena || null; arenaPreload(); pokerSync(s.poker);
       if ('poll' in s) setPoll(s.poll);
       if (s.summary) SUMMARY = s.summary;
       if (s.summary || s.course) renderSummary();

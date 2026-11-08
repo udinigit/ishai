@@ -43,6 +43,10 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 | Park | right edge | Herzl St. west | left edge |
 | Herzl St. west | right edge | Street | left edge |
 | Café | entrance (left) | Shops | right edge |
+| Corridor | stairs (178) | First-floor landing (CAM-21, page only, only on the way to apt 2) | stairs up (178) |
+| First-floor landing | stairs down (8) | Street | building entrance (26) |
+| First-floor landing | apt 2 door (92) | Apartment 2 (CAM-22, Boaz) | door (4) |
+| Apartment 2 | door (4) | First-floor landing | apt 2 door (92) |
 | Park | left edge | Pump House plaza (CAM-19) | right edge |
 | Pump House plaza | right edge | Park | left edge |
 | Pump House plaza | double doors (60) | Pump House hall (CAM-20) | door (right edge) |

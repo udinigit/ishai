@@ -1,6 +1,6 @@
 # Poker night: plan
 
-Approved by the director on 2026-11-08. Read `CLAUDE.md` and `docs/SCENE_GUIDELINES.md` first. Nothing here is built yet.
+Approved by the director on 2026-11-08. Built in v164 (see "Poker night" in `CLAUDE.md`); not yet: the two AI calls (fresh lines the day before, memories after; memories are written without AI for now), Falafel under the table.
 
 ## The idea
 Every second Monday, Ishai plays poker downstairs in Boaz's flat (apartment 2, first floor) with Boaz and three of Boaz's people: five players, small money, for fun. Viewers see Ishai's two cards the whole time; nobody in the story does. It is **a script, not AI**: the whole game is simulated from a seed before it starts and the page plays it by the clock. AI writes only a few fresh lines the day before and the memories afterwards (2 calls a night).

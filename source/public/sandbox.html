@@ -66,6 +66,7 @@
         <button id="qLecture">Lecture</button>
         <button id="qPump">Pump House</button>
         <button id="qGallery">Gallery night</button>
+        <button id="qPoker">Poker night</button>
         <a href="/?preview" target="_blank" rel="noopener">Today's plan</a>
       </div>
     </div>
@@ -245,6 +246,13 @@ Back to the cameras.</textarea>
     api.go({location:'park', action:'idle'});
     for (const m of d.moments){ if (me !== running) return; api.play(m); await wait(600); while (me === running && api.busy()) await wait(300); }
   }
+  // a short sample poker night at Boaz's (20 minutes, simulated by the worker; the real nights are 2.5 hours)
+  async function poker(){
+    let d = null; try { d = await (await fetch('/api/poker?sample=1&seed=' + Date.now() % 1000, {cache:'no-store'})).json(); } catch(e){}
+    if (!d || !d.hands) return alert('Could not load a poker night (/api/poker?sample=1).');
+    const me = ++running; api.poker(d, 2.5); api.go({location:'corridor', action:'idle'});
+    api.play({location:'apt2', action:'poker', lines:[], commentary:(d.moments && d.moments[0] && d.moments[0].commentary) || []});
+  }
   function world(){
     const real = $('hourT').textContent === 'Real time';
     api.world({hour: real ? null : +$('hour').value, weather: $('wx').value, temp: +$('temp').value || 22,
@@ -276,6 +284,7 @@ Back to the cameras.</textarea>
     $('qLecture').onclick = lecture;
     $('qPump').onclick = () => { running++; api.arena(null); api.go({location:'plaza', action:'idle'}); };
     $('qGallery').onclick = gallery;
+    $('qPoker').onclick = poker;
     $('play').onclick = () => { running++; api.reset(); api.play(moment()); };
     $('jump').onclick = () => { running++; api.go(moment()); };
     $('save').onclick = () => { if (editing >= 0) D.list[editing] = moment(); else D.list.push(moment()); editing = -1; $('save').textContent = 'Add to list'; store(); drawList(); };
