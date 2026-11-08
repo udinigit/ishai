@@ -4065,7 +4065,8 @@
       await untilT(entry.start + p.at); if (entry.dead) break;
       const at = entry.start + p.at, past = NOW() >= at + p.ms;
       if (!past && k) Sound.hush();
-      if (p.host){ await addMsg({id: ev.id + ':c' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, host: true}, true, {at, ms: p.ms}); await untilT(at + p.ms); continue; }
+      if (p.host){ const se = songEndAfter(at); if (se){ await untilT(se); if (NOW() > se + 60000){ addMsg({id: ev.id + ':c' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, host: true}, false); continue; } }   // mid-song: the hosts wait for the applause (long ago: text only)
+        const hat = se || at; await addMsg({id: ev.id + ':c' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, host: true}, true, {at: hat, ms: p.ms}); await untilT(hat + p.ms); continue; }
       if (!past) setSpeaking(l.who);
       const air = l.who==='radio' || l.who==='tv';   // a live line from the radio / TV the story reacts to
       if (air){ MEDIA_UNTIL = at + 240000; if (l.who==='radio' && !past) Sound.duck(true); }
@@ -4284,6 +4285,16 @@
   const momentAt = T => { let m = null; for (const x of TL.values()){ if (x.start <= T) m = x; else break; } return m; };
   const talkBetween = (a, b) => [...TL.values()].some(x => x.plan.length && x.start < b && x.end > a);
   // the first time from `from` that fits. undefined = not found yet, still looking; null = it never fitted
+  // a song of a concert is playing in the hall between T0 and T1: the hosts, callers and recaps stay off the air (the same for everyone: worked out from the night's schedule)
+  function songBetween(T0, T1){
+    const e = ARENA && ARENA.event; if (!e || e.kind !== 'concert' || !e.songs) return false;
+    const m = momentAt(T0); if (!m || m.ev.location !== 'arena') return false;
+    return e.songs.some(sg => T0 - e.at < sg.t0 + sg.dur && T1 - e.at > sg.t0);
+  }
+  function songEndAfter(T){   // when the song playing at T ends (null if none)
+    const e = ARENA && ARENA.event; if (!songBetween(T, T + 1)) return null;
+    const sg = e.songs.find(sg => T - e.at >= sg.t0 && T - e.at < sg.t0 + sg.dur); return sg ? e.at + sg.t0 + sg.dur + 1500 : null;
+  }
   function slotAfter(from, maxWait, fits){
     for (let T = from; T <= from + maxWait; T += 15000){ if (T > NOW()) return undefined; if (fits(T)) return T; }
     return null;
@@ -4292,12 +4303,12 @@
   // the two hourly recaps take turns: the picture-in-picture on even hours, the full studio break on odd hours
   function studioStart(st){
     if (!st || Math.floor(st.t / 3600000) % 2) return null;
-    return slotAfter(st.t, 15 * 60000, T => { const m = momentAt(T); return storyHour(T) >= 8 && m && !m.ev.with && arrivedBy(m, T) && !['phoning','sleeping'].includes(m.ev.action) && !talkBetween(T, T + 1); });
+    return slotAfter(st.t, 15 * 60000, T => { const m = momentAt(T); return storyHour(T) >= 8 && m && !m.ev.with && arrivedBy(m, T) && !['phoning','sleeping'].includes(m.ev.action) && !talkBetween(T, T + 1) && !songBetween(T, T + 60000); });
   }
   function showStart(sh){
     if (!sh || !(Math.floor(sh.t / 3600000) % 2)) return null;
     return slotAfter(sh.t, 20 * 60000, T => { const m = momentAt(T), h = storyHour(T);
-      if (!m || h < 8 || h >= 23.5 || m.ev.action === 'sleeping' || m.ev.with || !arrivedBy(m, T) || talkBetween(T - 90000, T + 180000)) return false;    // quiet for 1.5 minutes, and for 3 more
+      if (!m || h < 8 || h >= 23.5 || m.ev.action === 'sleeping' || m.ev.with || !arrivedBy(m, T) || talkBetween(T - 90000, T + 180000) || songBetween(T, T + 180000)) return false;    // quiet for 1.5 minutes, and for 3 more
       return ![...TL.values()].some(x => x.start > T && x.start <= T + 180000 && (x.ev.with || (x.ev.location || 'apartment') !== (m.ev.location || 'apartment'))); });
   }
   function callStart(c){
@@ -4306,7 +4317,7 @@
       if (at === undefined) return undefined;      // wait: the recap goes first
       if (at !== null && at + ms > from && at < c.t + 12 * 60000) from = at + ms;
     }
-    return slotAfter(from, 12 * 60000, T => { const m = momentAt(T); return m && m.ev.action !== 'sleeping' && arrivedBy(m, T) && !talkBetween(T, T + 1); });
+    return slotAfter(from, 12 * 60000, T => { const m = momentAt(T); return m && m.ev.action !== 'sleeping' && arrivedBy(m, T) && !talkBetween(T, T + 1) && !songBetween(T, T + 120000); });
   }
   async function playStudio(st, start){
     const times = STUDIO_TIMES(st.lines);
@@ -4851,7 +4862,7 @@
   function hostFill(force){
     const now = NOW(), slot = Math.floor(now / FILL_SLOT), at = slot * FILL_SLOT + hash(slot * 37 + 1) * 12000;
     if (!force && (slot === hostFill.done || now < at || now > at + 9000 || forceLoc || PREVIEW)) return false;
-    if (!force && (now - TALK_AT < FILL_QUIET || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || studioOn || showOn || callOn || talkSoon(7000) || (document.hidden && !POP.on))) return false;
+    if (!force && (songBetween(now, now + 15000) || now - TALK_AT < FILL_QUIET || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || studioOn || showOn || callOn || talkSoon(7000) || (document.hidden && !POP.on))) return false;
     hostFill.done = slot;
     const say = hostFillLine(slot); if (!say) return false;
     hostLine({id: 'fill-' + slot + (force ? '-' + now : ''), t: now, who: slot % 2 ? 'oren' : 'zohar', say, host: true}, true, {at: now, ms: 0});
