@@ -2230,6 +2230,13 @@
     const rec = IMGPIX[k] = {ok: false}, img = new Image(); img.crossOrigin = 'anonymous';
     img.onload = () => { try { rec.c = pixelate(img, w, h); rec.ok = true; } catch(e){} }; img.src = '/asset/' + id; return rec;
   }
+  // the same, keeping the picture's shape: as big as fits in w x h
+  function imgFit(id, w, h){
+    const k = id + '@fit' + w + 'x' + h; if (IMGPIX[k]) return IMGPIX[k];
+    const rec = IMGPIX[k] = {ok: false}, img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => { try { const s = Math.min(w / img.width, h / img.height), cw = Math.max(1, Math.round(img.width * s)), ch = Math.max(1, Math.round(img.height * s));
+      rec.c = pixelate(img, cw, ch); rec.w = cw; rec.h = ch; rec.ok = true; } catch(e){} }; img.src = '/asset/' + id; return rec;
+  }
   function concertNow(){
     if (!ARENA || !ARENA.event || ARENA.event.kind !== 'concert' || DREAMING || BUILDER) return null;
     const e = ARENA.event, T = NOW() - e.at; if (T < -15 * 60000 || T > e.endT + 15 * 60000) return null;
@@ -2274,16 +2281,21 @@
     else alpha(.12, () => R(28, 18, 136, 40, '#ffe8b0'));
     // the screen: the band's logo, or its name, pulsing with the low end
     R(64,22,64,24,'#060608');
-    if (e.band.logo){ const L = imgPix(e.band.logo, 60, 20); if (L.ok){ alpha(live ? .7 + .3 * c.lvl.low : .85, () => g.drawImage(L.c, 66, 24)); } }
-    else { const msg = `${e.artist.toUpperCase()}   ${song ? song.title.toUpperCase() : ''}   `, off = Math.floor(NOW() / 110) % Math.max(1, msg.length * 4);
+    {   // the screen scrolls the band and the song (the logo is on the banner)
+      const msg = `${e.artist.toUpperCase()}   ${song ? song.title.toUpperCase() : ''}   `, off = Math.floor(NOW() / 110) % Math.max(1, msg.length * 4);
       g.save(); g.beginPath(); g.rect(64,31,64,7); g.clip(); word(msg + msg + msg, 64 - off, 32, live && c.on ? '#ffffff' : '#ffd36a'); g.restore(); }
     if (live){ alpha(.07 + .05 * c.lvl.low, () => { R(28, 46, 136, 8, '#e8e8f0'); R(36, 42, 120, 4, '#e8e8f0'); }); }   // haze from the smoke machine
+    // the band's banner, hung from the truss on two cords: always in view, above everyone's heads
+    R(66, 14, 1, 3, '#555'); R(125, 14, 1, 3, '#555'); R(64, 17, 64, 11, '#e8e4d8'); R(64, 27, 64, 1, '#b8b4a8');
+    { const L = e.band.logo && imgFit(e.band.logo, 60, 9);
+      if (L && L.ok) g.drawImage(L.c, 96 - Math.floor(L.w / 2), 18 + Math.floor((9 - L.h) / 2));
+      else { const nm = e.artist.toUpperCase().replace(/[^A-Z0-9 .!]/g, '').slice(0, 15), w = nm.length * 4; word(nm, 96 - Math.floor(w / 2), 20, '#1a1a1a'); } }
     const lastSong = e.songs[e.songs.length - 1];
     if (lastSong && c.T > lastSong.t0 + lastSong.dur - 15000 && c.T < lastSong.t0 + lastSong.dur + 9000) CONFETTI_ON = c.T - (lastSong.t0 + lastSong.dur - 15000); else CONFETTI_ON = -1;
     // the band
     bandSlots(e.band.members).forEach(({m, x, y, back}) => {
       if (live && m.vocal === 'lead') alpha(.1 + .08 * c.lvl.mid, () => { R(x - 3, 16, 16, 40, '#fff8d8'); R(x - 6, 44, 22, 12, '#fff8d8'); });   // a spot on the singer
-      const sing = live && m.vocal !== 'none' && c.lvl.mid > (m.vocal === 'lead' ? .35 : .6), bob = live && c.on && !back ? 1 : 0;
+      const sing = live && m.vocal !== 'none' && c.lvl.mid > (m.vocal === 'lead' ? .35 : .6), bob = 0;   // the band stays put; only the audience jumps
       zAdd(back ? 54 : 56, () => { markHead(m.id, x, y - bob); if (back){ R(x-10, y+20, 30, 8, '#2a2426'); R(x-10, y+20, 30, 1, '#4a4042'); person(m.look, x, y, t, {legs: false, face: 0}); instrument(m, x, y, c); }
         else { person(m.look, x, y - bob, t, {face: 0, talking: sing || SAY.who === m.id}); instrument(m, x, y - bob, c); } });
     });
