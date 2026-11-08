@@ -4111,6 +4111,7 @@
     if (actor.switching || actor.loc==='offscreen' || actor.loc==='bathroom') return v;
     if (actor.with && !actor.travelling && actor.action!=='phoning') v.add(actor.with);
     if (POST[actor.loc] && CAST[POST[actor.loc]]) v.add(POST[actor.loc]); // Avi at his kiosk, Dana behind the counter
+    Object.keys(HEADS).forEach(id => { if (CAST[id]) v.add(id); });     // anyone else drawn in the picture: a regular at their table, a friend in the room
     return v;
   }
   // ================= Radio Herzl 88.2: an original station with a DJ =================
@@ -4705,7 +4706,7 @@
     if (SPEAKING || (SAY.who && NOW() < SAY.until) || actor.switching || actor.hidden || studioOn || showOn || callOn) return;
     mutterDone = slot; if (hash(slot * 19 + 5) > .7) return;
     const id = here[Math.floor(hash(slot * 23 + 7) * here.length)], today = pack('mutter', id), list = today.length && hash(slot * 31 + 2) < .5 ? today : MUTTER[id === 'kobi' ? 'kobi' + drunk() : id], line = list[Math.floor(hash(slot * 29 + 11) * list.length)];
-    showSay(id, line); holdSay(5500); Sound.say(id, line);
+    addMsg({id: 'mutter:' + slot, who: id, say: line, t: now, loc: actor.loc}, true, {at: now, ms: lineMs(line)});   // the bubble and the Conversation list show the same words
   }, 1000);
   // ================= the hosts fill the silence: every 45 s of quiet one of them says what the picture shows, no AI =================
   // Everything is picked from the clock slot and the moments, so all viewers get the same line. Nothing here is written to the story.
