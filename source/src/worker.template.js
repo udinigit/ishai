@@ -2613,7 +2613,8 @@ function arenaPublic(s, now) {
   const today = dayOfTZ(now) === ev.date;
   const end = ev.at + (ev.kind === "concert" ? ev.endT + 15 * 60000 : (ev.minutes + 25) * 60000);
   return { board: [today ? "TODAY" : "WED", "20.00", ev.kind === "gallery" ? "ART" : "LIVE"], screen: `${ev.title.toUpperCase()}   ${ev.artist.toUpperCase()}`, live: now >= ev.at - 12 * 60000 && now < end,
-    event: ev.kind === "concert" ? { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, band: ev.band, songs: ev.songs, talk: ev.talk, endT: ev.endT }
+    event: ev.kind === "concert" ? { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist,
+      band: ev.band ? { ...ev.band, links: cleanLinks((s.bands && ev.band.id && s.bands[ev.band.id] || {}).links) } : ev.band, songs: ev.songs, talk: ev.talk, endT: ev.endT }
       : { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, sets: ev.sets } };
 }
 const arenaHealth = s => { const a = s.arena; if (!a) return null; return { events: Object.values(a.events).map(e => ({ id: e.id, kind: e.kind, title: e.title, artist: e.artist, companion: e.companion, goal: e.goalId || null, skip: !!e.skip })), off: !!a.off, err: a.err }; };
