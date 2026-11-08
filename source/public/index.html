@@ -551,6 +551,15 @@
     R(x+1,y+9+sw,1,4,C.shirt); R(x+1,y+13+sw,1,2,C.skin);
     R(x+8,y+9-sw,1,4,C.shirt); R(x+8,y+13-sw,1,2,C.skin);
   }
+  // arms for a dancing crowd, from the shoulder: 'up' (both raised, k leans them out), 'fist' (right arm up, k pumps it), 'clap' (hands up at the face, k = together),
+  // 'phone' (right hand holding a phone up at head height, k = a photo's flash)
+  function armsCrowd(x,y,pose,k){
+    const S = C.shirt, K = C.skin;
+    if (pose === 'up'){ R(x+1,y+9,1,1,S); R(x+8,y+9,1,1,S); R(x-k,y+4,1,5,S); R(x+9+k,y+4,1,5,S); R(x-k,y,1,4,K); R(x+9+k,y,1,4,K); R(x-k,y-2,1,2,K); R(x+9+k,y-2,1,2,K); return; }
+    if (pose === 'fist'){ R(x+1,y+9,1,4,S); R(x+1,y+13,1,2,K); R(x+8,y+9,1,1,S); R(x+9,y+4+k*2,1,5-k*2,S); R(x+9,y+k*2-1,1,5,K); R(x+9,y-2+k*2,1,1,shade(K,.8)); return; }
+    if (pose === 'clap'){ R(x+1,y+9,1,1,S); R(x+8,y+9,1,1,S); R(x,y+6,1,4,S); R(x+9,y+6,1,4,S); const a = k ? 3 : 1, b = k ? 6 : 8; R(x+a,y+3,1,3,K); R(x+b,y+3,1,3,K); R(x+(k?1:0),y+5,1,1,S); R(x+(k?8:9),y+5,1,1,S); return; }
+    if (pose === 'phone'){ R(x+1,y+9,1,4,S); R(x+1,y+13,1,2,K); R(x+8,y+9,1,1,S); R(x+9,y+5,1,4,S); R(x+9,y+2,1,3,K); R(x+7,y-3,3,5,'#1a1a1a'); R(x+7,y-3,3,4,k ? '#ffffff' : '#e8f4ff'); return; }
+  }
   function armsUp(x,y){
     R(x+1,y+9,1,1,C.shirt); R(x+8,y+9,1,1,C.shirt);
     R(x,y+5,1,4,C.shirt); R(x+9,y+5,1,4,C.shirt); R(x,y+2,1,3,C.skin); R(x+9,y+2,1,3,C.skin);
@@ -621,7 +630,7 @@
         head(x+lean,y,{closed:true}); torso(x,y); armsUp(x+lean,y); legs(x,y,0); break; }
       case 'back': {
         R(x+2,y,6,2,C.hair); R(x+1,y+1,8,7,C.hair); R(x+1,y+5,1,2,C.skin); R(x+8,y+5,1,2,C.skin);
-        torso(x,y); armsDown(x,y); legs(x,y,0);
+        torso(x,y); if (o.armPose) armsCrowd(x,y,o.armPose,o.armK||0); else armsDown(x,y); legs(x,y,0);
         if (o.water){ R(x-1,y+10,3,2,'#c9ced4'); if (Math.floor(t/300)%2) R(x-2,y+12,1,1,'#9fd3f0'); }
         if (o.mug){ R(x+8,y+10,3,3,'#e8e4d8'); R(x+11,y+11,1,1,'#e8e4d8'); if (Math.floor(t/700)%2) R(x+9,y+8,1,1,'#f2f2f2'); else R(x+10,y+7,1,1,'#f2f2f2'); }
         break; }
@@ -845,7 +854,7 @@
     if (kind==='turn') backHair(x,y,h);
     y = y0;
     torso(x,y);
-    if (o.walk) armsDown(x,y, fw===1?1:fw===3?-1:0); else if (o.arms!==false) armsFid(x,y,t,kind);
+    if (o.walk) armsDown(x,y, fw===1?1:fw===3?-1:0); else if (o.armPose) armsCrowd(x,y,o.armPose,o.armK||0); else if (o.arms!==false) armsFid(x,y,t,kind);
     if (ex.includes('apron')){ R(x+3,y+10,4,6,'#f0ead8'); R(x+3,y+9,1,1,'#f0ead8'); R(x+6,y+9,1,1,'#f0ead8'); }
     if (ex.includes('scarf')){ R(x+2,y+8,6,2,'#c23b3b'); R(x+6,y+10,1,3,'#c23b3b'); }
     if (o.legs==='sit') sitLegs(x,y); else if (o.legs!==false) legs(x,y, o.walk ? (fw===1?1:fw===3?2:0) : legsFid(t, kind));
@@ -2317,23 +2326,21 @@
       // each on their own timing (a little late on the beat, p.lag) and each doing their own thing, changing every few bars at their own moment:
       // jumping, swaying, a fist on the beat, arms up, a phone up filming, or just standing; clapping before and after songs (most, not all)
       const kb = c.beat - (c.since < p.lag ? 1 : 0), act = walk ? 'walk' : ccDo(p, i, c, kb, clap, quiet, peak, live);
-      const up = act === 'jump' && (p.ph + kb) % 2 === 0 ? p.hop : 0;
-      const sway = act === 'sway' ? ((kb + p.ph) % (p.slow ? 4 : 2) < (p.slow ? 2 : 1) ? 1 : -1) : 0, y = p.y - up, X = Math.round(x) + sway;
+      const up = act === 'jump' && (p.ph + kb) % 2 === 0 ? p.hop : 0;   // a hop on every other beat
+      const sway = act === 'sway' ? ((kb + p.ph * 2) % (p.slow ? 8 : 4) < (p.slow ? 4 : 2) ? 1 : -1) : 0, y = p.y - up, X = Math.round(x) + sway;   // a lean every 2 or 4 beats
+      const k2 = (kb >> 1) + p.ph, pose = act === 'clap' ? 'clap' : act === 'arms' ? 'up' : act === 'fist' ? 'fist' : act === 'phone' ? 'phone' : null;
+      const armK = act === 'clap' ? Math.floor((NOW() + i * 70) / (130 + (i % 4) * 20)) % 2
+        : act === 'arms' ? (Math.floor((NOW() + i * 400) / 1400) % 2) : act === 'fist' ? k2 % 2
+        : act === 'phone' ? (Math.floor((NOW() + i * 911) / 4000) % 5 === 0 && Math.floor(NOW() / 150) % 3 === 0 ? 1 : 0) : 0;
       zAdd(p.y + 22, () => {
         if (walk) person(p.look, X, p.y, t + i * 300, {muted: true, walk: true, face: dir});
-        else person(p.look, X, y, t + i * 300, {muted: true, fid: 'turn'});
-        if (walk) return;
-        const sk = (SKINC[p.look.skin] || SKINC.fair)[0];
-        if (act === 'clap'){ const k = Math.floor((NOW() + i * 70) / (120 + (i % 4) * 20)) % 2; R(X + 2 + k, y - 2, 1, 2, sk); R(X + 7 - k, y - 2, 1, 2, sk); }   // hands up, clapping (each at their own speed)
-        else if (act === 'arms'){ const w = (kb + p.ph) % 4 < 2 ? 0 : 1; R(X + 1 - w, y - 4, 1, 5, sk); R(X + 8 + w, y - 4, 1, 5, sk); }   // arms in the air, waving a little
-        else if (act === 'fist'){ const k = (kb + p.ph) % 2; R(X + 8, y - 4 + k, 1, 5 - k, sk); }                                     // a fist pumping on the beat
-        else if (act === 'phone'){ const hx = X + (p.ph ? 6 : 2); R(hx + 1, y - 2, 1, 3, sk); R(hx, y - 6, 3, 4, '#1a1a1a'); R(hx, y - 6, 3, 3, '#e8f4ff'); if (Math.floor((NOW() + i * 911) / 3000) % 7 === 0 && (NOW() / 120 | 0) % 2) R(hx + 1, y - 7, 1, 1, '#ffffff'); }   // a phone up, filming (now and then a flash: a photo)
+        else person(p.look, X, y, t + i * 300, {muted: true, fid: 'turn', armPose: pose, armK});
       });
     });
   }
   // what one person in the crowd is doing right now: their own pick, for a few bars at a time (the same for every viewer: seeded by the night)
   function ccDo(p, i, c, kb, clap, quiet, peak, live){
-    const seg = live ? Math.floor((kb + p.off) / (p.slow ? 12 : 8)) : Math.floor((c.T + p.off * 900) / 7000), r = hash(strHash(c.e.id) + i * 131 + seg * 17 + (clap ? 7 : 0));
+    const len = p.slow ? 14000 : 9000, seg = Math.floor((c.T + p.off * 1300) / len), r = hash(strHash(c.e.id) + i * 131 + seg * 17 + (clap ? 7 : 0));
     const pick = tbl => { let a = 0; for (const [k, w] of tbl){ a += w; if (r < a) return k; } return 'stand'; };
     if (clap) return p.claps ? pick([['clap', .82], ['phone', .1]]) : pick([['phone', .4], ['stand', .6]]);
     if (!live) return pick([['stand', .62], ['phone', .14], ['sway', .08]]);   // waiting for the band: standing, chatting, a photo of the stage
@@ -3006,13 +3013,12 @@
       if (SAY.who === 'ishai'){ drawIshai('talking', actor.x, y, t); return; }
       const c = concertNow(), live = c && c.song && c.since < 2000, sk = (SKINC[ISHAI_LOOK.skin] || SKINC.fair)[0];
       if (!c){ drawIshai('back', actor.x, y, t); return; }
-      const kb = c.beat - (c.since < 90 ? 1 : 0), seg = Math.floor(kb / 8), r = hash(seg * 53 + 11), clap = concertClap(c);
+      const kb = c.beat - (c.since < 90 ? 1 : 0), seg = Math.floor(c.T / 11000), r = hash(seg * 53 + 11), clap = concertClap(c);   // keeps one way of dancing for about 11 s
       const mode = clap ? 'clap' : !live ? 'stand' : c.lvl.low > .82 ? (r < .5 ? 'arms' : 'hop') : r < .45 ? 'sway' : r < .8 ? 'hop' : 'fist';
       const up = mode === 'hop' && kb % 2 === 0 ? 1 : 0, sx = mode === 'sway' ? (kb % 4 < 2 ? 1 : -1) : 0, X = Math.round(actor.x) + sx, Y = y - up;
-      drawIshai('back', X, Y, t);
-      if (mode === 'clap'){ const k = Math.floor(NOW() / 150) % 2; R(X + 2 + k, Y - 2, 1, 2, sk); R(X + 7 - k, Y - 2, 1, 2, sk); }
-      else if (mode === 'arms'){ R(X + 1, Y - 4, 1, 5, sk); R(X + 8, Y - 4, 1, 5, sk); }
-      else if (mode === 'fist'){ const k = kb % 2; R(X + 8, Y - 4 + k, 1, 5 - k, sk); }
+      const armPose = mode === 'clap' ? 'clap' : mode === 'arms' ? 'up' : mode === 'fist' ? 'fist' : null;
+      const armK = mode === 'clap' ? Math.floor(NOW() / 150) % 2 : mode === 'arms' ? Math.floor(NOW() / 1400) % 2 : (kb >> 1) % 2;
+      drawIshai('back', X, Y, t, {armPose, armK});
       return; }
     if (a==='walking' && actor.pacePause && !actor.travelling && !actor.pending) drawIshai('idle', actor.x, y, t);
     else if (actor.travelling || a==='walking') drawIshai('walk', actor.x, y, t);
