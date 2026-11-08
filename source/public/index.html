@@ -2370,18 +2370,32 @@
     if (w(16000, 6000)) return true;
     return e.songs.some(sg => w(sg.t0 - 5000, 4500) || w(sg.t0 + sg.dur, 7000)) || w(e.endT - 4000, 8000);   // as the band gets ready, and after every song
   }
-  // the music itself: the current song, at the right second for everyone; checked every second
-  let CAUD = null, caudSong = null;
+  // the music itself: the current song, at the right second for everyone; checked every second.
+  // Each song is downloaded whole once (songBlob) and played from memory, so a seek never waits on the network; small drift is
+  // corrected by speeding up or slowing down a little (playbackRate), and it only jumps when more than 1.5 s off, at most every 5 s.
+  let CAUD = null, caudSong = null, caudSeekAt = 0;
+  const SONG_URL = {}, SONG_LOADING = {};
+  function songBlob(id){
+    if (SONG_URL[id] || SONG_LOADING[id]) return SONG_URL[id] || null;
+    SONG_LOADING[id] = fetch('/asset/' + id).then(r => r.ok ? r.blob() : null).then(b => { if (b){ SONG_URL[id] = URL.createObjectURL(b);
+      const ks = Object.keys(SONG_URL); if (ks.length > 3) { URL.revokeObjectURL(SONG_URL[ks[0]]); delete SONG_URL[ks[0]]; } } })
+      .catch(() => {}).finally(() => { delete SONG_LOADING[id]; });
+    return null;
+  }
   setInterval(() => {
     const c = concertNow(), here = c && actor.loc === 'arena' && !actor.hidden && !forceLoc && Sound.isOn();
     if (!here || !c.song){ if (CAUD && !CAUD.paused) CAUD.pause();
-      if (here && c){ const nx = c.e.songs.find(s => s.t0 > c.T && s.t0 - c.T < 30000); if (nx && caudSong !== nx.id){ if (!CAUD) CAUD = new Audio(); caudSong = nx.id; CAUD.preload = 'auto'; CAUD.src = '/asset/' + nx.id; CAUD.load(); } }   // load the next one during the talk
+      if (here && c){ const nx = c.e.songs.find(s => s.t0 > c.T && s.t0 - c.T < 90000); if (nx) songBlob(nx.id); }   // download the next one during the talk
       return; }
+    const src = songBlob(c.song.id); if (!src) return;    // still downloading: it comes in at the right second as soon as it is here
     if (!CAUD) CAUD = new Audio();
-    if (caudSong !== c.song.id){ caudSong = c.song.id; CAUD.src = '/asset/' + c.song.id; }
+    if (caudSong !== c.song.id){ caudSong = c.song.id; CAUD.src = src; CAUD.playbackRate = 1; caudSeekAt = 0; }
     const want = (c.T - c.song.t0) / 1000; CAUD.volume = .85;
-    if (CAUD.paused){ try { CAUD.currentTime = want; } catch(e){} CAUD.play().catch(() => {}); }
-    else if (Math.abs(CAUD.currentTime - want) > .3) { try { CAUD.currentTime = want; } catch(e){} }
+    if (CAUD.paused){ try { CAUD.currentTime = want; } catch(e){} caudSeekAt = NOW(); CAUD.play().catch(() => {}); return; }
+    if (CAUD.seeking || CAUD.readyState < 3) return;
+    const off = CAUD.currentTime - want;
+    if (Math.abs(off) > 1.5 && NOW() - caudSeekAt > 5000){ try { CAUD.currentTime = want; } catch(e){} caudSeekAt = NOW(); CAUD.playbackRate = 1; }
+    else CAUD.playbackRate = Math.abs(off) < .08 ? 1 : off > 0 ? .97 : 1.03;   // ahead: a touch slower; behind: a touch faster (no audible jump)
   }, 1000);
   // the room's sounds, on the clock: the crowd murmuring before and between songs, the drummer's count-in, applause and whistles
   const ccFired = new Set();
