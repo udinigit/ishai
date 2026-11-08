@@ -245,7 +245,7 @@ Back to the cameras.</textarea>
   }
   // the next gallery night at the Pump House, as it will air (moments from /api/arena; the walls and pictures from its layout)
   async function gallery(){
-    let d = null; try { d = await (await fetch('/api/arena', {cache:'no-store'})).json(); } catch(e){}
+    let d = null; try { d = await (await fetch('/api/arena?gallery=1', {cache:'no-store'})).json(); } catch(e){}
     if (!d || !d.next || !d.moments) return alert('Could not load the gallery night (/api/arena).');
     const me = ++running; api.arena({event: {...d.next, at: Date.now() + 60000}, live: true, board: ['TODAY','20.00','ART'], screen: d.next.title.toUpperCase()});
     api.go({location:'park', action:'idle'});

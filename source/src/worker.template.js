@@ -457,7 +457,9 @@ export default {
         if (!ev) return json({ error: "no such band" }, {}, 404);
         return json({ next: { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, band: ev.band, songs: ev.songs, talk: ev.talk, endT: ev.endT }, moments: concertMoments(ev, s) }, { "cache-control": "no-store" });
       }
-      const ev = (s.arena && s.arena.events[date]) || ((s.arena?.custom || {})[date] && concertNight(s, date, t, s.arena.custom[date])) || galleryNight(s, date, t);
+      const real = (s.arena && s.arena.events[date]) || ((s.arena?.custom || {})[date] && concertNight(s, date, t, s.arena.custom[date]));
+      const wantGallery = dev && url.searchParams.get("gallery");   // the sandbox's gallery night: a gallery even when a concert is booked that week
+      const ev = wantGallery ? (real && real.kind !== "concert" ? real : galleryNight(s, date, t)) : real || galleryNight(s, date, t);
       return json({ ...(arenaPublic(s, now) || {}), next: ev.kind === "concert" ? { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, band: ev.band, songs: ev.songs, talk: ev.talk, endT: ev.endT }
         : { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, sets: ev.sets },
         moments: dev ? (ev.kind === "concert" ? concertMoments(ev, s) : galleryMoments(ev, s)) : undefined }, { "cache-control": "no-store" });
