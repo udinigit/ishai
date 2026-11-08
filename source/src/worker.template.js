@@ -1160,11 +1160,12 @@ async function pickGemini(env) {
   if (geminiModel) return geminiModel;
   try {
     const r = await fetch(GEMINI_URL + "/models", { headers: { authorization: "Bearer " + env.GEMINI_API_KEY } });
+    if (!r.ok) throw new Error("gemini models " + r.status);
     const ids = ((await r.json()).data || []).map(m => String(m.id || "").replace(/^models\//, ""));
     const ver = id => parseFloat((id.match(/gemini-([\d.]+)/) || [0, 0])[1]);
     const lite = ids.filter(id => /^gemini-[\d.]+-flash-lite$/.test(id)).sort((a, b) => ver(b) - ver(a));
-    geminiModel = lite[0] || ids.filter(id => /flash-lite/.test(id) && !/preview|exp|tts|image|live|audio/.test(id)).sort((a, b) => ver(b) - ver(a))[0] || "gemini-2.5-flash-lite";
-  } catch (e) { geminiModel = "gemini-2.5-flash-lite"; }
+    geminiModel = lite[0] || ids.filter(id => /flash-lite/.test(id) && !/preview|exp|tts|image|live|audio/.test(id)).sort((a, b) => ver(b) - ver(a))[0] || "gemini-3.5-flash-lite";
+  } catch (e) { return "gemini-3.5-flash-lite"; }   // the list failed: use the fallback this time only, and pick again on the next call
   return geminiModel;
 }
 const nextPacificMidnight = now => { const d = new Date(now); const t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 8, 5); return t > now ? t : t + 86400000; };
