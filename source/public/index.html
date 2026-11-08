@@ -195,6 +195,8 @@
   .guide li.past{opacity:.45} .guide li.next{color:#fff;text-shadow:0 0 6px #4f6bff}
   .guide .big{padding:4px 7px 6px;font-size:1.25em;line-height:1.15} .guide .big small{display:block;font-size:.72em;opacity:.85;margin-top:2px}
   .guide .big .n{color:#ffd36a}
+  .guide .promo{display:flex;align-items:center;gap:2px;padding-left:6px} .guide .promo .big{min-width:0}
+  .guide .promo img{flex:none;max-width:38%;max-height:4.6em;object-fit:contain}
   .guide:not(.on) a.merch{pointer-events:none}
   .guide a.merch{pointer-events:auto;display:flex;gap:6px;align-items:center;padding:4px 6px 5px;color:inherit;text-decoration:none}
   .guide a.merch canvas{width:clamp(44px,12vw,72px);image-rendering:pixelated;image-rendering:crisp-edges;flex:none}
@@ -4612,7 +4614,10 @@
       if (c.kind === 'promo'){ const ev = c.ev; tag.textContent = '● COMING UP';
         const b = document.createElement('div'); b.className = 'big'; const n = document.createElement('span'); n.className = 'n'; n.textContent = when(ev.at);
         b.append(n, document.createElement('br'), document.createTextNode(ev.kind === 'concert' ? `${ev.artist.toUpperCase()} LIVE` : `GALLERY NIGHT: ${ev.title}`));
-        const sm = document.createElement('small'); sm.textContent = ev.kind === 'concert' ? 'At the Pump House. Don\'t miss it!' : `by ${ev.artist}, at the Pump House`; b.append(sm); body.append(b); }
+        const sm = document.createElement('small'); sm.textContent = ev.kind === 'concert' ? 'At the Pump House. Don\'t miss it!' : `by ${ev.artist}, at the Pump House`; b.append(sm);
+        const logo = ev.kind === 'concert' && ev.band && ev.band.logo;   // the band's own logo, as uploaded on /events
+        if (logo){ const row = document.createElement('div'); row.className = 'promo'; const im = new Image(); im.alt = ''; im.src = '/asset/' + encodeURIComponent(logo);
+          im.onerror = () => im.remove(); row.append(im, b); body.append(row); } else body.append(b); }
       else if (c.kind === 'merch'){ tag.textContent = '● OFFICIAL MERCH';
         const a = document.createElement('a'); a.className = 'merch'; a.href = MERCH_URL; a.target = '_blank'; a.rel = 'noopener noreferrer';
         a.addEventListener('click', e => e.stopPropagation());
@@ -4847,7 +4852,7 @@
       guide: async kind => {   // the live show's real schedule, next night and next vote; a sample where it has none
         let st = {}; try { st = await (await fetch('/api/state', {cache: 'no-store'})).json(); } catch(e){}
         const now = NOW(), ev = (st.arena && st.arena.event && st.arena.event.at > now) ? st.arena.event
-          : {kind: 'concert', artist: 'Penguins can Fly', title: 'Penguins can Fly', at: now + 2 * 86400000};
+          : {kind: 'concert', artist: 'Penguins can Fly', title: 'Penguins can Fly', at: now + 2 * 86400000, band: st.arena && st.arena.event && st.arena.event.band || null};
         const opensAt = st.poll && st.poll.opensAt > now ? st.poll.opensAt : now + 4 * 60000 + 30000;
         GUIDE_FORCE = {kind, until: NOW() + 20000, guide: st.guide || null, ev, opensAt}; },
       hostFill: () => hostFill(true), overhear: () => overhear(true), city: id => cityTick(CITY.find(e => e.id === id) || CITY[0]), chat: () => { const c = CHAT_STOCK[Math.floor(NOW() / 1000) % CHAT_STOCK.length]; showChat(c[0], c[1]); },
