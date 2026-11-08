@@ -14,7 +14,7 @@ const TZ = "Asia/Jerusalem";
 const DELAY_MIN = 5;          // broadcast delay: viewers see events 5 minutes after they are written (not shown on the page)
 const INTERVAL_MIN = 6;       // keep equal to your Cron Trigger (*/6 * * * *)
 const KEEP_EVENTS = 40;
-const BLOCK_N = 5;            // ordinary moments are written 5 at a time (one AI call per ~30 minutes); radio/TV, weather changes and anything unplanned stay live
+const BLOCK_N = 3;            // ordinary moments are written 3 at a time (one AI call per ~18 minutes; fewer thrown away when plans change); radio/TV, weather changes and anything unplanned stay live
 const MAX_CAST = 12;          // the AI can add people until the cast reaches this size
 const NEW_PERSON_EVERY_H = 20; // at most one new person per this many hours
 // Secret story goals ("director"). Added once, the first time this version runs.
@@ -337,7 +337,7 @@ export default {
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null,
-        usage: s.usage ? { ...s.usage, neuronsEst: Math.round(s.usage.inTok * 4625 / 1e6 + s.usage.outTok * 30475 / 1e6) } : null,
+        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
@@ -651,6 +651,7 @@ async function tick(env, force) {
   if (!force) try { await pokerTick(env, s, now); } catch (e) { pokerOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   if (!force) try { arenaTick(s, now); } catch (e) { arenaOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   geminiOutUntil = Math.max(geminiOutUntil, s.geminiOutUntil || 0);   // a pause set by another isolate still counts
+  TALK = talkLevel(s, env, now);
   // director: activate the next goal, or force it if its deadline passed
   let goal = activeGoal(s, now);
   let ev = null;
@@ -977,7 +978,7 @@ ${world}
 ${castSection(s, last)}
 
 RULES
-${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} minutes apart (story times ${Array.from({ length: block }, (_, k) => storyClock(now + DELAY_MIN * 60000 + k * INTERVAL_MIN * 60000).label.slice(-5)).join(", ")}). Each moment is 1-2 short sentences, max 35 words, present tense, third person, and follows on from the one before (one neighboring place at a time; a conversation may run across several moments with 8-14 NEW lines each, then ends naturally). The radio and TV are written live: if he turns one on, that is the LAST moment you write. Every moment where he is with someone or on the phone has 8-14 spoken lines; use only the listed actions.` : "- Write the NEXT moment only: 1-2 short sentences, max 35 words, present tense, third person."}
+${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} minutes apart (story times ${Array.from({ length: block }, (_, k) => storyClock(now + DELAY_MIN * 60000 + k * INTERVAL_MIN * 60000).label.slice(-5)).join(", ")}). Each moment is 1-2 short sentences, max 35 words, present tense, third person, and follows on from the one before (one neighboring place at a time; a conversation may run across several moments, then ends naturally). The radio and TV are written live: if he turns one on, that is the LAST moment you write. EVERY moment where he is with someone or on the phone carries its OWN full conversation of ${TALK.min}-${TALK.max} NEW spoken lines in "lines" (never 1-3 lines spread thin; a short moment of talk is still ${TALK.min}+ lines); use only the listed actions.` : "- Write the NEXT moment only: 1-2 short sentences, max 35 words, present tense, third person."}
 - Be concrete: viewers only see this one line, so name things plainly (which show, which game, what the news says). Never write vague lines like "an article" or "a new character" without saying what it is.
 - This is reality, not a sitcom and not scripted. Ishai and everyone around him behave like real people: ordinary, believable choices, real pacing, small moments. No slapstick, no staged coincidences, no punchlines in the narration. Humor comes from real life and from the hosts.
 - Ishai does not know he is being filmed. He never talks to or about the camera, the show or the hosts.
@@ -1001,7 +1002,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - He is social: at least one moment in two involves another person: in person, a phone call, or a text or email. Friends visit and call, strangers start conversations, regulars say something. ${(() => { let n = 0; for (let i = s.events.length - 1; i >= 0 && n < 8; i--) { const e = s.events[i]; if (e.with || (e.lines || []).length > 1 || e.action === "sleeping") break; n++; } return n >= 3 ? `He has been alone for ${n} moments: in THIS moment someone calls, texts or talks to him.` : ""; })()}
 - GADI, his boss in all but name, is NEVER seen in person. He only phones (action "phoning", "with": "gadi") or sends a text or email: add "message":{"from":"gadi","kind":"text"|"email","say":"max 25 words"} and Ishai reacts out loud in "lines", alone or with whoever is there. Friends can text the same way. A message needs no "with".
 - REGULARS are people he doesn't know well yet, usually found in one place: ${SEED_CAST.filter(c => c.regular).map(c => `${c.name} ("${c.id}", ${c.regular})`).join(", ")}. If he is there at their hours, they can start a short exchange (use "with"), and he gets to know them over time. Kobi at the bar gets drunker with the hour; Mr. Zelig also talks to himself.
-- "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of 8 to 14 lines (each max 25 words) that fills these 4 minutes: small talk, questions and follow-up questions, stories, teasing, short answers ("yeah", "wait, what?"), interruptions, a topic that drifts to another, a pause filled by someone. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
+- "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of ${TALK.min} to ${TALK.max} lines (each max 25 words) that fills these 4 minutes: small talk, questions and follow-up questions, stories, teasing, short answers ("yeah", "wait, what?"), interruptions, a topic that drifts to another, a pause filled by someone. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
 - EVERY CONVERSATION IS A SCENE WITH A PURPOSE. When a conversation with someone STARTS (their "with" differs from the last moment), fill "scene":
   {"type":"small talk"|"practical"|"plot","why":"the real reason they are talking now (who started it and why)","ishaiWants":"...","theyWant":"...","beats":"3-5 short steps the conversation goes through","ending":"how it ends","lines":12-60 total lines across moments}
   Ground it in the place, the time of day, both characters' personalities, memories and relationship, and ongoing plot threads. Small talk is fine but still has a reason (bored, lonely, being polite, avoiding work). Plot scenes move an arc forward. Otherwise "scene": null.
@@ -1096,7 +1097,7 @@ async function askStory(env, s, clock, now, goal, live) {
   const messages = buildMessages(s, clock, now, goal, { live });
   const allowNew = canAddPerson(s, now);
   for (let attempt = 0; attempt < 2; attempt++) {
-    const raw = await runModel(env, messages);
+    const raw = await runModel(env, messages, TALK.brake ? 1000 : 1400);
     const { ev, problem } = validate(raw, s, last, allowNew, goal, attempt === 1);
     // diagnostics for the director page: what the AI returned and why it was sent back
     s.diag = [...(s.diag || []), { at: now, model: lastWriter, attempt, problem: problem || null, with: ev?.with || null, action: ev?.action || null, lines: ev?.lines?.length ?? null, chars: raw.length }].slice(-16);
@@ -1131,6 +1132,19 @@ const USE = { calls: 0, inTok: 0, outTok: 0 };
 // who writes what: with a Google key, Gemini writes the story and Cloudflare Workers AI writes the hosts (comments, recaps, callers);
 // each one is the other's backup. Without the key everything runs on Cloudflare as before.
 let HOSTS_APART = false;
+// how long conversations are. Full: 10-16 lines in every moment with someone. The brake drops back to 8-14 (and lets thin moments through)
+// when the story is not on Gemini or Cloudflare has used 60% of its free daily allowance, so longer talk never pushes a limit.
+const TALK_FULL = { min: 10, max: 16, need: 6, brake: false }, TALK_SAFE = { min: 8, max: 14, need: 4, brake: true };
+let TALK = TALK_FULL;
+const neuronsOf = u => u ? Math.round((u.inTok || 0) * 4625 / 1e6 + (u.outTok || 0) * 30475 / 1e6) : 0;
+function talkLevel(s, env, now) {
+  const why = !env.GEMINI_API_KEY ? "no Gemini key"
+    : now < geminiOutUntil ? "Gemini paused"
+    : (s.geminiErrs || []).some(f => f.role === "story" && now - f.at < 30 * 60000) ? "Gemini failed in the last 30 min"
+    : neuronsOf(s.usage) + neuronsOf({ inTok: USE.inTok, outTok: USE.outTok }) > 6000 ? "Cloudflare over 60% of the day" : null;
+  s.talkBrake = why;
+  return why ? TALK_SAFE : TALK_FULL;
+}
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 const USE_G = { calls: 0, inTok: 0, outTok: 0 };
 let geminiModel = null, geminiOutUntil = 0, GEMINI_SEEN = null;
@@ -1376,8 +1390,8 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (ev.with && reused.length >= 2) ev.stuck = true; }
   if (ev.with && ev.with !== last.with && !(BATH_ACTIONS.includes(last.action) && s.scene && s.scene.w === ev.with) && !(ev.scene && ev.scene.why) && ev.action !== "sleeping" && !allowNoHosts)
     return { ev, problem: `a conversation with ${s.cast[ev.with]?.name || ev.with} starts here, so fill "scene" (type, why, ishaiWants, theyWant, beats, ending, lines) and write its first lines` };
-  if (ev.with && ev.lines.length < 4 && !allowNoHosts)
-    return { ev, problem: `he is ${ev.action === "phoning" ? "on the phone" : "together"} with ${s.cast[ev.with]?.name || ev.with}, so "lines" must contain their actual conversation: 8 to 14 lines alternating between "ishai" and "${ev.with}"` };
+  if (ev.with && ev.lines.length < TALK.need && !allowNoHosts)
+    return { ev, problem: `he is ${ev.action === "phoning" ? "on the phone" : "together"} with ${s.cast[ev.with]?.name || ev.with}, so "lines" must contain their actual conversation: ${TALK.min} to ${TALK.max} lines alternating between "ishai" and "${ev.with}"` };
   { const prev = recentHostLines(s, 12);
     const rep = ev.commentary.find(c => isRepeat(c.say, prev));
     if (rep) ev.commentary = ev.commentary.filter(c => !isRepeat(c.say, prev)); } // a stale joke is just cut; not worth a whole retry
@@ -1695,6 +1709,8 @@ function scriptEvent(s, last, g, now) {
   if (end) { finishGoal(s, g, "script", now); g.scriptDone = true; ev.complete = g.id; ev.unlocks = g.unlock || null; }
   return ev;
 }
+// a written-ahead moment with a small fault is patched instead of thrown away; a thin conversation only while the brake is on
+const minorProblem = p => /fill "scene"|hosts are missing/.test(p || "") || (TALK.brake && /"lines" must contain/.test(p || ""));
 function dropQueue(s, why) {
   if (s.queue && s.usage) s.usage.wasted = (s.usage.wasted || 0) + s.queue.items.length;
   s.queueDrop = why; s.queue = null;
@@ -1708,8 +1724,7 @@ function queuedEvent(s, last, goal, now) {
   const m = q.items[0];
   if (["listening", "watching"].includes(String(m.action || "").toLowerCase())) { dropQueue(s, "radio/TV: written live"); s.plannedLive = String(m.text || "").slice(0, 200); return null; }  // radio / TV: live
   const r = validate(JSON.stringify(m), s, last, canAddPerson(s, now), goal, false);
-  const minor = p => /"lines" must contain|fill "scene"|hosts are missing/.test(p || "");
-  if (r.ev && r.problem && minor(r.problem)) { r.ev = repair(r.ev, s, last); r.problem = null; }
+  if (r.ev && r.problem && minorProblem(r.problem)) { r.ev = repair(r.ev, s, last); r.problem = null; }
   if (!r.ev || r.problem) { countDrop(s, r.problem); dropQueue(s, r.problem || "dropped"); return null; }
   q.items.shift();
   const ev = r.ev; ev.fromBlock = true; ev.src = `${q.writer} (block ${q.n - q.items.length}/${q.n}, written ahead)`;
@@ -1721,7 +1736,7 @@ async function askBlock(env, s, clock, now, goal) {
   const nextG = s.director.filter(d => d.status === "waiting" && d.startAfter > now).sort((a, b) => a.startAfter - b.startAfter)[0];
   const n = clamp(nextG ? Math.floor((nextG.startAfter - now) / (INTERVAL_MIN * 60000)) + 1 : BLOCK_N, 1, BLOCK_N);
   if (n === 1) return askAI(env, s, clock, now, goal);
-  const raw = await runModel(env, buildMessages(s, clock, now, goal, { block: n }), 800 + n * 650);
+  const raw = await runModel(env, buildMessages(s, clock, now, goal, { block: n }), 800 + n * (TALK.brake ? 650 : 1000));
   const o = parseAI(raw), parsed = Array.isArray(o) ? o : Array.isArray(o?.moments) ? o.moments : o?.location ? [o] : null;
   let arr = (parsed || []).filter(x => x && typeof x === "object").slice(0, n);
   const allowNew = canAddPerson(s, now), written = arr.length;
@@ -1729,7 +1744,7 @@ async function askBlock(env, s, clock, now, goal) {
   let r = { problem: "the block was not valid JSON" }, skip = 0;
   for (let i = 0; i < arr.length; i++) {
     r = validate(JSON.stringify(arr[i]), s, last, allowNew, goal, false);
-    if (r.ev && r.problem && /"lines" must contain|fill "scene"|hosts are missing/.test(r.problem)) { r.ev = repair(r.ev, s, last); r.problem = null; }
+    if (r.ev && r.problem && minorProblem(r.problem)) { r.ev = repair(r.ev, s, last); r.problem = null; }
     if (r.ev && !r.problem) { skip = i; break; }
     countDrop(s, r.problem);
     s.queueDrop = "block: moment " + (i + 1) + "/" + arr.length + " skipped: " + (r.problem || "unusable");
