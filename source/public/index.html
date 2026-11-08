@@ -2308,7 +2308,10 @@
       else if (c.T > out){ if (c.T > out + d) return; x = p.x + (CC_DOOR - p.x) * (c.T - out) / d; walk = 1; dir = 1; }
       if (!walk && Math.abs(x - actor.x) < 10 && p.row >= 1) return;            // leave room for Ishai (and whoever is next to him)
       if (!walk && comp.id && Math.abs(x - comp.x) < 9 && p.row >= 1) return;
-      const up = !walk && live && c.on && p.jumps && (i + c.beat) % 3 !== 0 ? (p.row === 2 ? 2 : 1) : 0, y = p.y - up, X = Math.round(x);
+      // dancing: during a song the jumpers bounce on every other beat (half the room up, half down, swapping each beat),
+      // the rest sway side to side; in the quiet parts they just stand and film
+      const dance = !walk && live && !quiet, up = dance && p.jumps && (i + c.beat) % 2 === 0 ? (p.row === 2 ? 2 : 1) : 0;
+      const sway = dance && !p.jumps ? ((c.beat + i) % 2 ? 1 : -1) : 0, y = p.y - up, X = Math.round(x) + sway;
       zAdd(p.y + 22, () => {
         if (walk) person(p.look, X, p.y, t + i * 300, {muted: true, walk: true, face: dir});
         else person(p.look, X, y, t + i * 300, {muted: true, fid: 'turn'});
@@ -2316,6 +2319,7 @@
         const sk = (SKINC[p.look.skin] || SKINC.fair)[0];
         if (clap && p.claps){ const k = Math.floor((NOW() + i * 70) / 140) % 2; R(X + 2 + k, y - 2, 1, 2, sk); R(X + 7 - k, y - 2, 1, 2, sk); }   // hands up, clapping
         else if (peak && p.claps && i % 2){ R(X + 1, y - 4, 1, 5, sk); R(X + 8, y - 4, 1, 5, sk); }                                   // arms in the air
+        else if (dance && i % 3 === 0){ const k = (c.beat + i) % 2; R(X + (k ? 8 : 1), y - 4, 1, 5, sk); if (c.lvl.low > .6) R(X + (k ? 1 : 8), y - 2, 1, 3, sk); }   // a fist pumping on the beat
         else if (quiet && i % 5 === 0) { R(X + 3, y - 5, 2, 3, '#1a1a1a'); R(X + 3, y - 5, 2, 2, night || true ? '#e8f4ff' : '#9ab'); }   // a phone up, filming
       });
     });
