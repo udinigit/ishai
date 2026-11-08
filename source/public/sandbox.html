@@ -67,6 +67,7 @@
         <button id="qPump">Pump House</button>
         <button id="qGallery">Gallery night</button>
         <button id="qPoker">Poker night</button>
+        <button id="qConcert">Concert</button>
         <a href="/?preview" target="_blank" rel="noopener">Today's plan</a>
       </div>
     </div>
@@ -253,6 +254,17 @@ Back to the cameras.</textarea>
     const me = ++running; api.poker(d, 2.5); api.go({location:'corridor', action:'idle'});
     api.play({location:'apt2', action:'poker', lines:[], commentary:(d.moments && d.moments[0] && d.moments[0].commentary) || []});
   }
+  // a concert by one of the director's bands (from /events): every song, starting in a minute
+  async function concert(){
+    let bands = []; try { bands = (await (await fetch('/api/events', {cache:'no-store'})).json()).bands || []; } catch(e){}
+    bands = bands.filter(b => b.songs.length); if (!bands.length) return alert('Save a band with at least one song on the events page first.');
+    const pick = bands.length === 1 ? bands[0] : bands[Math.max(0, Math.min(bands.length - 1, (+prompt(bands.map((b, i) => `${i + 1}. ${b.name}`).join('\n') + '\n\nWhich band?', '1') || 1) - 1))];
+    let d = null; try { d = await (await fetch('/api/arena?band=' + pick.id, {cache:'no-store'})).json(); } catch(e){}
+    if (!d || !d.next) return alert('Could not build the concert.');
+    const me = ++running; api.arena({event: d.next, live: true, board: ['TODAY','20.00','LIVE'], screen: d.next.artist.toUpperCase()});
+    api.go({location:'plaza', action:'idle'});
+    for (const m of d.moments.slice(1)){ if (me !== running) return; api.play(m); await wait(600); while (me === running && api.busy()) await wait(300); if (m.action === 'concert') break; }
+  }
   function world(){
     const real = $('hourT').textContent === 'Real time';
     api.world({hour: real ? null : +$('hour').value, weather: $('wx').value, temp: +$('temp').value || 22,
@@ -285,6 +297,7 @@ Back to the cameras.</textarea>
     $('qPump').onclick = () => { running++; api.arena(null); api.go({location:'plaza', action:'idle'}); };
     $('qGallery').onclick = gallery;
     $('qPoker').onclick = poker;
+    $('qConcert').onclick = concert;
     $('play').onclick = () => { running++; api.reset(); api.play(moment()); };
     $('jump').onclick = () => { running++; api.go(moment()); };
     $('save').onclick = () => { if (editing >= 0) D.list[editing] = moment(); else D.list.push(moment()); editing = -1; $('save').textContent = 'Add to list'; store(); drawList(); };

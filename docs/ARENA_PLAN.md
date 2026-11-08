@@ -237,6 +237,7 @@ So viewers get to know the artists and bands in advance, and can follow the link
 
 ## Progress
 - v162: the plaza, the hall, Hagit, the map links.
+- v165: the /events page (bands with members, looks by hand / random / from a photo, logos, songs with beat maps), concerts on stage with synced audio and beat-driven lights, crowd and drummer, promotions on the board, the bar, the billboard, the radio, the hosts and the viewers' COMING UP card and EVENTS tab. Songs and pictures are stored in KV (no R2 needed).
 - v163: gallery nights end to end (scheduling, layout, curtain, main piece, browsing, close-ups, queue, line pools, sandbox button). Not yet: picture facts in the lines, the director's Events tab, uploads, promotions, concerts, the poker night's shared table-guests controller.
 
 ## Order of work

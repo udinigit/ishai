@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Ishai Events</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#050705;--phos:#4dff7a;--dim:#2a9a4c;--faint:#123d20;--amber:#ffb84d;--red:#ff6b6b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--phos);font-family:'VT323',ui-monospace,monospace;font-size:20px;padding:16px;display:flex;justify-content:center}
+  .wrap{width:100%;max-width:760px;display:flex;flex-direction:column;gap:14px}
+  h1{font-size:30px;margin:0;font-weight:normal} h2{font-size:26px;margin:0 0 6px;font-weight:normal}
+  .box{border:2px solid var(--faint);border-radius:10px;padding:12px 14px;background:#020502}
+  label{display:block;color:var(--dim);margin:8px 0 2px}
+  input,textarea,select{width:100%;font:inherit;background:#071007;color:var(--phos);border:1px solid var(--faint);border-radius:6px;padding:5px 8px}
+  input[type=checkbox]{width:auto} textarea{min-height:60px;resize:vertical}
+  button{font:inherit;background:var(--faint);color:var(--phos);border:1px solid var(--dim);border-radius:6px;padding:4px 12px;cursor:pointer}
+  button:hover{background:#1b5a2f} button.ghost{background:transparent} button:disabled{opacity:.5}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+  .muted{color:var(--dim)} .err{color:var(--red)} .ok{color:var(--phos)} .small{font-size:16px}
+  .member{border:1px dashed var(--faint);border-radius:8px;padding:8px;display:grid;grid-template-columns:72px 1fr;gap:10px;margin-top:8px}
+  .member canvas{width:64px;height:96px;image-rendering:pixelated;background:#0b140b;border-radius:6px}
+  .item{border-top:1px dashed var(--faint);padding:8px 0}
+  .item:first-child{border-top:none}
+  .logo{width:96px;height:48px;object-fit:contain;image-rendering:pixelated;background:#0b140b;border-radius:6px}
+  .card{border:1px solid var(--dim);border-radius:8px;padding:8px;background:#0b140b}
+  .card img{max-width:100%;border-radius:6px} .card a{color:var(--amber)}
+  details summary{cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>&gt; EVENTS // THE PUMP HOUSE</h1>
+  <div class="muted small"><a href="/director" style="color:var(--phos)">← Director page</a> · Every Wednesday at 20:00 the Pump House has one event. With nothing booked it is a gallery night; book a concert for a Wednesday and it takes that night's place. Concerts run 20 to 90 minutes.</div>
+  <div id="msg" class="small"></div>
+
+  <div class="box">
+    <h2>Bands and artists</h2>
+    <div id="bands"></div>
+    <div class="bar" style="margin-top:8px"><button id="newBand">+ New band or artist</button></div>
+  </div>
+
+  <div class="box" id="bandEd" hidden>
+    <h2 id="bandTitle">New band</h2>
+    <div class="grid">
+      <div><label>Name</label><input id="bName" maxlength="40" placeholder="The Chickpea Collective"></div>
+      <div><label>Kind</label><select id="bKind"><option value="band">Band</option><option value="solo">Solo artist</option></select></div>
+    </div>
+    <label>A line about them (viewers see it on promotions)</label><textarea id="bBio" maxlength="300"></textarea>
+    <label>Logo (PNG or JPG, up to 2 MB; shown pixelated on the hall's screen)</label>
+    <div class="bar"><img id="bLogoImg" class="logo" alt="" hidden><input id="bLogo" type="file" accept="image/png,image/jpeg,image/gif,image/webp" style="flex:1"><button id="bLogoDel" class="ghost" hidden>Remove</button></div>
+    <label>Their links (https only, up to 3; viewers can open them)</label>
+    <div id="bLinks"></div>
+
+    <h2 style="margin-top:14px">Members</h2>
+    <div class="muted small">Each member gets a look from the show's own menu. Set it by hand, roll a random one, or pick a photo: the page reads hair, skin and shirt colours from it on this device (the photo is not uploaded or kept). Check the result and adjust.</div>
+    <div id="members"></div>
+    <div class="bar" style="margin-top:8px"><button id="addMember">+ Add member</button></div>
+
+    <h2 style="margin-top:14px">Songs</h2>
+    <div class="muted small">MP3 files up to 20 MB each. After you pick them, each song is read here once to find its beats and loud parts (that drives the drummer, the lights and the crowd), then uploaded. Only upload music you made or may play in public.</div>
+    <div id="songs"></div>
+    <div class="bar" style="margin-top:8px"><input id="songFiles" type="file" accept="audio/mpeg,audio/mp3,audio/*" multiple style="flex:1"></div>
+    <div id="songMsg" class="small"></div>
+
+    <div class="bar" style="margin-top:14px"><button id="saveBand">Save band</button><button id="delBand" class="ghost">Delete</button><button id="closeBand" class="ghost">Close</button><span id="bandMsg" class="small"></span></div>
+  </div>
+
+  <div class="box">
+    <h2>Wednesday nights</h2>
+    <div id="nights"></div>
+  </div>
+
+  <div class="box" id="nightEd" hidden>
+    <h2 id="nightTitle">Concert</h2>
+    <div class="grid">
+      <div><label>Band</label><select id="nBand"></select></div>
+      <div><label>Title of the night</label><input id="nTitle" maxlength="60" placeholder="(the band's name)"></div>
+      <div><label>Ishai goes with</label><select id="nWith"><option value="">Anyone or nobody (the show picks)</option><option value="noa">Noa</option><option value="tomer">Tomer</option><option value="none">Nobody, alone</option></select></div>
+    </div>
+    <label>Setlist (tick the songs, order with ↑ ↓). Under each song: what the singer says after it, one line per row (empty: a stock line)</label>
+    <div id="setlist"></div>
+    <div id="nLen" class="small" style="margin-top:6px"></div>
+    <label>Hagit's opening line (optional)</label><input id="nOpen" maxlength="200" placeholder="Good evening, Pump House! Tonight: …">
+    <label>The singer's goodbye (optional)</label><input id="nClose" maxlength="200">
+    <div class="bar" style="margin-top:10px"><button id="saveNight">Book this concert</button><button id="closeNight" class="ghost">Close</button><span id="nightMsg" class="small"></span></div>
+  </div>
+
+  <div class="box">
+    <h2>Promotions</h2>
+    <div class="muted small">Posters, the radio, the hosts and a COMING UP card under the picture for viewers, between the dates you set. Ishai sees the posters and hears the radio; only viewers get the card and its links.</div>
+    <div id="promos"></div>
+    <div class="bar" style="margin-top:8px"><button id="newPromo">+ New promotion</button></div>
+  </div>
+
+  <div class="box" id="promoEd" hidden>
+    <h2>Promotion</h2>
+    <div class="grid">
+      <div><label>Title</label><input id="pTitle" maxlength="60"></div>
+      <div><label>For the night of</label><select id="pEvent"></select></div>
+      <div><label>From</label><input id="pFrom" type="date"></div>
+      <div><label>Until</label><input id="pTo" type="date"></div>
+    </div>
+    <label>Text</label><textarea id="pText" maxlength="400"></textarea>
+    <label>Image (poster; PNG or JPG up to 2 MB)</label>
+    <div class="bar"><img id="pImg" class="logo" alt="" hidden><input id="pImgFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp" style="flex:1"><button id="pImgDel" class="ghost" hidden>Remove</button></div>
+    <label>Links (https only)</label><div id="pLinks"></div>
+    <label>Where it shows</label>
+    <div class="bar small" id="pWhere"></div>
+    <label>Preview of the viewers' card</label><div id="pPreview" class="card small"></div>
+    <div class="bar" style="margin-top:10px"><button id="savePromo">Save promotion</button><button id="delPromo" class="ghost">Delete</button><button id="closePromo" class="ghost">Close</button><span id="promoMsg" class="small"></span></div>
+  </div>
+</div>
+<iframe id="art" src="/?builder" title="art" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;border:0"></iframe>
+<script>
+(() => {
+  const $ = id => document.getElementById(id), el = (t, a = {}, ...kids) => { const e = document.createElement(t); Object.entries(a).forEach(([k, v]) => k === 'on' ? Object.entries(v).forEach(([ev, f]) => e.addEventListener(ev, f)) : k in e ? e[k] = v : e.setAttribute(k, v)); kids.forEach(k => e.append(k)); return e; };
+  const KEY = localStorage.getItem('ishaiKey') || '';
+  const H = {'x-admin-key': KEY};
+  let V = null, band = null, night = null, promo = null;
+  const HAIRC = {black:'#141414',brown:'#3b2617',auburn:'#7a3b1c',blonde:'#d9b24a',gray:'#9a9a9a',white:'#e6e6e6',red:'#a8432a'};
+  const SKINC = {light:'#f3d0b0',fair:'#e0ac7e',tan:'#c98b5e',brown:'#a8714a',dark:'#6e4429'};
+  const CLOTH = {red:'#c23b3b',orange:'#d9822b',yellow:'#d8b43a',green:'#4f9a3f',teal:'#2f8f83',blue:'#3b7bc2',navy:'#2c3a66',purple:'#8a4fa3',pink:'#d97aa0',black:'#2a2a2a',white:'#e8e4d8',gray:'#7d7d85',brown:'#6b4a2f'};
+  const say = (id, text, bad) => { $(id).className = 'small ' + (bad ? 'err' : 'ok'); $(id).textContent = text; };
+  async function api(body){
+    const r = await fetch('/api/events', {method: body ? 'POST' : 'GET', headers: {...H, 'content-type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
+    const j = await r.json().catch(() => ({error: 'bad response ' + r.status})); if (!r.ok) throw new Error(j.error || r.status); return j;
+  }
+  async function upload(file, kind){
+    const r = await fetch(`/api/upload?kind=${kind}&name=${encodeURIComponent(file.name)}`, {method: 'PUT', headers: {...H, 'content-type': file.type || (kind === 'song' ? 'audio/mpeg' : 'image/png')}, body: file});
+    const j = await r.json().catch(() => ({error: 'bad response ' + r.status})); if (!r.ok) throw new Error(j.error || r.status); return j.id;
+  }
+  const fmtMin = ms => `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, '0')}`;
+  const fmtDay = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', {weekday: 'short', day: 'numeric', month: 'short'});
+  const rid = () => Math.random().toString(36).slice(2, 9);
+
+  // ---- the show's own art, for member previews (the hidden builder page draws them) ----
+  let B = null; const artReady = new Promise(res => { const f = $('art'); const w = () => { try { if (f.contentWindow.__builder){ B = f.contentWindow.__builder; return res(); } } catch(e){} setTimeout(w, 300); }; w(); });
+  async function drawLook(cv, look, inst){
+    await artReady; const x = cv.getContext('2d'); x.clearRect(0, 0, cv.width, cv.height); x.imageSmoothingEnabled = false;
+    try { const s = B.sprite({kind: 'person', look, pose: 'stand', face: 'ahead', frame: 0}); if (s){ const k = Math.min(Math.floor(cv.width / s.w), Math.floor(cv.height / s.h)); x.drawImage(s.canvas, Math.floor((cv.width - s.w * k) / 2), cv.height - s.h * k, s.w * k, s.h * k); } } catch(e){}
+  }
+  // ---- a look from a photo: hair, skin and shirt colours read from where they usually are in a portrait (on this device only) ----
+  const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), dist = (a, b) => Math.hypot(a[0]-b[0], a[1]-b[1], a[2]-b[2]);
+  const nearest = (c, table) => Object.entries(table).sort((a, b) => dist(c, rgb(a[1])) - dist(c, rgb(b[1])))[0][0];
+  function lookFromPhoto(img){
+    const cv = document.createElement('canvas'); cv.width = 60; cv.height = 80; const x = cv.getContext('2d', {willReadFrequently: true});
+    const s = Math.max(60 / img.width, 80 / img.height); x.drawImage(img, (60 - img.width * s) / 2, (80 - img.height * s) / 2, img.width * s, img.height * s);
+    const avg = (x0, y0, x1, y1) => { const d = x.getImageData(x0, y0, x1 - x0, y1 - y0).data; let r = 0, g = 0, b = 0, n = 0; for (let i = 0; i < d.length; i += 4){ r += d[i]; g += d[i+1]; b += d[i+2]; n++; } return [r/n, g/n, b/n]; };
+    const hairC = avg(22, 4, 38, 11), face = avg(24, 24, 36, 34), shirt = avg(14, 64, 46, 78), sides = avg(10, 26, 18, 44), sides2 = avg(42, 26, 50, 44), chin = avg(25, 36, 35, 42);
+    const look = {hair: 'short', hairColor: nearest(hairC, HAIRC), skin: nearest(face, SKINC), shirt: nearest(shirt, CLOTH), pants: ['black','navy','gray','brown','blue'][Math.floor(Math.random()*5)], extras: []};
+    if (dist(hairC, face) < 45) look.hair = 'bald';
+    else if (dist(sides, hairC) < 55 && dist(sides2, hairC) < 55) look.hair = 'long';
+    if (dist(chin, hairC) < dist(chin, face) - 10) look.extras.push('beard');
+    return look;
+  }
+  function randomLook(){ const p = a => a[Math.floor(Math.random() * a.length)], L = V.look;
+    return {hair: p(L.hair), hairColor: p(L.hairColor), skin: p(L.skin), shirt: p(L.cloth), pants: p(['black','navy','gray','brown','blue']), extras: Math.random() < .5 ? [p(L.extras.filter(e => e !== 'apron'))] : []}; }
+
+  // ---- a song: its length, beats and loudness, worked out once here ----
+  async function analyse(file){
+    const AC = window.AudioContext || window.webkitAudioContext, ac = new AC(), audio = await ac.decodeAudioData(await file.arrayBuffer()); ac.close && ac.close();
+    const sr = audio.sampleRate, a = audio.getChannelData(0), b = audio.numberOfChannels > 1 ? audio.getChannelData(1) : null;
+    const kl = 1 - Math.exp(-2 * Math.PI * 150 / sr), kh = 1 - Math.exp(-2 * Math.PI * 2500 / sr);
+    const step = Math.round(sr * .1), fine = Math.round(sr * .02), n = Math.floor(a.length / step);
+    const low = new Float32Array(n), mid = new Float32Array(n), high = new Float32Array(n), lowF = new Float32Array(Math.floor(a.length / fine));
+    let lp = 0, lp2 = 0;
+    for (let i = 0; i < a.length; i++){ const v = b ? (a[i] + b[i]) / 2 : a[i]; lp += kl * (v - lp); lp2 += kh * (v - lp2);
+      const f = Math.floor(i / step), g = Math.floor(i / fine); if (f < n){ low[f] += lp * lp; mid[f] += (lp2 - lp) * (lp2 - lp); high[f] += (v - lp2) * (v - lp2); } if (g < lowF.length) lowF[g] += lp * lp; }
+    const norm = arr => { const m = Math.max(...arr) || 1; return Array.from(arr, v => Math.round(Math.sqrt(v / m) * 255)); };
+    const beats = []; let last = -1e9;
+    for (let i = 12; i < lowF.length; i++){ let s = 0; for (let k = i - 12; k < i; k++) s += lowF[k]; const mean = s / 12;
+      if (lowF[i] > mean * 1.45 && lowF[i] >= lowF[i-1] && i * 20 - last >= 260){ beats.push(i * 20); last = i * 20; } }
+    const gaps = beats.slice(1).map((t, i) => t - beats[i]).filter(g => g > 250 && g < 1500).sort((x, y) => x - y), med = gaps[Math.floor(gaps.length / 2)] || 500;
+    return {v: 1, dur: Math.round(audio.duration * 1000), step: 100, low: norm(low), mid: norm(mid), high: norm(high), beats, bpm: Math.round(60000 / med)};
+  }
+
+  // ---- bands ----
+  function renderBands(){
+    const box = $('bands'); box.textContent = ''; if (!V.bands.length) box.textContent = 'No bands yet.';
+    V.bands.forEach(b => box.append(el('div', {className: 'item bar'}, ...(b.logo ? [el('img', {className: 'logo', src: '/asset/' + b.logo, alt: ''})] : []),
+      el('span', {style: 'flex:1'}, `${b.name} · ${b.kind === 'solo' ? 'solo' : b.members.length + ' members'} · ${b.songs.length} song${b.songs.length === 1 ? '' : 's'}`), el('button', {className: 'ghost', textContent: 'Edit', on: {click: () => openBand(b)}}))));
+  }
+  function openBand(b){
+    band = JSON.parse(JSON.stringify(b || {id: '', name: '', kind: 'band', bio: '', logo: null, links: [], members: [], songs: []}));
+    $('bandEd').hidden = false; $('bandTitle').textContent = b ? 'Edit ' + b.name : 'New band or artist';
+    $('bName').value = band.name; $('bKind').value = band.kind; $('bBio').value = band.bio || ''; showLogo(); renderLinks($('bLinks'), band.links); renderMembers(); renderSongs(); say('bandMsg', '');
+    $('bandEd').scrollIntoView({behavior: 'smooth'});
+  }
+  function showLogo(){ $('bLogoImg').hidden = !band.logo; $('bLogoDel').hidden = !band.logo; if (band.logo) $('bLogoImg').src = '/asset/' + band.logo; }
+  function renderLinks(box, links){
+    box.textContent = ''; while (links.length < 3) links.push({label: '', url: ''});
+    links.forEach(l => box.append(el('div', {className: 'grid', style: 'grid-template-columns:1fr 3fr;margin-top:4px'},
+      el('input', {placeholder: 'Listen', value: l.label, maxLength: 24, on: {input: e => l.label = e.target.value}}), el('input', {placeholder: 'https://…', value: l.url, on: {input: e => l.url = e.target.value}}))));
+  }
+  function renderMembers(){
+    const box = $('members'); box.textContent = '';
+    band.members.forEach((m, i) => {
+      const cv = el('canvas', {width: 32, height: 48});
+      const sel = (key, list, label) => el('div', {}, el('label', {textContent: label}), el('select', {on: {change: e => { m.look[key] = e.target.value; drawLook(cv, m.look); }}}, ...list.map(v => el('option', {value: v, textContent: v, selected: m.look[key] === v}))));
+      const ex = el('div', {className: 'bar small'}, ...V.look.extras.map(x => el('label', {style: 'margin:0;display:flex;gap:4px;align-items:center'}, el('input', {type: 'checkbox', checked: m.look.extras.includes(x), on: {change: e => { m.look.extras = e.target.checked ? [...m.look.extras, x] : m.look.extras.filter(y => y !== x); drawLook(cv, m.look); }}}), x)));
+      const photo = el('input', {type: 'file', accept: 'image/*', style: 'display:none', on: {change: e => { const f = e.target.files[0]; if (!f) return; const img = new Image(); img.onload = () => { m.look = lookFromPhoto(img); URL.revokeObjectURL(img.src); renderMembers(); }; img.src = URL.createObjectURL(f); }}});
+      box.append(el('div', {className: 'member'}, el('div', {}, cv),
+        el('div', {}, el('div', {className: 'grid'},
+          el('div', {}, el('label', {textContent: 'Name'}), el('input', {value: m.name, maxLength: 30, on: {input: e => m.name = e.target.value}})),
+          el('div', {}, el('label', {textContent: 'Plays'}), el('select', {on: {change: e => m.instrument = e.target.value}}, ...V.instruments.map(v => el('option', {value: v, textContent: v === 'dj' ? 'decks (DJ)' : v === 'vocals' ? 'nothing, sings' : v, selected: m.instrument === v})))),
+          el('div', {}, el('label', {textContent: 'Voice'}), el('select', {on: {change: e => m.vocal = e.target.value}}, ...V.vocals.map(v => el('option', {value: v, textContent: v === 'lead' ? 'lead singer' : v === 'backing' ? 'backing vocals' : 'does not sing', selected: m.vocal === v}))))),
+          el('div', {className: 'grid'}, sel('hair', V.look.hair, 'Hair'), sel('hairColor', V.look.hairColor, 'Hair colour'), sel('skin', V.look.skin, 'Skin'), sel('shirt', V.look.cloth, 'Shirt'), sel('pants', V.look.cloth, 'Trousers')),
+          ex,
+          el('div', {className: 'bar', style: 'margin-top:6px'}, el('button', {className: 'ghost', textContent: '🎲 Random look', on: {click: () => { m.look = randomLook(); renderMembers(); }}}),
+            el('button', {className: 'ghost', textContent: '📷 From a photo', on: {click: () => photo.click()}}), photo,
+            el('button', {className: 'ghost', textContent: 'Remove', on: {click: () => { band.members.splice(i, 1); renderMembers(); }}})))));
+      drawLook(cv, m.look);
+    });
+  }
+  function renderSongs(){
+    const box = $('songs'); box.textContent = ''; if (!band.songs.length) box.textContent = 'No songs yet.';
+    band.songs.forEach((s, i) => box.append(el('div', {className: 'item bar'}, el('input', {value: s.title, maxLength: 60, style: 'flex:1', on: {input: e => s.title = e.target.value}}),
+      el('span', {className: 'muted small'}, `${fmtMin(s.dur)} · ${s.beats ? 'beats ✓' : 'no beat map'}`), el('audio', {controls: true, preload: 'none', src: '/asset/' + s.id, style: 'height:28px;max-width:180px'}),
+      el('button', {className: 'ghost', textContent: '↑', on: {click: () => { if (i){ [band.songs[i-1], band.songs[i]] = [band.songs[i], band.songs[i-1]]; renderSongs(); } }}}),
+      el('button', {className: 'ghost', textContent: 'Remove', on: {click: () => { band.songs.splice(i, 1); renderSongs(); }}}))));
+  }
+  $('newBand').onclick = () => openBand(null);
+  $('closeBand').onclick = () => { $('bandEd').hidden = true; band = null; };
+  $('addMember').onclick = () => { if (band.members.length >= 6) return say('bandMsg', 'Six members at most.', true); band.members.push({id: rid(), name: '', instrument: band.members.length ? 'guitar' : 'vocals', vocal: band.members.length ? 'none' : 'lead', look: randomLook()}); renderMembers(); };
+  $('bLogo').onchange = async e => { const f = e.target.files[0]; if (!f) return; say('bandMsg', 'Uploading the logo…'); try { band.logo = await upload(f, 'image'); showLogo(); say('bandMsg', 'Logo uploaded. Save to keep it.'); } catch(err){ say('bandMsg', err.message, true); } e.target.value = ''; };
+  $('bLogoDel').onclick = () => { band.logo = null; showLogo(); };
+  $('songFiles').onchange = async e => {
+    const files = [...e.target.files]; e.target.value = '';
+    for (const f of files){
+      try { say('songMsg', `Listening to ${f.name} (finding the beats)…`); const a = await analyse(f);
+        say('songMsg', `Uploading ${f.name}…`); const id = await upload(f, 'song');
+        const r = await fetch('/api/beats?id=' + id, {method: 'PUT', headers: {...H, 'content-type': 'application/json'}, body: JSON.stringify(a)});
+        band.songs.push({id, title: f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').slice(0, 60), dur: a.dur, beats: r.ok}); renderSongs();
+        say('songMsg', `${f.name}: ${fmtMin(a.dur)}, about ${a.bpm} beats a minute. Save the band to keep it.`);
+      } catch(err){ say('songMsg', `${f.name}: ${err.message || 'could not read this file'}`, true); }
+    }
+  };
+  $('saveBand').onclick = async () => {
+    band.name = $('bName').value; band.kind = $('bKind').value; band.bio = $('bBio').value;
+    if (!band.name.trim()) return say('bandMsg', 'Give them a name first.', true);
+    if (!band.members.length) return say('bandMsg', 'Add at least one member (a solo artist is one member).', true);
+    try { const r = await api({action: 'bandSave', band}); V = r.view; band = JSON.parse(JSON.stringify(r.band)); renderAll(); say('bandMsg', 'Saved.'); } catch(err){ say('bandMsg', err.message, true); }
+  };
+  $('delBand').onclick = async () => { if (!band.id || !confirm('Delete ' + band.name + '?')) return; try { V = (await api({action: 'bandDelete', id: band.id})).view; $('bandEd').hidden = true; renderAll(); } catch(err){ say('bandMsg', err.message, true); } };
+
+  // ---- Wednesday nights ----
+  function renderNights(){
+    const box = $('nights'); box.textContent = '';
+    V.nights.forEach(n => { const c = n.custom, b = c && V.bands.find(x => x.id === c.band);
+      box.append(el('div', {className: 'item'}, el('div', {}, `${fmtDay(n.date)} 20:00 · ` + (c ? `CONCERT: ${c.title}${b ? '' : ' (band missing)'} · ${c.minutes} min · ${c.setlist.length} songs` : n.built ? `${n.built.kind === 'gallery' ? 'Gallery night' : n.built.kind}: ${n.built.artist}, "${n.built.title}"` : 'Gallery night (made a few days before)')),
+        el('div', {className: 'bar small'}, el('button', {className: 'ghost', textContent: c ? 'Edit concert' : 'Book a concert', on: {click: () => openNight(n)}}),
+          ...(c ? [el('button', {className: 'ghost', textContent: 'Back to a gallery night', on: {click: async () => { V = (await api({action: 'nightDelete', date: n.date})).view; renderAll(); }}})] : []),
+          ...(n.built ? [el('span', {className: 'muted'}, n.built.scheduled ? 'scheduled' : 'not scheduled yet')] : []))));
+    });
+  }
+  function openNight(n){
+    if (!V.bands.some(b => b.songs.length)) return say('msg', 'First save a band with at least one song.', true);
+    const c = n.custom || {band: V.bands.find(b => b.songs.length).id, title: '', setlist: [], banter: {}, opening: '', closing: '', companion: null};
+    night = {date: n.date, band: c.band, title: c.title, setlist: [...c.setlist], banter: JSON.parse(JSON.stringify(c.banter || {})), opening: c.opening, closing: c.closing, companion: c.companion};
+    $('nightEd').hidden = false; $('nightTitle').textContent = 'Concert on ' + fmtDay(n.date);
+    $('nBand').textContent = ''; V.bands.filter(b => b.songs.length).forEach(b => $('nBand').append(el('option', {value: b.id, textContent: b.name, selected: b.id === night.band})));
+    $('nTitle').value = night.title || ''; $('nOpen').value = night.opening || ''; $('nClose').value = night.closing || ''; $('nWith').value = night.companion || '';
+    renderSetlist(); say('nightMsg', ''); $('nightEd').scrollIntoView({behavior: 'smooth'});
+  }
+  $('nBand').onchange = e => { night.band = e.target.value; night.setlist = []; night.banter = {}; renderSetlist(); };
+  function renderSetlist(){
+    const b = V.bands.find(x => x.id === night.band), box = $('setlist'); box.textContent = ''; if (!b) return;
+    const order = [...night.setlist, ...b.songs.map(s => s.id).filter(id => !night.setlist.includes(id))];
+    order.forEach(id => { const s = b.songs.find(x => x.id === id); if (!s) return; const on = night.setlist.includes(id), i = night.setlist.indexOf(id);
+      box.append(el('div', {className: 'item'}, el('div', {className: 'bar'}, el('input', {type: 'checkbox', checked: on, on: {change: e => { night.setlist = e.target.checked ? [...night.setlist, id] : night.setlist.filter(x => x !== id); renderSetlist(); }}}),
+        el('span', {style: 'flex:1'}, `${on ? i + 1 + '. ' : ''}${s.title} (${fmtMin(s.dur)})`),
+        ...(on ? [el('button', {className: 'ghost', textContent: '↑', on: {click: () => { if (i){ [night.setlist[i-1], night.setlist[i]] = [night.setlist[i], night.setlist[i-1]]; renderSetlist(); } }}}),
+          el('button', {className: 'ghost', textContent: '↓', on: {click: () => { if (i < night.setlist.length - 1){ [night.setlist[i+1], night.setlist[i]] = [night.setlist[i], night.setlist[i+1]]; renderSetlist(); } }}})] : [])),
+        ...(on && i < night.setlist.length - 1 ? [el('textarea', {placeholder: 'After this song the singer says… (one line per row, up to 3)', value: (night.banter[id] || []).join('\n'), style: 'min-height:44px;margin-top:4px', on: {input: e => night.banter[id] = e.target.value.split('\n')}})] : []))); });
+    const ms = 40000 + night.setlist.reduce((n, id) => n + (b.songs.find(x => x.id === id) || {dur: 0}).dur, 0) + Math.max(0, night.setlist.length - 1) * 45000 + 40000, min = Math.round(ms / 60000);
+    $('nLen').className = 'small ' + (min < 20 || min > 90 ? 'err' : 'ok');
+    $('nLen').textContent = night.setlist.length ? `About ${min} minutes with the talk between songs${min < 20 ? ': a night needs at least 20 minutes, add songs' : min > 90 ? ': 90 minutes is the most, remove songs' : '.'}` : 'Tick the songs to play.';
+  }
+  $('closeNight').onclick = () => { $('nightEd').hidden = true; night = null; };
+  $('saveNight').onclick = async () => {
+    night.title = $('nTitle').value; night.opening = $('nOpen').value; night.closing = $('nClose').value; night.companion = $('nWith').value || null;
+    try { V = (await api({action: 'nightSave', date: night.date, night})).view; renderAll(); say('nightMsg', 'Booked. It replaces the gallery night and the story knows it is coming.'); } catch(err){ say('nightMsg', err.message, true); }
+  };
+
+  // ---- promotions ----
+  const WHERE = {board: 'Pump House poster board', bar: 'Poster at The Black Candle', street: 'Billboard on Herzl St. west', radio: 'Radio Herzl 88.2 (the DJ)', hosts: 'The hosts mention it', card: 'COMING UP card for viewers (with links)'};
+  function renderPromos(){
+    const box = $('promos'); box.textContent = ''; if (!V.promos.length) box.textContent = 'No promotions yet.';
+    V.promos.forEach(p => box.append(el('div', {className: 'item bar'}, ...(p.image ? [el('img', {className: 'logo', src: '/asset/' + p.image, alt: ''})] : []), el('span', {style: 'flex:1'}, `${p.title} · ${p.from} → ${p.to}`), el('button', {className: 'ghost', textContent: 'Edit', on: {click: () => openPromo(p)}}))));
+  }
+  function openPromo(p){
+    const today = new Date().toISOString().slice(0, 10), nx = V.nights[0];
+    promo = JSON.parse(JSON.stringify(p || {id: '', title: '', text: '', image: null, links: [], from: today, to: nx ? nx.date : today, event: nx ? nx.date : null, where: Object.keys(WHERE)}));
+    $('promoEd').hidden = false; $('pTitle').value = promo.title; $('pText').value = promo.text; $('pFrom').value = promo.from; $('pTo').value = promo.to;
+    $('pEvent').textContent = ''; $('pEvent').append(el('option', {value: '', textContent: '(no particular night)'}), ...V.nights.map(n => el('option', {value: n.date, textContent: fmtDay(n.date) + (n.custom ? ' · ' + n.custom.title : ''), selected: promo.event === n.date})));
+    $('pWhere').textContent = ''; Object.entries(WHERE).forEach(([k, t]) => $('pWhere').append(el('label', {style: 'margin:0;display:flex;gap:4px;align-items:center'}, el('input', {type: 'checkbox', checked: promo.where.includes(k), on: {change: e => { promo.where = e.target.checked ? [...promo.where, k] : promo.where.filter(x => x !== k); }}}), t)));
+    renderLinks($('pLinks'), promo.links); showPromoImg(); preview(); say('promoMsg', ''); $('promoEd').scrollIntoView({behavior: 'smooth'});
+  }
+  function showPromoImg(){ $('pImg').hidden = !promo.image; $('pImgDel').hidden = !promo.image; if (promo.image) $('pImg').src = '/asset/' + promo.image; preview(); }
+  function preview(){
+    const b = $('pPreview'); b.textContent = ''; if (!promo) return;
+    b.append(el('div', {style: 'color:var(--amber)'}, 'COMING UP · ' + ($('pTitle').value || promo.title || '…')), ...(promo.image ? [el('img', {src: '/asset/' + promo.image, alt: ''})] : []), el('div', {}, $('pText').value || promo.text || ''),
+      el('div', {className: 'bar'}, ...promo.links.filter(l => /^https:\/\//.test(l.url)).map(l => { let host = ''; try { host = new URL(l.url).hostname; } catch(e){} return el('a', {href: l.url, target: '_blank', rel: 'noopener noreferrer nofollow', textContent: `${l.label || 'Link'} (${host})`}); })));
+  }
+  ['pTitle', 'pText'].forEach(id => $(id).addEventListener('input', preview)); $('pLinks').addEventListener('input', preview);
+  $('newPromo').onclick = () => openPromo(null);
+  $('closePromo').onclick = () => { $('promoEd').hidden = true; promo = null; };
+  $('pImgFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; say('promoMsg', 'Uploading…'); try { promo.image = await upload(f, 'image'); showPromoImg(); say('promoMsg', 'Image uploaded. Save to keep it.'); } catch(err){ say('promoMsg', err.message, true); } e.target.value = ''; };
+  $('pImgDel').onclick = () => { promo.image = null; showPromoImg(); };
+  $('savePromo').onclick = async () => {
+    Object.assign(promo, {title: $('pTitle').value, text: $('pText').value, from: $('pFrom').value, to: $('pTo').value, event: $('pEvent').value || null});
+    const bad = promo.links.filter(l => l.url && !/^https:\/\//.test(l.url)); if (bad.length) return say('promoMsg', 'Links must start with https://', true);
+    try { V = (await api({action: 'promoSave', promo})).view; renderAll(); say('promoMsg', 'Saved.'); } catch(err){ say('promoMsg', err.message, true); }
+  };
+  $('delPromo').onclick = async () => { if (!promo.id || !confirm('Delete this promotion?')) return; V = (await api({action: 'promoDelete', id: promo.id})).view; $('promoEd').hidden = true; renderAll(); };
+
+  function renderAll(){ renderBands(); renderNights(); renderPromos(); }
+  api().then(v => { V = v; renderAll(); }).catch(e => { say('msg', e.message + ' — log in on the director page first.', true); });
+})();
+</script>
+</body>
+</html>

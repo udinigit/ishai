@@ -101,6 +101,12 @@
   .chatC small{display:block;font-size:.72em;letter-spacing:1px;color:#7fcf9c}
   .chatC b{font-weight:normal;color:#ffd36a}
   /* viewers' poll: a card under the picture */
+  .promoC{display:flex;align-items:center;gap:8px;border:2px solid #ff7ad9;border-radius:10px;background:#140713;padding:5px 10px;color:#ffd6f2;font-size:clamp(15px,3.9vw,19px)}
+  .promoC span{color:#ff7ad9;letter-spacing:1px;font-size:.85em;white-space:nowrap} .promoC b{flex:1;font-weight:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .promoC button{font:inherit;background:#3a0f33;color:#ffd6f2;border:1px solid #ff7ad9;border-radius:6px;padding:0 8px;cursor:pointer}
+  .promoCard{border:1px solid #6a2a5a;border-radius:8px;padding:8px;margin:6px 0;background:#0e050c;color:#ffe6f6}
+  .promoCard img{display:block;max-width:100%;max-height:260px;margin:6px 0;border-radius:6px;image-rendering:auto}
+  .promoH{color:#ff7ad9;letter-spacing:1px} .promoW{color:#ffb84d;margin-top:4px} .promoL{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px} .promoL a{color:#7ad0ff}
   .pollC{border:2px solid var(--amber);border-radius:10px;background:#0d0a03;padding:8px 10px 9px;color:#ffe2ad;font-size:clamp(15px,3.9vw,20px);line-height:1.15}
   .pollH{display:flex;justify-content:space-between;gap:8px;color:var(--amber);letter-spacing:1px;font-size:.85em}
   .pollH b{font-weight:normal;color:#fff3d6}
@@ -152,7 +158,8 @@
   .msg .who small{color:var(--phos-dim);font-size:.8em;margin-left:6px}
   .msg .said{color:#eaffea;text-shadow:none;display:inline}
   .scene{color:var(--phos-dim);font-size:.8em;text-align:center;letter-spacing:2px;margin-top:4px}
-  .tabs{display:flex;gap:8px;margin-bottom:-4px}
+  .tabs{display:flex;flex-wrap:wrap;gap:6px 8px;margin-bottom:-4px}
+  @media (max-width:480px){ .tabs button{font-size:clamp(15px,3.9vw,19px);padding-left:8px;padding-right:8px} }
   .tabs button{font:inherit;font-size:clamp(17px,4.2vw,21px);background:transparent;color:var(--phos-dim);
     border:2px solid var(--phos-faint);border-bottom:none;border-radius:8px 8px 0 0;padding:2px 14px;cursor:pointer}
   .tabs button.on{color:var(--phos);background:#020502;text-shadow:0 0 6px rgba(77,255,122,.45)}
@@ -264,6 +271,7 @@
     <div class="hud bot"><span id="place">ISHAI // APARTMENT</span><span id="hudAction">--</span></div>
   </div>
 
+  <div class="promoC" id="promoC" hidden><span>📣 COMING UP</span><b id="promoT"></b><button id="promoMore" type="button">SEE ▸</button></div>
   <div class="pollC" id="pollC" hidden><div class="pollH"><span>🗳 VIEWERS' VOTE</span><b id="pollT"></b></div><div class="pollQ" id="pollQ"></div><div class="pollO" id="pollO"></div><div class="pollF" id="pollF" aria-live="polite"></div><div class="pollG" id="pollG" hidden></div></div>
 
   <div class="status">
@@ -287,11 +295,13 @@
     <button id="tabTalk" class="on" role="tab" aria-selected="true">CONVERSATIONS</button>
     <button id="tabCast" role="tab" aria-selected="false">CAST</button>
     <button id="tabSum" role="tab" aria-selected="false">SUMMARY</button>
+    <button id="tabEv" role="tab" aria-selected="false">EVENTS</button>
     <button id="tabFeed" role="tab" aria-selected="false" hidden>NARRATION (DEV)</button>
   </div>
   <div class="term talk" id="talk" aria-live="polite"><div class="empty" id="talkEmpty">Quiet right now. When someone talks in this scene, it appears here.</div></div>
   <div class="term" id="term" hidden></div>
   <div class="term cast" id="castPanel" hidden></div>
+  <div class="term ev" id="evPanel" hidden><div class="empty">Nothing announced right now.</div></div>
   <div class="term sum" id="sumPanel" hidden><div class="empty">The first summary appears on the next full hour.</div></div>
   <div class="foot">Story written by AI. Ishai is fictional.</div>
 </div>
@@ -337,7 +347,7 @@
     west1:     ['walking','idle'], west2: ['walking','idle'], west3: ['walking','idle'],   // walk-through blocks, page only: the story never stops here
     park:      ['walking','idle','talking','reading','eating','drinking','exercising','phoning'],
     plaza:     ['walking','idle','talking','eating','drinking','phoning'],
-    arena:     ['idle','walking','talking','drinking','phoning','gallery'],
+    arena:     ['idle','walking','talking','drinking','phoning','gallery','concert'],
     apt2:      ['idle','talking','eating','drinking','phoning','poker'],
     hall1:     ['walking','idle'],   // the first-floor landing, page only: on the way to and from apartment 2
     cafe:      ['idle','eating','drinking','working','reading','talking','phoning'],
@@ -1660,6 +1670,7 @@
       R(50,50,1,22,'#555'); R(38,44,26,8,'#2f7d3a'); word('PARK',43,46,'#ffffff');
       // 8bitTV billboard
       roofAd(88,1,46,12,[96,126]); R(88,1,46,12,'#1b1464'); word('8',92,4,'#ffd23f'); word('BIT',97,4,'#ffffff'); word('TV',110,4,'#3bceac'); R(122,5+(Math.abs(Math.sin(t/420))*2|0),3,4,'#ff4f79'); R(120,11,12,1,'#3a9a4a');
+      promoPoster('street', 89, 2, 44, 10);   // a promotion takes the billboard
       // second-hand books
       R(86,40,50,32,'#4a5a3a'); R(86,40,50,7,'#f2e6c0'); word('BOOKS',101,41,'#3a4a2c');
       R(89,49,28,17,'#e8dcc0'); for (let r=0;r<2;r++){ R(90,57+r*8,26,1,'#6b4a2a'); for (let i=0;i<8;i++) R(91+i*3,51+r*8-(i%3===0?1:0),2,6+(i%3===0?1:0),['#c23b3b','#2c3a66','#d8b43a','#4f9a3f'][(i+r)%4]); }
@@ -1847,7 +1858,7 @@
       if (!regular('hagit', 102, 52, t, {legs:false, face:-1, talking: SAY.who === 'hagit'})) R(101,60,12,1,'#1a1a1a');   // the window's shelf
       // the poster board: this week and next week
       R(126,44,24,30,'#5e4027'); R(128,46,20,26,'#efe6cf'); R(128,46,20,6,'#a83a2a');
-      word('NEXT',130,47,'#f2e6c8'); arenaBoard().slice(0,3).forEach((l,i) => { const s2 = String(l).toUpperCase().slice(0,5); word(s2, 129 + Math.max(0, Math.floor((19 - (s2.length*4-1))/2)), 54 + i*6, '#2a2a2a'); });
+      word('NEXT',130,47,'#f2e6c8'); if (!promoPoster('board', 129, 53, 18, 17)) arenaBoard().slice(0,3).forEach((l,i) => { const s2 = String(l).toUpperCase().slice(0,5); word(s2, 129 + Math.max(0, Math.floor((19 - (s2.length*4-1))/2)), 54 + i*6, '#2a2a2a'); });
       // pavement: old cobbles in front of the hall, the park path going off to the right
       R(0,82,W,10,'#8e8478'); for (let x=0;x<W;x+=6) R(x + ((x/6)%2)*3,82,1,10,'#7c7266'); R(0,86,W,1,'#7c7266');
       R(0,92,W,16,'#c8b48a'); R(0,92,W,1,'#b09c74');
@@ -1979,7 +1990,7 @@
   // inside the Pump House: a stage under the old pipes, a pixel screen, a concrete floor; lit for events, dim otherwise
   SCENES.arena = {
     cam:'CAM-20', place:'THE PUMP HOUSE // HALL', walkY:70, entry:W+8, exit:W+8,
-    stand:{idle:120, walking:120, talking:110, phoning:120, drinking:30, gallery:96},
+    stand:{idle:120, walking:120, talking:110, phoning:120, drinking:30, gallery:96, concert:96},
     draw(t,hf,a,settled,actor){
       const live = !!(ARENA && ARENA.live), night = isNight(hf);
       brickWall(0,0,W,66,'#3a2c2a','#2e2220');
@@ -2001,10 +2012,12 @@
       // the floor, and the door on the right
       R(0,66,W,42,'#4a4a4c'); for (let x=0;x<W;x+=16) R(x,66,1,42,'#424244'); for (let y=74;y<H;y+=10) R(0,y,W,1,'#424244');
       R(178,30,14,58,'#2a2a2a'); R(180,32,12,56, doorBusy(186) ? '#0a0a0a' : '#4a4e52'); R(181,58,2,4,'#c8b070'); R(178,24,14,5,'#1a1a1a'); word('EXIT',179,25,'#5ad07a');
-      const gi = galleryInfo();
+      const gi = galleryInfo(), cc = !gi && concertNow();
       if (gi){ drawGalleryWalls(gi, t); drawCurtain(gi.drop); }
       zOn();
-      if (live && !DREAMING && !NO_CROWD){ crowdWalk(t, 3, 70000, 4000, 68, 1, .7); crowdWalk(t, 8, 83000, 30000, 68, -1, .7);   // other visitors, browsing slowly
+      if (cc){ drawConcert(cc, t, this);
+        if (cc.T < 45000 || cc.T > cc.e.endT - 20000) zAdd(56, () => { markHead('hagit', 30, 31); person(REG.hagit.look, 30, 31, t, {face: 1, talkPhase: SAY.who === 'hagit'}); }); }   // Hagit opens and closes the night on stage
+      else if (live && !DREAMING && !NO_CROWD){ crowdWalk(t, 3, 70000, 4000, 68, 1, .7); crowdWalk(t, 8, 83000, 30000, 68, -1, .7);   // other visitors, browsing slowly
         if (gi && !gi.curtain) crowdStill(t, 5, 150, 68, {face:1}); }
       if (gi){ const h = hagitX(gi), L = REG.hagit.look, hx = Math.round(h.x);
         zAdd(this.walkY + 21.9, () => { markHead('hagit', hx, this.walkY); person(L, hx, this.walkY, t + 500, h.walk ? {walk:true, face:h.dir || 1} : {face: actor.x > hx ? 1 : -1, talkPhase: SAY.who === 'hagit'}); }); }
@@ -2204,6 +2217,125 @@
     h.streets.forEach((s, i) => { if (s <= T && T - s < 1500) fire('s' + i, () => Sound.sfx('card')); });
     if (POKER.pizzaAt && T - POKER.pizzaAt > 0 && T - POKER.pizzaAt < 2500) fire('pizza', () => Sound.bell());
   }, 300);
+  // ---------- concerts at the Pump House: the director's band on stage, their songs in sync, the stage moving to each song's beat map ----------
+  const BEATS = {}, EXTRA_SPK = {};
+  function beatsOf(id){ if (BEATS[id]) return BEATS[id]; BEATS[id] = {loading: true};
+    fetch('/api/beats?id=' + id).then(r => r.ok ? r.json() : null).then(d => { BEATS[id] = d && d.low ? d : {none: true}; }).catch(() => { BEATS[id] = {none: true}; }); return BEATS[id]; }
+  const IMGPIX = {};   // an uploaded picture (logo, poster), pixelated to a size, the same for everyone
+  function imgPix(id, w, h){
+    const k = id + '@' + w + 'x' + h; if (IMGPIX[k]) return IMGPIX[k];
+    const rec = IMGPIX[k] = {ok: false}, img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => { try { rec.c = pixelate(img, w, h); rec.ok = true; } catch(e){} }; img.src = '/asset/' + id; return rec;
+  }
+  function concertNow(){
+    if (!ARENA || !ARENA.event || ARENA.event.kind !== 'concert' || DREAMING || BUILDER) return null;
+    const e = ARENA.event, T = NOW() - e.at; if (T < -15 * 60000 || T > e.endT + 15 * 60000) return null;
+    (e.band.members || []).forEach(m => { EXTRA_SPK[m.id] = m.name; });
+    const song = e.songs.find(s => T >= s.t0 && T < s.t0 + s.dur) || null; let lvl = {low: 0, mid: 0, high: 0}, beat = 0, since = 1e9;
+    if (song){ const b = beatsOf(song.id), st = T - song.t0;
+      if (b && b.low){ const i = Math.min(b.low.length - 1, Math.floor(st / b.step)); lvl = {low: b.low[i] / 255, mid: b.mid[i] / 255, high: b.high[i] / 255};
+        let lo = 0, hi = b.beats.length - 1, k = -1; while (lo <= hi){ const m = (lo + hi) >> 1; if (b.beats[m] <= st){ k = m; lo = m + 1; } else hi = m - 1; }
+        if (k >= 0){ since = st - b.beats[k]; beat = k; } }
+      else { since = st % 500; beat = Math.floor(st / 500); lvl = {low: .6, mid: .55, high: .4}; } }   // no beat map yet: a steady 120
+    return {e, T, song, lvl, beat, since, on: since < 140};
+  }
+  // where everyone stands: the lead singer front and centre, the drums behind, the rest around
+  function bandSlots(ms){
+    const out = [], lead = ms.find(m => m.vocal === 'lead' && m.instrument !== 'drums'), drums = ms.filter(m => m.instrument === 'drums'), rest = ms.filter(m => m !== lead && m.instrument !== 'drums');
+    if (lead) out.push({m: lead, x: 80, y: 31});
+    const xs = lead ? [54, 126, 36, 144, 150] : [80, 54, 126, 36, 144];
+    rest.forEach((m, i) => out.push({m, x: xs[i] ?? 30 + i * 8, y: 31}));
+    drums.forEach((m, i) => out.push({m, x: 104 + i * 22, y: 24, back: true}));   // on a riser, between the singer and the bass
+    return out;
+  }
+  function instrument(m, x, y, c){
+    const hit = c.on && c.song;
+    switch (m.instrument){
+      case 'guitar': R(x+1,y+13,6,4,'#b8402a'); R(x+2,y+14,2,2,'#2a1a10'); R(x+6,y+12,6,1,'#5a3a1a'); R(x+12,y+11,2,2,'#2a1a10'); break;
+      case 'bass': R(x+1,y+13,6,5,'#2c3a66'); R(x+6,y+12,8,1,'#5a3a1a'); R(x+14,y+11,2,2,'#2a1a10'); break;
+      case 'keys': R(x-4,y+14,18,3,'#1a1a1a'); R(x-4,y+14,18,1,'#e8e8e8'); for (let i = 0; i < 6; i++) R(x-3+i*3,y+14,1,1,'#1a1a1a'); R(x-3,y+17,1,6,'#444'); R(x+12,y+17,1,6,'#444'); break;
+      case 'sax': R(x+7,y+10,2,8,'#d8b43a'); R(x+6,y+17,3,2,'#d8b43a'); break;
+      case 'violin': R(x+6,y+7,4,3,'#7a3a1a'); R(x+9,y+5,5,1,'#c8a878'); break;
+      case 'dj': R(x-4,y+14,18,7,'#1a1a1a'); R(x-2,y+15,5,3,'#333'); R(x+7,y+15,5,3,'#333'); R(x, y+16, 1, 1, hit ? '#5ad0ff' : '#2a6a8a'); R(x+9,y+16,1,1, hit ? '#ff5a5a' : '#6a2a2a'); break;
+      case 'drums': { const sticks = c.song && (c.beat % 2 === 0) === c.on;
+        R(x-8,y+15,8,3,'#c0c0c0'); R(x-7,y+18,1,5,'#555'); R(x+12,y+9,7,1,'#d8b43a'); R(x+15,y+10,1,12,'#555'); R(x-3,y+11,6,1,'#d8b43a');
+        R(x-1,y+13,12,10,'#1a1a1a'); R(x+1,y+15,8,6,'#e8e4d8'); if (ARENA.event.band.logo){ const L = imgPix(ARENA.event.band.logo, 8, 6); if (L.ok) g.drawImage(L.c, x+1, y+15); }
+        R(sticks ? x-4 : x-2, sticks ? y+11 : y+13, 4, 1, '#d8c8a8'); R(sticks ? x+10 : x+8, sticks ? y+13 : y+11, 4, 1, '#d8c8a8'); break; }
+    }
+    if (m.vocal !== 'none' && m.instrument !== 'drums'){ R(x+5,y+8,1,15,'#444'); R(x+4,y+7,3,2,'#222'); }   // a mic stand
+  }
+  function drawConcert(c, t, scene){
+    const e = c.e, song = c.song, live = !!song, beatCol = ['#ff5a5a','#5ad0ff','#ffd36a','#c05aff'][Math.floor(c.beat / 4) % 4];
+    // lights: beams from the truss, brighter on the beat; colours change every bar
+    if (live) [48,78,114,144].forEach((x, i) => alpha((.08 + (c.on ? .14 : 0)) * (.5 + c.lvl.low), () => { R(x-6, 20, 16, 34, i % 2 ? beatCol : '#fff3c8'); R(x-10, 40, 24, 14, i % 2 ? beatCol : '#fff3c8'); }));
+    else alpha(.12, () => R(28, 18, 136, 40, '#ffe8b0'));
+    // the screen: the band's logo, or its name, pulsing with the low end
+    R(64,22,64,24,'#060608');
+    if (e.band.logo){ const L = imgPix(e.band.logo, 60, 20); if (L.ok){ alpha(live ? .7 + .3 * c.lvl.low : .85, () => g.drawImage(L.c, 66, 24)); } }
+    else { const msg = `${e.artist.toUpperCase()}   ${song ? song.title.toUpperCase() : ''}   `, off = Math.floor(NOW() / 110) % Math.max(1, msg.length * 4);
+      g.save(); g.beginPath(); g.rect(64,31,64,7); g.clip(); word(msg + msg + msg, 64 - off, 32, live && c.on ? '#ffffff' : '#ffd36a'); g.restore(); }
+    // the band
+    bandSlots(e.band.members).forEach(({m, x, y, back}) => {
+      const sing = live && m.vocal !== 'none' && c.lvl.mid > (m.vocal === 'lead' ? .35 : .6), bob = live && c.on && !back ? 1 : 0;
+      zAdd(back ? 54 : 56, () => { markHead(m.id, x, y - bob); if (back){ R(x-10, y+20, 30, 8, '#2a2426'); R(x-10, y+20, 30, 1, '#4a4042'); person(m.look, x, y, t, {legs: false, face: 0}); instrument(m, x, y, c); }
+        else { person(m.look, x, y - bob, t, {face: 0, talking: sing || SAY.who === m.id}); instrument(m, x, y - bob, c); } });
+    });
+    // the crowd: backs of heads in front of the stage, jumping on the beat
+    for (let i = 0; i < 16; i++){ const x = 2 + i * 11 + (i % 2) * 3, near = i % 3 === 0, y = near ? 72 : 64, up = live && c.on && (i + c.beat) % 3 !== 0 ? (near ? 2 : 1) : 0;
+      if (Math.abs(x - actor.x) < 9 && near) continue;
+      zAdd(y + 22, () => person(CROWD[(i * 7) % CROWD.length], x, y - up, t + i * 300, {muted: true, fid: 'turn'})); }
+  }
+  // the music itself: the current song, at the right second for everyone; checked every second
+  let CAUD = null, caudSong = null;
+  setInterval(() => {
+    const c = concertNow(), here = c && actor.loc === 'arena' && !actor.hidden && !forceLoc && Sound.isOn();
+    if (!here || !c.song){ if (CAUD && !CAUD.paused) CAUD.pause();
+      if (here && c){ const nx = c.e.songs.find(s => s.t0 > c.T && s.t0 - c.T < 30000); if (nx && caudSong !== nx.id){ if (!CAUD) CAUD = new Audio(); caudSong = nx.id; CAUD.preload = 'auto'; CAUD.src = '/asset/' + nx.id; CAUD.load(); } }   // load the next one during the talk
+      return; }
+    if (!CAUD) CAUD = new Audio();
+    if (caudSong !== c.song.id){ caudSong = c.song.id; CAUD.src = '/asset/' + c.song.id; }
+    const want = (c.T - c.song.t0) / 1000; CAUD.volume = .85;
+    if (CAUD.paused){ try { CAUD.currentTime = want; } catch(e){} CAUD.play().catch(() => {}); }
+    else if (Math.abs(CAUD.currentTime - want) > .3) { try { CAUD.currentTime = want; } catch(e){} }
+  }, 1000);
+  // what the band and Hagit say, on the clock (like the poker table)
+  let ccTalkI = 0, ccLastT = 0;
+  setInterval(() => {
+    const c = concertNow(); if (!c || actor.loc !== 'arena' || actor.hidden || forceLoc) return;
+    if (c.T < ccLastT - 5000) ccTalkI = 0; ccLastT = c.T; const talk = c.e.talk || [];
+    while (ccTalkI < talk.length && talk[ccTalkI].t <= c.T){ const l = talk[ccTalkI++]; if (c.T - l.t > 4000) continue; showSay(l.who, l.say); holdSay(2400 + l.say.length * 55); Sound.say(l.who, l.say); }
+  }, 300);
+
+  // ---------- promotions: posters in the world, the radio, the hosts, and the COMING UP card for viewers ----------
+  let PROMOS = [];
+  const promoFor = where => PROMOS.filter(p => (p.where || []).includes(where));
+  function promoPoster(where, x, y, w, h){   // the first active promotion with a picture, pixelated onto a wall or a board
+    const p = promoFor(where).find(q => q.image); if (!p || DREAMING) return false;
+    const P = imgPix(p.image, w, h); if (!P.ok) return false;
+    R(x-1, y-1, w+2, h+2, '#f4f0e4'); g.drawImage(P.c, x, y); return true;
+  }
+  function promoLine(slot){ const ps = promoFor('hosts'); if (!ps.length) return null; const p = ps[slot % ps.length];
+    return [`Coming up at the Pump House: ${p.title}. ${p.text.split(/(?<=[.!?])\s/)[0] || ''}`, `Mark the date: ${p.title}. Viewers, the details are under the picture.`, `${p.title}. Our man may or may not go. We are going. In spirit.`][slot % 3]; }
+  function promoDJ(seg){ const ps = promoFor('radio'); if (!ps.length) return null; const p = ps[seg % ps.length]; return `Radio Herzl, 88.2. Coming up at the Pump House by the park: ${p.title}. ${p.text.split(/(?<=[.!?])\s/)[0] || ''}`; }
+  function renderPromos(){
+    const ps = promoFor('card'), box = $('promoC'), list = $('evPanel');
+    box.hidden = !ps.length; list.textContent = '';
+    if (!ps.length){ const d = document.createElement('div'); d.className = 'empty'; d.textContent = 'Nothing announced right now. Every Wednesday at 20:00 there is something at the Pump House.'; list.appendChild(d); return; }
+    const p = ps[Math.floor(NOW() / 20000) % ps.length]; $('promoT').textContent = p.title; $('promoC').dataset.id = p.id;
+    ps.forEach(q => list.appendChild(promoCard(q)));
+  }
+  function promoCard(p){
+    const d = document.createElement('div'); d.className = 'promoCard';
+    const h = document.createElement('div'); h.className = 'promoH'; h.textContent = 'COMING UP · ' + p.title; d.appendChild(h);
+    if (p.image){ const im = document.createElement('img'); im.src = '/asset/' + p.image; im.alt = p.title; im.loading = 'lazy'; d.appendChild(im); }
+    if (p.text){ const t = document.createElement('div'); t.textContent = p.text; d.appendChild(t); }
+    if (p.event){ const w = document.createElement('div'); w.className = 'promoW'; w.textContent = new Date(p.event + 'T12:00:00Z').toLocaleDateString('en-GB', {weekday: 'long', day: 'numeric', month: 'long'}) + ' · 20:00 · The Pump House, by the park'; d.appendChild(w); }
+    const links = document.createElement('div'); links.className = 'promoL';
+    (p.links || []).forEach(l => { let host = ''; try { const u = new URL(l.url); if (u.protocol !== 'https:') return; host = u.hostname.replace(/^www\./, ''); } catch(e){ return; }
+      const a = document.createElement('a'); a.href = l.url; a.target = '_blank'; a.rel = 'noopener noreferrer nofollow'; a.textContent = `${l.label} ↗ ${host}`; links.appendChild(a); });
+    if (links.children.length) d.appendChild(links);
+    return d;
+  }
   // ---------- cafe ----------
   SCENES.cafe = {
     cam:'CAM-05', place:'CAFE NAHAT // CORNER TABLE', walkY:74, entry:4, exit:4,
@@ -2387,7 +2519,7 @@
       word('GRAVE',26,31,'#c23b3b'); word('TAHINI',24,38,'#e8e8e8');
       R(54,14,30,32,'#2a0f3a'); R(54,14,30,1,'#5a2a7a'); R(54,45,30,1,'#5a2a7a');
       [[61,22],[67,20],[73,22]].forEach(([x,y],i)=>{ R(x,y,5,5,'#8a5a2a'); R(x+1,y-2-(Math.floor(t/180)+i)%2,3,2,'#ff7a2a'); R(x+2,y-3,1,1,'#ffd36a'); });
-      word('IRON',62,31,'#d9b27a'); word('FALAFEL',55,38,'#ff7a2a');
+      word('IRON',62,31,'#d9b27a'); word('FALAFEL',55,38,'#ff7a2a'); promoPoster('bar', 55, 15, 28, 30);   // a promotion pasted over Iron Falafel
       R(97,16,2,18,'#5a3a22'); R(96,13,4,3,'#222'); R(93,34,10,3,'#b02020'); R(91,37,6,6,'#b02020'); R(99,37,6,6,'#b02020'); R(96,35,4,2,'#222');
       // speaker, pumping with the music
       const beat = Math.floor(t/230) % 2; R(88,50,14,16,'#0c0c0c'); R(91,53,8,8, beat ? '#2c2c2c' : '#1c1c1c'); R(94,56,2,2,'#444');
@@ -2771,6 +2903,7 @@
     }
     if (withIsPost() && settled) face = actor.loc==='street' ? 0 : 1;
     if (a==='gallery' && settled && !actor.travelling){ drawIshai(actor.gpose || 'idle', actor.x, y, t); return; }
+    if (a==='concert' && settled && !actor.travelling){ drawIshai(SAY.who === 'ishai' ? 'talking' : 'back', actor.x, y, t); return; }   // in the crowd, watching the stage
     if (a==='walking' && actor.pacePause && !actor.travelling && !actor.pending) drawIshai('idle', actor.x, y, t);
     else if (actor.travelling || a==='walking') drawIshai('walk', actor.x, y, t);
     else if (!settled) return;
@@ -3543,7 +3676,7 @@
       out.connect(dest); out.disconnect(ac.destination);
       return {stream: dest.stream, stop(){ try { o.stop(); out.disconnect(dest); out.connect(ac.destination); } catch(e){} }};
     }
-    return { voiceInfo: () => `${voiceState} · ${voices.length} English voices`, blip, key, say, hush, popAudio, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
+    return { isOn: () => on(), voiceInfo: () => `${voiceState} · ${voices.length} English voices`, blip, key, say, hush, popAudio, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -3578,6 +3711,7 @@
     if (id==='tv') return {name: CUR_MEDIA === '8bittv' ? '8BITTV' : CUR_MEDIA === 'nesflicks' ? 'NESFLICKS' : CUR_MEDIA === 'rgbeat' ? 'RGBEAT' : 'CHANNEL 9', color:'#9fd0ff'};
     if (id==='ishai') return {name:'ISHAI', color:tint(CLOTH.teal,.45)};
     if (/^student\d$/.test(id)) return {name:'STUDENT', color:'#b8c4b0'};
+    if (EXTRA_SPK[id]) return {name: EXTRA_SPK[id].toUpperCase(), color: tint(CLOTH.gray,.45)};   // a band member on stage
     const c = CAST[id]; return {name:(c?c.name:id).toUpperCase(), color: tint(CLOTH[c?.look?.shirt]||CLOTH.gray,.45)};
   }
   const charDelay = ch => 28 + (ch===','?120:ch==='.'?220:0);
@@ -3953,6 +4087,7 @@
     if (sh && /^(Fri|Sat)/.test(sh.startLabel || '') ) kinds.push('shabbat');
     let kind = kinds[seg % kinds.length];
     if (kind === 'weather' && !wx) kind = 'time'; if (kind === 'news' && !heads.length) kind = 'song';
+    { const pl = promoDJ(seg); if (pl && r(23) < .3) return pl; }   // the Pump House's promotions on the radio
     const hello = r(3) < .4 ? `${d.name} here, on ${d.show}. ` : '';
     const tag = r(9) < .45 ? ` This ${['song','news','hour','minute'][Math.floor(r(11)*4)]} is brought to you by ${pickOf(BRAND_TAGS, 13)}.` : '';
     { const today = pack('radio'); if (today.length && r(19) < .45) return hello + pickOf(today, 21); }
@@ -4335,6 +4470,7 @@
       cast: () => Object.values(CAST), setCast: list => setCast([...base, ...list]), reset,
       play(m){ const e = event(m); ingest([e], false); },
       arena(a){ ARENA = a || null; arenaPreload(); },
+      promos(list){ PROMOS = list || []; renderPromos(); },
       poker(d, minAgo){ POKER = d ? {...d, at: NOW() - (minAgo || 0) * 60000} : null; },
       go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(e.location, e.action, true, e.with); },
       busy: () => !!actor.pending || actor.travelling || !!actor.ride || !!actor.switching || !!actor.rideUntil || held.size > 0 || queue.length > 0 || (!!tlLast && NOW() < tlLast.end),
@@ -4588,6 +4724,7 @@
     const city = cityNow()[0], today = pack('hosts');
     if (city && r < .4) return fillPick(city.host, slot, 7);                                  // something is going on outside
     if (today.length && hash(slot * 71 + 5) < .45) return fillPick(today, slot, 10);          // today's lines from the planner
+    { const pl = promoLine(slot); if (pl && hash(slot * 83 + 3) < .15) return pl; }            // the hosts plug what's coming at the Pump House
     const list = r < .3 ? place : r < .55 ? act : r < .75 ? fillFacts() : r < .92 ? fillRecap() : fillPeople();
     return fillPick(list.length ? list : (place.length ? place : act), slot, 5);
   }
@@ -4680,13 +4817,13 @@
   let castSig = '';
   setInterval(()=>{ if ($('castPanel').hidden) return; const sig = actor.loc + '|' + [...settledOnCamera()].join(',') + '|' + UNLOCKED.has('dog'); if (sig !== castSig){ castSig = sig; renderCast(); } }, 1500);
   function showTab(which){
-    const tabs = {talk:['tabTalk','talk'], cast:['tabCast','castPanel'], sum:['tabSum','sumPanel'], feed:['tabFeed','term']};
+    const tabs = {talk:['tabTalk','talk'], cast:['tabCast','castPanel'], sum:['tabSum','sumPanel'], ev:['tabEv','evPanel'], feed:['tabFeed','term']};
     Object.entries(tabs).forEach(([k,[b,p]]) => { const on = k===which; $(p).hidden = !on; $(b).classList.toggle('on',on); $(b).setAttribute('aria-selected',String(on)); });
     if (which==='cast') renderCast();
     if (which==='feed') term.scrollTop = term.scrollHeight;
     if (which==='talk') talkEl.scrollTop = talkEl.scrollHeight;
   }
-  $('tabTalk').onclick = ()=>showTab('talk'); $('tabFeed').onclick = ()=>showTab('feed'); $('tabCast').onclick = ()=>showTab('cast'); $('tabSum').onclick = ()=>showTab('sum');
+  $('tabTalk').onclick = ()=>showTab('talk'); $('tabFeed').onclick = ()=>showTab('feed'); $('tabCast').onclick = ()=>showTab('cast'); $('tabSum').onclick = ()=>showTab('sum'); $('tabEv').onclick = ()=>showTab('ev'); $('promoMore').onclick = ()=>{ showTab('ev'); $('evPanel').scrollIntoView({behavior:'smooth', block:'nearest'}); };
   function enableDev(){ if (DEV) return; DEV = true; $('tabFeed').hidden = false; $('bugBtn').hidden = false; $('dirLink').hidden = false; acctShow(); }
 
   // ================= data: live Worker or demo =================
@@ -4921,7 +5058,7 @@
       if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;
       if (s.course) COURSE = s.course;
-      ARENA = s.arena || null; arenaPreload(); pokerSync(s.poker);
+      ARENA = s.arena || null; arenaPreload(); pokerSync(s.poker); PROMOS = s.promos || []; renderPromos();
       if ('poll' in s) setPoll(s.poll);
       if (s.summary) SUMMARY = s.summary;
       if (s.summary || s.course) renderSummary();

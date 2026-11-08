@@ -20,3 +20,4 @@ Ideas and requests from the director. Newest at the bottom; mark done with the v
 - [x] Poker night every second Monday at Boaz's (apt 2, first floor): Boaz, Ronit, Moti, Yossi and Ishai; scripted game, Ishai's cards on screen. Plan: `docs/POKER_PLAN.md`. — v164
 - [ ] The Pump House next to the park, once a week: queue, concerts, exhibitions hung together with a curtain between sets and art uploaded at its own scale, gallery nights from 8-bit pictures when nothing new was added, promotions (posters, leaflets, ads with links for viewers); 20-90 minutes. Plan: `docs/ARENA_PLAN.md`.
 - [x] Memories of the evenings: how poker went (place, an all-in lost and to whom, the best pot), the gallery nights; looking forward to what is coming. — v164
+- [x] Events page: bands and artists (members, instruments, voices, looks from a photo), song uploads with beat maps, concerts on stage in sync, promotions with links for viewers. — v165

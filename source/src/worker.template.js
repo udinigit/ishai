@@ -207,7 +207,7 @@ const LOCATIONS = {
   bar:       ["idle","drinking","eating","talking","phoning","improv"],
   campus:    ["walking","idle","talking","eating","drinking","phoning"],
   plaza:     ["walking","idle","talking","eating","drinking","phoning"],
-  arena:     ["idle","walking","talking","drinking","phoning","gallery"],
+  arena:     ["idle","walking","talking","drinking","phoning","gallery","concert"],
   apt2:      ["idle","talking","eating","drinking","phoning","poker"],
   classroom: ["idle","talking","phoning","lecture"],
   bus:       ["idle","talking","phoning","reading"],
@@ -264,13 +264,14 @@ const LOOK = {
   extras: ["glasses","beard","mustache","earring","apron","scarf"]
 };
 
-const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && a !== "lecture" && a !== "gallery" && a !== "poker" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" and "lecture" are only for planned classes
+const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && a !== "lecture" && a !== "gallery" && a !== "concert" && a !== "poker" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" and "lecture" are only for planned classes
 
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
 const SANDBOX_HTML = __SANDBOX_HTML__;
 const INTRO_HTML = __INTRO_HTML__;   // the trailer: /intro, public; first-time visitors land here once
 const BUILDER_HTML = __BUILDER_HTML__;
+const EVENTS_HTML = __EVENTS_HTML__;
 const SW_JS = __SW_JS__;
 const ICONS = __ICONS__;   // /favicon.ico, /favicon.svg, /apple-touch-icon.png, /icon-192.png, /icon-512.png, /og.png (source/public/icons)
 const iconBytes = {};
@@ -400,6 +401,42 @@ export default {
       if (req.method === "DELETE") await env.ISHAI.delete(key); else if ((await env.ISHAI.get(key)) !== dev) await env.ISHAI.put(key, dev);
       return json({ ok: true }, { "cache-control": "no-store" });
     }
+    if (url.pathname === "/events") {   // the director's bands, concerts and promotions
+      if (!await isDev(req, env)) return Response.redirect(url.origin + "/director", 302);
+      return new Response(EVENTS_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+    }
+    if (url.pathname === "/api/events") {
+      if (!await isDirector(req, env)) return json({ error: "director only" }, {}, 403);
+      const s = await loadState(env), now = Date.now();
+      if (req.method === "POST") { const b = await req.json().catch(() => ({})), r = await eventsAction(env, s, b, now); if (r.error) return json(r, {}, 400); await saveState(env, s); return json({ ...r, view: eventsView(s, now) }); }
+      return json(eventsView(s, now), { "cache-control": "no-store" });
+    }
+    if (url.pathname === "/api/upload" && req.method === "PUT") {   // a song (mp3) or a picture, from /events
+      if (!await isDirector(req, env)) return json({ error: "director only" }, {}, 403);
+      const kind = url.searchParams.get("kind") === "song" ? "song" : "image", type = String(req.headers.get("content-type") || "").slice(0, 60);
+      if (kind === "song" ? !/^audio\/(mpeg|mp3|ogg|wav|x-wav|mp4|aac|x-m4a)/.test(type) : !/^image\/(png|jpeg|gif|webp)$/.test(type)) return json({ error: `that is not ${kind === "song" ? "an audio" : "an image"} file (${type || "unknown type"})` }, {}, 400);
+      const body = await req.arrayBuffer(); if (!body.byteLength || body.byteLength > ASSET_MAX[kind]) return json({ error: `too big: at most ${ASSET_MAX[kind] / 1048576} MB` }, {}, 400);
+      const id = (kind === "song" ? "s" : "i") + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+      await env.ISHAI.put("asset:" + id, body, { metadata: { type, size: body.byteLength, name: String(url.searchParams.get("name") || "").slice(0, 80) } });
+      return json({ id, url: "/asset/" + id, size: body.byteLength });
+    }
+    if (url.pathname.startsWith("/asset/")) {   // uploaded songs and pictures: never change, cached at the edge (which also answers range requests)
+      const cache = caches.default, hit = await cache.match(req); if (hit) return hit;
+      const id = cleanId(url.pathname.slice(7)), v = id && await env.ISHAI.getWithMetadata("asset:" + id, { type: "arrayBuffer" });
+      if (!v || !v.value) return new Response("not found", { status: 404 });
+      const res = new Response(v.value, { headers: { "content-type": v.metadata?.type || "application/octet-stream", "cache-control": "public, max-age=31536000, immutable", "accept-ranges": "bytes", "access-control-allow-origin": "*" } });
+      const range = req.headers.get("range"); await cache.put(new Request(url.toString()), res.clone());
+      if (range) { const m = range.match(/bytes=(\d*)-(\d*)/), size = v.value.byteLength, a = m && m[1] ? +m[1] : 0, b = m && m[2] ? Math.min(+m[2], size - 1) : size - 1;
+        return new Response(v.value.slice(a, b + 1), { status: 206, headers: { "content-type": v.metadata?.type || "application/octet-stream", "content-range": `bytes ${a}-${b}/${size}`, "accept-ranges": "bytes", "cache-control": "public, max-age=31536000, immutable" } }); }
+      return res;
+    }
+    if (url.pathname === "/api/beats") {   // a song's beat map: the page animates the stage from it (worked out in the director's browser at upload)
+      const id = cleanId(url.searchParams.get("id"));
+      if (req.method === "PUT") { if (!await isDirector(req, env)) return json({ error: "director only" }, {}, 403);
+        const t = await req.text(); if (t.length > 400000) return json({ error: "too big" }, {}, 400); try { JSON.parse(t); } catch (e) { return json({ error: "not JSON" }, {}, 400); }
+        await env.ISHAI.put("beats:" + id, t); return json({ ok: true }); }
+      const v = id && await env.ISHAI.get("beats:" + id); return v ? new Response(v, { headers: { "content-type": "application/json", "cache-control": "public, max-age=86400" } }) : json({ error: "no beat map" }, {}, 404);
+    }
     if (url.pathname === "/api/poker") {   // a poker night as the page plays it; ?sample=1 (director) simulates a short one for the sandbox
       if (url.searchParams.get("sample")) {
         if (!await isDev(req, env)) return json({ error: "director only" }, {}, 403);
@@ -411,9 +448,16 @@ export default {
     }
     if (url.pathname === "/api/arena") {   // the next Pump House night; the director also gets its moments as they will air (the sandbox plays them)
       const s = await loadState(env), now = Date.now(), dev = await isDev(req, env), t = nextArenaAt(s, now) || now, date = dayOfTZ(t);
-      const ev = (s.arena && s.arena.events[date]) || galleryNight(s, date, t);
-      return json({ ...(arenaPublic(s, now) || {}), next: { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, sets: ev.sets },
-        moments: dev ? galleryMoments(ev, s) : undefined }, { "cache-control": "no-store" });
+      const bandId = dev && cleanId(url.searchParams.get("band"));
+      if (bandId && s.bands && s.bands[bandId]) {   // the sandbox tries a band: every song, starting in a minute
+        const b = s.bands[bandId], ev = concertNight(s, "sample", now + 60000, { band: b.id, title: b.name, setlist: b.songs.map(x => x.id), banter: {}, opening: "", closing: "" });
+        if (!ev) return json({ error: "no such band" }, {}, 404);
+        return json({ next: { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, band: ev.band, songs: ev.songs, talk: ev.talk, endT: ev.endT }, moments: concertMoments(ev, s) }, { "cache-control": "no-store" });
+      }
+      const ev = (s.arena && s.arena.events[date]) || ((s.arena?.custom || {})[date] && concertNight(s, date, t, s.arena.custom[date])) || galleryNight(s, date, t);
+      return json({ ...(arenaPublic(s, now) || {}), next: ev.kind === "concert" ? { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, band: ev.band, songs: ev.songs, talk: ev.talk, endT: ev.endT }
+        : { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, sets: ev.sets },
+        moments: dev ? (ev.kind === "concert" ? concertMoments(ev, s) : galleryMoments(ev, s)) : undefined }, { "cache-control": "no-store" });
     }
     if (url.pathname === "/api/lecture") {
       if (!await isDev(req, env)) return json({ error: "director only" }, {}, 403);
@@ -505,7 +549,7 @@ function publicState(s, dev) {
     studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
-    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()),
+    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()), promos: promosPublic(s, Date.now()),
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [], barStations: s.world.barStations || [], cafeStations: s.world.cafeStations || [] } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
@@ -1362,7 +1406,7 @@ function cleanCard(c, s, loc) {
 function repair(ev, s, last) {
   let loc = LOCATIONS[ev.location] ? ev.location : last.location;
   if (loc !== last.location && !NEXT[last.location].includes(loc)) loc = last.location;
-  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : ev.action === "poker" && loc === "apt2" ? ["poker"] : allowed(loc, s.unlocked);
+  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : ev.action === "concert" && loc === "arena" ? ["concert"] : ev.action === "poker" && loc === "apt2" ? ["poker"] : allowed(loc, s.unlocked);
   const act = legal.includes(ev.action) ? ev.action : (legal.includes("idle") ? "idle" : legal[0]);
   const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with) && act !== "sleeping";
   return { ...ev, location: loc, action: act, with: ok ? ev.with : null,
@@ -2504,28 +2548,32 @@ function galleryMoments(ev, s) {
 }
 function arenaOf(s) { return s.arena || (s.arena = { events: {}, err: null }); }
 function scheduleArena(s, ev, now) {
-  const moments = ev.kind === "gallery" ? galleryMoments(ev, s) : null; if (!moments) return;
+  const moments = ev.kind === "gallery" ? galleryMoments(ev, s) : ev.kind === "concert" ? concertMoments(ev, s) : null; if (!moments) return;
+  if (ev.kind === "concert") ev.fav = moments[moments.length - 1].fav;
   const id = ev.id, t = ev.at, f = ev.companion && s.cast[ev.companion] ? s.cast[ev.companion] : null;
-  const g = newGoal({ id, goal: `Ishai goes to the Pump House for its gallery night: ${ev.artist}, "${ev.title}".`, startAt: new Date(t - 55 * 60000).toISOString(),
+  const g = newGoal({ id, goal: ev.kind === "concert" ? `Ishai goes to see ${ev.artist} play at the Pump House.` : `Ishai goes to the Pump House for its gallery night: ${ev.artist}, "${ev.title}".`, startAt: new Date(t - 55 * 60000).toISOString(),
     sceneAt: new Date(t - 9 * 60000).toISOString(), deadlineAt: new Date(t + 10 * 60000).toISOString(), location: "plaza", with: f ? f.name : null, forceWith: f ? f.id : null }, now);
-  g.id = id; g.fixed = true; g.script = cleanScript(moments, 20); s.director = s.director.filter(d => d.id !== id || d.status !== "done"); s.director.push(g); ev.goalId = id;
+  g.id = id; g.fixed = true; g.script = cleanScript(moments, 40); s.director = s.director.filter(d => d.id !== id || d.status !== "done"); s.director.push(g); ev.goalId = id;
 }
 function arenaTick(s, now) {
   const a = arenaOf(s), t = nextArenaAt(s, now); if (!t) return;
   for (const d of Object.keys(a.events)) if (Date.parse(d) < now - 8 * 86400000) delete a.events[d];
   const date = dayOfTZ(t);
-  if (!a.events[date] && t - now < ARENA_AHEAD && !a.off) a.events[date] = galleryNight(s, date, t);
+  const custom = (a.custom || {})[date];
+  if (!a.events[date] && t - now < ARENA_AHEAD && !a.off) a.events[date] = (custom && concertNight(s, date, t, custom)) || galleryNight(s, date, t);
   for (const e of Object.values(a.events)) { const g = e.goalId && !e.remembered && s.director.find(d => d.id === e.goalId);
     if (g && g.status === "done") { e.remembered = true; const f = e.companion && s.cast[e.companion];
-      addLife(s, now, e.kind, e.kind === "gallery" ? `Went to the gallery night at the Pump House${f ? " with " + f.name : ""}: ${e.artist}, "${e.title}". The big picture at the end stayed with him; it was great.` : `Went to "${e.title}" at the Pump House${f ? " with " + f.name : ""}. It was great.`); } }
+      addLife(s, now, e.kind, e.kind === "gallery" ? `Went to the gallery night at the Pump House${f ? " with " + f.name : ""}: ${e.artist}, "${e.title}". The big picture at the end stayed with him; it was great.` : `Saw ${e.artist} play at the Pump House${f ? " with " + f.name : ""}. "${e.fav || e.title}" was great; he still has it in his head.`); } }
   const ev = a.events[date]; if (ev && !ev.goalId && !ev.skip && t - now < 30 * 3600000 && t - 50 * 60000 > now) scheduleArena(s, ev, now);
 }
 const arenaNext = (s, now) => { const a = s.arena; if (!a) return null; const t = nextArenaAt(s, now); return t ? a.events[dayOfTZ(t)] || null : null; };
 function arenaPublic(s, now) {
   const ev = arenaNext(s, now); if (!ev || ev.skip) return null;
-  const today = dayOfTZ(now) === ev.date, live = now >= ev.at - 12 * 60000 && now < ev.at + (ev.minutes + 25) * 60000;
-  return { board: [today ? "TODAY" : "WED", "20.00", ev.kind === "gallery" ? "ART" : "LIVE"], screen: `${ev.title.toUpperCase()}   ${ev.artist.toUpperCase()}`, live,
-    event: { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, sets: ev.sets } };
+  const today = dayOfTZ(now) === ev.date;
+  const end = ev.at + (ev.kind === "concert" ? ev.endT + 15 * 60000 : (ev.minutes + 25) * 60000);
+  return { board: [today ? "TODAY" : "WED", "20.00", ev.kind === "gallery" ? "ART" : "LIVE"], screen: `${ev.title.toUpperCase()}   ${ev.artist.toUpperCase()}`, live: now >= ev.at - 12 * 60000 && now < end,
+    event: ev.kind === "concert" ? { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, band: ev.band, songs: ev.songs, talk: ev.talk, endT: ev.endT }
+      : { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, sets: ev.sets } };
 }
 const arenaHealth = s => { const a = s.arena; if (!a) return null; return { events: Object.values(a.events).map(e => ({ id: e.id, kind: e.kind, title: e.title, artist: e.artist, companion: e.companion, goal: e.goalId || null, skip: !!e.skip })), off: !!a.off, err: a.err }; };
 // ---------- Poker night at Boaz's (apt 2, first floor): every second Monday at 20:00 (docs/POKER_PLAN.md) ----------
@@ -2883,6 +2931,128 @@ function pokerPublic(s, now) {
 }
 const pokerHealth = s => { const P = s.poker; if (!P) return null; return { nights: P.nights, building: P.build ? { date: P.build.date, hands: P.build.hands.length } : null,
   ready: Object.values(P.ready).map(R => ({ id: R.id, results: R.results, goal: R.goalId || null, remembered: !!R.remembered })), err: P.err }; };
+// ---------- the director's bands, concerts and promotions (/events) ----------
+// Bands live in s.bands, the director's nights in s.arena.custom[date] (they take the place of that week's gallery night), promotions in s.promos.
+// Uploaded files (songs, logos, posters) are KV values "asset:<id>" served from /asset/<id>; each song's beat map is "beats:<id>".
+const INSTRUMENTS = ["vocals", "guitar", "bass", "drums", "keys", "sax", "violin", "dj"];
+const VOCALS = ["lead", "backing", "none"];
+const ASSET_MAX = { image: 2 * 1024 * 1024, song: 20 * 1024 * 1024 };
+const BANTER_GAP = 45000, CONCERT_INTRO = 40000, CONCERT_OUTRO = 40000;
+const cleanStr = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+const cleanId = v => String(v || "").replace(/[^a-z0-9]/gi, "").slice(0, 24);
+function cleanLook(l) {
+  const pick = (v, list, d) => list.includes(v) ? v : d;
+  return { hair: pick(l?.hair, LOOK.hair, "short"), hairColor: pick(l?.hairColor, LOOK.hairColor, "black"), skin: pick(l?.skin, LOOK.skin, "fair"),
+    shirt: pick(l?.shirt, LOOK.cloth, "black"), pants: pick(l?.pants, LOOK.cloth, "black"), extras: (Array.isArray(l?.extras) ? l.extras : []).filter(x => LOOK.extras.includes(x)).slice(0, 3) };
+}
+function cleanBand(b, old) {
+  const id = cleanId(b.id) || "b" + Date.now().toString(36);
+  const members = (Array.isArray(b.members) ? b.members : []).slice(0, 6).map((m, i) => ({ id: cleanId(m.id) || `${id}m${i}`, name: cleanStr(m.name, 30) || `Member ${i + 1}`,
+    instrument: INSTRUMENTS.includes(m.instrument) ? m.instrument : "vocals", vocal: VOCALS.includes(m.vocal) ? m.vocal : "none", look: cleanLook(m.look) }));
+  const songs = (Array.isArray(b.songs) ? b.songs : []).slice(0, 30).map(x => ({ id: cleanId(x.id), title: cleanStr(x.title, 60) || "Untitled", dur: clamp(Math.round(Number(x.dur) || 0), 10000, 15 * 60000), beats: !!x.beats }))
+    .filter(x => x.id);
+  return { id, name: cleanStr(b.name, 40) || "Unnamed band", kind: b.kind === "solo" ? "solo" : "band", bio: cleanStr(b.bio, 300), logo: cleanId(b.logo) || null,
+    links: cleanLinks(b.links), members, songs, created: old?.created || Date.now(), updated: Date.now() };
+}
+function cleanLinks(a) {
+  return (Array.isArray(a) ? a : []).slice(0, 3).map(l => ({ label: cleanStr(l?.label, 24) || "Link", url: cleanStr(l?.url, 300) }))
+    .filter(l => { try { const u = new URL(l.url); return u.protocol === "https:" && !u.username && !u.password; } catch (e) { return false; } });
+}
+function cleanPromo(p) {
+  const WHERE = ["board", "bar", "street", "radio", "hosts", "card"];
+  const d = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? String(v) : null;
+  return { id: cleanId(p.id) || "p" + Date.now().toString(36), title: cleanStr(p.title, 60) || "Coming up", text: cleanStr(p.text, 400), image: cleanId(p.image) || null,
+    links: cleanLinks(p.links), from: d(p.from) || dayOfTZ(Date.now()), to: d(p.to) || dayOfTZ(Date.now() + 14 * 86400000), event: d(p.event),
+    where: (Array.isArray(p.where) ? p.where : WHERE).filter(w => WHERE.includes(w)) };
+}
+function cleanCustom(s, c) {
+  const band = s.bands && s.bands[cleanId(c.band)]; if (!band) return { error: "pick a band first" };
+  const setlist = (Array.isArray(c.setlist) ? c.setlist : []).map(cleanId).filter(id => band.songs.some(x => x.id === id)).slice(0, 25);
+  if (!setlist.length) return { error: "add at least one song to the setlist" };
+  const banter = {}; Object.entries(c.banter || {}).forEach(([k, v]) => { if (setlist.includes(cleanId(k))) banter[cleanId(k)] = (Array.isArray(v) ? v : String(v || "").split("\n")).map(x => cleanStr(x, 160)).filter(Boolean).slice(0, 3); });
+  const ms = concertLength(band, setlist, banter);
+  if (ms > 90 * 60000) return { error: `that setlist runs ${Math.round(ms / 60000)} minutes; the most is 90` };
+  if (ms < 20 * 60000) return { error: `that setlist runs only ${Math.round(ms / 60000)} minutes; a night needs at least 20` };
+  return { kind: "concert", band: band.id, title: cleanStr(c.title, 60) || band.name, setlist, banter, opening: cleanStr(c.opening, 200), closing: cleanStr(c.closing, 200),
+    small: (Array.isArray(c.small) ? c.small : String(c.small || "").split("\n")).map(x => cleanStr(x, 120)).filter(Boolean).slice(0, 8),
+    companion: GALLERY_FRIENDS.includes(c.companion) ? c.companion : c.companion === "none" ? "none" : null, minutes: Math.round(ms / 60000) };
+}
+function concertLength(band, setlist, banter) {
+  const songs = setlist.map(id => band.songs.find(x => x.id === id)).filter(Boolean);
+  return CONCERT_INTRO + songs.reduce((n, x) => n + x.dur, 0) + Math.max(0, songs.length - 1) * BANTER_GAP + CONCERT_OUTRO;
+}
+// a director's concert as the page plays it: who stands where, every song's start, and what is said between songs
+function concertNight(s, date, at, c) {
+  const band = s.bands[c.band]; if (!band) return null;
+  const r = seedRng("concert-" + date), lead = band.members.find(m => m.vocal === "lead") || band.members[0];
+  const talk = [], songs = []; let t = 0;
+  const say = (who, line) => { talk.push({ t, who, say: line.slice(0, 200) }); t += 2500 + line.length * 55; };
+  const mid = id => "bm-" + id;
+  say("hagit", c.opening || `Good evening, Pump House! Tonight: ${band.name}. Make some noise.`);
+  t = Math.max(t, CONCERT_INTRO);
+  c.setlist.forEach((id, i) => {
+    const sg = band.songs.find(x => x.id === id); if (!sg) return;
+    songs.push({ id: sg.id, title: sg.title, t0: t, dur: sg.dur, beats: sg.beats }); t += sg.dur;
+    if (i < c.setlist.length - 1) { const t1 = t, lines = c.banter[id] && c.banter[id].length ? c.banter[id] : [pickR(r, CONCERT_BANTER).replace("{band}", band.name).replace("{next}", (band.songs.find(x => x.id === c.setlist[i + 1]) || {}).title || "the next one")];
+      t += 1500; lines.forEach(l => lead && say(mid(lead.id), l)); t = Math.max(t, t1 + BANTER_GAP); }
+  });
+  t += 2000; if (lead) say(mid(lead.id), c.closing || pickR(r, CONCERT_BYE).replace("{band}", band.name)); say("hagit", "Thank you, everyone. Next Wednesday, same time. Get home safe.");
+  const friends = GALLERY_FRIENDS.filter(id => s.cast[id]), companion = c.companion === "none" ? null : c.companion && s.cast[c.companion] ? c.companion : r() < .75 && friends.length ? pickR(r, friends) : null;
+  return { id: "pump-" + date, date, kind: "concert", at, minutes: Math.round(t / 60000), title: c.title, artist: band.name, companion, endT: t,
+    band: { id: band.id, name: band.name, logo: band.logo, members: band.members.map(m => ({ id: mid(m.id), name: m.name, instrument: m.instrument, vocal: m.vocal, look: m.look })) },
+    songs, talk, small: c.small || [] };
+}
+const CONCERT_BANTER = ["Thank you! This next one is called {next}.", "You're great tonight. Seriously. This one's {next}.", "We wrote this next one in a car with no air conditioning. {next}.",
+  "How's everybody doing? Good. Here's {next}.", "This is a very old room and a very new song. {next}."];
+const CONCERT_BYE = ["That's us. We're {band}. Thank you, Pump House!", "Thank you so much. Drive safe, buy a shirt, call your mother.", "Goodnight! You've been the best crowd in this pipe museum."];
+const CONCERT_HOSTS = ["Live music at the Pump House. Our man is nodding along like he invented it.", "He's doing the small head-nod. The universal sign of a man who likes a song.",
+  "That's {band} on stage. Somebody give that drummer water.", "Hagit got a real band in here. The pipes are vibrating.", "He's trying to clap on the beat. Trying.", "\"{song}\". He's going to hum this for a week."];
+function concertMoments(ev, s) {
+  const r = seedRng("concert-talk-" + ev.date), f = ev.companion && s.cast[ev.companion] ? ev.companion : null, out = [], n = Math.ceil((ev.endT + 60000) / (INTERVAL_MIN * 60000));
+  out.push({ location: "plaza", action: "idle", with: f, text: `Doors at the Pump House for ${ev.artist}: a queue on the plaza, music checks through the walls.${f ? " " + s.cast[f].name + " meets Ishai there." : ""}`, art: { ev: ev.id, queue: true },
+    lines: [{ who: "hagit", say: pickR(r, G_DOORS) }, ...(f ? [{ who: "ishai", say: "You came!" }, { who: f, say: f === "noa" ? "For the band, Ishush. Not for you." : "Live music, habibi! Move, move." }] : [{ who: "ishai", say: "One, please. Am I early?" }])],
+    commentary: [{ who: "zohar", say: `${ev.artist} at the Pump House tonight, and he has a ticket.` }] });
+  for (let i = 0; i < n; i++) {
+    const from = i * INTERVAL_MIN * 60000, to = from + INTERVAL_MIN * 60000, sg = ev.songs.find(x => x.t0 < to && x.t0 + x.dur > from);
+    out.push({ location: "arena", action: "concert", with: f, text: sg ? `${ev.artist} play "${sg.title}" at the Pump House; Ishai${f ? " and " + s.cast[f].name : ""} in the crowd.` : `Between songs at the Pump House; ${ev.artist} talk to the crowd.`,
+      art: { ev: ev.id }, lines: [], commentary: i % 2 ? [] : [{ who: i % 4 ? "oren" : "zohar", say: pickR(r, CONCERT_HOSTS).replace("{band}", ev.artist).replace("{song}", sg ? sg.title : ev.title) }] });
+  }
+  const fav = ev.songs.length ? ev.songs[Math.floor(r() * ev.songs.length)].title : ev.title;
+  out.push({ location: "plaza", action: "walking", with: f, text: `Ishai${f ? " and " + s.cast[f].name : ""} come out of the Pump House after ${ev.artist}'s show, ears ringing.`, art: { ev: ev.id, after: true },
+    lines: [{ who: "ishai", say: `"${fav}". I'm going to have that in my head all week.` }, ...(f ? [{ who: f, say: f === "noa" ? "You danced, Ishush. I saw it. A little." : "Next week again, habibi. I'm serious." }] : [])],
+    commentary: [], update: f ? { memory: `Went with Ishai to see ${ev.artist} at the Pump House; he loved "${fav}".`, mood: 1 } : undefined, fav });
+  return out;
+}
+// active promotions, as the page shows them (in the world and in the COMING UP card)
+function promosPublic(s, now) {
+  const day = dayOfTZ(now);
+  return (s.promos || []).filter(p => p.from <= day && day <= p.to).map(p => ({ id: p.id, title: p.title, text: p.text, image: p.image, links: p.links, event: p.event, where: p.where }));
+}
+// the director's /events page
+function eventsView(s, now) {
+  const weds = []; let t = now; for (let k = 0; k < 8; k++) { const a = nextArenaAt(s, t); if (!a) break; weds.push({ date: dayOfTZ(a), at: a }); t = a + 3 * 86400000; }
+  const a = arenaOf(s);
+  return { bands: Object.values(s.bands || {}).sort((x, y) => y.updated - x.updated), promos: s.promos || [], instruments: INSTRUMENTS, vocals: VOCALS, look: LOOK, friends: GALLERY_FRIENDS,
+    nights: weds.map(w => { const c = (a.custom || {})[w.date], e = a.events[w.date]; return { ...w, custom: c || null, built: e ? { kind: e.kind, title: e.title, artist: e.artist, scheduled: !!e.goalId } : null }; }) };
+}
+async function eventsAction(env, s, b, now) {
+  const a = arenaOf(s); a.custom = a.custom || {}; s.bands = s.bands || {}; s.promos = s.promos || [];
+  if (b.action === "bandSave") { const old = s.bands[cleanId(b.band?.id)], band = cleanBand(b.band || {}, old); s.bands[band.id] = band; return { band }; }
+  if (b.action === "bandDelete") { const id = cleanId(b.id); if (Object.values(a.custom).some(c => c.band === id)) return { error: "that band has a night booked; remove the night first" }; delete s.bands[id]; return {}; }
+  if (b.action === "nightSave") {
+    const date = String(b.date || ""); if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "pick a Wednesday" };
+    const c = cleanCustom(s, b.night || {}); if (c.error) return c;
+    const old = a.events[date]; if (old && old.goalId && s.director.some(d => d.id === old.goalId && d.status === "active")) return { error: "that night is already under way" };
+    a.custom[date] = c; if (old) { s.director = s.director.filter(d => d.id !== old.goalId); delete a.events[date]; }   // rebuilt on the next tick
+    return {};
+  }
+  if (b.action === "nightDelete") { const date = String(b.date || ""), old = a.events[date]; delete a.custom[date];
+    if (old && old.kind !== "gallery") { s.director = s.director.filter(d => d.id !== old.goalId || d.status === "active"); delete a.events[date]; } return {}; }
+  if (b.action === "nightSkip") { const date = String(b.date || ""), e = a.events[date]; if (e) { e.skip = !e.skip; if (e.skip) s.director = s.director.filter(d => d.id !== e.goalId || d.status === "active"); e.goalId = e.skip ? null : e.goalId; } return {}; }
+  if (b.action === "promoSave") { const p = cleanPromo(b.promo || {}); s.promos = [...s.promos.filter(x => x.id !== p.id), p].slice(-30); return { promo: p }; }
+  if (b.action === "promoDelete") { s.promos = s.promos.filter(x => x.id !== cleanId(b.id)); return {}; }
+  return { error: "unknown events action" };
+}
 function newGoal(d, now) {
   const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
   return {
