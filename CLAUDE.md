@@ -68,7 +68,7 @@ Wherever the scene draws Ishai in a seat (café and bar tables, the lecture room
 The last 10 host lines (`hostLine()`). It scrolls: a viewer can scroll up inside it, and it follows new lines only while they are at the bottom (`boothFollow`). While the studio recap plays (`studioOn`, `showOn`) the booth goes on in text only, with no voices or blips.
 
 ## Park animals
-Pigeons peck on the path; when Ishai or a jogger comes close they fly off away from them (`PIGEONS`, per 40 s slot), and the flock lands again at the next slot. The strolling cat walks to the pond's edge, sits, and walks back; it never crosses the water.
+The far-lawn walkers (`crowdWalk` at y 34-35) pass behind the pond, never across the water. Pigeons peck on the path; when Ishai or a jogger comes close they fly off away from them (`PIGEONS`, per 40 s slot), and the flock lands again at the next slot. The strolling cat walks to the pond's edge, sits, and walks back; it never crosses the water.
 
 ## Hosts fill the silence
 No AI, no writes, in the page. `hostFill()` runs on a 45 s clock slot (`FILL_SLOT`) after 10 s of quiet and never when a line is due (`talkSoon()`). `hostFillLine()` picks one: what he is passing while moving (`FILL[place]`), the place, the action (`FILL_DO`), facts worked out from the moments and the weather (`fillFacts()`), a sentence of today's or yesterday's summary (`fillRecap()`), or a cast member's memory (`fillPeople()`); one line in four at night. `fillPick()` walks a whole list before repeating. New places need a `FILL` entry and an `OVERHEARD` entry where crowds pass.

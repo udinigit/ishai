@@ -1786,7 +1786,8 @@
       // crows: one on the lamp, one in the tree, now and then one flies over
       { const fp = (NOW() % 47000) / 47000; if (fp < .5) zAdd(300, () => drawCrow(Math.round(fp * 2 * (W + 40)) - 20, 16 + Math.round(Math.sin(fp*20)*3), t, 2, true)); }
       // bystanders on the far lawn, and joggers on the path
-      crowdWalk(t, 2, 38000, 5000, 50, 1, .6); crowdWalk(t, 7, 47000, 21000, 52, -1, .6);
+      // they walk at the back of the lawn, behind the pond (its top edge is y 57), so nobody walks on the water
+      crowdWalk(t, 2, 38000, 5000, 34, 1, .6); crowdWalk(t, 7, 47000, 21000, 35, -1, .6);
       const jx = [walkerX(t, 11000, 3000, -14, W+4, 1), walkerX(t, 13500, 7000, -14, W+4, -1), walkerX(t, 17000, 1000, -14, W+4, 1)];
       jx.forEach((x, i) => { if (i === 2 && Math.floor(t/60000) % 2) return; zAdd(92, () => person(JOGGERS[i], x, 70 - (Math.floor(t/150)%2), t * 1.8 + i*300, {walk:true, face: i===1 ? -1 : 1, muted:true})); });
       // street cats: one curled up under the tree, one washing by the vending machine, one strolling across the far lawn
