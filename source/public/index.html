@@ -4571,7 +4571,7 @@
   const MERCH_URL = 'https://www.redbubble.com/people/watchingishai/shop?asc=u';
   function guideCard(slot, now){
     const p = POLL, asleep = actor.action === 'sleeping', G = GUIDE || {};
-    if (!asleep && p && !p.sandbox && now < p.opensAt && p.opensAt - now < 30 * 60000) return {kind: 'vote'};
+    if (!asleep && p && !p.sandbox && now < p.opensAt && p.opensAt - now < 30 * 60000) return {kind: 'vote', opensAt: p.opensAt};
     const ev = ARENA && ARENA.event, promo = ev && ev.at > now + 30 * 60000 && ev.at - now < 7 * 86400000;
     const lists = asleep ? [G.tomorrow && G.tomorrow.items && G.tomorrow.items.length ? {kind: 'list', when: 'TOMORROW · ' + G.tomorrow.day, items: G.tomorrow.items} : null,
                             G.week && G.week.length ? {kind: 'list', when: 'THIS WEEK', items: G.week} : null]
@@ -4593,8 +4593,8 @@
     const quiet = !forceLoc && !PREVIEW && !BUILDER && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !adOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
       && !['talking','phoning','improv','lecture','concert','gallery','poker'].includes(actor.action);
     let c = e >= 0 && e < GUIDE_SHOW + 8000 && quiet ? guideCard(slot, now) : null;
-    if (GUIDE_FORCE && now < GUIDE_FORCE.until){ const k = GUIDE_FORCE.kind, G = GUIDE || {};
-      c = k === 'merch' ? {kind: 'merch'} : k === 'vote' ? (POLL ? {kind: 'vote'} : null) : k === 'promo' ? (ARENA && ARENA.event ? {kind: 'promo', ev: ARENA.event} : null)
+    if (GUIDE_FORCE && now < GUIDE_FORCE.until){ const F = GUIDE_FORCE, k = F.kind, G = F.guide || GUIDE || {};
+      c = k === 'merch' ? {kind: 'merch'} : k === 'vote' ? {kind: 'vote', opensAt: F.opensAt} : k === 'promo' ? {kind: 'promo', ev: F.ev}
         : k === 'week' ? {kind: 'list', when: 'THIS WEEK', items: G.week || []} : k === 'tomorrow' ? {kind: 'list', when: 'TOMORROW · ' + ((G.tomorrow || {}).day || ''), items: (G.tomorrow || {}).items || []}
         : {kind: 'list', when: 'TODAY · ' + (G.day || ''), items: G.items || [], today: true};
       if (c){ e = 0; } }
@@ -4606,7 +4606,7 @@
     const sig = c.kind + (c.when || '') + slot + (GUIDE_FORCE && now < GUIDE_FORCE.until ? GUIDE_FORCE.until : '');
     if (c.kind === 'vote'){ tag.textContent = '● STAY TUNED';
       body.innerHTML = '<div class="big">VIEWERS\' VOTE IN <span class="n" id="guideN"></span><small>You decide what happens to Ishai next</small></div>';
-      $('guideN').textContent = mmss(POLL.opensAt - now); }
+      $('guideN').textContent = mmss(c.opensAt - now); }
     else if (guideOn !== sig){
       body.innerHTML = '';
       if (c.kind === 'promo'){ const ev = c.ev; tag.textContent = '● COMING UP';
@@ -4844,7 +4844,12 @@
       unlock(list){ UNLOCKED = new Set(list); },
       drawLook(c, look){ const x = c.getContext('2d'), prev = g; x.clearRect(0, 0, c.width, c.height); g = x; try { person(look, 5, 4, 0, {face: 0, seed: 9}); } finally { g = prev; } },
       call(lines){ if (!callOn) playCall({id: 'sb-call' + (++n), t: NOW(), caller: {name: 'Test caller', from: 'Sandbox'}, lines}, NOW()); },
-      guide: kind => { GUIDE_FORCE = {kind, until: NOW() + 20000}; },
+      guide: async kind => {   // the live show's real schedule, next night and next vote; a sample where it has none
+        let st = {}; try { st = await (await fetch('/api/state', {cache: 'no-store'})).json(); } catch(e){}
+        const now = NOW(), ev = (st.arena && st.arena.event && st.arena.event.at > now) ? st.arena.event
+          : {kind: 'concert', artist: 'Penguins can Fly', title: 'Penguins can Fly', at: now + 2 * 86400000};
+        const opensAt = st.poll && st.poll.opensAt > now ? st.poll.opensAt : now + 4 * 60000 + 30000;
+        GUIDE_FORCE = {kind, until: NOW() + 20000, guide: st.guide || null, ev, opensAt}; },
       hostFill: () => hostFill(true), overhear: () => overhear(true), city: id => cityTick(CITY.find(e => e.id === id) || CITY[0]), chat: () => { const c = CHAT_STOCK[Math.floor(NOW() / 1000) % CHAT_STOCK.length]; showChat(c[0], c[1]); },
       texture: x => { TEXTURE = x; },
       poll(o){ const t = NOW(), id = 'sb-poll-' + (++n); POLL = {id, sandbox: true, question: o.question || 'How will Avi make Ishai\'s next falafel?', options: o.options || ['Extremely spicy', 'Drowning in tahini', 'Just the usual'],
