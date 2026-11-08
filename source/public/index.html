@@ -185,6 +185,16 @@
   .pip{position:absolute;z-index:5;top:11%;left:2.5%;width:34%;opacity:0;transition:opacity .9s;pointer-events:none;
     background:#0b0716;border:2px solid #ff9ad0;border-radius:6px;box-shadow:0 0 14px rgba(255,154,208,.35);overflow:hidden}
   .pip.on{opacity:1}
+  .guide{position:absolute;z-index:5;top:11%;left:2.5%;width:min(46%,320px);opacity:0;transition:opacity .9s;pointer-events:none;background:#0a0f2a;border:2px solid #4f6bff;
+    box-shadow:0 0 0 2px #000,0 4px 14px rgba(0,0,0,.6);color:#e8ecff;font-size:clamp(10px,2.3vw,14px);line-height:1.25}
+  .guide.on{opacity:1}
+  .guide .tag{display:block;background:#4f6bff;color:#fff;padding:1px 6px;letter-spacing:.5px}
+  .guide ul{list-style:none;margin:0;padding:3px 6px 4px}
+  .guide li{display:flex;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .guide li b{font-weight:normal;color:#ffd36a;flex:none}
+  .guide li.past{opacity:.45} .guide li.next{color:#fff;text-shadow:0 0 6px #4f6bff}
+  .guide .big{padding:4px 7px 6px;font-size:1.25em;line-height:1.15} .guide .big small{display:block;font-size:.72em;opacity:.85;margin-top:2px}
+  .guide .big .n{color:#ffd36a}
   .callw{position:absolute;z-index:5;top:11%;right:2.5%;width:34%;opacity:0;transition:opacity .7s;pointer-events:none;background:#0b0716;border:2px solid #ffd36a;border-radius:6px;overflow:hidden;box-shadow:0 0 14px rgba(255,211,106,.35)}
   .callw.on{opacity:1}
   .callw canvas{display:block;width:100%;image-rendering:pixelated}
@@ -254,6 +264,7 @@
     <canvas id="scene" width="192" height="108"></canvas>
 
     <div class="pip" id="pip" aria-hidden="true"><span class="tag">● LIVE · STUDIO</span><canvas id="pipCv" width="64" height="40"></canvas><div class="cap" id="pipCap"></div></div>
+    <div class="guide" id="guide" aria-hidden="true"><span class="tag" id="guideTag"></span><div id="guideB"></div></div>
     <div class="adb" id="adb" aria-hidden="true"><canvas id="adCv" width="40" height="20"></canvas><div class="t" id="adT"></div><span class="ad">AD</span></div>
     <div class="pvb" id="pvb" hidden></div>
     <div class="callw" id="callw" aria-hidden="true"><span class="tag">📞 ON THE LINE</span><span class="who" id="callWho"></span><canvas id="callCv" width="64" height="30"></canvas><div class="cap" id="callCap"></div></div>
@@ -4548,6 +4559,46 @@
     if (adOn){ const prev = g; g = actx; try { adOn.draw(wall()); } catch(e){} g = prev; }
   }
   setInterval(adTick, 120);
+  // ================= the TV guide card: now and then, when it is quiet, a small frame with today's schedule, the next vote, or the next big night =================
+  // From the clock: one card in every 15-minute slot, 9.5 minutes in, for 14 s (clear of the ad banner), the same for every viewer. No AI, no writes.
+  const GUIDE_EVERY = 15 * 60000, GUIDE_AT = 570000, GUIDE_SHOW = 14000; let GUIDE = null, guideOn = '';
+  const GUIDE_DAY = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+  function guideCard(slot, now){
+    const p = POLL;
+    if (p && !p.sandbox && now < p.opensAt && p.opensAt - now < 30 * 60000) return {kind: 'vote'};
+    const ev = ARENA && ARENA.event, items = (GUIDE && GUIDE.items) || [];
+    const promo = ev && ev.at > now + 30 * 60000 && ev.at - now < 7 * 86400000;
+    if (promo && (slot % 2 || !items.length)) return {kind: 'promo', ev};
+    return items.length ? {kind: 'today'} : null;
+  }
+  function guideTick(){
+    const now = NOW(), slot = Math.floor(now / GUIDE_EVERY), e = now % GUIDE_EVERY - GUIDE_AT, el = $('guide');
+    const quiet = !forceLoc && !PREVIEW && !BUILDER && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !adOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
+      && actor.action !== 'sleeping' && !['talking','phoning','improv','lecture','concert','gallery','poker'].includes(actor.action);
+    const c = e >= 0 && e < GUIDE_SHOW && quiet ? guideCard(slot, now) : null;
+    if (!c){ if (guideOn){ guideOn = ''; el.classList.remove('on'); } return; }
+    const tag = $('guideTag'), body = $('guideB'), when = at => { const d = new Date(at), dd = new Date(now);
+      const day = new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Jerusalem', weekday: 'long'}).format(d).toUpperCase();
+      return (new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Jerusalem'}).format(d) === new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Jerusalem'}).format(dd) ? 'TONIGHT' : day) + ' ' + fmtHM.format(d); };
+    const sig = c.kind + slot;
+    if (c.kind === 'vote'){ tag.textContent = '● STAY TUNED';
+      body.innerHTML = '<div class="big">VIEWERS\' VOTE IN <span class="n" id="guideN"></span><small>You decide what happens to Ishai next</small></div>';
+      $('guideN').textContent = mmss(POLL.opensAt - now); }
+    else if (guideOn !== sig){
+      body.innerHTML = '';
+      if (c.kind === 'promo'){ const ev = c.ev; tag.textContent = '● COMING UP';
+        const b = document.createElement('div'); b.className = 'big'; const n = document.createElement('span'); n.className = 'n'; n.textContent = when(ev.at);
+        b.append(n, document.createElement('br'), document.createTextNode(ev.kind === 'concert' ? `${ev.artist.toUpperCase()} LIVE` : `GALLERY NIGHT: ${ev.title}`));
+        const sm = document.createElement('small'); sm.textContent = ev.kind === 'concert' ? 'At the Pump House. Don\'t miss it!' : `by ${ev.artist}, at the Pump House`; b.append(sm); body.append(b); }
+      else { tag.textContent = '● TODAY · ' + (GUIDE.day || GUIDE_DAY[new Date(now).getDay()]).toUpperCase();
+        const list = GUIDE.items, nextI = list.findIndex(x => x.at > now), from = Math.max(0, (nextI < 0 ? list.length : nextI) - 1);
+        const ul = document.createElement('ul');
+        list.slice(from, from + 7).forEach(x => { const li = document.createElement('li'); li.className = x.at <= now ? 'past' : x === list[nextI] ? 'next' : '';
+          const b = document.createElement('b'); b.textContent = x.t; li.append(b, document.createTextNode(x.what)); ul.append(li); });
+        body.append(ul); } }
+    if (guideOn !== sig){ guideOn = sig; el.classList.add('on'); }
+  }
+  setInterval(guideTick, 500);
   // ================= preview of the planned day (/?preview): plays the planner's beats in order =================
   let PREVIEW = null;
   async function startPreview(){
@@ -5343,7 +5394,7 @@
       if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;
       if (s.course) COURSE = s.course;
-      ARENA = s.arena || null; arenaPreload(); pokerSync(s.poker); PROMOS = s.promos || []; renderPromos();
+      ARENA = s.arena || null; GUIDE = s.guide || null; arenaPreload(); pokerSync(s.poker); PROMOS = s.promos || []; renderPromos();
       if ('poll' in s) setPoll(s.poll);
       if (s.summary) SUMMARY = s.summary;
       if (s.summary || s.course) renderSummary();

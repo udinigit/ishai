@@ -554,7 +554,7 @@ function publicState(s, dev) {
     studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
-    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()), promos: promosPublic(s, Date.now()),
+    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()), promos: promosPublic(s, Date.now()), guide: guideToday(s, Date.now()),
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [], barStations: s.world.barStations || [], cafeStations: s.world.cafeStations || [] } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
@@ -2902,6 +2902,30 @@ function comingUp(s, now, hours = 6) {
     }).filter(x => x && x.at > now + 10 * 60000 && x.at - now < hours * 3600000).sort((a, b) => a.at - b.at).slice(0, 3);
 }
 const comingUpText = (s, now, hours) => comingUp(s, now, hours).map(x => `${storyClock(x.at).label.slice(-5)} ${x.what}`).join("; ");
+// today's TV guide for the page's on-screen card: the city timetable plus the planned and fixed events, by hour (Israel time)
+const CITY_TITLE = { garbage: "Garbage truck on Herzl St.", gas: "Gas delivery", alte: "Alte-zachen cart", flowers: "Friday flower rush",
+  "market-close": "Last calls at the market", school: "School's out", piano: "Piano practice upstairs", kiosk: "Queue at Avi's kiosk", gameshow: "Mrs. Levi's game show" };
+function guideToday(s, now) {
+  const day = dayOfTZ(now), wd = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "long" }).format(new Date(now));
+  const d = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].indexOf(wd);
+  const sh = s.world && s.world.shabbat, inSh = t => !!sh && t >= sh.start && t <= (sh.end || sh.start + 26 * 3600000);
+  const u0 = Date.parse(day + "T00:00:00Z"), midnight = u0 - tzOffset(u0);   // today's 00:00 in Israel, as a timestamp
+  const items = CITY.filter(e => e.days.includes(d)).map(e => ({ at: midnight + e.from * 60000, what: CITY_TITLE[e.id] || e.id })).filter(x => !inSh(x.at));
+  if (sh && dayOfTZ(sh.start) === day) items.push({ at: sh.start, what: "Shabbat candles" });
+  for (const g of s.director || []) {
+    if (g.poll || /^(walk|visit|poll)-/.test(g.id) || g.how === "cancelled") continue;
+    const at = ceil15(g.sceneAt || g.startAfter); if (dayOfTZ(at) !== day) continue;
+    const goal = String(g.goal || "");
+    let what = g.course ? "Strange But True lecture" : /poker night/i.test(goal) ? "Poker night at Boaz's"
+      : /see (.+?) play at the Pump House/i.test(goal) ? goal.match(/see (.+?) play at the Pump House/i)[1] + " LIVE at the Pump House"
+      : /gallery night/i.test(goal) ? "Gallery night at the Pump House" : null;
+    if (!what) { const c = comingUp(s, at - 11 * 60000, 1).find(x => x.at === at); what = c ? c.what : null; }
+    if (what) items.push({ at, what: what.slice(0, 70) });
+  }
+  const seen = new Set();
+  return { day: wd, items: items.sort((a, b) => a.at - b.at).filter(x => { const k = x.at + x.what; if (seen.has(k)) return false; seen.add(k); return true; })
+    .map(x => ({ at: x.at, t: storyClock(x.at).label.slice(-5), what: x.what })) };
+}
 const TEASE_RE = /stay tuned|don'?t miss|coming up|be back|tune in|later (today|tonight)|\b(at|from) \d{1,2}(:\d\d)?\b/i;
 function eventNote(s, now, company) {
   const day = ms => new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "long" }).format(new Date(ms)); let out = "";

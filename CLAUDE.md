@@ -86,6 +86,9 @@ No AI, no writes, in the page, all from clock slots (`/api/ambient` serves both 
 - Building chat: `chatTick()`, a small card from the pack's `chat` times, otherwise a stock line every 40 minutes (`CHAT_STOCK`), 08:00-22:00, not on Shabbat.
 - Texture pack: `texture` in `story/plan.json`, written daily by the planner (format in `story/season.md`), used only on its `date`. Adds to the hosts' fill, the DJ (`djLine()`), the regulars (`MUTTER`) and overheard lines through `pack()`. Without it the stock lines run alone.
 
+## TV guide card
+No AI, no writes. Once in every 15-minute clock slot, 9.5 minutes in, for 14 s (`GUIDE_EVERY`, `GUIDE_AT`, `GUIDE_SHOW`; clear of the ad banner), when it is quiet (alone, awake, no talk, studio, caller or ad), the page shows a small frame top-left (`#guide`, `guideTick()`, `guideCard()`): a vote countdown when the next poll opens within 30 minutes, otherwise, on alternate slots, a promo for the next Pump House night (within 7 days) or today's schedule by hour (past times dimmed, the next one lit). The schedule comes from the worker (`guideToday()` → `publicState.guide`): today's `CITY` events (`CITY_TITLE`, none during Shabbat), Shabbat candles, and today's planned and fixed beats (lecture, Pump House, poker, plan beats by their `teaser`; not walks, visits or polls).
+
 ## Pop out (picture-in-picture)
 `⧉ POP OUT` copies the scene into a hidden video (`POP`, `popDraw()`), with the last lines drawn in as captions because the HTML doesn't reach the small window. While the page is hidden a worker's timer calls `frame()`, and the page's sound runs through the video (`Sound.popAudio()`). Works from the button on Android Chrome; automatic opening on leaving didn't.
 
