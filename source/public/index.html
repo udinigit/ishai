@@ -1978,7 +1978,7 @@
   // ---------- gallery nights at the Pump House (docs/ARENA_PLAN.md) ----------
   // The night is a planned beat: each moment's `art` says which set hangs (or that the curtain is down), each line's `piece` which picture it is about.
   // Everything here is worked out from the schedule (TL) and NOW(), so every viewer sees the same walls, walks, curtain and close-ups.
-  const G_PANELS = [{x:8,y:22,w:52,h:40},{x:68,y:22,w:52,h:40},{x:128,y:22,w:46,h:40}], G_MAIN = {x:14,y:18,w:160,h:46}, CURTAIN_MS = 3000, CLOSE_IN = 1200, CLOSE_MS = 5000;
+  const G_PANELS = [{x:8,y:22,w:52,h:40},{x:68,y:22,w:52,h:40},{x:128,y:22,w:46,h:40}], G_MAIN = {x:14,y:18,w:160,h:46}, CURTAIN_MS = 3000, CURTAIN_PAUSE = 4000, CLOSE_IN = 1200, CLOSE_MS = 5000;
   const ARTIMG = {};
   function pixelate(img, w, h){
     const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d', {willReadFrequently:true});
@@ -4028,11 +4028,13 @@
   const lineMs = say => Math.max(typeMs('"' + say + '"'), 500 + say.length * 70);
   const WAITS = new Set();    // the sandbox can cut waits short
   const untilT = at => { const ms = at - NOW(); if (ms <= 0) return Promise.resolve(); return new Promise(r => { const f = () => { WAITS.delete(f); clearTimeout(id); r(); }, id = setTimeout(f, ms); WAITS.add(f); }); };
-  function talkPlan(ev, prevLoc){
+  function talkPlan(ev, prevLoc, prevEv){
     const lines = ev.lines || [], hosts = ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines), plan = [];
     // arriving by bus or taxi: the talk waits until he is there
     const r = prevLoc && !PREVIEW && prevLoc !== (ev.location || 'apartment') ? route(prevLoc, ev.location || 'apartment') : [], onBoard = r.some(x => VEH.has(x)) && !VEH.has(prevLoc) && !VEH.has(ev.location);
-    const lead = onBoard ? RIDE_LEAD + RIDE_MS + RIDE_LAND : 0; let t = lead;
+    // a gallery night: after the break the curtain rises first (CURTAIN_MS), then a few seconds of looking before anyone speaks or a picture is shown
+    const afterCurtain = ev.art && !ev.art.curtain && prevEv && prevEv.art && prevEv.art.curtain ? CURTAIN_MS + CURTAIN_PAUSE : 0;
+    const lead = onBoard ? RIDE_LEAD + RIDE_MS + RIDE_LAND : afterCurtain; let t = lead;
     lines.forEach((l, i) => { if (i) t += linePause(lines[i-1].say) + gap; const ms = lineMs(l.say); plan.push({at: t, ms, l, i}); t += ms; });
     if (hosts.length){   // the hosts react to what viewers can SEE: after Ishai has got there, then a short beat
       t = Math.max(t + (lines.length ? 1200 : 0), lead + (prevLoc && prevLoc !== (ev.location || 'apartment') ? 17500 : 5000));
@@ -4043,7 +4045,7 @@
   function schedule(events){
     [...events].sort((a,b)=>a.t-b.t).forEach(e => {
       if (TL.has(e.id)) return;
-      const p = talkPlan(e, tlLast && (tlLast.ev.location || 'apartment')), start = Math.max(e.t, tlLast ? tlLast.end : 0);   // a long talk finishes before the next moment starts
+      const p = talkPlan(e, tlLast && (tlLast.ev.location || 'apartment'), tlLast && tlLast.ev), start = Math.max(e.t, tlLast ? tlLast.end : 0);   // a long talk finishes before the next moment starts
       tlLast = {ev: e, start, end: start + p.ms, plan: p.plan, ride: p.ride}; TL.set(e.id, tlLast);
     });
     while (TL.size > 60) TL.delete(TL.keys().next().value);
