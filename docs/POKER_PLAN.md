@@ -75,6 +75,7 @@ They are drawn only from the look menu. Each gets an `INK` colour that no one el
   - Ronit buzzes at 20:00.
   - Yossi is late (20:08, "the bus broke down", and he is the mechanic).
   - Everyone walks in through the door (rule 2).
+- **Pizza:** every poker night they order pizza through ateBite. Boaz orders on his phone at about 19:55, as people arrive (who wants what is a running joke: Moti wants olives, Yossi wants "anything, it's lucky", Ronit wants it on time). At about 20:40, between hands, the orange-helmeted courier rings at apt 2, steps in with the boxes and leaves (the existing `courierUpdate()`, with `delivery: true` on that moment, here at apt 2's door). The boxes then sit open on the kitchen hatch and slices appear on the table by the chips; Falafel gets interested. Lines from the pools: the order, the doorbell, arguing over the last slice, grease on the cards. The cost is split from the pot talk ("pizza money comes out before cash-out").
 - **Leaving:** they go one by one through the door in the reverse logic: Yossi first if he is broke, Moti last, still talking.
 
 ### Engine (worker, no AI)

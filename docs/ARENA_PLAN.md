@@ -235,6 +235,10 @@ So viewers get to know the artists and bands in advance, and can follow the link
   - promotions: text, image, links, dates and where each one shows, with a preview of the poster, the leaflet and the viewers' card;
   - "Replace with gallery night" and "Skip this week".
 
+## Progress
+- v162: the plaza, the hall, Hagit, the map links.
+- v163: gallery nights end to end (scheduling, layout, curtain, main piece, browsing, close-ups, queue, line pools, sandbox button). Not yet: picture facts in the lines, the director's Events tab, uploads, promotions, concerts, the poker night's shared table-guests controller.
+
 ## Order of work
 1. The plaza, the hall and Hagit, the map links, `PLACES`, `LOCATIONS`, `FILL`, `OVERHEARD`, `ERRANDS`.
 2. The show timeline and the guests controller (shared with poker; build once).

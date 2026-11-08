@@ -195,7 +195,7 @@ const LOCATIONS = {
   bar:       ["idle","drinking","eating","talking","phoning","improv"],
   campus:    ["walking","idle","talking","eating","drinking","phoning"],
   plaza:     ["walking","idle","talking","eating","drinking","phoning"],
-  arena:     ["idle","walking","talking","drinking","phoning"],
+  arena:     ["idle","walking","talking","drinking","phoning","gallery"],
   classroom: ["idle","talking","phoning","lecture"],
   bus:       ["idle","talking","phoning","reading"],
   taxi:      ["idle","talking","phoning","reading"],
@@ -249,7 +249,7 @@ const LOOK = {
   extras: ["glasses","beard","mustache","earring","apron","scarf"]
 };
 
-const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && a !== "lecture" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" and "lecture" are only for planned classes
+const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && a !== "lecture" && a !== "gallery" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" and "lecture" are only for planned classes
 
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
@@ -319,7 +319,7 @@ export default {
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: Math.round(s.usage.inTok * 4625 / 1e6 + s.usage.outTok * 30475 / 1e6) } : null,
-        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s),
+        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
         polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3) } }, { "cache-control": "no-store" });
@@ -384,6 +384,12 @@ export default {
       const dev = JSON.stringify({ ep, from: num(b.from, 0, 23, 8), to: num(b.to, 0, 24, 23), max: num(b.max, 1, ALERTS_A_DAY, ALERTS_A_DAY) });
       if (req.method === "DELETE") await env.ISHAI.delete(key); else if ((await env.ISHAI.get(key)) !== dev) await env.ISHAI.put(key, dev);
       return json({ ok: true }, { "cache-control": "no-store" });
+    }
+    if (url.pathname === "/api/arena") {   // the next Pump House night; the director also gets its moments as they will air (the sandbox plays them)
+      const s = await loadState(env), now = Date.now(), dev = await isDev(req, env), t = nextArenaAt(s, now) || now, date = dayOfTZ(t);
+      const ev = (s.arena && s.arena.events[date]) || galleryNight(s, date, t);
+      return json({ ...(arenaPublic(s, now) || {}), next: { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, sets: ev.sets },
+        moments: dev ? galleryMoments(ev, s) : undefined }, { "cache-control": "no-store" });
     }
     if (url.pathname === "/api/lecture") {
       if (!await isDev(req, env)) return json({ error: "director only" }, {}, 403);
@@ -470,12 +476,12 @@ function publicState(s, dev) {
   return {
     day: showDay(s.startedAt, Date.now()),
     build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
-    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined })),
+    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined, art: e.art || undefined })),
     talk: (s.talk || []).slice(-80), dev: !!dev,
     studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
-    unlocked: s.unlocked, course: coursePublic(s),
+    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()),
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [], barStations: s.world.barStations || [], cafeStations: s.world.cafeStations || [] } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
@@ -569,6 +575,7 @@ async function tick(env, force) {
 
   HOSTS_APART = !!env.GEMINI_API_KEY;
   if (!force) try { await courseTick(env, s, now); } catch (e) { courseOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
+  if (!force) try { arenaTick(s, now); } catch (e) { arenaOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   geminiOutUntil = Math.max(geminiOutUntil, s.geminiOutUntil || 0);   // a pause set by another isolate still counts
   // director: activate the next goal, or force it if its deadline passed
   let goal = activeGoal(s, now);
@@ -632,7 +639,7 @@ async function tick(env, force) {
     c.lastSeen = storyMs; c.scenes = (c.scenes || 0) + 1;
   }
   s.events.push({ id: s.nextId++, t: storyMs, created: now, location: ev.location, action: ev.action, delivery: ev.delivery || undefined,
-    text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null });
+    text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null, art: ev.art || undefined });
   // the day's highlights, replayed in Ishai's dreams at night
   { const prevEv = s.events[s.events.length - 2], hl = s.hl || (s.hl = []), lastHl = hl[hl.length - 1];
     const notable = !["sleeping", "waking", "bathroom", "showering"].includes(ev.action) && ev.location !== "offscreen" &&
@@ -1170,9 +1177,12 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   // dialogue
   const who = x => { const k = str(x, 40).toLowerCase(); if (k === "ishai") return "ishai";
     if (allowNoHosts && ev.action === "lecture" && STUDENT.test(k)) return k;  // the class speaks up, nameless, from their seats
+    if (allowNoHosts && k === "hagit" && (ev.location === "arena" || ev.location === "plaza")) return k;   // Hagit hosts the Pump House's events
     const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || "").toLowerCase() === k); return c ? ev.with : null; };
-  ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => ({ who: who(l?.who), say: str(l?.say, 200).replace(/^["']|["']$/g, "") }))
+  ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => { const x = { who: who(l?.who), say: str(l?.say, 200).replace(/^["']|["']$/g, "") };
+      if (allowNoHosts && Number.isInteger(l?.piece) && l.piece >= 0 && l.piece < 30) x.piece = l.piece; return x; })   // which picture a line is about (Pump House)
     .filter(l => l.who && l.say).slice(0, 14);
+  if (allowNoHosts && o.art && typeof o.art === "object") ev.art = { ev: str(o.art.ev, 30), set: Number.isInteger(o.art.set) ? o.art.set : undefined, curtain: o.art.curtain === true || undefined, queue: o.art.queue === true || undefined, after: o.art.after === true || undefined };
   // a text or an email: read out first, then he reacts in "lines"
   if (o.message && typeof o.message === "object") { const id = str(o.message.from, 20).toLowerCase(), say = str(o.message.say, 160), via = str(o.message.kind, 10).toLowerCase() === "email" ? "email" : "text";
     if (s.cast[id] && say) ev.lines.unshift({ who: id, say, via }); }
@@ -1326,11 +1336,11 @@ function cleanCard(c, s, loc) {
 function repair(ev, s, last) {
   let loc = LOCATIONS[ev.location] ? ev.location : last.location;
   if (loc !== last.location && !NEXT[last.location].includes(loc)) loc = last.location;
-  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : allowed(loc, s.unlocked);
+  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : allowed(loc, s.unlocked);
   const act = legal.includes(ev.action) ? ev.action : (legal.includes("idle") ? "idle" : legal[0]);
   const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with) && act !== "sleeping";
   return { ...ev, location: loc, action: act, with: ok ? ev.with : null,
-    lines: ok ? ev.lines : ev.lines.filter(l => l.who === "ishai" || STUDENT.test(l.who)), update: ok ? ev.update : null, newCard: ok ? ev.newCard : null };
+    lines: ok ? ev.lines : ev.lines.filter(l => l.who === "ishai" || STUDENT.test(l.who) || l.who === "hagit"), update: ok ? ev.update : null, newCard: ok ? ev.newCard : null };
 }
 
 // moments written without the AI (sick day, backups): the hosts tell viewers what is happening, plus a fresh joke now and then
@@ -2322,6 +2332,172 @@ async function pollTick(env, s, ev, now, last) {
 }
 
 // ---------- director ----------
+// ---------- The Pump House: one event a week (docs/ARENA_PLAN.md) ----------
+// Wednesdays at 20:00. Until the director adds events, every week is a gallery night: pictures from picsum.photos (seeded, the same for everyone),
+// drawn as 8-bit pixels in the page, hung together in sets on temporary white walls, with a curtain between sets and one big main piece last.
+// The whole night is a planned beat played as written (no AI): the plaza at doors, the sets, the curtain, the main piece, the walk out.
+const ARENA_DAY = 3, ARENA_H = 20, ARENA_MIN = 45, ARENA_AHEAD = 6 * 86400000;
+const PANELS = [{ x: 8, y: 22, w: 52, h: 40 }, { x: 68, y: 22, w: 52, h: 40 }, { x: 128, y: 22, w: 46, h: 40 }];   // the temporary walls in the hall (logical px)
+const MAIN_WALL = { x: 14, y: 18, w: 160, h: 46 };
+const ART_SIZES = [[16, 12], [12, 16], [20, 14], [14, 20], [24, 18], [18, 24], [28, 20]];
+const seedRng = str => { let h = 1779033703 ^ String(str).length; for (const ch of String(str)) { h = Math.imul(h ^ ch.charCodeAt(0), 3432918353); h = (h << 13) | (h >>> 19); }
+  return () => { h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; }; };
+const pickR = (r, a) => a[Math.floor(r() * a.length)];
+const dayOfTZ = ms => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(ms));
+function nextArenaAt(s, now) {
+  for (let k = 0; k < 15; k++) {
+    const day = dayOfTZ(now + k * 86400000), [y, m, d] = day.split("-").map(Number);
+    if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() !== ARENA_DAY || (s.world?.holidays || []).some(h => h.date === day)) continue;
+    const u = Date.UTC(y, m - 1, d, ARENA_H), t = u - tzOffset(u);
+    if (t + 120 * 60000 > now) return t;     // tonight's stays "next" until it is over
+  }
+  return null;
+}
+// lay pieces out on walls: rows, biggest first, 4 px apart, each row centred, the block centred on the wall. Returns {placed, rest}.
+function hangSet(pieces, walls) {
+  const left = [...pieces].sort((a, b) => b.w * b.h - a.w * a.h), placed = [];
+  for (const wall of walls) {
+    const rows = []; let used = 0;
+    while (left.length) {
+      const row = []; let w = 0, h = 0;
+      for (let i = 0; i < left.length; i++) { const p = left[i], nw = w + (row.length ? 4 : 0) + p.w;
+        if (nw <= wall.w - 4 && used + Math.max(h, p.h) + (rows.length ? 5 : 0) <= wall.h - 4) { row.push(p); w = nw; h = Math.max(h, p.h); left.splice(i--, 1); } }
+      if (!row.length) break;
+      rows.push({ row, w, h }); used += h + (rows.length > 1 ? 5 : 0);
+    }
+    let y = wall.y + Math.floor((wall.h - used) / 2);
+    rows.forEach(({ row, w, h }) => { let x = wall.x + Math.floor((wall.w - w) / 2);
+      row.forEach(p => { placed.push({ ...p, x, y: y + Math.floor((h - p.h) / 2) }); x += p.w + 4; }); y += h + 5; });
+  }
+  return { placed, rest: left };
+}
+const ART_ADJ = ["Small", "Quiet", "Borrowed", "Slow", "Second", "Late", "Paper", "Folded", "Low", "Open", "Distant", "Patient"];
+const ART_NOUN = ["Weather", "Rooms", "Machines", "Hours", "Distances", "Windows", "Roads", "Gardens", "Signals", "Tides", "Neighbours", "Afternoons"];
+const ART_FIRST = ["Noga", "Itamar", "Shira", "Yoav", "Maya", "Amit", "Tamar", "Eyal", "Liat", "Omer", "Hila", "Gal", "Roni", "Adi"];
+const ART_LAST = ["Bar-Lev", "Sagi", "Kaspi", "Navon", "Ezra", "Lavi", "Dagan", "Shefer", "Rimon", "Harel", "Tzur", "Amir"];
+const PIECE_TITLES = ["Blue Hour", "Window, Afternoon", "The Long Road", "Somebody's Garden", "Harbour", "Untitled (Green)", "Untitled (Warm)", "Tuesday", "Field Notes",
+  "Morning Again", "Low Tide", "The Neighbour's Light", "Static", "Far Away, Close", "Sunday Road", "Grey Study", "Half a Tree", "Return Trip", "Heat", "Still Water",
+  "Before the Rain", "A Door Left Open", "Small Mountain", "Leftover Light", "The Crossing", "Noon", "Second Floor", "What the Bus Saw"];
+const GALLERY_FRIENDS = ["noa", "tomer"];
+// a gallery night for that date: everything comes from the date, so it is the same however often it is built
+function galleryNight(s, date, at) {
+  const r = seedRng("gallery-" + date), title = `${pickR(r, ART_ADJ)} ${pickR(r, ART_NOUN)}`, artist = `${pickR(r, ART_FIRST)} ${pickR(r, ART_LAST)}`;
+  const friends = GALLERY_FRIENDS.filter(id => s.cast[id]), companion = r() < .75 && friends.length ? pickR(r, friends) : null;
+  const moments = Math.max(3, Math.min(15, Math.round(ARENA_MIN / INTERVAL_MIN)));   // inside the hall, one per tick
+  const nSets = Math.max(1, Math.floor((moments - 1) / 3)), titles = [...PIECE_TITLES]; let n = 0;
+  const piece = (w, h) => { const i = Math.floor(r() * titles.length), t = titles.splice(i, 1)[0] || `Study #${n + 1}`; n++; return { seed: `pump-${date}-${n}`, w, h, title: t }; };
+  const sets = [];
+  for (let k = 0; k < nSets; k++) {
+    const cand = []; for (let i = 0; i < 9; i++) { const [w, h] = pickR(r, ART_SIZES); cand.push(piece(w, h)); }
+    const { placed } = hangSet(cand, PANELS); sets.push({ pieces: placed.slice(0, 8) });
+  }
+  sets.push({ main: true, pieces: hangSet([{ ...piece(80, 40), title }], [MAIN_WALL]).placed });
+  return { id: "pump-" + date, date, kind: "gallery", at, minutes: ARENA_MIN, title, artist, companion, sets, source: "picsum.photos (open photographs, seeded), pixelated in the page" };
+}
+// ---- what is said: written pools, picked by the night's seed (no AI) ----
+const G_DOORS = ["Doors are open. Tickets on your phone, or tell me your name and I'll pretend to find it.", "Welcome, welcome. Mind the step, it's older than both of us.",
+  "Come in, it's warmer inside. The pipes still remember how to hold heat.", "Evening. First time at the Pump House? Then it's a first time for both of us."];
+const G_WELCOME = ["Welcome to the Pump House. Tonight: {artist}, \"{title}\".", "Good evening, and thank you for coming. {artist}. \"{title}\". Take your time.",
+  "Welcome. This building moved the neighbourhood's water for ninety years. Tonight it moves pictures: {artist}, \"{title}\"."];
+const G_ABOUT = ["{artist} takes photographs from an open collection and translates them into pixels. One decision per square.", "Nothing here is bigger than it needs to be. That was the rule {artist} gave me.",
+  "Look first, read the little cards after. {artist} insisted on that order.", "Every picture here started as somebody else's photograph. Now it's a few hundred coloured squares and a lot of patience."];
+const G_PIECE = ["This one is \"{p}\".", "\"{p}\". Stand back a step. It works better from here.", "Here, \"{p}\". {artist} redid the edges of this one four times.",
+  "\"{p}\". People always stop at this one. I don't know why, and I've stopped asking.", "This is \"{p}\". Count the colours. Fewer than you think.",
+  "\"{p}\". It was almost left out. I'm glad it wasn't.", "\"{p}\". Tell me what you see first. There are no wrong answers, only slow ones."];
+const ISHAI_ART = ["I don't know what it is, but I don't want to stop looking at it.", "I think it's a road. Or a river. Something that goes somewhere.", "It's so few squares. How is it this calm?",
+  "I keep seeing a window in it. Is that just me?", "It looks like the end of a long day.", "From over here it changes. Come stand here.", "I'd hang that one over my desk. Moshe would approve.",
+  "I like that it doesn't explain itself.", "It feels like a place I've been, but I can't say where.", "The colours are arguing a little. In a good way.",
+  "It's simple. I mean that as a compliment. I think.", "I could stand here a while.", "That one looks like how Sunday mornings feel.", "If I squint, it's a whole city.",
+  "Is it bad that I want to touch it?", "It's quiet. The whole picture is quiet.", "It's smaller than I expected. And bigger.", "I'm going to pretend I understand it, and nod."];
+const FRIEND_ART = {
+  noa: ["Ishush, you're nodding like you understand it.", "I'd tattoo that. Small. On an ankle.", "Okay, that one's good. Don't tell anyone I said so.", "You're standing too close. You always stand too close.",
+    "This is what you should be charging for, by the way. Not chickpeas.", "It looks like the view from your window. Minus the laundry.", "Fine. I like it. Happy?"],
+  tomer: ["Habibi, I bet you twenty it's the sea.", "My cousin could do this. On a calculator.", "Wait, I take it back, that one's nice.", "How many squares is that? I'm counting. Don't talk to me.",
+    "If this is a road, the electrics on that lamp are wrong.", "I'd put that in a bar. A good bar.", "Okay, I'm not going to lie. I like this place."],
+  any: ["I see a garden. You?", "That one's my favourite so far.", "It's like a memory with the details missing.", "I didn't expect to like this so much.",
+    "Look at the blue in that one.", "Do you think they sell postcards?", "I could look at this for an hour."] };
+const G_CURTAIN = ["We'll close the curtain for a few minutes while the walls change. Drinks are by the door.", "Second room, same artist, different mood. Give us five minutes.",
+  "Curtain, please. Nobody peek. I can hear you peeking.", "A short break while we hang the next set. The pipes will entertain you."];
+// small talk while the walls change: Ishai says something, the friend answers that (alone, he talks to Hagit or to himself)
+const CURTAIN_TALK = [
+  ["What do you think they're doing back there?", { noa: "Hanging things crooked so we argue about it.", tomer: "Moving walls. I could do it in half the time.", any: "Probably the next set. I'm excited." }],
+  ["I'm getting one of those drinks. You want one?", { noa: "Whatever's cold. And don't apologise to the bartender.", tomer: "Two. One for me, one also for me.", any: "Sure, thanks." }],
+  ["I've been here twenty minutes and I already want to come back.", { noa: "Admit it, you're having a good time.", tomer: "Next week I'm bringing my cousin. The calculator one.", any: "Me too." }],
+  ["This used to pump water. Now it pumps... this. It's a good upgrade.", { noa: "Write that down. Sell it to Gadi.", tomer: "The pipes are original, you know. Look at those joints.", any: "Ha. It really is." }],
+  ["Do you think the artist is here? Somewhere, watching people squint?", { noa: "That's the guy by the door pretending to read his phone. Definitely.", tomer: "If they are, I want to shake their hand. Then ask about the lamp.", any: "I hope so. I'd say thank you." }]];
+const ALONE_CURTAIN = ["Do you get many people on a Wednesday?", "Is it always this quiet before the curtain goes up?", "Can I ask how you find the artists?"];
+const HAGIT_ALONE = ["Tonight, you're one of the many. Enjoy it.", "Never quiet for long. Drink some water, it's free.", "They find me. Usually they knock on the chimney."];
+const G_MAIN = ["And the last one gets the whole wall. \"{p}\".", "Last piece. {artist} asked for one wall, one picture, and nothing next to it. \"{p}\".",
+  "\"{p}\". This is the one the whole night was built around."];
+const G_BYE = ["That's the night. Thank you for coming. Next Wednesday, same time, the doors will open again.", "Thank you, everyone. Tell one person about this place. Just one. That's how it grows.",
+  "Thank you. The Pump House is open again next Wednesday. Bring someone who says they don't like art."];
+const G_HOSTS = ["A gallery night at the Pump House. Our man, in culture, voluntarily.", "Look at him looking at art. Thoughtful. Possibly hungry.", "Hagit runs this place on stubbornness and good lighting.",
+  "Every picture here started as somebody's photo, and became a few hundred squares. Like our show.", "He's standing very close to that one. Hagit has noticed.",
+  "The curtain is down, the walls are changing. Theatre for art people.", "One wall, one picture. Very dramatic. We approve.", "He's nodding. He's definitely nodding.",
+  "Water used to run through these pipes. Now it's just opinions.", "The art is quiet. The audience is quieter."];
+function galleryMoments(ev, s) {
+  const r = seedRng("talk-" + ev.date), f = ev.companion && s.cast[ev.companion] ? ev.companion : null, fw = FRIEND_ART[f] || FRIEND_ART.any;
+  const fill = t => t.replace(/\{artist\}/g, ev.artist).replace(/\{title\}/g, ev.title);
+  const bag = a => { const pool = [...a]; return () => { if (!pool.length) pool.push(...a); return pool.splice(Math.floor(r() * pool.length), 1)[0]; }; };
+  const ishaiL = bag(ISHAI_ART), friendL = bag(fw), pieceL = bag(G_PIECE), hostL = bag(G_HOSTS);
+  const L = (who, say, piece) => piece == null ? { who, say: fill(say).slice(0, 200) } : { who, say: fill(say).slice(0, 200), piece };
+  const talk = bag(CURTAIN_TALK), alone = bag([0, 1, 2]);
+  const curtainLines = (first) => { const a = [L("hagit", first || pickR(r, G_CURTAIN))];
+    if (f) { const [say, rep] = talk(); a.push(L("ishai", say), L(f, rep[f] || rep.any)); } else { const k = alone(); a.push(L("ishai", ALONE_CURTAIN[k]), L("hagit", HAGIT_ALONE[k])); } return a; };
+  const host = (i) => i % 2 === 0 ? [{ who: i % 4 ? "oren" : "zohar", say: hostL() }] : [];
+  const out = [], art = (o) => ({ ev: ev.id, ...o }), sets = ev.sets.filter(x => !x.main), main = ev.sets.find(x => x.main);
+  out.push({ location: "plaza", action: "idle", with: f, text: `Doors at the Pump House: a short queue on the plaza; Hagit checks names at the door.${f ? ` ${s.cast[f].name} meets Ishai there.` : ""}`,
+    art: art({ queue: true }), lines: [L("hagit", pickR(r, G_DOORS)), ...(f ? [L("ishai", "You came! I thought you'd say art isn't your thing."), L(f, f === "noa" ? "It isn't. You are. Move, the line's going." : "I'm here for the free drinks, habibi. Go, go.")] : [L("ishai", "Thanks. Is it... am I early?")]),
+      ...(f ? [] : [L("hagit", "You're exactly on time. That makes you rare.")])], commentary: [{ who: "zohar", say: "The Pump House opens its doors, and he's in the queue. Nobody made him." }] });
+  sets.forEach((set, k) => {
+    if (k) out.push({ location: "arena", action: "gallery", with: f, text: "The curtain comes down while the walls are changed; people get drinks and talk.", art: art({ set: k, curtain: true }),
+      lines: curtainLines(), commentary: host(out.length) });
+    const ps = set.pieces.map((_, i) => i), half = Math.ceil(ps.length / 2);
+    [ps.slice(0, half), ps.slice(half)].forEach((part, j) => {
+      if (!part.length) return;
+      const lines = [];
+      if (k === 0 && j === 0) { lines.push(L("hagit", pickR(r, G_WELCOME)), L("hagit", pickR(r, G_ABOUT))); }
+      part.forEach((p, i) => { const pt = set.pieces[p].title;
+        if (i % 2 === 0) lines.push(L("hagit", pieceL().replace(/\{p\}/g, pt), p));
+        lines.push(L("ishai", ishaiL(), p)); if (f && r() < .8) lines.push(L(f, friendL(), p)); });
+      out.push({ location: "arena", action: "gallery", with: f, text: `Gallery night: Ishai${f ? " and " + s.cast[f].name : ""} browse the ${k ? "next" : "first"} set of ${ev.artist}'s pixel pictures.`,
+        art: art({ set: k }), lines: lines.slice(0, 14), commentary: host(out.length) });
+    });
+  });
+  const mk = ev.sets.indexOf(main), mt = main.pieces[0].title;
+  out.push({ location: "arena", action: "gallery", with: f, text: "The curtain comes down one last time.", art: art({ set: mk, curtain: true }),
+    lines: curtainLines("One more change, the last one. This one takes the whole wall."), commentary: [] });
+  out.push({ location: "arena", action: "gallery", with: f, text: `The last piece fills the whole wall, under a spotlight: "${mt}". Hagit thanks everyone.`, art: art({ set: mk }),
+    lines: [L("hagit", pickR(r, G_MAIN).replace(/\{p\}/g, mt), 0), L("ishai", ishaiL(), 0), ...(f ? [L(f, friendL(), 0)] : []), L("ishai", ishaiL(), 0), L("hagit", pickR(r, G_BYE))],
+    commentary: [{ who: "oren", say: hostL() }] });
+  out.push({ location: "plaza", action: "walking", with: f, text: `Ishai${f ? " and " + s.cast[f].name : ""} step out of the Pump House into the night, talking about the pictures.`, art: art({ after: true }),
+    lines: [L("ishai", "I didn't think I'd like that so much."), ...(f ? [L(f, f === "noa" ? "You stood in front of the big one for five minutes, Ishush." : "Same time next week, habibi? I'm serious.")] : [])],
+    commentary: [], update: f ? { memory: `Went with Ishai to a gallery night at the Pump House (${ev.artist}, "${ev.title}"); he loved it.`, mood: 1 } : undefined });
+  return out;
+}
+function arenaOf(s) { return s.arena || (s.arena = { events: {}, err: null }); }
+function scheduleArena(s, ev, now) {
+  const moments = ev.kind === "gallery" ? galleryMoments(ev, s) : null; if (!moments) return;
+  const id = ev.id, t = ev.at, f = ev.companion && s.cast[ev.companion] ? s.cast[ev.companion] : null;
+  const g = newGoal({ id, goal: `Ishai goes to the Pump House for its gallery night: ${ev.artist}, "${ev.title}".`, startAt: new Date(t - 55 * 60000).toISOString(),
+    sceneAt: new Date(t - 9 * 60000).toISOString(), deadlineAt: new Date(t + 10 * 60000).toISOString(), location: "plaza", with: f ? f.name : null, forceWith: f ? f.id : null }, now);
+  g.id = id; g.fixed = true; g.script = cleanScript(moments, 20); s.director = s.director.filter(d => d.id !== id || d.status !== "done"); s.director.push(g); ev.goalId = id;
+}
+function arenaTick(s, now) {
+  const a = arenaOf(s), t = nextArenaAt(s, now); if (!t) return;
+  for (const d of Object.keys(a.events)) if (Date.parse(d) < now - 8 * 86400000) delete a.events[d];
+  const date = dayOfTZ(t);
+  if (!a.events[date] && t - now < ARENA_AHEAD && !a.off) a.events[date] = galleryNight(s, date, t);
+  const ev = a.events[date]; if (ev && !ev.goalId && !ev.skip && t - now < 30 * 3600000 && t - 50 * 60000 > now) scheduleArena(s, ev, now);
+}
+const arenaNext = (s, now) => { const a = s.arena; if (!a) return null; const t = nextArenaAt(s, now); return t ? a.events[dayOfTZ(t)] || null : null; };
+function arenaPublic(s, now) {
+  const ev = arenaNext(s, now); if (!ev || ev.skip) return null;
+  const today = dayOfTZ(now) === ev.date, live = now >= ev.at - 12 * 60000 && now < ev.at + (ev.minutes + 25) * 60000;
+  return { board: [today ? "TODAY" : "WED", "20.00", ev.kind === "gallery" ? "ART" : "LIVE"], screen: `${ev.title.toUpperCase()}   ${ev.artist.toUpperCase()}`, live,
+    event: { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, sets: ev.sets } };
+}
+const arenaHealth = s => { const a = s.arena; if (!a) return null; return { events: Object.values(a.events).map(e => ({ id: e.id, kind: e.kind, title: e.title, artist: e.artist, companion: e.companion, goal: e.goalId || null, skip: !!e.skip })), off: !!a.off, err: a.err }; };
 function newGoal(d, now) {
   const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
   return {
@@ -2345,12 +2521,12 @@ function cleanScript(a, cap = 8) {
     .map(m => ({ location: m.location, action: m.action, with: m.with || null, text: String(m.text).slice(0, 260),
       lines: Array.isArray(m.lines) ? m.lines.slice(0, 14) : [], commentary: Array.isArray(m.commentary) ? m.commentary.slice(0, 2) : [],
       delivery: m.delivery === true || undefined, message: m.message && typeof m.message === "object" ? m.message : undefined,
-      update: m.update && typeof m.update === "object" ? m.update : undefined }));   // what the scene changed in that person's memory and mood
+      update: m.update && typeof m.update === "object" ? m.update : undefined, art: m.art && typeof m.art === "object" ? m.art : undefined }));   // what the scene changed in that person's memory and mood
   return sc.length ? sc : null;
 }
 function activeGoal(s, now) {
   let g = s.director.find(d => d.status === "active");
-  const lec = s.director.find(d => d.course && d.status === "waiting" && d.startAfter <= now);   // a lecture has a fixed time: a beat that has not begun waits for it
+  const lec = s.director.find(d => (d.course || d.fixed) && d.status === "waiting" && d.startAfter <= now);   // a lecture or a Pump House night   // a lecture has a fixed time: a beat that has not begun waits for it
   if (lec && (!g || !(g.step > 0))) { if (g) g.status = "waiting"; lec.status = "active"; lec.activatedAt = now; return lec; }
   if (!g) {
     g = s.director.filter(d => d.status === "waiting" && d.startAfter <= now).sort((a, b) => a.startAfter - b.startAfter)[0];

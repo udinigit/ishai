@@ -337,7 +337,7 @@
     west1:     ['walking','idle'], west2: ['walking','idle'], west3: ['walking','idle'],   // walk-through blocks, page only: the story never stops here
     park:      ['walking','idle','talking','reading','eating','drinking','exercising','phoning'],
     plaza:     ['walking','idle','talking','eating','drinking','phoning'],
-    arena:     ['idle','walking','talking','drinking','phoning'],
+    arena:     ['idle','walking','talking','drinking','phoning','gallery'],
     cafe:      ['idle','eating','drinking','working','reading','talking','phoning'],
     gym:       ['exercising','idle','talking','drinking','phoning'],
     market:    ['walking','idle','talking','eating','drinking','phoning'],
@@ -1862,15 +1862,120 @@
       // a bin
       zAdd(84, () => { R(140,74,6,9,'#3a5a3a'); R(139,73,8,1,'#2a4a2a'); });
       if (!NO_CROWD){ crowdWalk(t, 4, 41000, 9000, 66, -1, .7); if (Math.floor(t/80000) % 3 === 1) crowdVisit(t, 80000, 3, 136, 66, W+8, 66, {face:1}); }   // someone reading the poster board
+      // the queue for an event: from 40 minutes before it starts until a few minutes in, people wait in the rope lanes
+      if (!NO_CROWD && !DREAMING && ARENA && ARENA.event && NOW() > ARENA.event.at - 40 * 60000 && NOW() < ARENA.event.at + 4 * 60000){
+        const n = Math.min(5, 1 + Math.floor((NOW() - (ARENA.event.at - 40 * 60000)) / 360000));
+        for (let i = 0; i < n; i++) crowdStill(t, 6 + i, 34 - i * 8, 64 + (i % 2), {face: 1}); }
       drawFloor(t,a,settled,actor,this);
       liveLayer(t, this); zFlush();
       if (night) alpha(.36,()=>R(0,0,W,H,'#050a1e'));
     }
   };
+  // ---------- gallery nights at the Pump House (docs/ARENA_PLAN.md) ----------
+  // The night is a planned beat: each moment's `art` says which set hangs (or that the curtain is down), each line's `piece` which picture it is about.
+  // Everything here is worked out from the schedule (TL) and NOW(), so every viewer sees the same walls, walks, curtain and close-ups.
+  const G_PANELS = [{x:8,y:22,w:52,h:40},{x:68,y:22,w:52,h:40},{x:128,y:22,w:46,h:40}], G_MAIN = {x:14,y:18,w:160,h:46}, CURTAIN_MS = 3000, CLOSE_IN = 1200, CLOSE_MS = 5000;
+  const ARTIMG = {};
+  function pixelate(img, w, h){
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d', {willReadFrequently:true});
+    x.imageSmoothingEnabled = true; x.drawImage(img, 0, 0, w, h);
+    const d = x.getImageData(0, 0, w, h); for (let i = 0; i < d.data.length; i += 4) for (let j = 0; j < 3; j++) d.data[i+j] = Math.round(d.data[i+j] / 85) * 85;   // 4 levels a colour: the 8-bit look
+    x.putImageData(d, 0, 0); return c;
+  }
+  // one picture: the same seed gives the same photograph to everyone; a small 8-bit copy for the wall and a finer one for the close-up
+  function artImg(p){
+    if (ARTIMG[p.seed]) return ARTIMG[p.seed];
+    const rec = ARTIMG[p.seed] = {ok:false, bad:false, wall:null, close:null};
+    const sc = Math.max(2, Math.floor(Math.min(150 / p.w, 80 / p.h))); rec.cw = Math.round(p.w * sc / 2); rec.ch = Math.round(p.h * sc / 2);
+    const f = Math.min(8, 600 / Math.max(p.w, p.h)), img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => { try { rec.wall = pixelate(img, p.w, p.h); rec.close = pixelate(img, rec.cw, rec.ch); rec.ok = true; } catch(e){ rec.bad = true; } };
+    img.onerror = () => { rec.bad = true; };
+    img.src = `https://picsum.photos/seed/${encodeURIComponent(p.seed)}/${Math.round(p.w * f)}/${Math.round(p.h * f)}`;
+    return rec;
+  }
+  function arenaPreload(){ if (ARENA && ARENA.event && !BUILDER) (ARENA.event.sets || []).forEach(s => (s.pieces || []).forEach(artImg)); }
+  // the moment playing now, by the schedule, and the one before it
+  function tlNow(){ let cur = null, prev = null; const now = NOW(); for (const e of TL.values()){ if (e.dead) continue; if (e.start <= now){ prev = cur; cur = e; } else break; } return cur ? {e: cur, prev} : null; }
+  function galleryInfo(){
+    if (DREAMING || BUILDER || !ARENA || !ARENA.event || actor.loc !== 'arena') return null;
+    const n = tlNow(); if (!n || !n.e.ev.art || n.e.ev.location !== 'arena') return null;
+    const art = n.e.ev.art, sets = ARENA.event.sets || [], since = NOW() - n.e.start;
+    let set = sets[art.set] || null, drop = 0;   // drop: how far the curtain is down, 0..1
+    if (art.curtain){ drop = Math.min(1, since / CURTAIN_MS); set = sets[art.set - 1] || null; }
+    else { const pa = n.prev && n.prev.ev.art; if (pa && pa.curtain && since < CURTAIN_MS) drop = 1 - since / CURTAIN_MS; }
+    const items = (n.e.plan || []).filter(x => !x.host), now = NOW();
+    const said = items.filter(x => n.e.start + x.at <= now), pieceLines = said.filter(x => x.l.piece != null);
+    const last = items[items.length - 1], talkEnd = last ? n.e.start + last.at + last.ms : n.e.start;
+    return {e: n.e, art, set, drop, items, pieceLines, talkEnd, curtain: !!art.curtain, main: !!(set && set.main)};
+  }
+  const pieceX = p => Math.max(6, Math.min(160, Math.round(p.x + p.w / 2 - 5)));
+  // where Ishai wants to be: at the picture being talked about, looking at it; after the talk he browses on the clock
+  function galleryNow(){
+    const gi = galleryInfo(); if (!gi) return null;
+    if (gi.curtain || !gi.set) return {x: 128, pose: SAY.who === 'ishai' && NOW() < SAY.until ? 'talking' : 'idle'};   // curtain down: over by the drinks
+    const pcs = gi.set.pieces || [], talking = SAY.who === 'ishai' && NOW() < SAY.until;
+    const lp = gi.pieceLines[gi.pieceLines.length - 1], p = lp && pcs[lp.l.piece];
+    if (NOW() > gi.talkEnd + 4000 && pcs.length){                                       // the talk is over: he wanders from picture to picture
+      const k = Math.floor((NOW() - gi.talkEnd) / 24000), pick = pcs[Math.floor(hash(strHash(String(gi.e.ev.id)) + k * 7919) * pcs.length)];
+      return {x: pieceX(pick), pose: talking ? 'talking' : 'back'};
+    }
+    if (p) return {x: pieceX(p), pose: talking ? 'talking' : 'back'};
+    return {x: 96, pose: talking ? 'talking' : 'idle'};
+  }
+  // Hagit walks to the picture she is talking about (positions from the line times, walking at 20 px a second)
+  function hagitX(gi){
+    let from = gi.curtain ? 88 : 22, to = from, t0 = 0;
+    const pcs = gi.set && !gi.curtain ? gi.set.pieces || [] : [];
+    gi.pieceLines.forEach(x => { if (x.l.who !== 'hagit' || !pcs[x.l.piece]) return; const ix = pieceX(pcs[x.l.piece]), nx = ix > W - 40 ? ix - 30 : ix >= 18 ? ix - 15 : ix + 30;   // beside Ishai, on the side away from his friend
+      from = to; to = Math.max(2, Math.min(164, nx)); t0 = gi.e.start + x.at; });
+    if (!t0) return {x: to, walk: false};
+    const dur = Math.abs(to - from) / 20 * 1000, e = NOW() - t0;
+    return e >= dur ? {x: to, walk: false} : {x: from + (to - from) * e / dur, walk: true, dir: Math.sign(to - from)};
+  }
+  function drawArtPiece(p){
+    const rec = artImg(p);
+    R(p.x-2, p.y-2, p.w+4, p.h+4, '#2a2622'); R(p.x-1, p.y-1, p.w+2, p.h+2, '#f4f2ea');
+    if (rec.ok) g.drawImage(rec.wall, p.x, p.y); else R(p.x, p.y, p.w, p.h, rec.bad ? '#e4e0d6' : '#cfcac0');
+    R(p.x + p.w - 3, p.y + p.h + 3, 3, 2, '#fbfaf4');   // the little caption card
+  }
+  function drawGalleryWalls(gi, t){
+    const set = gi.set; if (!set) return;
+    R(26, 16, 140, 50, '#121012'); for (let x = 26; x < 166; x += 7) R(x, 16, 1, 50, '#1c181c');   // a black drape over the stage behind the walls
+    if (set.main){   // one wall, one picture, under a spotlight
+      R(G_MAIN.x-2, G_MAIN.y-2, G_MAIN.w+4, G_MAIN.h+6, '#eceae4'); R(G_MAIN.x-2, G_MAIN.y+G_MAIN.h+4, G_MAIN.w+4, 2, '#3a3a3a');
+      [G_MAIN.x+4, G_MAIN.x+G_MAIN.w-6].forEach(x => R(x, G_MAIN.y+G_MAIN.h+4, 3, 2, '#2a2a2a'));
+      alpha(.14, () => { R(64, 14, 64, 52, '#fff3c8'); R(54, 24, 84, 40, '#fff3c8'); });
+    } else G_PANELS.forEach(pn => { R(pn.x-2, pn.y-2, pn.w+4, pn.h+6, '#eceae4'); R(pn.x-2, pn.y-2, pn.w+4, 1, '#ffffff'); R(pn.x-2, pn.y+pn.h+4, pn.w+4, 2, '#3a3a3a');
+      R(pn.x, pn.y+pn.h+4, 3, 2, '#2a2a2a'); R(pn.x+pn.w-3, pn.y+pn.h+4, 3, 2, '#2a2a2a'); });
+    (set.pieces || []).forEach(drawArtPiece);
+  }
+  // the front curtain on its rail: drops from the top, folds of deep red
+  function drawCurtain(drop){
+    R(0, 15, 177, 2, '#4a4a4a'); if (drop <= 0) return;
+    const h = Math.round(51 * drop);
+    for (let x = 0; x < 177; x += 6){ R(x, 17, 6, h, '#7a1420'); R(x + 1, 17, 1, h, '#9a2434'); R(x + 4, 17, 2, h, '#5e0e18'); }
+    R(0, 16 + h, 177, 1, '#4a0a12');
+  }
+  // the close-up: while Hagit introduces a picture, the camera cuts to it for a few seconds
+  function closeupPiece(gi){
+    if (!gi || gi.curtain || !gi.set) return null;
+    const lp = [...gi.pieceLines].reverse().find(x => x.l.who === 'hagit'); if (!lp) return null;
+    const e = NOW() - (gi.e.start + lp.at); if (e < CLOSE_IN || e > CLOSE_IN + CLOSE_MS) return null;
+    return (gi.set.pieces || [])[lp.l.piece] || null;
+  }
+  function drawCloseup(p){
+    const rec = artImg(p); if (!rec.ok) return;
+    R(0, 0, W, H, '#14100e'); for (let x = 0; x < W; x += 8) R(x, 0, 1, H, '#1a1512');
+    const s = Math.max(1, Math.floor(Math.min(160 / rec.cw, 78 / rec.ch))), dw = rec.cw * s, dh = rec.ch * s, x0 = Math.floor((W - dw) / 2), y0 = Math.max(4, Math.floor((90 - dh) / 2));
+    R(x0-3, y0-3, dw+6, dh+6, '#2a2622'); R(x0-1, y0-1, dw+2, dh+2, '#f4f2ea');
+    g.imageSmoothingEnabled = false; g.drawImage(rec.close, x0, y0, dw, dh);
+    const title = String(p.title || '').toUpperCase().replace(/[^A-Z0-9 .!%]/g, ''), tw = title.length * 4;
+    word(title, Math.floor((W - tw) / 2), Math.min(H - 8, y0 + dh + 6), '#f2e6c8');
+  }
   // inside the Pump House: a stage under the old pipes, a pixel screen, a concrete floor; lit for events, dim otherwise
   SCENES.arena = {
     cam:'CAM-20', place:'THE PUMP HOUSE // HALL', walkY:70, entry:W+8, exit:W+8,
-    stand:{idle:120, walking:120, talking:110, phoning:120, drinking:30},
+    stand:{idle:120, walking:120, talking:110, phoning:120, drinking:30, gallery:96},
     draw(t,hf,a,settled,actor){
       const live = !!(ARENA && ARENA.live), night = isNight(hf);
       brickWall(0,0,W,66,'#3a2c2a','#2e2220');
@@ -1892,7 +1997,13 @@
       // the floor, and the door on the right
       R(0,66,W,42,'#4a4a4c'); for (let x=0;x<W;x+=16) R(x,66,1,42,'#424244'); for (let y=74;y<H;y+=10) R(0,y,W,1,'#424244');
       R(178,30,14,58,'#2a2a2a'); R(180,32,12,56, doorBusy(186) ? '#0a0a0a' : '#4a4e52'); R(181,58,2,4,'#c8b070'); R(178,24,14,5,'#1a1a1a'); word('EXIT',179,25,'#5ad07a');
+      const gi = galleryInfo();
+      if (gi){ drawGalleryWalls(gi, t); drawCurtain(gi.drop); }
       zOn();
+      if (live && !DREAMING && !NO_CROWD){ crowdWalk(t, 3, 70000, 4000, 68, 1, .7); crowdWalk(t, 8, 83000, 30000, 68, -1, .7);   // other visitors, browsing slowly
+        if (gi && !gi.curtain) crowdStill(t, 5, 150, 68, {face:1}); }
+      if (gi){ const h = hagitX(gi), L = REG.hagit.look, hx = Math.round(h.x);
+        zAdd(this.walkY + 21.9, () => { markHead('hagit', hx, this.walkY); person(L, hx, this.walkY, t + 500, h.walk ? {walk:true, face:h.dir || 1} : {face: actor.x > hx ? 1 : -1, talkPhase: SAY.who === 'hagit'}); }); }
       // the merch table, by the wall on the left
       zAdd(90, () => { R(4,74,28,3,'#6a4e38'); R(6,77,2,12,'#4a3628'); R(28,77,2,12,'#4a3628'); R(8,68,8,6,'#e8e4d8'); R(18,68,8,6,'#2a2a2a'); R(12,70,2,2,'#c23b3b'); R(21,70,2,2,'#ffd36a'); });
       // drinks: a crate and a cooler
@@ -1900,6 +2011,7 @@
       drawFloor(t,a,settled,actor,this);
       liveLayer(t, this); zFlush();
       if (!live) alpha(night ? .3 : .22,()=>R(0,0,W,H,'#050a1e'));   // house lights low between events
+      { const cp = closeupPiece(gi); if (cp) drawCloseup(cp); }
     }
   };
 
@@ -2469,6 +2581,7 @@
       }
     }
     if (withIsPost() && settled) face = actor.loc==='street' ? 0 : 1;
+    if (a==='gallery' && settled && !actor.travelling){ drawIshai(actor.gpose || 'idle', actor.x, y, t); return; }
     if (a==='walking' && actor.pacePause && !actor.travelling && !actor.pending) drawIshai('idle', actor.x, y, t);
     else if (actor.travelling || a==='walking') drawIshai('walk', actor.x, y, t);
     else if (!settled) return;
@@ -2815,6 +2928,11 @@
         if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && (actor.loc==='street' || actor.loc==='market' || actor.loc==='campus')) startRide('depart', VEH.has(actor.pending.route[0]) ? actor.pending.route[0] : null); else beginSwitch(); }
         else if (BATH.has(actor.action)){ actor.hidden = true; actor.hiddenAt = now; actor.leftBath = null; }
       }
+    } else if (actor.action==='gallery' && !actor.pending && actor.loc==='arena'){
+      const gs = galleryNow();
+      if (gs){ const d = gs.x - actor.x, st = 20 * dt;
+        if (Math.abs(d) > 1){ actor.x += Math.abs(d) <= st ? d : Math.sign(d) * st; actor.paceDir = Math.sign(d) || 1; actor.gpose = 'walk'; }
+        else { actor.x = gs.x; actor.gpose = gs.pose; } }
     } else if (actor.action==='walking' && !actor.pending){
       // pacing back and forth, position taken from the real clock
       const lo = actor.loc==='street'?50:actor.loc==='park'?40:actor.loc==='shops'||actor.loc==='market'||actor.loc==='campus'?36:52, hi = actor.loc==='street'?140:actor.loc==='shops'?150:actor.loc==='cafe'?110:124;
@@ -4013,11 +4131,12 @@
     setState('apartment', 'idle', true);
     let n = 0;
     const reset = () => { TL.forEach(e => { e.dead = true; }); TL.clear(); tlLast = null; held.clear(); queue.length = 0; [...WAITS].forEach(f => f()); setSpeaking(null); SAY.who = null; Sound.hush(); if (SHOW_STOP) SHOW_STOP(); };
-    const event = m => ({id: 'sb-' + (++n), t: NOW(), location: m.location, action: m.action, with: m.with || null, ride: m.ride || undefined, delivery: m.delivery || undefined, media: m.media || undefined, text: '', lines: m.lines || [], commentary: m.commentary || []});
+    const event = m => ({id: 'sb-' + (++n), t: NOW(), location: m.location, action: m.action, with: m.with || null, ride: m.ride || undefined, delivery: m.delivery || undefined, media: m.media || undefined, art: m.art || undefined, text: '', lines: m.lines || [], commentary: m.commentary || []});
     window.__sandbox = {
       menus: () => ({locations: Object.fromEntries(Object.entries(LOCATIONS).filter(([k]) => k !== 'bathroom')), hair: ['short','long','bald','bun','curly','cap'], hairColor: Object.keys(HAIRC), skin: Object.keys(SKINC), cloth: Object.keys(CLOTH), extras: ['glasses','beard','mustache','earring','apron','scarf']}),
       cast: () => Object.values(CAST), setCast: list => setCast([...base, ...list]), reset,
       play(m){ const e = event(m); ingest([e], false); },
+      arena(a){ ARENA = a || null; arenaPreload(); },
       go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(e.location, e.action, true, e.with); },
       busy: () => !!actor.pending || actor.travelling || !!actor.ride || !!actor.switching || !!actor.rideUntil || held.size > 0 || queue.length > 0 || (!!tlLast && NOW() < tlLast.end),
       state: () => ({comp: comp.id ? {id: comp.id, x: Math.round(comp.x), mode: comp.mode, boarded: !!comp.boarded} : null, voice: Sound.voiceInfo(), regulars: Object.keys(REG).filter(regHere), say: SAY.who, loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
@@ -4597,7 +4716,7 @@
       if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;
       if (s.course) COURSE = s.course;
-      ARENA = s.arena || null;
+      ARENA = s.arena || null; arenaPreload();
       if ('poll' in s) setPoll(s.poll);
       if (s.summary) SUMMARY = s.summary;
       if (s.summary || s.course) renderSummary();

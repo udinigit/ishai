@@ -64,6 +64,8 @@
         <button id="qImprov">Improv lesson</button>
         <button id="qCampus">University</button>
         <button id="qLecture">Lecture</button>
+        <button id="qPump">Pump House</button>
+        <button id="qGallery">Gallery night</button>
         <a href="/?preview" target="_blank" rel="noopener">Today's plan</a>
       </div>
     </div>
@@ -235,6 +237,14 @@ Back to the cameras.</textarea>
     const me = ++running; api.go({location:'campus', action:'idle'});
     for (const m of list){ if (me !== running) return; api.play(m); await wait(600); while (me === running && api.busy()) await wait(300); }
   }
+  // the next gallery night at the Pump House, as it will air (moments from /api/arena; the walls and pictures from its layout)
+  async function gallery(){
+    let d = null; try { d = await (await fetch('/api/arena', {cache:'no-store'})).json(); } catch(e){}
+    if (!d || !d.next || !d.moments) return alert('Could not load the gallery night (/api/arena).');
+    const me = ++running; api.arena({event: {...d.next, at: Date.now() + 60000}, live: true, board: ['TODAY','20.00','ART'], screen: d.next.title.toUpperCase()});
+    api.go({location:'park', action:'idle'});
+    for (const m of d.moments){ if (me !== running) return; api.play(m); await wait(600); while (me === running && api.busy()) await wait(300); }
+  }
   function world(){
     const real = $('hourT').textContent === 'Real time';
     api.world({hour: real ? null : +$('hour').value, weather: $('wx').value, temp: +$('temp').value || 22,
@@ -264,6 +274,8 @@ Back to the cameras.</textarea>
     $('qImprov').onclick = lesson;
     $('qCampus').onclick = () => { running++; api.go({location:'campus', action:'idle'}); };
     $('qLecture').onclick = lecture;
+    $('qPump').onclick = () => { running++; api.arena(null); api.go({location:'plaza', action:'idle'}); };
+    $('qGallery').onclick = gallery;
     $('play').onclick = () => { running++; api.reset(); api.play(moment()); };
     $('jump').onclick = () => { running++; api.go(moment()); };
     $('save').onclick = () => { if (editing >= 0) D.list[editing] = moment(); else D.list.push(moment()); editing = -1; $('save').textContent = 'Add to list'; store(); drawList(); };
