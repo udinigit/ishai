@@ -511,9 +511,9 @@
     R(x+2,y+2,6,6,C.skin); R(x+2,y+2,6,1,C.hair);
     R(x+1,y+3,1,2,C.hair); R(x+8,y+3,1,2,C.hair);
     R(x+1,y+5,1,1,C.skinShade); R(x+8,y+5,1,1,C.skinShade);
-    const lx = o.look||0;
-    if (o.closed){ R(x+3+lx,y+4,2,1,C.skinShade); R(x+5+lx,y+4,2,1,C.skinShade); }
-    else { R(x+3+lx,y+4,1,1,C.eye); R(x+6+lx,y+4,1,1,C.eye); }
+    const lx = o.look||0, ey = o.down ? 5 : 4;   // down: eyes a pixel lower (at the guitar, the keys, the mic)
+    if (o.closed){ R(x+3+lx,y+ey,2,1,C.skinShade); R(x+5+lx,y+ey,2,1,C.skinShade); }
+    else { R(x+3+lx,y+ey,1,1,C.eye); R(x+6+lx,y+ey,1,1,C.eye); }
     if (o.yawn) R(x+4,y+6,2,2,C.mouth);
     else if (o.talk) R(x+4,y+6,2,1,C.mouth);
     else R(x+4,y+6,2,1,C.skinShade);
@@ -828,7 +828,7 @@
     const kind = o.fid ? o.fid : (!o.walk && !o.muted && !o.still) ? fid(o.seed ?? strHash(L.hair + L.shirt + L.skin + L.pants), t, theirs || !!o.talkPhase, seated) : 'none';
     if (kind==='shift') x += Math.floor(t/2000)%2;
     const y0 = y; if (kind==='nod') y += Math.floor(t/260)%2;
-    head(x,y,{closed:blinkOn(t,o.seed??1700), look: lookFid(t, kind, o.face??-1), talk: (theirs || o.talking) && Math.floor(t/170)%2});
+    head(x,y,{closed:blinkOn(t,o.seed??1700), look: lookFid(t, kind, o.face??-1), down: !!o.down, talk: (theirs || o.talking) && Math.floor(t/170)%2});
     // hair styles
     const h = pal.hair;
     if (L.hair==='bald'){ R(x+2,y,6,3,pal.skin); R(x+3,y,2,1,tint(pal.skin,.3)); }
@@ -2295,11 +2295,14 @@
     const lastSong = e.songs[e.songs.length - 1];
     if (lastSong && c.T > lastSong.t0 + lastSong.dur - 15000 && c.T < lastSong.t0 + lastSong.dur + 9000) CONFETTI_ON = c.T - (lastSong.t0 + lastSong.dur - 15000); else CONFETTI_ON = -1;
     // the band
-    bandSlots(e.band.members).forEach(({m, x, y, back}) => {
+    bandSlots(e.band.members).forEach(({m, x, y, back}, bi) => {
       if (live && m.vocal === 'lead') alpha(.1 + .08 * c.lvl.mid, () => { R(x - 3, 16, 16, 40, '#fff8d8'); R(x - 6, 44, 22, 12, '#fff8d8'); });   // a spot on the singer
       const sing = live && m.vocal !== 'none' && c.lvl.mid > (m.vocal === 'lead' ? .35 : .6), bob = 0;   // the band stays put; only the audience jumps
-      zAdd(back ? 54 : 56, () => { markHead(m.id, x, y - bob); if (back){ R(x-10, y+20, 30, 8, '#2a2426'); R(x-10, y+20, 30, 1, '#4a4042'); person(m.look, x, y, t, {legs: false, face: 0}); instrument(m, x, y, c); }
-        else { person(m.look, x, y - bob, t, {face: 0, talking: sing || SAY.who === m.id}); instrument(m, x, y - bob, c); } });
+      // always facing the crowd (no idle look-back or glances aside); during a song they look down at the instrument or the mic for a few seconds at a time
+      const ph = Math.floor((c.T + bi * 1700) / 2600), down = live && (m.instrument && m.instrument !== 'none' && !(m.vocal === 'lead' && sing) ? ph % 3 !== 0 : sing && ph % 2 === 0);
+      const bo = {face: 0, fid: 'none', down};
+      zAdd(back ? 54 : 56, () => { markHead(m.id, x, y - bob); if (back){ R(x-10, y+20, 30, 8, '#2a2426'); R(x-10, y+20, 30, 1, '#4a4042'); person(m.look, x, y, t, {...bo, legs: false}); instrument(m, x, y, c); }
+        else { person(m.look, x, y - bob, t, {...bo, talking: sing || SAY.who === m.id}); instrument(m, x, y - bob, c); } });
     });
     // the crowd: they arrive through the door from doors-open, stand in three rows facing the stage (backs to the camera), jump on the beat, clap between songs, leave after
     const clap = concertClap(c), quiet = live && c.lvl.low < .25, peak = live && c.lvl.low > .82, night = isNight(hourNow());
@@ -2313,8 +2316,10 @@
       if (!walk && p.row >= 1 && (Math.abs(p.x - CC_SPOT) < 10 || Math.abs(p.x - CC_SPOT - 16) < 9)) return;
       // dancing: during a song the jumpers bounce on every other beat (half the room up, half down, swapping each beat),
       // the rest sway side to side; in the quiet parts they just stand and film
-      const dance = !walk && live && !quiet, up = dance && p.jumps && (i + c.beat) % 2 === 0 ? (p.row === 2 ? 2 : 1) : 0;
-      const sway = dance && !p.jumps ? ((c.beat + i) % 2 ? 1 : -1) : 0, y = p.y - up, X = Math.round(x) + sway;
+      // each on their own timing: a little late on the beat (p.lag), now and then sitting a bar out (p.rest), so the room never moves as one
+      const kb = c.beat - (c.since < p.lag ? 1 : 0), bar = Math.floor(kb / 8), resting = hash(strHash(e.id) + i * 131 + bar * 17) < p.rest;
+      const dance = !walk && live && !quiet && !resting, up = dance && p.jumps && (p.ph + kb) % 2 === 0 ? p.hop : 0;
+      const sway = !walk && live && !quiet && !p.jumps ? (resting ? 0 : ((kb + p.ph) % (p.slow ? 4 : 2) < (p.slow ? 2 : 1) ? 1 : -1)) : 0, y = p.y - up, X = Math.round(x) + sway;
       zAdd(p.y + 22, () => {
         if (walk) person(p.look, X, p.y, t + i * 300, {muted: true, walk: true, face: dir});
         else person(p.look, X, y, t + i * 300, {muted: true, fid: 'turn'});
@@ -2322,7 +2327,7 @@
         const sk = (SKINC[p.look.skin] || SKINC.fair)[0];
         if (clap && p.claps){ const k = Math.floor((NOW() + i * 70) / 140) % 2; R(X + 2 + k, y - 2, 1, 2, sk); R(X + 7 - k, y - 2, 1, 2, sk); }   // hands up, clapping
         else if (peak && p.claps && i % 2){ R(X + 1, y - 4, 1, 5, sk); R(X + 8, y - 4, 1, 5, sk); }                                   // arms in the air
-        else if (dance && i % 3 === 0){ const k = (c.beat + i) % 2; R(X + (k ? 8 : 1), y - 4, 1, 5, sk); if (c.lvl.low > .6) R(X + (k ? 1 : 8), y - 2, 1, 3, sk); }   // a fist pumping on the beat
+        else if (dance && i % 3 === 0){ const k = (kb + p.ph) % 2; R(X + (k ? 8 : 1), y - 4, 1, 5, sk); if (c.lvl.low > .6) R(X + (k ? 1 : 8), y - 2, 1, 3, sk); }   // a fist pumping on the beat
         else if (quiet && i % 5 === 0) { R(X + 3, y - 5, 2, 3, '#1a1a1a'); R(X + 3, y - 5, 2, 2, night || true ? '#e8f4ff' : '#9ab'); }   // a phone up, filming
       });
     });
@@ -2337,7 +2342,7 @@
     for (let i = 0; i < N; i++){
       const row = i % 3, slot = Math.floor(i / 3), x = Math.round(4 + slot * 15 + (row === 1 ? 7 : row === 2 ? 3 : 0) + (r(i * 5 + 1) - .5) * 6);
       if (x > 168) continue;
-      out.push({x, row, y: CC_ROWS[row], arrive: -9 * 60000 + Math.floor(r(i * 5 + 2) * 9.5 * 60000), jumps: r(i * 5 + 3) < .7, claps: r(i * 5 + 4) < .85,
+      out.push({x, row, y: CC_ROWS[row], lag: Math.floor(r(i * 5 + 5) * 230), ph: r(i * 5 + 6) < .5 ? 0 : 1, rest: .1 + r(i * 5 + 7) * .25, hop: r(i * 5 + 8) < .3 ? 1 : (row === 2 ? 2 : 1), slow: r(i * 5 + 9) < .5, arrive: -9 * 60000 + Math.floor(r(i * 5 + 2) * 9.5 * 60000), jumps: r(i * 5 + 3) < .7, claps: r(i * 5 + 4) < .85,
         look: {hair: H[Math.floor(r(i*11+1) * H.length)], hairColor: HC[Math.floor(r(i*11+2) * HC.length)], skin: SK[Math.floor(r(i*11+3) * SK.length)], shirt: CL[Math.floor(r(i*11+4) * CL.length)], pants: ['black','navy','gray','brown','blue'][Math.floor(r(i*11+5) * 5)], extras: r(i*11+6) < .2 ? ['glasses'] : []}});
     }
     return ccCache[e.id] = out.sort((a, b) => a.arrive - b.arrive);
