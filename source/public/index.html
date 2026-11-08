@@ -529,14 +529,14 @@
   // going out he wants sportswear for the gym, never pajamas or a towel. A change of plan sends him to the closet first (setState, startLeg, finishSwitch).
   const WEAR_FIT = {everyday: null, pajamas: {shirt:'#9fc3e6', pants:'#7fa6cc', pjs:true}, gym: {shirt:'#c23b3b', pants:'#2a2a2a'}, shabbat: {shirt:'#f2f0ea'}, towel: {towel:true}};
   let WEAR = 'everyday';
-  const CLOSET_X = 62, DRESS_MS = 6000;
+  const CLOSET_X = 62, DRESS_MS = 6000, GYM_LOCKER_X = 181;
   function homeWear(a){ const h = hourNow(); if (a === 'sleeping' || a === 'waking' || ((h >= 23 || h < 7) && !actor.with)) return 'pajamas'; return isShabbatEve() ? 'shabbat' : 'everyday'; }
   function outWear(dest){ return dest === 'gym' ? 'gym' : isShabbatEve() ? 'shabbat' : 'everyday'; }
   function outfitOf(id, loc, act){
     if (DREAMING || !loc) return null;
     const h = hourNow(), wx = WORLD && WORLD.weather;
     if (id === 'ishai'){
-      if (loc === 'gym') return WEAR_FIT.gym;
+      if (loc === 'gym') return WEAR_FIT[WEAR === 'gym' ? 'gym' : WEAR === 'pajamas' || WEAR === 'towel' ? 'everyday' : WEAR] || null;   // he changes in the gym's changing room
       const w = (loc === 'apartment' || loc === 'bathroom') ? WEAR : (WEAR === 'pajamas' || WEAR === 'towel' ? 'everyday' : WEAR);
       if (OUTSIDE.has(loc) && wx && (wx.rain || wx.temp <= 15)) return {shirt: JACKETS[strHash(id) % JACKETS.length], inner: (WEAR_FIT[w] && WEAR_FIT[w].shirt) || true};
       return WEAR_FIT[w] || null;
@@ -2544,6 +2544,10 @@
       // water cooler
       R(84,56,8,10,'#9fd3f0'); R(85,55,6,1,'#7fb4d0'); R(83,66,10,30,'#e8e8e8'); R(86,70,4,2,'#3b7bc2');
       gymTv(t); gymTv2(t);
+      // changing room (right edge): a door with a hanger sign; it opens when he goes in or comes out
+      R(178,38,14,40,'#3a4450'); R(180,40,12,38,'#8fa3b5'); R(181,41,10,36,'#9db1c2'); R(181,60,1,3,'#e8e8e8');
+      R(183,44,6,6,'#2b2f36'); R(185,45,2,1,'#e8e8e8'); R(184,46,4,1,'#e8e8e8'); R(183,47,1,1,'#e8e8e8'); R(188,47,1,1,'#e8e8e8');   // hanger
+      if ((actor.loc === 'gym' && !actor.hidden && actor.dressDoor === GYM_LOCKER_X && Math.abs(actor.x - GYM_LOCKER_X) < 6) || actor.dressBath === 'in' && NOW() > actor.dressUntil - 600) { R(180,40,12,38,'#14100c'); R(180,40,2,38,'#8fa3b5'); }
       // someone at the mirror now and then
       if (!regular('michal', 30, 74, t, {face:-1, talking: SAY.who === 'michal'}) && Math.floor(t/80000) % 2) crowdVisit(t, 80000, 5, 40, 74, 4, 74, {face:-1});
       // treadmill 1 (Ishai's, right under the TV) and treadmill 2
@@ -2557,6 +2561,7 @@
       else if (Math.floor(t/100000) % 2) crowdVisit(t, 100000, 2, 150, 62, 4, 74, {walk:true, face:1});
       if (onMill) drawIshai('walk', 108, 62, t);
       else drawFloor(t,a,settled,actor,this);
+      if (!onMill && !actor.hidden && actor.loc === 'gym' && (WEAR !== 'gym' || actor.dressTo)){ const bx = Math.round(actor.x); R(bx + 8, this.walkY + 13, 6, 4, '#2a2a2a'); R(bx + 9, this.walkY + 12, 4, 1, '#555'); R(bx + 9, this.walkY + 14, 4, 1, '#c23b3b'); }   // his gym bag
       liveLayer(t, this);
     }
   };
@@ -3146,7 +3151,7 @@
     $('cam').textContent = sc.cam; $('place').textContent = sc.place;
     const w = actor.with && CAST[actor.with] ? ' WITH ' + CAST[actor.with].name.toUpperCase() : '';
     $('stAction').textContent = LABEL[actor.action] + ' @ ' + actor.loc.toUpperCase() + w;
-    $('hudAction').textContent = actor.dressBath === 'grab' ? 'TAKING CLOTHES' : actor.dressBath === 'go' ? 'TO THE BATHROOM TO CHANGE' : actor.dressUntil ? 'GETTING DRESSED' : actor.dressTo ? 'TO THE CLOSET' : LABEL[actor.action];
+    $('hudAction').textContent = actor.dressBath === 'grab' ? 'TAKING CLOTHES' : actor.dressBath === 'go' ? (actor.loc === 'gym' ? 'TO THE CHANGING ROOM' : 'TO THE BATHROOM TO CHANGE') : actor.dressUntil ? 'GETTING DRESSED' : actor.dressTo ? 'TO THE CLOSET' : LABEL[actor.action];
   }
   // ---- the world map: every exit leads to a specific entry in the next place (no teleporting) ----
   // MAP[here][there] = { exit: x where Ishai leaves "here" towards "there", entry: x where he appears in "here" coming from "there" }
@@ -3199,10 +3204,10 @@
     else if (!instant) actor.guestWaits = (w && w === actor.guestWaits) ? w : null;
     a = fixAction(loc, a);
     if (actor.dressTo){ if (actor.dressUntil) WEAR = actor.dressTo; actor.dressTo = null; actor.dressUntil = 0; actor.dressFinal = null;   // a new plan: a change under way finishes
-      if (actor.dressBath === 'in'){ actor.hidden = false; actor.x = BATH_DOOR_X; } }
-    actor.dressBath = null;
+      if (actor.dressBath === 'in'){ actor.hidden = false; actor.x = actor.dressDoor ?? BATH_DOOR_X; } }
+    actor.dressBath = null; actor.dressDoor = null;
     if (instant){
-      Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, dressTo:null, dressUntil:0, dressBath:null, dressFinal:null, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null, rideUntil:0});
+      Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, dressTo:null, dressUntil:0, dressBath:null, dressFinal:null, dressDoor:null, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null, rideUntil:0});
       WEAR = loc === 'gym' ? 'gym' : (loc === 'apartment' || loc === 'bathroom') ? homeWear(a) : outWear(null);
       actor.x = standX(loc,a,w); actor.settledAt = NOW(); comp.settleUntil = NOW() + 2500; updateLabels(); return;
     }
@@ -3235,12 +3240,18 @@
   const companyHere = () => actor.loc === 'apartment' && (!!actor.with || (!!comp.id && comp.loc === 'apartment'));
   function closetArrive(now){ actor.dressBath = companyHere() ? 'grab' : null; actor.dressUntil = now + (actor.dressBath ? GRAB_MS : DRESS_MS); }
   function dressStep(now){   // the closet pause (or the change itself) is over
-    if (actor.dressBath === 'grab'){ actor.dressBath = 'go'; actor.dressUntil = 0; actor.targetX = BATH_DOOR_X; actor.travelling = Math.abs(actor.x - BATH_DOOR_X) > 1;
+    if (actor.dressBath === 'grab'){ actor.dressBath = 'go'; actor.dressUntil = 0; actor.dressDoor = BATH_DOOR_X; actor.targetX = BATH_DOOR_X; actor.travelling = Math.abs(actor.x - BATH_DOOR_X) > 1;
       if (!actor.travelling) bathChange(now); updateLabels(); return; }
-    if (actor.dressBath === 'in'){ actor.hidden = false; actor.x = BATH_DOOR_X; }
-    actor.dressBath = null; doneDressing();
+    if (actor.dressBath === 'in'){ actor.hidden = false; actor.x = actor.dressDoor ?? BATH_DOOR_X; }
+    actor.dressBath = null; actor.dressDoor = null; doneDressing();
   }
   function bathChange(now){ actor.dressBath = 'in'; actor.hidden = true; actor.travelling = false; actor.dressUntil = now + DRESS_MS; updateLabels(); }
+  // at the gym: in through the changing-room door with his bag, out in the other clothes (in on arrival, out before leaving)
+  function gymChange(want, final){
+    actor.viaFinal = null; actor.dressTo = want; actor.dressFinal = final; actor.dressBath = 'go'; actor.dressDoor = GYM_LOCKER_X; actor.targetX = GYM_LOCKER_X;
+    actor.travelling = Math.abs(actor.x - GYM_LOCKER_X) > 1;
+    if (!actor.travelling){ actor.x = GYM_LOCKER_X; bathChange(NOW()); }
+  }
   function dressFirst(want, final){
     actor.viaFinal = null; actor.dressTo = want; actor.dressFinal = final; actor.targetX = CLOSET_X; actor.dressBath = null;
     actor.travelling = Math.abs(actor.x - CLOSET_X) > 1;
@@ -3261,6 +3272,7 @@
     if (actor.loc === 'offscreen' || actor.hidden || VEH.has(actor.loc)){ beginSwitch(); return; }
     if (actor.loc === 'apartment' && next !== 'bathroom'){ const want = outWear(actor.pending.route[actor.pending.route.length - 1]);   // never out of the door in pajamas or a towel
       if (want !== WEAR){ actor.action = 'walking'; dressFirst(want, null); updateLabels(); return; } }
+    if (actor.loc === 'gym' && WEAR === 'gym'){ actor.action = 'walking'; gymChange(outWear(actor.pending.route[actor.pending.route.length - 1]), null); updateLabels(); return; }   // out of the sportswear before leaving
     const link = (MAP[actor.loc]||{})[next] || {exit: SCENES[actor.loc].exit};
     if (wasToilet){ actor.action = 'walking'; actor.targetX = 86; actor.travelling = true; actor.wash = 1; actor.washExit = link.exit; actor.pending.ride = false; updateLabels(); return; } // sink first
     actor.action = 'walking'; actor.targetX = link.exit; actor.travelling = true;
@@ -3288,6 +3300,7 @@
     if (hop === 'apartment' && !link.ride){   // home (or out of the bathroom): the closet first if he needs other clothes
       const want = last ? homeWear(p.a) : p.route[0] === 'bathroom' ? null : outWear(p.route[p.route.length - 1]);
       if (want && want !== WEAR){ actor.dressTo = want; actor.dressFinal = last ? actor.targetX : null; actor.targetX = CLOSET_X; } }
+    if (hop === 'gym' && WEAR !== 'gym' && !link.ride) gymChange('gym', last ? actor.targetX : null);   // in through the changing room
     if (link.ride){ startRide('arrive', VEH.has(from) ? from : null); actor.hidden = true; actor.travelling = false; }  // steps off the bus/taxi first
     else { actor.hidden = false; actor.travelling = Math.abs(actor.x-actor.targetX) > 1; }
     updateLabels();
@@ -3335,7 +3348,7 @@
       const dir = Math.sign(actor.targetX-actor.x); actor.x += dir*24*dt;
       if (Math.sign(actor.targetX-actor.x)!==dir){
         actor.x = actor.targetX; actor.travelling = false;
-        if (actor.dressTo && actor.dressBath === 'go' && actor.targetX === BATH_DOOR_X){ bathChange(now); return; }
+        if (actor.dressTo && actor.dressBath === 'go' && actor.targetX === (actor.dressDoor ?? BATH_DOOR_X)){ bathChange(now); return; }
         if (actor.dressTo && actor.targetX === CLOSET_X){ closetArrive(now); updateLabels(); return; }
         if (actor.wash === 1){ actor.wash = now + 3500; $('hudAction').textContent = 'WASHING HANDS'; return; }
         if (actor.viaFinal != null && !actor.pending){ actor.viaUntil = now + 2200; return; }
