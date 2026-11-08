@@ -1037,13 +1037,17 @@ ${block ? `What happens in the next ${block} moments?` : "What happens next?"}`;
 // the hosts react to the moments the story just wrote (one call for a whole block)
 const CAMERA = { apartment: "his apartment", bathroom: "closed bathroom door", corridor: "the building hallway", street: "Herzl Street outside his building", shops: "the shops block of Herzl Street (sidewalk)",
   park: "the park", cafe: "Cafe Nahat", gym: "Herzl Gym", bar: "The Black Candle bar", market: "Shuk Shalom market", store: "the Everything Else store", plaza: "the plaza in front of the Pump House, by the park", apt2: "Boaz's flat, apartment 2, at the poker table", arena: "inside the Pump House hall", campus: "the courtyard of Tel Herzl University", classroom: "a lecture room at the university", bus: "inside the bus, the city going past the windows", taxi: "the back seat of a taxi, the city going past the window", offscreen: "STATIC - no camera, he is out of coverage" };
+// is Falafel the dog in this moment's picture? Only when the moment says so (him, his leash), or at home once adopted
+const dogInMoment = (s, m) => /\bFalafel\b|\bthe dog\b|leash/.test(String(m.text || "") + " " + (m.lines || []).map(l => l.say).join(" ")) ||
+  (String(m.location || "") === "apartment" && (s.unlocked || []).includes("dog"));
+const DOG_WORDS = /\bFalafel\b|\bthe dog\b|\bdoggo\b|\bpup(py)?\b/;
 async function addHosts(env, s, moments, clock, now) {
   try {
     const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : s.cast[id]?.name || id;
     const said = recentHostLines(s, 10);
     const sponsor = now - (s.lastAd || 0) > AD_EVERY_MIN * 60000 && Math.random() < 0.35 ? SPONSORS[Math.floor(Math.random() * SPONSORS.length)] : null;
     const list = moments.map((m, i) => { const loc = String(m.location || "").toLowerCase(), act = String(m.action || "").toLowerCase(), w = m.with ? String(m.with).toLowerCase() : null;
-      return `#${i + 1} ${storyClock(now + DELAY_MIN * 60000 + i * INTERVAL_MIN * 60000).label.slice(-5)} CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}\n   what happens: ${String(m.text || "").slice(0, 220)}` +
+      return `#${i + 1} ${storyClock(now + DELAY_MIN * 60000 + i * INTERVAL_MIN * 60000).label.slice(-5)} CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}${dogInMoment(s, m) ? " | Falafel the dog is here" : ""}\n   what happens: ${String(m.text || "").slice(0, 220)}` +
         (Array.isArray(m.lines) && m.lines.length ? "\n   they say: " + m.lines.slice(0, 14).map(l => `${nm(String(l.who || "").toLowerCase())}: "${String(l.say || "").slice(0, 120)}"`).join(" / ") : ""); }).join("\n");
     const msgs = [{ role: "system", content:
 `You write the two hosts of a live reality show that secretly films Ishai, a man in Tel Aviv.
@@ -1051,6 +1055,7 @@ async function addHosts(env, s, moments, clock, now) {
 - ${HOSTS.oren}
 - ${HOSTS.rules}
 For EACH moment below write 0-2 short lines (max 20 words each). The viewers see only the picture (the camera and what Ishai is doing) and hear the spoken lines; they cannot read "what happens", so usually one line says plainly what is going on, then a joke, an opinion or a guess. React only to what is visible or said: never invent drinks, food, objects, visitors, calls or plans. When "what happens" has a detail the picture can't show and nobody says it (an object someone brings, holds or hands over, wet clothes, a smell, a sound), one line names it plainly, for example: Dana's at the door with a wet coat and a little pot of basil. If the CAMERA is STATIC, they cannot see him: they wonder where he is, guess, or joke about losing him. Fresh every time: never repeat the lines below, their jokes, openings or catchphrases.${sponsor ? `\nIN ONE OF THESE MOMENTS one host slips in an obvious, cheesy "secret" plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending with a wink like "...not sponsored, by the way"; the other host reacts.` : ""}
+Mention Falafel the dog only in a moment marked "Falafel the dog is here": anywhere else (a concert, a lecture, poker at Boaz's) he is at home and not in the picture.
 Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..."}]}]} with exactly ${moments.length} entries, in order.` },
       { role: "user", content: `${s.daySum ? `TODAY SO FAR (to connect with earlier moments): ${clip(s.daySum.text, 300)}\n\n` : ""}ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
     // read whatever came back, even a cut-off or slightly broken reply: every {"commentary":[...]} found, in order
@@ -1066,7 +1071,7 @@ Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..
     const used = [...said];
     moments.forEach((m, i) => {
       const c = (Array.isArray(arr[i]?.commentary) ? arr[i].commentary : []).map(x => ({ who: String(x?.who || "").toLowerCase().trim(), say: String(x?.say || "").replace(/\s+/g, " ").trim().replace(/^["']|["']$/g, "").slice(0, 160) }))
-        .filter(x => (x.who === "zohar" || x.who === "oren") && x.say.length > 3 && !isRepeat(x.say, used)).slice(0, 2);
+        .filter(x => (x.who === "zohar" || x.who === "oren") && x.say.length > 3 && !isRepeat(x.say, used) && (!DOG_WORDS.test(x.say) || dogInMoment(s, m))).slice(0, 2);
       c.forEach(x => used.push(x.say));
       if (c.length) m.commentary = c;
     });
@@ -2678,7 +2683,7 @@ const POKER_HOSTS = {
   big: ["Viewers can see it: {cards}. And he's apologising already.", "He has {cards}. His face says he has a parking ticket.", "{cards} for our man. Somebody tell him that's good."],
   folded: ["He folded {cards}. Ronit had nothing. Oh, Ishai.", "{cards}, folded. He's being polite to the chips."],
   won: ["He won {amt} and said sorry twice.", "A pot for Ishai! He's handling it like a lost wallet he has to return."],
-  lost: ["Ouch. He had {cards} and still lost {amt}.", "That one hurt. {amt} gone, and Falafel saw it."],
+  lost: ["Ouch. He had {cards} and still lost {amt}.", "That one hurt. {amt} gone, and even the fish tank saw it."],
   any: ["Poker night downstairs. Pizza, seeds and a very nervous man.", "Ronit is watching him. Ronit is always watching him.", "Yossi's lucky cap is having an off night.",
     "Moti calls everything. It's a lifestyle.", "Boaz runs this table like a bus timetable."] };
 // a new night: seats, styles, the seed. The game itself is simulated a few hands at a time by pokerSimStep().

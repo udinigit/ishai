@@ -557,7 +557,11 @@
     const S = C.shirt, K = C.skin;
     if (pose === 'up'){ R(x+1,y+9,1,1,S); R(x+8,y+9,1,1,S); R(x-k,y+4,1,5,S); R(x+9+k,y+4,1,5,S); R(x-k,y,1,4,K); R(x+9+k,y,1,4,K); R(x-k,y-2,1,2,K); R(x+9+k,y-2,1,2,K); return; }
     if (pose === 'fist'){ R(x+1,y+9,1,4,S); R(x+1,y+13,1,2,K); R(x+8,y+9,1,1,S); R(x+9,y+4+k*2,1,5-k*2,S); R(x+9,y+k*2-1,1,5,K); R(x+9,y-2+k*2,1,1,shade(K,.8)); return; }
-    if (pose === 'clap'){ R(x+1,y+9,1,1,S); R(x+8,y+9,1,1,S); R(x,y+6,1,4,S); R(x+9,y+6,1,4,S); const a = k ? 3 : 1, b = k ? 6 : 8; R(x+a,y+3,1,3,K); R(x+b,y+3,1,3,K); R(x+(k?1:0),y+5,1,1,S); R(x+(k?8:9),y+5,1,1,S); return; }
+    if (pose === 'clap'){   // clapping in front of the face: seen from behind, the arms go up past the ears and the hands meet just above the head
+      R(x+1,y+9,1,1,S); R(x+8,y+9,1,1,S); R(x,y+3,1,6,S); R(x+9,y+3,1,6,S); R(x,y+1,1,2,K); R(x+9,y+1,1,2,K);
+      if (k){ R(x+2,y-2,2,2,K); R(x+6,y-2,2,2,K); R(x+1,y-1,1,2,K); R(x+8,y-1,1,2,K); }   // hands apart
+      else { R(x+3,y-3,2,3,K); R(x+5,y-3,2,3,K); R(x+1,y-1,2,1,K); R(x+7,y-1,2,1,K); }       // hands together
+      return; }
     if (pose === 'phone'){ R(x+1,y+9,1,4,S); R(x+1,y+13,1,2,K); R(x+8,y+9,1,1,S); R(x+9,y+5,1,4,S); R(x+9,y+2,1,3,K); R(x+7,y-3,3,5,'#1a1a1a'); R(x+7,y-3,3,4,k ? '#ffffff' : '#e8f4ff'); return; }
   }
   function armsUp(x,y){
@@ -2322,7 +2326,7 @@
       else if (c.T > out){ if (c.T > out + d) return; x = p.x + (CC_DOOR - p.x) * (c.T - out) / d; walk = 1; dir = 1; }
       // a gap kept at Ishai's spot in the crowd (and his friend's, 16 px to his right) all night, from where they will stand, not where he is
       // right now, so nobody blinks out while he walks past: people he passes stay and are simply drawn in front of or behind him by depth
-      if (!walk && p.row >= 1 && (Math.abs(p.x - CC_SPOT) < 10 || Math.abs(p.x - CC_SPOT - 16) < 9)) return;
+      if (!walk && p.row >= 1 && (Math.abs(p.x - CC_SPOT) < 7 || (e.companion && Math.abs(p.x - CC_SPOT - 16) < 9))) return;   // the friend's spot only when he comes with someone
       // each on their own timing (a little late on the beat, p.lag) and each doing their own thing, changing every few bars at their own moment:
       // jumping, swaying, a fist on the beat, arms up, a phone up filming, or just standing; clapping before and after songs (most, not all)
       const kb = c.beat - (c.since < p.lag ? 1 : 0), act = walk ? 'walk' : ccDo(p, i, c, kb, clap, quiet, peak, live);
@@ -4107,7 +4111,8 @@
       await untilT(entry.start + p.at); if (entry.dead) break;
       const at = entry.start + p.at, past = NOW() >= at + p.ms;
       if (!past && k) Sound.hush();
-      if (p.host){ const se = songEndAfter(at); if (se){ await untilT(se); if (NOW() > se + 60000){ addMsg({id: ev.id + ':c' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, host: true}, false); continue; } }   // mid-song: the hosts wait for the applause (long ago: text only)
+      if (p.host){ let se = songEndAfter(at); { const e = ARENA && ARENA.event, nx = !se && songBetween(at, at + p.ms) && e.songs.find(sg => e.at + sg.t0 >= at && e.at + sg.t0 < at + p.ms); if (nx) se = e.at + nx.t0 + nx.dur + 1500; }   // would run into the next song: after it
+        if (se){ await untilT(se); if (NOW() > se + 60000){ addMsg({id: ev.id + ':c' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, host: true}, false); continue; } }   // mid-song: the hosts wait for the applause (long ago: text only)
         const hat = se || at; await addMsg({id: ev.id + ':c' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, host: true}, true, {at: hat, ms: p.ms}); await untilT(hat + p.ms); continue; }
       if (!past) setSpeaking(l.who);
       const air = l.who==='radio' || l.who==='tv';   // a live line from the radio / TV the story reacts to
@@ -4907,6 +4912,7 @@
     if (!force && (songBetween(now, now + 15000) || now - TALK_AT < FILL_QUIET || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || studioOn || showOn || callOn || talkSoon(7000) || (document.hidden && !POP.on))) return false;
     hostFill.done = slot;
     const say = hostFillLine(slot); if (!say) return false;
+    if (/\bFalafel\b/.test(say) && !(UNLOCKED.has('dog') && dog.loc === actor.loc && actor.action !== 'sleeping')) return false;   // only when the dog is in the picture
     hostLine({id: 'fill-' + slot + (force ? '-' + now : ''), t: now, who: slot % 2 ? 'oren' : 'zohar', say, host: true}, true, {at: now, ms: 0});
     return true;
   }
