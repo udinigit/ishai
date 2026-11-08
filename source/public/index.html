@@ -2967,7 +2967,8 @@
         const cx = comp.x;   // comp.x follows gx smoothly (see compUpdate), so there is never a jump   // standing friends may wander a step or two (see compUpdate)
         markHead(actor.with, cx, y);
         if (a==='walking') person(cl, cx, y, t+300, actor.pacePause ? {face:-1} : {walk:true, face:dir});
-        else { face = cx > actor.x ? 1 : -1; person(cl, cx, y, t, {face:-face, talkPhase:a==='talking'||a==='improv'}); }
+        else if ((a==='concert' || a==='gallery') && SAY.who !== actor.with) person(cl, cx, y, t, {fid:'turn'});   // watching the stage (or the art) with him, back to the camera; turns round only to talk
+        else { face = cx > actor.x ? 1 : -1; person(cl, cx, y, t, {face:-face, talkPhase:a==='talking'||a==='improv'||a==='concert'||a==='gallery'}); }
       }
     }
     if (withIsPost() && settled) face = actor.loc==='street' ? 0 : 1;
