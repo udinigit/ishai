@@ -2905,26 +2905,37 @@ const comingUpText = (s, now, hours) => comingUp(s, now, hours).map(x => `${stor
 // today's TV guide for the page's on-screen card: the city timetable plus the planned and fixed events, by hour (Israel time)
 const CITY_TITLE = { garbage: "Garbage truck on Herzl St.", gas: "Gas delivery", alte: "Alte-zachen cart", flowers: "Friday flower rush",
   "market-close": "Last calls at the market", school: "School's out", piano: "Piano practice upstairs", kiosk: "Queue at Avi's kiosk", gameshow: "Mrs. Levi's game show" };
-function guideToday(s, now) {
-  const day = dayOfTZ(now), wd = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "long" }).format(new Date(now));
-  const d = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].indexOf(wd);
+// the day's events for a given Israel date (YYYY-MM-DD): the city timetable, the weekly fixed nights from their own rules, and the plan's beats
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const atLocal = (day, h, m = 0) => { const [y, mo, d] = day.split("-").map(Number), u = Date.UTC(y, mo - 1, d, h, m); return u - tzOffset(u); };
+function guideDay(s, day, keyOnly) {
+  const [y, mo, dd] = day.split("-").map(Number), d = new Date(Date.UTC(y, mo - 1, dd)).getUTCDay();
+  const holiday = (s.world?.holidays || []).some(h => h.date === day);
   const sh = s.world && s.world.shabbat, inSh = t => !!sh && t >= sh.start && t <= (sh.end || sh.start + 26 * 3600000);
-  const u0 = Date.parse(day + "T00:00:00Z"), midnight = u0 - tzOffset(u0);   // today's 00:00 in Israel, as a timestamp
-  const items = CITY.filter(e => e.days.includes(d)).map(e => ({ at: midnight + e.from * 60000, what: CITY_TITLE[e.id] || e.id })).filter(x => !inSh(x.at));
+  const items = [];
+  if (!keyOnly) CITY.filter(e => e.days.includes(d)).forEach(e => { const at = atLocal(day, 0) + e.from * 60000; if (!inSh(at)) items.push({ at, what: CITY_TITLE[e.id] || e.id }); });
   if (sh && dayOfTZ(sh.start) === day) items.push({ at: sh.start, what: "Shabbat candles" });
-  for (const g of s.director || []) {
-    if (g.poll || /^(walk|visit|poll)-/.test(g.id) || g.how === "cancelled") continue;
+  if (!holiday) {
+    if (LECTURE_DAYS.includes(d)) items.push({ at: atLocal(day, LECTURE_H), what: "Strange But True lecture" });
+    if (d === 4) items.push({ at: atLocal(day, 17), what: "Improv class at The Black Candle" });
+    if (d === ARENA_DAY) { const ev = s.arena && s.arena.events && s.arena.events[day];
+      if (!(ev && ev.skip) && !(s.arena && s.arena.off)) items.push({ at: atLocal(day, ARENA_H), what: ev ? (ev.kind === "concert" ? `${ev.artist} LIVE at the Pump House` : `Gallery night: ${ev.title}`) : "Pump House night" }); }
+    const pk = s.poker && nextPokerAt(s, atLocal(day, 0)); if (pk && dayOfTZ(pk) === day) items.push({ at: pk, what: "Poker night at Boaz's" });
+  }
+  if (!keyOnly) for (const g of s.director || []) {
+    if (g.poll || g.course || g.fixed || /^(walk|visit|poll|lecture)-/.test(g.id) || g.how === "cancelled") continue;
     const at = ceil15(g.sceneAt || g.startAfter); if (dayOfTZ(at) !== day) continue;
-    const goal = String(g.goal || "");
-    let what = g.course ? "Strange But True lecture" : /poker night/i.test(goal) ? "Poker night at Boaz's"
-      : /see (.+?) play at the Pump House/i.test(goal) ? goal.match(/see (.+?) play at the Pump House/i)[1] + " LIVE at the Pump House"
-      : /gallery night/i.test(goal) ? "Gallery night at the Pump House" : null;
-    if (!what) { const c = comingUp(s, at - 11 * 60000, 1).find(x => x.at === at); what = c ? c.what : null; }
-    if (what) items.push({ at, what: what.slice(0, 70) });
+    const c = comingUp(s, at - 11 * 60000, 1).find(x => x.at === at); if (c) items.push({ at, what: c.what.slice(0, 70) });
   }
   const seen = new Set();
-  return { day: wd, items: items.sort((a, b) => a.at - b.at).filter(x => { const k = x.at + x.what; if (seen.has(k)) return false; seen.add(k); return true; })
-    .map(x => ({ at: x.at, t: storyClock(x.at).label.slice(-5), what: x.what })) };
+  return items.sort((a, b) => a.at - b.at).filter(x => { const k = x.at + x.what; if (seen.has(k)) return false; seen.add(k); return true; });
+}
+// today, tomorrow, and the key nights of the coming week, for the page's TV guide card
+function guideToday(s, now) {
+  const day = k => dayOfTZ(atLocal(dayOfTZ(now), 12) + k * 86400000), wd = k => WEEKDAYS[new Date(day(k) + "T12:00:00Z").getUTCDay()];
+  const fmt = (x, withDay) => ({ at: x.at, t: (withDay ? wd(x.k).slice(0, 3) + " " : "") + storyClock(x.at).label.slice(-5), what: x.what });
+  const week = []; for (let k = 1; k <= 7; k++) guideDay(s, day(k), true).forEach(x => week.push(fmt({ ...x, k }, true)));
+  return { day: wd(0), items: guideDay(s, day(0)).map(x => fmt(x)), tomorrow: { day: wd(1), items: guideDay(s, day(1)).map(x => fmt(x)) }, week: week.slice(0, 7) };
 }
 const TEASE_RE = /stay tuned|don'?t miss|coming up|be back|tune in|later (today|tonight)|\b(at|from) \d{1,2}(:\d\d)?\b/i;
 function eventNote(s, now, company) {

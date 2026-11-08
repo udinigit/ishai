@@ -195,6 +195,10 @@
   .guide li.past{opacity:.45} .guide li.next{color:#fff;text-shadow:0 0 6px #4f6bff}
   .guide .big{padding:4px 7px 6px;font-size:1.25em;line-height:1.15} .guide .big small{display:block;font-size:.72em;opacity:.85;margin-top:2px}
   .guide .big .n{color:#ffd36a}
+  .guide:not(.on) a.merch{pointer-events:none}
+  .guide a.merch{pointer-events:auto;display:flex;gap:6px;align-items:center;padding:4px 6px 5px;color:inherit;text-decoration:none}
+  .guide a.merch canvas{width:clamp(44px,12vw,72px);image-rendering:pixelated;image-rendering:crisp-edges;flex:none}
+  .guide a.merch .go{display:inline-block;margin-top:3px;background:#ffd36a;color:#0a0f2a;padding:0 5px;font-size:.85em}
   .callw{position:absolute;z-index:5;top:11%;right:2.5%;width:34%;opacity:0;transition:opacity .7s;pointer-events:none;background:#0b0716;border:2px solid #ffd36a;border-radius:6px;overflow:hidden;box-shadow:0 0 14px rgba(255,211,106,.35)}
   .callw.on{opacity:1}
   .callw canvas{display:block;width:100%;image-rendering:pixelated}
@@ -4563,24 +4567,43 @@
   // From the clock: one card in every 15-minute slot, 9.5 minutes in, for 14 s (clear of the ad banner), the same for every viewer. No AI, no writes.
   const GUIDE_EVERY = 15 * 60000, GUIDE_AT = 570000, GUIDE_SHOW = 14000; let GUIDE = null, guideOn = '';
   const GUIDE_DAY = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+  let GUIDE_FORCE = null;   // the sandbox's button: one card now, whatever the clock says
+  const MERCH_URL = 'https://www.redbubble.com/people/watchingishai/shop?asc=u';
   function guideCard(slot, now){
-    const p = POLL;
-    if (p && !p.sandbox && now < p.opensAt && p.opensAt - now < 30 * 60000) return {kind: 'vote'};
-    const ev = ARENA && ARENA.event, items = (GUIDE && GUIDE.items) || [];
-    const promo = ev && ev.at > now + 30 * 60000 && ev.at - now < 7 * 86400000;
-    if (promo && (slot % 2 || !items.length)) return {kind: 'promo', ev};
-    return items.length ? {kind: 'today'} : null;
+    const p = POLL, asleep = actor.action === 'sleeping', G = GUIDE || {};
+    if (!asleep && p && !p.sandbox && now < p.opensAt && p.opensAt - now < 30 * 60000) return {kind: 'vote'};
+    const ev = ARENA && ARENA.event, promo = ev && ev.at > now + 30 * 60000 && ev.at - now < 7 * 86400000;
+    const lists = asleep ? [G.tomorrow && G.tomorrow.items && G.tomorrow.items.length ? {kind: 'list', when: 'TOMORROW · ' + G.tomorrow.day, items: G.tomorrow.items} : null,
+                            G.week && G.week.length ? {kind: 'list', when: 'THIS WEEK', items: G.week} : null]
+                         : [G.items && G.items.length ? {kind: 'list', when: 'TODAY · ' + G.day, items: G.items, today: true} : null,
+                            G.week && G.week.length ? {kind: 'list', when: 'THIS WEEK', items: G.week} : null];
+    const turn = slot % 4;   // a schedule, the merch, the other schedule (or the next big night), the merch's turn again for the next big night
+    const pick = turn === 0 ? lists[0] : turn === 1 ? {kind: 'merch'} : turn === 2 ? (promo && slot % 8 === 2 ? {kind: 'promo', ev} : lists[1]) : (promo ? {kind: 'promo', ev} : lists[0]);
+    return pick || lists[0] || lists[1] || {kind: 'merch'};
+  }
+  function merchArt(){
+    const c = document.createElement('canvas'); c.width = 30; c.height = 26; const pc = c.getContext('2d'), prev = g; g = pc;
+    try { R(0,0,30,26,'#1d1238');
+      R(8,4,14,20,'#f4f1ff'); R(3,4,6,6,'#f4f1ff'); R(21,4,6,6,'#f4f1ff'); R(12,4,6,2,'#1d1238'); R(13,5,4,1,'#d8d2f0');   // the tee
+      pc.save(); pc.beginPath(); pc.rect(9,7,12,15); pc.clip(); head(10,8,{}); torso(10,8); armsDown(10,8); pc.restore();   // Ishai printed on it
+    } catch(e){} g = prev; return c;
   }
   function guideTick(){
-    const now = NOW(), slot = Math.floor(now / GUIDE_EVERY), e = now % GUIDE_EVERY - GUIDE_AT, el = $('guide');
+    const now = NOW(), slot = Math.floor(now / GUIDE_EVERY), el = $('guide'); let e = now % GUIDE_EVERY - GUIDE_AT;
     const quiet = !forceLoc && !PREVIEW && !BUILDER && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !adOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
-      && actor.action !== 'sleeping' && !['talking','phoning','improv','lecture','concert','gallery','poker'].includes(actor.action);
-    const c = e >= 0 && e < GUIDE_SHOW && quiet ? guideCard(slot, now) : null;
+      && !['talking','phoning','improv','lecture','concert','gallery','poker'].includes(actor.action);
+    let c = e >= 0 && e < GUIDE_SHOW + 8000 && quiet ? guideCard(slot, now) : null;
+    if (GUIDE_FORCE && now < GUIDE_FORCE.until){ const k = GUIDE_FORCE.kind, G = GUIDE || {};
+      c = k === 'merch' ? {kind: 'merch'} : k === 'vote' ? (POLL ? {kind: 'vote'} : null) : k === 'promo' ? (ARENA && ARENA.event ? {kind: 'promo', ev: ARENA.event} : null)
+        : k === 'week' ? {kind: 'list', when: 'THIS WEEK', items: G.week || []} : k === 'tomorrow' ? {kind: 'list', when: 'TOMORROW · ' + ((G.tomorrow || {}).day || ''), items: (G.tomorrow || {}).items || []}
+        : {kind: 'list', when: 'TODAY · ' + (G.day || ''), items: G.items || [], today: true};
+      if (c){ e = 0; } }
+    if (c && c.kind !== 'merch' && e >= GUIDE_SHOW && !(GUIDE_FORCE && now < GUIDE_FORCE.until)) c = null;   // the merch card stays a little longer, so there is time to tap it
     if (!c){ if (guideOn){ guideOn = ''; el.classList.remove('on'); } return; }
     const tag = $('guideTag'), body = $('guideB'), when = at => { const d = new Date(at), dd = new Date(now);
       const day = new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Jerusalem', weekday: 'long'}).format(d).toUpperCase();
       return (new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Jerusalem'}).format(d) === new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Jerusalem'}).format(dd) ? 'TONIGHT' : day) + ' ' + fmtHM.format(d); };
-    const sig = c.kind + slot;
+    const sig = c.kind + (c.when || '') + slot + (GUIDE_FORCE && now < GUIDE_FORCE.until ? GUIDE_FORCE.until : '');
     if (c.kind === 'vote'){ tag.textContent = '● STAY TUNED';
       body.innerHTML = '<div class="big">VIEWERS\' VOTE IN <span class="n" id="guideN"></span><small>You decide what happens to Ishai next</small></div>';
       $('guideN').textContent = mmss(POLL.opensAt - now); }
@@ -4590,13 +4613,18 @@
         const b = document.createElement('div'); b.className = 'big'; const n = document.createElement('span'); n.className = 'n'; n.textContent = when(ev.at);
         b.append(n, document.createElement('br'), document.createTextNode(ev.kind === 'concert' ? `${ev.artist.toUpperCase()} LIVE` : `GALLERY NIGHT: ${ev.title}`));
         const sm = document.createElement('small'); sm.textContent = ev.kind === 'concert' ? 'At the Pump House. Don\'t miss it!' : `by ${ev.artist}, at the Pump House`; b.append(sm); body.append(b); }
-      else { tag.textContent = '● TODAY · ' + (GUIDE.day || GUIDE_DAY[new Date(now).getDay()]).toUpperCase();
-        const list = GUIDE.items, nextI = list.findIndex(x => x.at > now), from = Math.max(0, (nextI < 0 ? list.length : nextI) - 1);
+      else if (c.kind === 'merch'){ tag.textContent = '● OFFICIAL MERCH';
+        const a = document.createElement('a'); a.className = 'merch'; a.href = MERCH_URL; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.addEventListener('click', e => e.stopPropagation());
+        const t = document.createElement('div'); t.innerHTML = '<div>Ishai on a tee</div><small style="opacity:.85">The Watching Ishai collection</small><br><span class="go">SHOP ↗</span>';
+        a.append(merchArt(), t); body.append(a); }
+      else { tag.textContent = '● ' + c.when.toUpperCase();
+        const list = c.items, nextI = c.today ? list.findIndex(x => x.at > now) : 0, from = c.today ? Math.max(0, (nextI < 0 ? list.length : nextI) - 1) : 0;
         const ul = document.createElement('ul');
-        list.slice(from, from + 7).forEach(x => { const li = document.createElement('li'); li.className = x.at <= now ? 'past' : x === list[nextI] ? 'next' : '';
+        list.slice(from, from + 7).forEach(x => { const li = document.createElement('li'); li.className = c.today ? (x.at <= now ? 'past' : x === list[nextI] ? 'next' : '') : '';
           const b = document.createElement('b'); b.textContent = x.t; li.append(b, document.createTextNode(x.what)); ul.append(li); });
         body.append(ul); } }
-    if (guideOn !== sig){ guideOn = sig; el.classList.add('on'); }
+    if (guideOn !== sig){ guideOn = sig; el.classList.add('on'); el.setAttribute('aria-hidden', c.kind === 'merch' ? 'false' : 'true'); }
   }
   setInterval(guideTick, 500);
   // ================= preview of the planned day (/?preview): plays the planner's beats in order =================
@@ -4816,6 +4844,7 @@
       unlock(list){ UNLOCKED = new Set(list); },
       drawLook(c, look){ const x = c.getContext('2d'), prev = g; x.clearRect(0, 0, c.width, c.height); g = x; try { person(look, 5, 4, 0, {face: 0, seed: 9}); } finally { g = prev; } },
       call(lines){ if (!callOn) playCall({id: 'sb-call' + (++n), t: NOW(), caller: {name: 'Test caller', from: 'Sandbox'}, lines}, NOW()); },
+      guide: kind => { GUIDE_FORCE = {kind, until: NOW() + 20000}; },
       hostFill: () => hostFill(true), overhear: () => overhear(true), city: id => cityTick(CITY.find(e => e.id === id) || CITY[0]), chat: () => { const c = CHAT_STOCK[Math.floor(NOW() / 1000) % CHAT_STOCK.length]; showChat(c[0], c[1]); },
       texture: x => { TEXTURE = x; },
       poll(o){ const t = NOW(), id = 'sb-poll-' + (++n); POLL = {id, sandbox: true, question: o.question || 'How will Avi make Ishai\'s next falafel?', options: o.options || ['Extremely spicy', 'Drowning in tahini', 'Just the usual'],
