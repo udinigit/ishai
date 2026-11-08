@@ -35,6 +35,7 @@ You (the director) can edit anything here; changes go live with the next deploy.
 Done: the TV (Nov 1) and Mrs. Levi's radio (Nov 3) both arrived.
 
 ## Already scheduled — plan around these, do not overlap or move them
+- The Pump House: the old pump hall across the park is becoming a small venue (Hagit runs it and sits in the ticket window in the afternoons; the board says it opens soon, on Wednesdays). No opening date yet: Ishai may walk past, read the board or chat with Hagit on the plaza, but write NO beat inside the hall (`arena`) until an event is announced here.
 - Viewers' polls: goals named `poll-…` are what viewers voted for (small things other people do to Ishai). Keep them: do not cancel, move or overlap them, and do not write beats about votes.
 - Every Sunday, Tuesday and Wednesday, 11:00 — Ishai's history lecture at Tel Herzl University. The engine schedules it by itself: write NO beat for it, and keep him free from 10:25 to 11:50.
 - Mon Nov 9, 10:00 — Ishai presents the chickpea logo to Gadi's client on a video call from his desk (blue shirt, Noa's advice).

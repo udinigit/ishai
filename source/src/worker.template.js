@@ -173,6 +173,9 @@ const SEED_CAST = [
     personality: "warm, sharp, patient, notices when people hide behind jokes", speech: "short encouraging notes, 'yes, and', stops a scene with one clap",
     hangouts: ["bar"], look: { hair: "curly", hairColor: "black", skin: "tan", shirt: "yellow", pants: "black", extras: ["earring"] },
     memory: "Noa paid for four lessons for Ishai and warned her he would try to get a refund.", relationship: 0 },
+  { id: "hagit", name: "Hagit", role: "runs the Pump House, the old pump hall by the park she is turning into a small venue; sits in its ticket window most afternoons", regular: "plaza",
+    personality: "a former sound engineer, dry and passionate, explains everything with her hands, stubborn about doing things properly", speech: "short, practical, then one sudden sentence about why art matters",
+    hangouts: ["plaza"], look: { hair: "bun", hairColor: "red", skin: "fair", shirt: "black", pants: "black", extras: ["glasses", "scarf"] }, memory: "", relationship: 0 },
   { id: "sasson", name: "Dr. Sasson", role: "lectures on Strange But True, a history course at Tel Herzl University, on Sundays, Tuesdays and Wednesdays at 11:00",
     personality: "dry, exact, loves a good footnote, stops joking when the subject deserves it", speech: "calm and precise, ends a point with a quiet joke",
     hangouts: ["classroom"], look: { hair: "short", hairColor: "gray", skin: "light", shirt: "purple", pants: "black", extras: ["glasses", "scarf"] }, memory: "", relationship: 0 }
@@ -191,6 +194,8 @@ const LOCATIONS = {
   store:     ["idle","talking","phoning"],
   bar:       ["idle","drinking","eating","talking","phoning","improv"],
   campus:    ["walking","idle","talking","eating","drinking","phoning"],
+  plaza:     ["walking","idle","talking","eating","drinking","phoning"],
+  arena:     ["idle","walking","talking","drinking","phoning"],
   classroom: ["idle","talking","phoning","lecture"],
   bus:       ["idle","talking","phoning","reading"],
   taxi:      ["idle","talking","phoning","reading"],
@@ -201,7 +206,9 @@ const PLACES = {
   corridor:  "the building hallway outside his door",
   street:    "Herzl Street outside his building (west end): Avi's falafel kiosk, a bus stop bench, the doors of Herzl Gym and The Black Candle bar, traffic. Going west, three more blocks of Herzl Street lead to the park: PicSell (pictures, posters, printed shirts), a pharmacy, the Soap Opera launderette, a barber, a makolet, a bakery, a second-hand bookshop and a bicycle shop. He only walks past those on his way to the park; he never stops in them",
   shops:     "the SIDEWALK of Herzl Street east, the next block toward the cafe (the camera only sees the sidewalk and the shop windows; he cannot be inside a shop here - shopping for electronics, clothes or home stuff happens at the Everything Else store - bus from the street to the market, then walk in): Herzl Hardware, the Tahini Tower Savings Bank with an ATM, a flower shop with buckets of flowers on the sidewalk, a pedestrian crossing with traffic lights, ficus trees; Cafe Nahat is on the corner at the end",
-  park:      "a small park at the west end of Herzl Street, a few blocks' walk from his building: a bench, a pond with one duck, a big tree",
+  park:      "a small park at the west end of Herzl Street, a few blocks' walk from his building: a bench, a pond with one duck, a big tree. On its far (west) side stands the Pump House",
+  plaza:     "the plaza in front of the Pump House, an old red-brick water-pump hall on the far side of the park, now a small venue for concerts and art (walk through the park; no bus): its iron sign, double doors, a ticket window where Hagit sits, a poster board, rope lanes for queues, the park's trees at the edge. The board says it opens soon, with events on Wednesdays",
+  arena:     "inside the Pump House hall: a stage under old pipes, a pixel screen, speaker stacks, a merch table, a concrete floor. Only open for its events; Ishai only goes in on an event night",
   cafe:      "Cafe Nahat, a corner cafe (soft pop and soft rock on the radio, quietly)",
   market:    "Shuk Shalom, an open-air food market a short bus ride away (bus or taxi from the stop on Herzl Street; it has its own bus stop): stalls of tomatoes, cucumbers, oranges, bananas, spices, fresh pita, olives and fresh juice, vendors calling out prices, crowds. Food only. He can eat a snack or drink a fresh juice there. Open 07:00-19:00 (Friday until 14:00, closed on Shabbat). Its vendors also deliver through ateBite",
   store:     "Everything Else, the big store next to Shuk Shalom (walk in from the market): everything except food - a wall of TVs and electronics, phones, clothes, kitchenware, lamps, cleaning stuff; a cashier at the checkout. He browses (\"idle\") or talks to a salesperson. Open 09:00-21:00 (Friday until 14:00, closed on Shabbat)",
@@ -223,7 +230,9 @@ const NEXT = {
   classroom: ["campus"],
   store:     ["market"],
   shops:     ["street","cafe"],
-  park:      ["street"],
+  park:      ["street","plaza"],
+  plaza:     ["park","arena"],
+  arena:     ["plaza"],
   cafe:      ["shops"],
   gym:       ["street"],
   bar:       ["street"],
@@ -951,7 +960,7 @@ ${block ? `What happens in the next ${block} moments?` : "What happens next?"}`;
 
 // the hosts react to the moments the story just wrote (one call for a whole block)
 const CAMERA = { apartment: "his apartment", bathroom: "closed bathroom door", corridor: "the building hallway", street: "Herzl Street outside his building", shops: "the shops block of Herzl Street (sidewalk)",
-  park: "the park", cafe: "Cafe Nahat", gym: "Herzl Gym", bar: "The Black Candle bar", market: "Shuk Shalom market", store: "the Everything Else store", campus: "the courtyard of Tel Herzl University", classroom: "a lecture room at the university", bus: "inside the bus, the city going past the windows", taxi: "the back seat of a taxi, the city going past the window", offscreen: "STATIC - no camera, he is out of coverage" };
+  park: "the park", cafe: "Cafe Nahat", gym: "Herzl Gym", bar: "The Black Candle bar", market: "Shuk Shalom market", store: "the Everything Else store", plaza: "the plaza in front of the Pump House, by the park", arena: "inside the Pump House hall", campus: "the courtyard of Tel Herzl University", classroom: "a lecture room at the university", bus: "inside the bus, the city going past the windows", taxi: "the back seat of a taxi, the city going past the window", offscreen: "STATIC - no camera, he is out of coverage" };
 async function addHosts(env, s, moments, clock, now) {
   try {
     const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : s.cast[id]?.name || id;
@@ -1206,6 +1215,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (ev.location === "gym" && last.location !== "gym" && (h >= 23 || h < 6)) return { ev, problem: "Herzl Gym is closed now (open 06:00-23:00)" };
     const wd = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(new Date(Date.now() + DELAY_MIN * 60000));
     const shut = (open, close) => wd === "Sat" || h < open || h >= (wd === "Fri" ? 14 : close);
+    if (ev.location === "arena" && last.location !== "arena" && !allowNoHosts) return { ev, problem: "the Pump House hall is only open on its event nights (Ishai can be on the plaza outside)" };
     if (ev.location === "campus" && last.location !== "campus" && last.location !== "classroom" && !allowNoHosts && (shut(8, 20) || wd === "Fri")) return { ev, problem: "the university is closed now (Sunday to Thursday, 08:00-20:00)" };
     if (ev.location === "classroom" && !allowNoHosts) return { ev, problem: "the lecture room is only used during a lecture; he stays in the courtyard" };
     if (ev.location === "market" && last.location !== "market" && shut(7, 19)) return { ev, problem: "Shuk Shalom market is closed now (07:00-19:00, Friday until 14:00, closed on Shabbat)" };
@@ -1432,12 +1442,14 @@ function sickEvent(s, last, hour) {
     { who: "zohar", say: "Rest up, Ishai. The whole country is whispering." },
     { who: "oren", say: "This is the most relaxing episode we have ever aired." }
   ];
-  const step = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
+  const step = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   let ev;
   if (step) {
     const T = {
       street: ["Ishai looks pale. He heads back along Herzl Street toward home, slower than usual.", "He walks home along Herzl Street, one hand on his stomach."],
       market: ["Ishai looks pale among the market stalls. He gives up on the shopping and takes the bus home.", "He sits on the bus back from the market, eyes closed."],
+      park: ["Ishai looks pale. He walks back through the park toward Herzl Street, slower than usual."],
+      plaza: ["Ishai looks pale. He leaves the hall and steps out into the fresh air."],
       campus: ["Ishai looks pale. He leaves the lecture room and goes out to the courtyard.", "He steps out into the courtyard for air, one hand on his stomach."],
       store: ["Ishai puts the basket down and walks out of the store, looking pale.", "He leaves Everything Else empty-handed, one hand on his stomach."],
       shops: ["Ishai leaves the café looking pale and walks slowly back along Herzl Street, past the flower shop.", "He heads home past the shops, one hand on his stomach."],
@@ -1480,9 +1492,9 @@ function sickEvent(s, last, hour) {
 }
 function fallback(last, hour, s) {
   const night = hour < 7 || hour >= 23;
-  const home = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
+  const home = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   if (night && home) {
-    const T = { campus: "He walks out into the dark courtyard.", market: "He walks out of the store into the dark, empty market.", street: "Ishai heads back along Herzl Street toward home.", shops: "He walks back past the dark shop windows toward his building.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
+    const T = { park: "He walks back through the dark park toward Herzl Street.", plaza: "He walks out of the Pump House into the night air.", campus: "He walks out into the dark courtyard.", market: "He walks out of the store into the dark, empty market.", street: "Ishai heads back along Herzl Street toward home.", shops: "He walks back past the dark shop windows toward his building.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
     return { location: home, action: home === "apartment" ? "idle" : "walking", text: T[home], with: null, lines: [] };
   }
   const P = {
@@ -1492,6 +1504,8 @@ function fallback(last, hour, s) {
     street: [["street", "walking", "He walks along Herzl Street, dodging a scooter."], ["street", "idle", "He sits on the bus stop bench for a minute, watching the traffic."], ["street", "eating", "He buys a falafel at Avi's kiosk and eats it standing at the counter."], ["park", "walking", "He wanders into the little park and heads for the bench."], ["corridor", "walking", "He heads back into his building and up the stairs."]],
     campus: [["campus", "idle", "Ishai reads the notices on the university board."], ["campus", "walking", "He crosses the courtyard, past students on the benches."], ["street", "walking", "He takes the bus back to Herzl Street."]],
     classroom: [["campus", "walking", "He walks out of the lecture room into the courtyard."]],
+    plaza: [["plaza", "idle", "Ishai reads the Pump House poster board."], ["plaza", "walking", "He walks slowly past the old pump hall, looking up at the chimney."], ["park", "walking", "He walks back into the park."]],
+    arena: [["plaza", "walking", "He walks out of the hall onto the plaza."]],
     park: [["park", "idle", "Ishai watches the duck. The duck watches back."], ["park", "walking", "He does a slow lap around the pond."], ["street", "walking", "He leaves the park and walks back to Herzl Street."]],
     market: [["market", "walking", "Ishai weaves between the stalls, comparing tomato prices."], ["market", "drinking", "He buys a fresh orange juice at a stall and drinks it on the spot."],
       ["market", "eating", "He tears into a warm pita the baker hands him."], ["street", "walking", "He takes the bus back to Herzl Street, bags in both hands."]],
@@ -1552,7 +1566,7 @@ function travelEvent(s, last, hop, dest) {
   const T = { "apartment>corridor": `Ishai grabs his keys${dog ? ", clips on Falafel's leash" : ""} and heads out the door.`, "corridor>street": `He goes down the stairs and out onto Herzl Street${umb}.`,
     "street>shops": `He walks east along Herzl Street${umb}, past the hardware shop and the bank.`, "shops>cafe": `He crosses at the lights${umb} and goes into Cafe Nahat.`,
     "shops>street": `He walks back west along Herzl Street${umb} toward his building.`, "street>park": `He walks west along Herzl Street${umb}, past PicSell and the bakery, toward the park.`, "street>corridor": "He heads back into his building and up the stairs.",
-    "corridor>apartment": "He unlocks apartment 4 and goes in.", "park>street": `He walks back along Herzl Street${umb}, past the barber and PicSell, toward his building.`, "cafe>shops": `He steps out of the café onto Herzl Street${umb}, by the flower shop.`,
+    "corridor>apartment": "He unlocks apartment 4 and goes in.", "park>plaza": `He walks across the park${umb}, past the pond, to the old Pump House on the far side.`, "plaza>park": `He walks back into the park${umb}.`, "plaza>arena": "He goes in through the Pump House's double doors.", "arena>plaza": "He walks out of the hall onto the plaza.", "park>street": `He walks back along Herzl Street${umb}, past the barber and PicSell, toward his building.`, "cafe>shops": `He steps out of the café onto Herzl Street${umb}, by the flower shop.`,
     "street>gym": `He pushes open the glass door of Herzl Gym${dog ? ", Falafel trotting behind" : ""}.`, "gym>street": `He leaves the gym, towel round his neck, and steps out onto Herzl Street${umb}.`,
     "street>bar": "He pushes open the heavy door of The Black Candle; red light and a guitar riff spill out.", "bar>street": `He steps out of The Black Candle onto Herzl Street${umb}.`,
     "street>market": `He takes the bus to Shuk Shalom market${umb}.`, "market>street": "He takes the bus back to Herzl Street, shopping bags on his knees.",
@@ -2105,7 +2119,7 @@ const pollHM = ms => new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-d
 // is this place open at that time (the same hours validate() enforces)
 function placeOpen(loc, ms) {
   const h = storyClock(ms).hour, wd = weekday(ms), shut = (o, c) => wd === "Sat" || h < o || h >= (wd === "Fri" ? 14 : c);
-  if (!LOCATIONS[loc] || ["classroom", "bus", "taxi", "offscreen"].includes(loc)) return false;
+  if (!LOCATIONS[loc] || ["classroom", "arena", "bus", "taxi", "offscreen"].includes(loc)) return false;
   return loc === "bar" ? !(h >= 2 && h < 17) : loc === "gym" ? !(h >= 23 || h < 6) : loc === "market" ? !shut(7, 19) : loc === "store" ? !shut(9, 21) : loc === "campus" ? !(shut(8, 20) || wd === "Fri") : true;
 }
 const pollShabbat = (s, ms) => { const sh = s.world && s.world.shabbat; return !!sh && ms >= sh.start - 30 * 60000 && ms <= (sh.end || sh.start + 26 * 3600000); };

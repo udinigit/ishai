@@ -43,6 +43,10 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 | Park | right edge | Herzl St. west | left edge |
 | Herzl St. west | right edge | Street | left edge |
 | Café | entrance (left) | Shops | right edge |
+| Park | left edge | Pump House plaza (CAM-19) | right edge |
+| Pump House plaza | right edge | Park | left edge |
+| Pump House plaza | double doors (60) | Pump House hall (CAM-20) | door (right edge) |
+| Pump House hall | door (right edge) | Pump House plaza | double doors (60) |
 
 - Every link is the same door both ways: leaving X by door A into Y always arrives at Y's door B, and leaving Y by door B always arrives back at X's door A (`MAP[x][y].exit === MAP[x][y].entry`).
 - A friend going somewhere with Ishai walks right behind him through the same doors, place after place, and arrives through the door he used (never from a random edge).
@@ -58,7 +62,9 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
   - Corridor: Ishai's door (apt 4), Mrs. Levi's door (apt 5), the stairs/exit, the elevator.
   - Street: Ishai's building entrance, left edge, right edge.
   - Herzl St. west (CAM-14 to 16, `west1`-`west3`, page only): left and right edges. Walk-through blocks between the street and the park (`westBlock()`): PicSell, a pharmacy, the Soap Opera launderette, a barber, a makolet, a bakery, a bookshop, a bicycle shop, with RGBeat, Boolify and 8bitTV billboards. The story never stops here: it still goes street > park and `route()` walks him through, about 9 s a block, so they cost no AI and no prompt space.
-  - Park: right edge (path to Herzl St. west), left edge (further into the park).
+  - Park: right edge (path to Herzl St. west), left edge (across the park to the Pump House).
+  - Pump House plaza (CAM-19): the park path (right edge), the hall's double doors (60). Ticket window, poster board, rope lanes for queues.
+  - Pump House hall (CAM-20): its door on the right. Stage, pixel screen, merch table. Open only for events.
   - Shops (CAM-09, Herzl St. east): left edge (back to Ishai's block), right edge (the café corner). Herzl Hardware, Tahini Tower Savings Bank + ATM, a flower shop, a pedestrian crossing with lights, Kfar Kofi billboard.
   - Café: the entrance on the left.
   - Bus (CAM-12, line 88) and Taxi (CAM-13): no doors of their own; he boards at a stop on the street camera and the switch finds him seated. Every ride between places shows here for `RIDE_MS` (2.5 minutes, the city keeps looping past), or longer when the story puts a moment on board. Dialogue in a moment that arrives by ride waits until he is there, and a viewer who tunes in mid-ride joins him on board. Taxi at night, in the rain and on Shabbat. No `ERRANDS`: he stays in his seat. The city outside (`cityDrive()`) is currently the only route; it runs on the real clock with a red light every 52 s, and handles any hour and weather.

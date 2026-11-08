@@ -336,6 +336,8 @@
     shops:     ['walking','idle','talking','eating','drinking','phoning'],
     west1:     ['walking','idle'], west2: ['walking','idle'], west3: ['walking','idle'],   // walk-through blocks, page only: the story never stops here
     park:      ['walking','idle','talking','reading','eating','drinking','exercising','phoning'],
+    plaza:     ['walking','idle','talking','eating','drinking','phoning'],
+    arena:     ['idle','walking','talking','drinking','phoning'],
     cafe:      ['idle','eating','drinking','working','reading','talking','phoning'],
     gym:       ['exercising','idle','talking','drinking','phoning'],
     market:    ['walking','idle','talking','eating','drinking','phoning'],
@@ -358,7 +360,7 @@
   let DREAMING = false;
   let BUILDER = false;  // /builder: this page only draws what the builder asks for
   let NO_CROWD = false; // builder: a background without its passers-by
-  const OUTSIDE = new Set(['street','park','shops','market','campus','west1','west2','west3']);
+  const OUTSIDE = new Set(['street','park','shops','market','campus','west1','west2','west3','plaza']);
   let COURSE = {name:'Strange But True', title:'Floods That Were Not Water', next:"The War of Jenkins' Ear", at:null};   // what is on the board (from the Worker)
   let MEDIA_UNTIL = 0;
   let TALK_AT = 0;       // last time a character of anyone's speech was typed (music fades under it)   // the story just put a live line on the radio/TV: our own DJ keeps quiet for a while
@@ -980,6 +982,8 @@
     if (loc==='corridor') return id==='levi' ? 106 : 180;   // Mrs. Levi's door, otherwise the stairs
     if (loc==='classroom') return W+8;                       // the classroom door, on the right
     if (loc==='campus') return 60;                          // the lecture building's doors
+    if (loc==='plaza') return nearX > 110 ? W+8 : 60;       // the park path, or the Pump House doors
+    if (loc==='arena') return W+8;                          // the hall's door, on the right
     if (loc==='cafe' || loc==='gym' || loc==='bar' || loc==='store') return 4;   // café / gym / bar entrance door (left)
     return nearX > W/2 ? W+8 : -18;                         // street and park: nearest edge
   }
@@ -1102,6 +1106,7 @@
   const REG = {
     michal: {place:'gym', x:30, hours:[7,11,17,21], look:{hair:'long',hairColor:'blonde',skin:'tan',shirt:'pink',pants:'black',extras:[]}},
     sivan:  {place:'gym', x:152, hours:[6.5,10,18,22], look:{hair:'bun',hairColor:'black',skin:'fair',shirt:'teal',pants:'gray',extras:[]}},
+    hagit:  {place:'plaza', x:102, hours:[12,20], look:{hair:'bun',hairColor:'red',skin:'fair',shirt:'black',pants:'black',extras:['glasses','scarf']}},
     zelig:  {place:'park', x:156, hours:[8,18], look:{hair:'curly',hairColor:'white',skin:'fair',shirt:'orange',pants:'brown',extras:['beard','scarf']}},
     kobi:   {place:'bar', x:118, hours:[19,26], look:{hair:'short',hairColor:'gray',skin:'tan',shirt:'red',pants:'navy',extras:['mustache']}},
     lior:   {place:'cafe', x:40, hours:[9,17], look:{hair:'curly',hairColor:'brown',skin:'light',shirt:'blue',pants:'gray',extras:['glasses']}}
@@ -1807,6 +1812,97 @@
     }
   };
 
+  // ---------- The Pump House: an old water-pump hall at the west end of the park, now a small venue ----------
+  // ARENA comes from the Worker (/api/state publicState.arena): what the board says. Until the first event: "opening soon".
+  let ARENA = null;
+  const arenaBoard = () => ARENA && ARENA.board ? ARENA.board : ['OPENS', 'SOON', 'WEDS'];
+  function brickWall(x, y, w, h, base, line){ R(x, y, w, h, base); for (let yy = y + 4, i = 0; yy < y + h; yy += 4, i++){ R(x, yy, w, 1, line); for (let xx = x + (i % 2) * 5; xx < x + w; xx += 10) R(xx, yy - 3, 1, 3, line); } }
+  SCENES.plaza = {
+    cam:'CAM-19', place:'THE PUMP HOUSE // PLAZA', walkY:66, entry:W+8, exit:W+8,
+    stand:{idle:96, walking:96, talking:84, eating:140, drinking:140, phoning:96},
+    draw(t,hf,a,settled,actor){
+      const s = drawSky(0,0,W,40,hf,t), night = isNight(hf);
+      if (s.night) R(176,6,5,5,'#f2efd0');
+      // the chimney, then the hall: red brick, a dark cornice
+      brickWall(10,0,12,16,'#7a3426','#5e271c'); R(9,3,14,2,'#e8e0d0'); R(9,8,14,1,'#e8e0d0'); R(8,0,16,2,'#3a2a24');
+      brickWall(0,14,152,68,'#8a3b2a','#6e2e20'); R(0,12,154,3,'#3a2a24'); R(0,15,154,1,'#5a4a40');
+      // arched windows (old pump-hall glass, warm at night)
+      [94,114,134].forEach(x => { R(x,24,12,18,'#d8c8a8'); R(x+1,23,10,1,'#d8c8a8'); R(x+3,22,6,1,'#d8c8a8');
+        const gl = night ? '#ffcf6a' : '#5a7a92'; R(x+1,25,10,16,gl); R(x+2,24,8,1,gl); R(x+6,24,1,17,'#d8c8a8'); R(x+1,32,10,1,'#d8c8a8'); });
+      // the iron sign on two brackets over the doors
+      R(34,17,1,4,'#222'); R(89,17,1,4,'#222'); R(32,20,60,9,'#1a1a1a'); R(33,21,58,7,'#262222'); word('THE PUMP HOUSE',35,22, night ? '#ffd36a' : '#e0b04a');
+      // the double doors (an arch of pale brick over them)
+      R(44,36,32,46,'#d8c8a8'); R(46,34,28,2,'#d8c8a8'); R(48,33,24,1,'#d8c8a8');
+      R(47,38,26,44,'#24382e'); R(48,39,11,43,'#2f4a3a'); R(61,39,11,43,'#2f4a3a'); for (let y=44;y<80;y+=8){ R(49,y,9,1,'#24382e'); R(62,y,9,1,'#24382e'); }
+      R(58,58,1,5,'#c8b070'); R(61,58,1,5,'#c8b070');
+      if (doorBusy(60)){ R(48,39,24,43,'#120e0c'); alpha(.35,()=>R(48,60,24,22,'#ffcf6a')); }
+      // box office window, with its lamp
+      R(94,46,28,6,'#1a1a1a'); word('TICKETS',95,47,'#f2e6c8');
+      R(98,54,18,14,'#d8c8a8'); R(99,55,16,12, night ? '#4a3a2a' : '#2a2a30'); R(97,68,20,2,'#6a5a48');
+      R(104,52,6,1,'#222'); R(105,53,4,1, night ? '#fff3b0' : '#777'); if (night) alpha(.2,()=>R(98,53,18,16,'#fff3b0'));
+      if (!regular('hagit', 102, 52, t, {legs:false, face:-1, talking: SAY.who === 'hagit'})) R(101,60,12,1,'#1a1a1a');   // the window's shelf
+      // the poster board: this week and next week
+      R(126,44,24,30,'#5e4027'); R(128,46,20,26,'#efe6cf'); R(128,46,20,6,'#a83a2a');
+      word('NEXT',130,47,'#f2e6c8'); arenaBoard().slice(0,3).forEach((l,i) => { const s2 = String(l).toUpperCase().slice(0,5); word(s2, 129 + Math.max(0, Math.floor((19 - (s2.length*4-1))/2)), 54 + i*6, '#2a2a2a'); });
+      // pavement: old cobbles in front of the hall, the park path going off to the right
+      R(0,82,W,10,'#8e8478'); for (let x=0;x<W;x+=6) R(x + ((x/6)%2)*3,82,1,10,'#7c7266'); R(0,86,W,1,'#7c7266');
+      R(0,92,W,16,'#c8b48a'); R(0,92,W,1,'#b09c74');
+      // where the park begins: a hedge and a tree on the right edge
+      R(152,40,40,42,'#4f8f3f'); R(152,58,40,24,'#3f7f33'); for (let i=0;i<8;i++) R(156+(i*7)%34, 62+(i*5)%16, 2, 2, '#2f6b3a');
+      if (night){ // string lights over the doors
+        for (let i=0;i<15;i++){ const x = 30 + i*4, y = 31 + Math.round(Math.sin(i/14*Math.PI) * 4); R(x,y,1,1, ['#ffd36a','#ff8a5a','#9fe0ff'][i%3]); } }
+      zOn();
+      zAdd(76, () => { R(170,8,8,48,'#2f6b3a'); R(160,4,28,20,'#2f7d3a'); R(164,0,20,8,'#3f9a48'); R(172,24,4,34,'#5e4027'); });
+      // rope lanes for the queue (along the wall, left of the doors)
+      zAdd(80, () => { [8,20,32].forEach(x => { R(x,70,2,10,'#c8a040'); R(x-1,79,4,1,'#6a5a3a'); }); R(9,71,24,1,'#a8302a'); R(9,72,24,1,'#801e1a'); });
+      // a lamp post and the bike rack
+      zAdd(90, () => { R(84,46,2,44,'#2a2a2a'); R(81,43,8,4,'#2a2a2a'); R(82,47,6,1, night ? '#fff3b0' : '#777'); if (night) alpha(.16,()=>R(72,48,26,42,'#fff3b0')); });
+      zAdd(92, () => { for (let i=0;i<3;i++) R(158+i*7,84,1,6,'#8a8a8a'); R(157,84,16,1,'#8a8a8a');
+        R(160,82,8,1,'#c23b3b'); R(158,83,4,4,'#222'); R(166,83,4,4,'#222'); R(159,84,2,2,'#8e8478'); R(167,84,2,2,'#8e8478'); });
+      // a bin
+      zAdd(84, () => { R(140,74,6,9,'#3a5a3a'); R(139,73,8,1,'#2a4a2a'); });
+      if (!NO_CROWD){ crowdWalk(t, 4, 41000, 9000, 66, -1, .7); if (Math.floor(t/80000) % 3 === 1) crowdVisit(t, 80000, 3, 136, 66, W+8, 66, {face:1}); }   // someone reading the poster board
+      drawFloor(t,a,settled,actor,this);
+      liveLayer(t, this); zFlush();
+      if (night) alpha(.36,()=>R(0,0,W,H,'#050a1e'));
+    }
+  };
+  // inside the Pump House: a stage under the old pipes, a pixel screen, a concrete floor; lit for events, dim otherwise
+  SCENES.arena = {
+    cam:'CAM-20', place:'THE PUMP HOUSE // HALL', walkY:70, entry:W+8, exit:W+8,
+    stand:{idle:120, walking:120, talking:110, phoning:120, drinking:30},
+    draw(t,hf,a,settled,actor){
+      const live = !!(ARENA && ARENA.live), night = isNight(hf);
+      brickWall(0,0,W,66,'#3a2c2a','#2e2220');
+      // the old pumps' pipes along the ceiling, and a valve wheel on the wall
+      R(0,3,W,4,'#5a6a6e'); R(0,3,W,1,'#7a8a8e'); for (let x=12;x<W;x+=36) R(x,2,3,6,'#4a5a5e');
+      R(6,7,3,30,'#5a6a6e'); R(2,22,11,11,'#6a3a2a'); R(3,23,9,9,'#3a2c2a'); R(7,22,1,11,'#6a3a2a'); R(2,27,11,1,'#6a3a2a'); R(6,26,3,3,'#8a8a8a');
+      // the lighting truss on its chains, with four lamps
+      R(34,8,1,4,'#555'); R(158,8,1,4,'#555'); R(30,12,132,2,'#7a7a7a'); R(30,15,132,1,'#7a7a7a'); for (let x=30;x<162;x+=6) R(x,13,1,2,'#7a7a7a');
+      [48,78,114,144].forEach((x,i) => { R(x,16,5,4,'#1a1a1a'); R(x+1,20,3,1, live ? ['#ff5a5a','#5ad0ff','#ffd36a','#c05aff'][i] : '#333'); });
+      // the pixel screen behind the stage
+      R(62,20,68,28,'#0e0e10'); R(64,22,64,24,'#060608');
+      { const msg = ARENA && ARENA.screen ? ARENA.screen + '   ' : 'THE PUMP HOUSE   ' + arenaBoard().join(' ') + '   ', len = msg.length * 4, off = Math.floor(NOW() / 110) % Math.max(1, len);
+        g.save(); g.beginPath(); g.rect(64,31,64,7); g.clip(); word(msg + msg + msg, 64 - off, 32, live ? '#ffd36a' : '#6a4a20'); g.restore(); }
+      // speaker stacks
+      [[36,'L'],[146,'R']].forEach(([x]) => { R(x,30,12,26,'#141414'); R(x+3,34,6,6,'#2a2a2a'); R(x+4,35,4,4,'#1a1a1a'); R(x+3,44,6,6,'#2a2a2a'); R(x+4,45,4,4,'#1a1a1a'); R(x+5,52,2,2,'#2a2a2a'); });
+      // the stage
+      R(28,52,136,6,'#2a2426'); R(28,56,136,10,'#1a1618'); R(28,56,136,1,'#4a4042'); for (let x=34;x<164;x+=16) R(x,57,1,9,'#141012');
+      if (live) alpha(.18,()=>R(28,18,136,40,'#ffe8b0'));
+      // the floor, and the door on the right
+      R(0,66,W,42,'#4a4a4c'); for (let x=0;x<W;x+=16) R(x,66,1,42,'#424244'); for (let y=74;y<H;y+=10) R(0,y,W,1,'#424244');
+      R(178,30,14,58,'#2a2a2a'); R(180,32,12,56, doorBusy(186) ? '#0a0a0a' : '#4a4e52'); R(181,58,2,4,'#c8b070'); R(178,24,14,5,'#1a1a1a'); word('EXIT',179,25,'#5ad07a');
+      zOn();
+      // the merch table, by the wall on the left
+      zAdd(90, () => { R(4,74,28,3,'#6a4e38'); R(6,77,2,12,'#4a3628'); R(28,77,2,12,'#4a3628'); R(8,68,8,6,'#e8e4d8'); R(18,68,8,6,'#2a2a2a'); R(12,70,2,2,'#c23b3b'); R(21,70,2,2,'#ffd36a'); });
+      // drinks: a crate and a cooler
+      zAdd(88, () => { R(150,74,16,12,'#2f6fb5'); R(150,74,16,2,'#f2f2f2'); R(170,78,8,8,'#7a5a3a'); for (let i=0;i<3;i++) R(171+i*2,76,1,2,'#3a5a2a'); });
+      drawFloor(t,a,settled,actor,this);
+      liveLayer(t, this); zFlush();
+      if (!live) alpha(night ? .3 : .22,()=>R(0,0,W,H,'#050a1e'));   // house lights low between events
+    }
+  };
+
   // ---------- cafe ----------
   SCENES.cafe = {
     cam:'CAM-05', place:'CAFE NAHAT // CORNER TABLE', walkY:74, entry:4, exit:4,
@@ -2426,6 +2522,12 @@
     campus: { notices: {alone:3, company:1, steps:[{to:96},{pose:'back',dur:4}]},
               phone:   {alone:2, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
     classroom: { board: {alone:1, company:0, steps:[{to:70},{pose:'back',dur:4}]} },
+    plaza:  { poster:  {alone:3, company:1, steps:[{to:132},{pose:'back',dur:4}]},
+              window:  {alone:1, company:1, steps:[{to:102},{pose:'back',dur:3}]},
+              phone:   {alone:1, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
+    arena:  { stage:   {alone:2, company:1, steps:[{to:96},{pose:'back',dur:4},{to:'+0'}]},
+              merch:   {alone:2, company:1, steps:[{to:20},{pose:'back',dur:4}]},
+              phone:   {alone:1, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
     bar:    { posters: {alone:2, company:0, steps:[{to:30},{pose:'back',dur:4}]},
               phone:   {alone:3, company:1, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} }
   };
@@ -2547,7 +2649,9 @@
                  market: {exit:128, entry:128, ride:true},                            // bus stop: the bus (or a taxi) to Shuk Shalom
                  campus: {exit:128, entry:128, ride:true},                            // the same stop: the bus (or a taxi) to the university
                  offscreen: {exit:128, entry:128, ride:true} },                       // bus stop: bus or taxi
-    park:      { west3: {exit:W+8, entry:W+8} },                                      // right edge -> the park end of Herzl St.
+    park:      { west3: {exit:W+8, entry:W+8}, plaza: {exit:-14, entry:-14} },        // right edge -> the park end of Herzl St.; left edge -> the Pump House
+    plaza:     { park: {exit:W+8, entry:W+8}, arena: {exit:60, entry:60} },           // the park path on the right; the Pump House doors
+    arena:     { plaza: {exit:W+8, entry:W+8} },                                      // the hall's door, on the right
     west3:     { park: {exit:-14, entry:-14}, west2: {exit:W+8, entry:W+8} },         // three blocks you walk through, on the way between the park and his building
     west2:     { west3: {exit:-14, entry:-14}, west1: {exit:W+8, entry:W+8} },
     west1:     { west2: {exit:-14, entry:-14}, street: {exit:W+8, entry:W+8} },
@@ -2967,6 +3071,12 @@
         bed(brown,'bandpass',600,.2);
         loop(2500, 4000, () => { const f = 300 + Math.random()*200; for (let i=0;i<3;i++) tone(f*(1+(i%2)*.25), .14, 'square', .02, i*.16, dest, .9); });   // vendors calling prices
         loop(9000, 9000, () => noise(1.8,{vol:.1,type:'lowpass',freq:250,sweep:[1200,250],buf:brown,dest}));
+      } else if (loc === 'plaza'){
+        bed(brown,'lowpass',460,.08);                                                                    // the park next door, a little traffic far off
+        loop(2600, 4500, () => { const f = 2300 + Math.random()*1300; tone(f, .07, 'sine', .03, 0, dest, 1.3); });
+      } else if (loc === 'arena'){
+        bed(brown,'lowpass',180,.06); hum(60,.01);                                                       // a big brick room and its old pipes
+        loop(9000, 14000, () => noise(.6,{vol:.03,type:'lowpass',freq:300,dest}));                       // the pipes knock now and then
       } else if (loc === 'campus'){
         bed(brown,'bandpass',520,.09);                                                                    // students talking across the courtyard
         loop(1800, 3500, () => { const f = 2400 + Math.random()*1400; tone(f, .07, 'sine', .03, 0, dest, 1.3); });
@@ -3141,7 +3251,7 @@
   };
   // every character's own colour: the bubble's outline and name tab use it as is; dark backgrounds (chat, cast) use a lighter tint
   const INK = {ishai:'#24998a', noa:'#d0479a', levi:'#8a4fd0', avi:'#e07b1f', dana:'#c99a12', tomer:'#2f6fd6', gadi:'#5f7088', michal:'#d23c3c',
-    sivan:'#2f9e4a', zelig:'#8a6a3a', kobi:'#a8306a', lior:'#3f8fae', yael:'#e0603a', sasson:'#5a5ad0', radio:'#c9a227', tv:'#3f8fd0'};
+    sivan:'#2f9e4a', zelig:'#8a6a3a', kobi:'#a8306a', lior:'#3f8fae', yael:'#e0603a', sasson:'#5a5ad0', hagit:'#4f8a8b', radio:'#c9a227', tv:'#3f8fd0'};
   const INK_MORE = ['#b5523b','#2c8c6e','#7a5fc0','#c07a1a','#3b7bc2','#a83f8f','#5c8a2a','#c04848'];   // anyone new: picked by name, always the same
   const inkOf = id => INK[id] || (/^student\d$/.test(id) ? '#7d857a' : INK_MORE[strHash(id) % INK_MORE.length]);
   const inkText = hex => { const n = parseInt(hex.slice(1), 16), l = .299 * (n >> 16) + .587 * ((n >> 8) & 255) + .114 * (n & 255); return l > 150 ? '#151515' : '#ffffff'; };
@@ -3283,7 +3393,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
@@ -4044,6 +4154,7 @@
   }
   // regulars talk to themselves or to the room, on the clock: no AI, and the same line for everyone
   const MUTTER = {
+    hagit: ['Doors at half past. Always half past.', 'Who taped a lost-cat poster on my board? Fine. It stays.', 'Ninety years of pumps in there. The acoustics are a gift.', 'Opening night. I keep saying it out loud so it happens.'],
     zelig: ['The pigeons have changed shifts again.', 'Not you. You know what you did.', 'Forty-one benches in this city. I have counted. Forty-one.', 'They moved the pond. Half a metre. Nobody admits it.', 'Yes, yes, I told him. He said no. The duck said no.', 'Tuesday. It is always a Tuesday with these people.', 'Somebody is watching this park. I can feel it in my hat.', 'Good morning, tree. Still nothing to say?'],
     michal: ['One more set. Then one more after that.', 'Who left these weights here?', 'I said I would come three times a week. This is week two.'],
     sivan: ['Whoever set this treadmill to twenty, please seek help.', 'Twelve more minutes. Eleven and a half.', 'Is that TV ever on anything good?'],
@@ -4066,6 +4177,8 @@
   // Everything is picked from the clock slot and the moments, so all viewers get the same line. Nothing here is written to the story.
   const FILL_SLOT = 45000, FILL_QUIET = 10000;
   const FILL = {
+    plaza: ['The Pump House. It pumped the neighbourhood its water for ninety years; now it wants to pump out a little culture.', 'Brick, a chimney and a sign that says THE PUMP HOUSE. Opening soon, says the board.', 'That woman at the ticket window is Hagit. She runs the place, and the place runs her.', 'Rope lanes for a queue that is not here yet. Optimism, in red rope.'],
+    arena: ['Inside the Pump House. A stage, a screen, and old pipes overhead that once moved half the city\'s water.', 'The hall is quiet tonight. You can hear the pipes thinking.', 'A stage that is waiting for someone. He knows the feeling.', 'Concrete floor, brick walls, and a merch table with two shirts on it. Every venue starts somewhere.'],
     apartment: ['Apartment 4. One room, one man, one basil, no secrets.', 'Look at that windowsill. Moshe is holding the whole place together.', 'That desk has seen more revisions than a constitution.', 'The sofa, the desk, the fridge. The three stops of his daily commute.', 'Somewhere under that pile is a clean shirt. Allegedly.', 'You can tell a lot about a man by his one kitchen chair.'],
     corridor: ['The second floor hall. Mrs. Levi can hear this through the wall, believe me.', 'That is the only hallway in Tel Aviv with its own intelligence service.', 'Apartment 4 on the left, apartment 5 on the right, and judgement in between.', 'The stairs again. The elevator is more of a rumour.', 'Listen to that echo. Nobody in this building has ever had a private conversation.', 'Second floor. Smells of soup from at least one direction.'],
     street: ["Herzl Street, his block. Avi's kiosk, the bus stop, the gym he thinks about.", 'There goes the bus stop bench, the most honest seat in the city.', "That's The Black Candle by the bench. Closed by day, like its regulars.", 'He walks this street so often the pavement knows his shoe size.', 'Watch the kiosk. Avi sees everything and comments on all of it.', 'Traffic, pigeons, one man with a plan. Herzl Street at its finest.'],
@@ -4172,6 +4285,7 @@
   setInterval(hostFill, 1000);
   // ================= overheard: now and then a passer-by's words, as a small caption. Never a name, a bubble, a voice or the chat, so nobody takes them for the cast =================
   const OVERHEARD = {
+    plaza: ['...it used to pump water for the whole neighbourhood. Now it pumps culture, she says.', '...is it open tonight? The board says soon. Soon when?', '...my grandfather worked here. He hated the noise.', '...they are cleaning the windows, that is a good sign.'],
     street: ['...so I told him, that is not parking, that is a hobby.', '...my sister says the same about her landlord.', '...no, the other bus. The one that never comes.', '...second floor, third door, and bring the receipt.', '...I said ten minutes. It is a Tel Aviv ten minutes.', '...he is a good boy, he just bites.'],
     shops: ['...nine shekels for one tulip? Is it a wedding?', '...the machine ate it. The whole card.', '...wait for the green, Yonatan. Wait.', '...I only came in for a screw.', '...she never said yes, she said we will see.'],
     west1: ['...print it bigger. No, smaller. Bigger.', '...the pharmacist knows everything about this street.', '...it was a joke shirt, and my mother wore it to a wedding.'],
@@ -4483,6 +4597,7 @@
       if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;
       if (s.course) COURSE = s.course;
+      ARENA = s.arena || null;
       if ('poll' in s) setPoll(s.poll);
       if (s.summary) SUMMARY = s.summary;
       if (s.summary || s.course) renderSummary();
