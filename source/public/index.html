@@ -1912,7 +1912,7 @@
   // the moment playing now, by the schedule, and the one before it
   function tlNow(){ let cur = null, prev = null; const now = NOW(); for (const e of TL.values()){ if (e.dead) continue; if (e.start <= now){ prev = cur; cur = e; } else break; } return cur ? {e: cur, prev} : null; }
   function galleryInfo(){
-    if (DREAMING || BUILDER || !ARENA || !ARENA.event || actor.loc !== 'arena') return null;
+    if (DREAMING || BUILDER || !ARENA || !ARENA.event || ARENA.event.kind !== 'gallery' || actor.loc !== 'arena') return null;   // a concert's moments carry `art` too
     const n = tlNow(); if (!n || !n.e.ev.art || n.e.ev.location !== 'arena') return null;
     const art = n.e.ev.art, sets = ARENA.event.sets || [], since = NOW() - n.e.start;
     let set = sets[art.set] || null, drop = 0;   // drop: how far the curtain is down, 0..1
@@ -2016,7 +2016,7 @@
       if (gi){ drawGalleryWalls(gi, t); drawCurtain(gi.drop); }
       zOn();
       if (cc){ drawConcert(cc, t, this);
-        if (cc.T < 45000 || cc.T > cc.e.endT - 20000) zAdd(56, () => { markHead('hagit', 30, 31); person(REG.hagit.look, 30, 31, t, {face: 1, talkPhase: SAY.who === 'hagit'}); }); }   // Hagit opens and closes the night on stage
+        if ((cc.T > -5000 && cc.T < 45000) || (cc.T > cc.e.endT - 20000 && cc.T < cc.e.endT + 15000)) zAdd(56, () => { markHead('hagit', 30, 31); person(REG.hagit.look, 30, 31, t, {face: 1, talkPhase: SAY.who === 'hagit'}); }); }   // Hagit opens and closes the night on stage
       else if (live && !DREAMING && !NO_CROWD){ crowdWalk(t, 3, 70000, 4000, 68, 1, .7); crowdWalk(t, 8, 83000, 30000, 68, -1, .7);   // other visitors, browsing slowly
         if (gi && !gi.curtain) crowdStill(t, 5, 150, 68, {face:1}); }
       if (gi){ const h = hagitX(gi), L = REG.hagit.look, hx = Math.round(h.x);
@@ -2029,6 +2029,9 @@
       liveLayer(t, this); zFlush();
       if (!live) alpha(night ? .3 : .22,()=>R(0,0,W,H,'#050a1e'));   // house lights low between events
       { const cp = closeupPiece(gi); if (cp) drawCloseup(cp); }
+      if (cc && CONFETTI_ON >= 0) for (let k = 0; k < 46; k++){   // confetti over the last song, falling for everyone the same way
+        const x = Math.round((hash(k * 13 + 1) * W + Math.sin(CONFETTI_ON / 700 + k) * 4) % W), y = Math.round(-6 + ((CONFETTI_ON * (.02 + hash(k * 7 + 3) * .02)) + hash(k * 3 + 5) * 40) % 100);
+        R(x, y, 2, 1, ['#ff5a5a','#5ad0ff','#ffd36a','#c05aff','#7dff8a'][k % 5]); }
     }
   };
 
@@ -2218,7 +2221,7 @@
     if (POKER.pizzaAt && T - POKER.pizzaAt > 0 && T - POKER.pizzaAt < 2500) fire('pizza', () => Sound.bell());
   }, 300);
   // ---------- concerts at the Pump House: the director's band on stage, their songs in sync, the stage moving to each song's beat map ----------
-  const BEATS = {}, EXTRA_SPK = {};
+  const BEATS = {}, EXTRA_SPK = {}; let CONFETTI_ON = -1;
   function beatsOf(id){ if (BEATS[id]) return BEATS[id]; BEATS[id] = {loading: true};
     fetch('/api/beats?id=' + id).then(r => r.ok ? r.json() : null).then(d => { BEATS[id] = d && d.low ? d : {none: true}; }).catch(() => { BEATS[id] = {none: true}; }); return BEATS[id]; }
   const IMGPIX = {};   // an uploaded picture (logo, poster), pixelated to a size, the same for everyone
@@ -2274,16 +2277,57 @@
     if (e.band.logo){ const L = imgPix(e.band.logo, 60, 20); if (L.ok){ alpha(live ? .7 + .3 * c.lvl.low : .85, () => g.drawImage(L.c, 66, 24)); } }
     else { const msg = `${e.artist.toUpperCase()}   ${song ? song.title.toUpperCase() : ''}   `, off = Math.floor(NOW() / 110) % Math.max(1, msg.length * 4);
       g.save(); g.beginPath(); g.rect(64,31,64,7); g.clip(); word(msg + msg + msg, 64 - off, 32, live && c.on ? '#ffffff' : '#ffd36a'); g.restore(); }
+    if (live){ alpha(.07 + .05 * c.lvl.low, () => { R(28, 46, 136, 8, '#e8e8f0'); R(36, 42, 120, 4, '#e8e8f0'); }); }   // haze from the smoke machine
+    const lastSong = e.songs[e.songs.length - 1];
+    if (lastSong && c.T > lastSong.t0 + lastSong.dur - 15000 && c.T < lastSong.t0 + lastSong.dur + 9000) CONFETTI_ON = c.T - (lastSong.t0 + lastSong.dur - 15000); else CONFETTI_ON = -1;
     // the band
     bandSlots(e.band.members).forEach(({m, x, y, back}) => {
+      if (live && m.vocal === 'lead') alpha(.1 + .08 * c.lvl.mid, () => { R(x - 3, 16, 16, 40, '#fff8d8'); R(x - 6, 44, 22, 12, '#fff8d8'); });   // a spot on the singer
       const sing = live && m.vocal !== 'none' && c.lvl.mid > (m.vocal === 'lead' ? .35 : .6), bob = live && c.on && !back ? 1 : 0;
       zAdd(back ? 54 : 56, () => { markHead(m.id, x, y - bob); if (back){ R(x-10, y+20, 30, 8, '#2a2426'); R(x-10, y+20, 30, 1, '#4a4042'); person(m.look, x, y, t, {legs: false, face: 0}); instrument(m, x, y, c); }
         else { person(m.look, x, y - bob, t, {face: 0, talking: sing || SAY.who === m.id}); instrument(m, x, y - bob, c); } });
     });
-    // the crowd: backs of heads in front of the stage, jumping on the beat
-    for (let i = 0; i < 16; i++){ const x = 2 + i * 11 + (i % 2) * 3, near = i % 3 === 0, y = near ? 72 : 64, up = live && c.on && (i + c.beat) % 3 !== 0 ? (near ? 2 : 1) : 0;
-      if (Math.abs(x - actor.x) < 9 && near) continue;
-      zAdd(y + 22, () => person(CROWD[(i * 7) % CROWD.length], x, y - up, t + i * 300, {muted: true, fid: 'turn'})); }
+    // the crowd: they arrive through the door from doors-open, stand in three rows facing the stage (backs to the camera), jump on the beat, clap between songs, leave after
+    const clap = concertClap(c), quiet = live && c.lvl.low < .25, peak = live && c.lvl.low > .82, night = isNight(hourNow());
+    concertCrowd(e).forEach((p, i) => {
+      const at = p.arrive, d = Math.abs(CC_DOOR - p.x) / 22 * 1000, out = e.endT + 20000 + i * 3500;
+      let x = p.x, walk = 0, dir = -1;
+      if (c.T < at) return; if (c.T < at + d){ x = CC_DOOR + (p.x - CC_DOOR) * (c.T - at) / d; walk = 1; }
+      else if (c.T > out){ if (c.T > out + d) return; x = p.x + (CC_DOOR - p.x) * (c.T - out) / d; walk = 1; dir = 1; }
+      if (!walk && Math.abs(x - actor.x) < 10 && p.row >= 1) return;            // leave room for Ishai (and whoever is next to him)
+      if (!walk && comp.id && Math.abs(x - comp.x) < 9 && p.row >= 1) return;
+      const up = !walk && live && c.on && p.jumps && (i + c.beat) % 3 !== 0 ? (p.row === 2 ? 2 : 1) : 0, y = p.y - up, X = Math.round(x);
+      zAdd(p.y + 22, () => {
+        if (walk) person(p.look, X, p.y, t + i * 300, {muted: true, walk: true, face: dir});
+        else person(p.look, X, y, t + i * 300, {muted: true, fid: 'turn'});
+        if (walk) return;
+        const sk = (SKINC[p.look.skin] || SKINC.fair)[0];
+        if (clap && p.claps){ const k = Math.floor((NOW() + i * 70) / 140) % 2; R(X + 2 + k, y - 2, 1, 2, sk); R(X + 7 - k, y - 2, 1, 2, sk); }   // hands up, clapping
+        else if (peak && p.claps && i % 2){ R(X + 1, y - 4, 1, 5, sk); R(X + 8, y - 4, 1, 5, sk); }                                   // arms in the air
+        else if (quiet && i % 5 === 0) { R(X + 3, y - 5, 2, 3, '#1a1a1a'); R(X + 3, y - 5, 2, 2, night || true ? '#e8f4ff' : '#9ab'); }   // a phone up, filming
+      });
+    });
+  }
+  // who comes to a concert: seeded by the night, so everyone sees the same crowd arrive
+  const CC_DOOR = 182, CC_ROWS = [61, 66, 72];
+  const ccCache = {};
+  function concertCrowd(e){
+    if (ccCache[e.id]) return ccCache[e.id];
+    const H = ['short','long','bald','bun','curly','cap'], HC = ['black','brown','auburn','blonde','gray','white','red'], SK = ['light','fair','tan','brown','dark'], CL = Object.keys(CLOTH);
+    const seed = strHash(e.id), r = k => hash(seed + k * 7919), N = 34, out = [];
+    for (let i = 0; i < N; i++){
+      const row = i % 3, slot = Math.floor(i / 3), x = Math.round(4 + slot * 15 + (row === 1 ? 7 : row === 2 ? 3 : 0) + (r(i * 5 + 1) - .5) * 6);
+      if (x > 168) continue;
+      out.push({x, row, y: CC_ROWS[row], arrive: -9 * 60000 + Math.floor(r(i * 5 + 2) * 9.5 * 60000), jumps: r(i * 5 + 3) < .7, claps: r(i * 5 + 4) < .85,
+        look: {hair: H[Math.floor(r(i*11+1) * H.length)], hairColor: HC[Math.floor(r(i*11+2) * HC.length)], skin: SK[Math.floor(r(i*11+3) * SK.length)], shirt: CL[Math.floor(r(i*11+4) * CL.length)], pants: ['black','navy','gray','brown','blue'][Math.floor(r(i*11+5) * 5)], extras: r(i*11+6) < .2 ? ['glasses'] : []}});
+    }
+    return ccCache[e.id] = out.sort((a, b) => a.arrive - b.arrive);
+  }
+  // applause: after Hagit's opening, after every song, at the very end
+  function concertClap(c){
+    const T = c.T, e = c.e, w = (a, len) => T >= a && T < a + len;
+    if (w(16000, 6000)) return true;
+    return e.songs.some(sg => w(sg.t0 + sg.dur, 7000)) || w(e.endT - 4000, 8000);
   }
   // the music itself: the current song, at the right second for everyone; checked every second
   let CAUD = null, caudSong = null;
@@ -2298,6 +2342,19 @@
     if (CAUD.paused){ try { CAUD.currentTime = want; } catch(e){} CAUD.play().catch(() => {}); }
     else if (Math.abs(CAUD.currentTime - want) > .3) { try { CAUD.currentTime = want; } catch(e){} }
   }, 1000);
+  // the room's sounds, on the clock: the crowd murmuring before and between songs, the drummer's count-in, applause and whistles
+  const ccFired = new Set();
+  setInterval(() => {
+    const c = concertNow(); if (!c || actor.loc !== 'arena' || actor.hidden || forceLoc || !Sound.isOn()) return;
+    const fire = (k, fn) => { const key = c.e.id + ':' + k; if (ccFired.has(key)) return; ccFired.add(key); if (ccFired.size > 300) ccFired.delete(ccFired.values().next().value); fn(); };
+    const T = c.T, near = (a, ms) => T >= a && T - a < ms;
+    if (near(16000, 1500)) fire('clap-open', () => Sound.sfx('applause'));
+    c.e.songs.forEach((sg, i) => {
+      if (near(sg.t0 - 2200, 1200)) fire('count' + i, () => Sound.sfx('sticks'));
+      if (near(sg.t0 + sg.dur, 1500)) fire('clap' + i, () => Sound.sfx(i === c.e.songs.length - 1 ? 'ovation' : 'applause'));
+    });
+    if (!c.song && T > -9 * 60000 && T < c.e.endT + 20000) fire('murmur' + Math.floor(T / 3500), () => Sound.sfx('murmur'));
+  }, 400);
   // what the band and Hagit say, on the clock (like the poker table)
   let ccTalkI = 0, ccLastT = 0;
   setInterval(() => {
@@ -3595,6 +3652,12 @@
         case 'chips': for (let i = 0; i < 3 + Math.floor(r()*3); i++) tone(2600 + r()*900, .025, 'triangle', .03, i*.05 + r()*.02); break;   // chips on felt
         case 'shuffle': { let w = 0; for (let i = 0; i < 18; i++){ noise(.02,{vol:.04,type:'highpass',freq:2500+r()*1500,when:w}); w += .025 + r()*.02; } break; }
         case 'card': noise(.03,{vol:.04,type:'bandpass',freq:3200,q:2}); break;
+        case 'applause': case 'ovation': { const long = kind === 'ovation' ? 9 : 5, n = kind === 'ovation' ? 260 : 140;   // many hands, a few whistles and a woo
+          for (let i = 0; i < n; i++){ const w = Math.pow(r(), .7) * long; noise(.018 + r()*.02, {vol: (.03 + r()*.05) * (1 - w / long * .7), type:'bandpass', freq: 1200 + r()*2200, q: 1.2, when: w}); }
+          for (let i = 0; i < (kind === 'ovation' ? 4 : 2); i++){ const w = r() * long * .6; tone(1900 + r()*500, .35, 'sine', .025, w, out, 1.35); }
+          noise(1.2, {vol:.05, type:'bandpass', freq:420, q:.9, when: .2, buf: brown}); break; }
+        case 'murmur': noise(3.2, {vol:.04, type:'bandpass', freq: 380 + r()*250, q: .8, buf: brown}); noise(2.5, {vol:.015, type:'bandpass', freq: 900 + r()*400, q: 3, when: .4}); break;   // a room full of people talking
+        case 'sticks': for (let i = 0; i < 4; i++) tone(2600, .025, 'square', .05, i * .5); break;   // one, two, three, four
         case 'chair': tone(130 + r()*40,.35,'sawtooth',.018,0,out,1.5); break;
         case 'game':  [880,1175,1568].forEach((f,i) => tone(f*(r()<.5?1:.75),.06,'square',.028,i*.08)); break;
         case 'page':  noise(.18,{vol:.05,type:'highpass',freq:2500,sweep:[5000,1500]}); break;
