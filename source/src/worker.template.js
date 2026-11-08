@@ -328,7 +328,7 @@ export default {
       const moments = d.filter(x => x.attempt === 0).length, retried = d.filter(x => x.attempt === 0 && x.problem).length;
       const nm = id => id ? (s.cast[id]?.name || id) : null;
       return json({ now, build: BUILD, planVersion: PLAN.version || null,
-        recent: s.events.slice(-10).map(e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " +" + nm(e.with) : ""} (${(e.lines || []).length} lines, ${(e.commentary || []).length} host): ${e.text.slice(0, 110)}`),
+        recent: s.events.slice(-10).map(e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " +" + nm(e.with) : ""} (${(e.lines || []).length} lines, ${(e.commentary || []).length} host): ${e.text.slice(0, 110)}${e.then ? ` → then ${e.then.action}` : ""}`),
         lastMomentAgoMin: Math.round((now - (s.events[s.events.length - 1].created || 0)) / 60000),
         retryRate: moments ? +(retried / moments).toFixed(2) : null, problems: d.filter(x => x.problem).slice(-6).map(x => x.problem.slice(0, 120)),
         stuck: s.stuck || 0, scene: s.scene ? { with: nm(s.scene.w), lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null,
@@ -337,7 +337,7 @@ export default {
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null,
-        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
+        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
@@ -549,7 +549,7 @@ function publicState(s, dev) {
   return {
     day: showDay(s.startedAt, Date.now()),
     build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
-    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined, art: e.art || undefined })),
+    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined, art: e.art || undefined, then: e.then ? { action: e.then.action, text: dev ? e.then.text : "" } : undefined })),
     talk: (s.talk || []).slice(-80), dev: !!dev,
     studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
@@ -607,7 +607,7 @@ async function studioRecap(env, s, storyMs, day) {
 `You write for a reality show about Ishai, a man in Tel Aviv. Two hosts in the studio:
 - ${HOSTS.zohar}
 - ${HOSTS.oren}
-STRICT: use only facts from the logs below. Never invent events, people, objects or plans.
+STRICT: use only facts from the logs below (and, for teasers only, the COMING UP list). Never invent events, people, objects or plans.
 Reply with ONLY JSON:
 {"today":"what happened today so far: 3-6 plain sentences, past tense, neutral, for a text summary",
  "show":[{"who":"zohar"|"oren","say":"..."}],
@@ -618,9 +618,10 @@ Reply with ONLY JSON:
  2) yesterday: ${yLines} (skip if there is no yesterday), each stating what actually happened (who, where, what);
  3) today in time order (morning, midday, afternoon...), ending with the last hour: every line first states a concrete fact from the log (time of day, place, who he was with, what was said or done), THEN may add a short sassy remark. The other host reacts or adds the next fact. No line may be only a joke;
  Write the "today" summary first and base the show on it, so a viewer who missed the day understands it from the show alone.
+ 3b) if COMING UP lists anything, one line just before the outro teases the next thing in it: its time and its hook, telling viewers to stay tuned or be back then. Never say how it turns out;
  4) the LAST line is a sponsor outro: once more ${sp.name}, with a DIFFERENT joke than the intro (the other host may groan at it), then back to the cameras.
-"pip" is a 4-5 line quick version about the last hour only (first line greets: "Live from the studio...").` },
-  { role: "user", content: `YESTERDAY (${s.yesterdaySum ? s.yesterdaySum.date : "none"}): ${s.yesterdaySum ? s.yesterdaySum.text : "(no summary)"}\n\nTODAY so far:\n${earlier.join("\n") || "(little)"}\n\nLAST HOUR:\n${lastHour.join("\n") || "(quiet)"}\n\nJSON only.` }];
+"pip" is a 4-5 line quick version about the last hour only (first line greets: "Live from the studio..."; if COMING UP lists anything, its last line teases the next one with its time).` },
+  { role: "user", content: `YESTERDAY (${s.yesterdaySum ? s.yesterdaySum.date : "none"}): ${s.yesterdaySum ? s.yesterdaySum.text : "(no summary)"}\n\nTODAY so far:\n${earlier.join("\n") || "(little)"}\n\nLAST HOUR:\n${lastHour.join("\n") || "(quiet)"}\n\nCOMING UP (the producers' plan; Ishai has no idea): ${comingUpText(s, storyMs, 8) || "(nothing planned)"}\n\nJSON only.` }];
   const raw = await runModel(env, messages, 1400, "hosts");
   const o = parseAI(raw); if (!o) return null;
   const clean = arr => (Array.isArray(arr) ? arr : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 220) }))
@@ -714,7 +715,7 @@ async function tick(env, force) {
     c.lastSeen = storyMs; c.scenes = (c.scenes || 0) + 1;
   }
   s.events.push({ id: s.nextId++, t: storyMs, created: now, location: ev.location, action: ev.action, delivery: ev.delivery || undefined,
-    text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null, art: ev.art || undefined });
+    text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null, art: ev.art || undefined, then: ev.then || undefined });
   // the day's highlights, replayed in Ishai's dreams at night
   { const prevEv = s.events[s.events.length - 2], hl = s.hl || (s.hl = []), lastHl = hl[hl.length - 1];
     const notable = !["sleeping", "waking", "bathroom", "showering"].includes(ev.action) && ev.location !== "offscreen" &&
@@ -916,7 +917,7 @@ function buildMessages(s, clock, now, goal, opt = {}) {
     : "";
   const name = id => s.cast[id]?.name || id;
   const recent = s.events.slice(-6).map(e =>
-    `[${storyClock(e.t).label}] (${e.location}/${e.action}${e.with ? " with " + name(e.with) : ""}) ${e.text}` +
+    `[${storyClock(e.t).label}] (${e.location}/${e.action}${e.with ? " with " + name(e.with) : ""}) ${e.text}${e.then ? ` Then (${e.then.action}): ${e.then.text}` : ""}` +
     (e.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : name(l.who)}: "${l.say}"`).join("")).join("\n"); // host lines are listed separately (ALREADY SAID)
   const convo = cw && s.cast[cw] ? (() => {
     const w = cw, ls = (s.talk || []).filter(m => !m.host && (m.w === w || m.who === w) && now + DELAY_MIN * 60000 - m.t < 40 * 60000).slice(-8);
@@ -1003,6 +1004,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - GADI, his boss in all but name, is NEVER seen in person. He only phones (action "phoning", "with": "gadi") or sends a text or email: add "message":{"from":"gadi","kind":"text"|"email","say":"max 25 words"} and Ishai reacts out loud in "lines", alone or with whoever is there. Friends can text the same way. A message needs no "with".
 - REGULARS are people he doesn't know well yet, usually found in one place: ${SEED_CAST.filter(c => c.regular).map(c => `${c.name} ("${c.id}", ${c.regular})`).join(", ")}. If he is there at their hours, they can start a short exchange (use "with"), and he gets to know them over time. Kobi at the bar gets drunker with the hour; Mr. Zelig also talks to himself.
 - "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of ${TALK.min} to ${TALK.max} lines (each max 25 words) that fills these 4 minutes: small talk, questions and follow-up questions, stories, teasing, short answers ("yeah", "wait, what?"), interruptions, a topic that drifts to another, a pause filled by someone. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
+- "then" (optional, use it in most moments that stay in one place): what visibly changes about 3 minutes into this moment, in the SAME place with the SAME people: {"action": another action allowed in this place, "text": one short sentence}. E.g. he works at the desk, then gets up and waters Moshe; Noa sits talking, then they both start cooking. Never sleeping, bathroom, showering, the radio or the TV, and leave it out when the moment ends with him leaving. The next moment follows on from the "then".
 - EVERY CONVERSATION IS A SCENE WITH A PURPOSE. When a conversation with someone STARTS (their "with" differs from the last moment), fill "scene":
   {"type":"small talk"|"practical"|"plot","why":"the real reason they are talking now (who started it and why)","ishaiWants":"...","theyWant":"...","beats":"3-5 short steps the conversation goes through","ending":"how it ends","lines":12-60 total lines across moments}
   Ground it in the place, the time of day, both characters' personalities, memories and relationship, and ongoing plot threads. Small talk is fine but still has a reason (bored, lonely, being polite, avoiding work). Plot scenes move an arc forward. Otherwise "scene": null.
@@ -1051,9 +1053,10 @@ async function addHosts(env, s, moments, clock, now) {
   try {
     const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : s.cast[id]?.name || id;
     const said = recentHostLines(s, 10);
+    const teaseNow = now - (s.lastTease || 0) > 40 * 60000 ? comingUpText(s, now, 5) : "";
     const sponsor = now - (s.lastAd || 0) > AD_EVERY_MIN * 60000 && Math.random() < 0.35 ? SPONSORS[Math.floor(Math.random() * SPONSORS.length)] : null;
     const list = moments.map((m, i) => { const loc = String(m.location || "").toLowerCase(), act = String(m.action || "").toLowerCase(), w = m.with ? String(m.with).toLowerCase() : null;
-      return `#${i + 1} ${storyClock(now + DELAY_MIN * 60000 + i * INTERVAL_MIN * 60000).label.slice(-5)} CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}${dogInMoment(s, m) ? " | Falafel the dog is here" : ""}\n   what happens: ${String(m.text || "").slice(0, 220)}` +
+      return `#${i + 1} ${storyClock(now + DELAY_MIN * 60000 + i * INTERVAL_MIN * 60000).label.slice(-5)} CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}${dogInMoment(s, m) ? " | Falafel the dog is here" : ""}\n   what happens: ${String(m.text || "").slice(0, 220)}${m.then && m.then.action ? ` | about 3 minutes in he switches to ${m.then.action}` : ""}` +
         (Array.isArray(m.lines) && m.lines.length ? "\n   they say: " + m.lines.slice(0, 14).map(l => `${nm(String(l.who || "").toLowerCase())}: "${String(l.say || "").slice(0, 120)}"`).join(" / ") : ""); }).join("\n");
     const msgs = [{ role: "system", content:
 `You write the two hosts of a live reality show that secretly films Ishai, a man in Tel Aviv.
@@ -1063,7 +1066,7 @@ async function addHosts(env, s, moments, clock, now) {
 For EACH moment below write 0-2 short lines (max 20 words each). The viewers see only the picture (the camera and what Ishai is doing) and hear the spoken lines; they cannot read "what happens", so usually one line says plainly what is going on, then a joke, an opinion or a guess. React only to what is visible or said: never invent drinks, food, objects, visitors, calls or plans. When "what happens" has a detail the picture can't show and nobody says it (an object someone brings, holds or hands over, wet clothes, a smell, a sound), one line names it plainly, for example: Dana's at the door with a wet coat and a little pot of basil. If the CAMERA is STATIC, they cannot see him: they wonder where he is, guess, or joke about losing him. Fresh every time: never repeat the lines below, their jokes, openings or catchphrases.${sponsor ? `\nIN ONE OF THESE MOMENTS one host slips in an obvious, cheesy "secret" plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending with a wink like "...not sponsored, by the way"; the other host reacts.` : ""}
 Mention Falafel the dog only in a moment marked "Falafel the dog is here": anywhere else (a concert, a lecture, poker at Boaz's) he is at home and not in the picture.
 Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..."}]}]} with exactly ${moments.length} entries, in order.` },
-      { role: "user", content: `${s.daySum ? `TODAY SO FAR (to connect with earlier moments): ${clip(s.daySum.text, 300)}\n\n` : ""}ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
+      { role: "user", content: `${teaseNow ? `COMING UP LATER (the producers' plan for today; Ishai has no idea): ${teaseNow}\nIn ONE moment only (the quietest one), ONE line teases the next of these: name the time and the hook and urge viewers to stay tuned or be back then ("...at 20:00, don't miss it"). Never say how it turns out.\n\n` : ""}${s.daySum ? `TODAY SO FAR (to connect with earlier moments): ${clip(s.daySum.text, 300)}\n\n` : ""}ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
     // read whatever came back, even a cut-off or slightly broken reply: every {"commentary":[...]} found, in order
     const readHosts = raw => { const o = parseAI(raw); if (o && Array.isArray(o.moments)) return o.moments;
       const out = []; const re = /"commentary"\s*:\s*\[([\s\S]*?)\]/g; let m;
@@ -1079,6 +1082,7 @@ Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..
       const c = (Array.isArray(arr[i]?.commentary) ? arr[i].commentary : []).map(x => ({ who: String(x?.who || "").toLowerCase().trim(), say: String(x?.say || "").replace(/\s+/g, " ").trim().replace(/^["']|["']$/g, "").slice(0, 160) }))
         .filter(x => (x.who === "zohar" || x.who === "oren") && x.say.length > 3 && !isRepeat(x.say, used) && (!DOG_WORDS.test(x.say) || dogInMoment(s, m))).slice(0, 2);
       c.forEach(x => used.push(x.say));
+      if (teaseNow && c.some(x => TEASE_RE.test(x.say))) s.lastTease = now;
       if (c.length) m.commentary = c;
     });
     s.hostsBy = lastWriter; if (arr.some(x => (x.commentary || []).length)) s.hostsErr = null;   // the error shown is a current one
@@ -1397,7 +1401,17 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (rep) ev.commentary = ev.commentary.filter(c => !isRepeat(c.say, prev)); } // a stale joke is just cut; not worth a whole retry
   if ((ev.with || ev.lines.length >= 2) && !ev.commentary.length && !allowNoHosts && !HOSTS_APART)
     return { ev, problem: 'the hosts are missing or only repeated earlier jokes: add "commentary" with 1-2 FRESH lines from zohar and/or oren reacting to what is new in this scene' };
+  ev.then = thenOf(o.then, ev, s);
   return { ev, problem: null };
+}
+// the second half of a moment: a change of action ~3 minutes in, same place, same people (the page plays it; no extra AI call or save)
+const THEN_NOT = ["sleeping", "waking", "bathroom", "showering", "watching", "listening", "away", "walking"];
+function thenOf(t, ev, s) {
+  if (!t || typeof t !== "object" || THEN_NOT.includes(ev.action) || !LOCATIONS[ev.location]) return null;
+  const a = String(t.action || "").toLowerCase().trim(), text = String(t.text || "").replace(/\s+/g, " ").trim().slice(0, 200);
+  if (!a || a === ev.action || THEN_NOT.includes(a) || !allowed(ev.location, s.unlocked).includes(a)) return null;
+  if ((a === "talking") && !ev.with) return null;
+  return { action: a, text };
 }
 
 function cleanCard(c, s, loc) {
@@ -2869,6 +2883,25 @@ function pokerStory(G) {
 }
 function lifeOf(s) { return s.life || (s.life = []); }
 function addLife(s, at, kind, text) { s.life = [...lifeOf(s), { at, kind, text: String(text).slice(0, 260), offered: 0 }].slice(-12); }
+// what the producers have planned in the next hours, for the hosts' teasers ("be back at 20:00, you don't want to miss it")
+const PLACE_NAME = { apartment: "his apartment", corridor: "the stairwell", street: "Herzl Street", shops: "Herzl Street east", park: "the park", cafe: "Café Nahat", gym: "Herzl Gym",
+  bar: "The Black Candle", market: "Shuk Shalom market", store: "Everything Else", campus: "the university", classroom: "the university", plaza: "the Pump House", arena: "the Pump House", apt2: "Boaz's place downstairs" };
+const ceil15 = ms => Math.ceil(ms / 900000) * 900000;
+function comingUp(s, now, hours = 6) {
+  const nm = id => (s.cast[id] && s.cast[id].name) || null;
+  const planTeaser = id => { const b = ((PLAN && PLAN.beats) || []).find(x => x.id === id); return b && b.teaser ? String(b.teaser).replace(/\s+/g, " ").trim().slice(0, 120) : null; };
+  return (s.director || []).filter(g => g.status === "waiting" && !g.poll && !/^(walk|visit|poll)-/.test(g.id))
+    .map(g => {
+      const at = ceil15(g.sceneAt ? g.sceneAt : g.startAfter);
+      let what = g.teaser || planTeaser(g.id);
+      if (!what && (g.course || g.fixed)) what = String(g.goal || "").replace(/^Ishai goes (to |down to )?/, "").replace(/\.$/, "").slice(0, 110);
+      if (!what) { const who = nm(g.forceWith) || (g.with ? String(g.with).replace(/\s*\(.*\)\s*$/, "") : null);
+        what = `Ishai${who ? " and " + who : ""}${g.where ? " at " + (PLACE_NAME[g.where] || g.where) : ""}`; if (what === "Ishai") return null; }
+      return { at, what };
+    }).filter(x => x && x.at > now + 10 * 60000 && x.at - now < hours * 3600000).sort((a, b) => a.at - b.at).slice(0, 3);
+}
+const comingUpText = (s, now, hours) => comingUp(s, now, hours).map(x => `${storyClock(x.at).label.slice(-5)} ${x.what}`).join("; ");
+const TEASE_RE = /stay tuned|don'?t miss|coming up|be back|tune in|later (today|tonight)|\b(at|from) \d{1,2}(:\d\d)?\b/i;
 function eventNote(s, now, company) {
   const day = ms => new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "long" }).format(new Date(ms)); let out = "";
   const a = arenaNext(s, now);
@@ -3092,6 +3125,7 @@ function newGoal(d, now) {
     brief: str(d.brief, 800) || null, briefLines: clamp(Number(d.briefLines) || 0, 0, 80) || null,
     forceAction: str(d.forceAction, 20) || null, forceLines: Array.isArray(d.forceLines) ? d.forceLines.slice(0, 14) : [],
     forceCommentary: Array.isArray(d.forceCommentary) ? d.forceCommentary.slice(0, 2) : [],
+    teaser: str(d.teaser, 120) || null,
     status: str(d.art, 300) ? "needs-art" : "waiting", art: str(d.art, 300) || null,
     activatedAt: null, doneAt: null, how: null, createdAt: now, script: cleanScript(d.script || (d.preview && d.preview.moments)),
     sceneAt: d.sceneAt ? Date.parse(d.sceneAt) : null

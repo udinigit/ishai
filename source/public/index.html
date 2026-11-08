@@ -4054,7 +4054,19 @@
   function release(){
     const now = NOW();
     [...held.values()].filter(e=>startOf(e)<=now).sort((a,b)=>startOf(a)-startOf(b)).forEach(e=>{ held.delete(e.id); queue.push(e); });
-    pump();
+    pump(); thenTick();
+  }
+  // the second half of a moment ("then"): ~3 minutes in he switches to another action in the same place, by the clock, the same for every viewer
+  const THEN_MS = 180000;
+  function thenTick(){
+    if (forceLoc) return;
+    const c = tlNow(); if (!c) return; const e = c.e, ev = e.ev, t = ev && ev.then;
+    if (!t || !t.action || e.thenDone) return;
+    const due = e.start + THEN_MS, now = NOW(); if (now < due) return;
+    e.thenDone = true;
+    const loc = ev.location || 'apartment';
+    if (actor.loc !== loc || actor.travelling || actor.pending || actor.ride || actor.switching || actor.hidden) return;   // not settled where the moment is: skip it
+    setState(loc, t.action, now - due > 20000, ev.with || null);   // a viewer who joins late just finds him there
   }
   setInterval(release, 1000);   // the picture loop does this every frame; this keeps background tabs going
   function ingest(events, firstLoad){
