@@ -18,4 +18,4 @@ Ideas and requests from the director. Newest at the bottom; mark done with the v
 - [x] Speech bubbles wider than tall, each character's own colour as the outline and a name tab. — v159
 - [x] Things only the narration says (an object brought, a wet coat) are said out loud by the characters or a host. — v161
 - [ ] Poker night every second Monday at Boaz's (apt 2, first floor): Boaz, Ronit, Moti, Yossi and Ishai; scripted game, Ishai's cards on screen. Plan: `docs/POKER_PLAN.md`.
-- [ ] The Pump House next to the park, once a week: queue, concerts, exhibitions, gallery nights from 8-bit pictures when nothing new was added; 20-90 minutes. Plan: `docs/ARENA_PLAN.md`.
+- [ ] The Pump House next to the park, once a week: queue, concerts, exhibitions hung together with a curtain between sets and art uploaded at its own scale, gallery nights from 8-bit pictures when nothing new was added, promotions (posters, leaflets, ads with links for viewers); 20-90 minutes. Plan: `docs/ARENA_PLAN.md`.
