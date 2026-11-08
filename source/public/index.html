@@ -2308,8 +2308,9 @@
       let x = p.x, walk = 0, dir = -1;
       if (c.T < at) return; if (c.T < at + d){ x = CC_DOOR + (p.x - CC_DOOR) * (c.T - at) / d; walk = 1; }
       else if (c.T > out){ if (c.T > out + d) return; x = p.x + (CC_DOOR - p.x) * (c.T - out) / d; walk = 1; dir = 1; }
-      if (!walk && Math.abs(x - actor.x) < 10 && p.row >= 1) return;            // leave room for Ishai (and whoever is next to him)
-      if (!walk && comp.id && Math.abs(x - comp.x) < 9 && p.row >= 1) return;
+      // a gap kept at Ishai's spot in the crowd (and his friend's, 16 px to his right) all night, from where they will stand, not where he is
+      // right now, so nobody blinks out while he walks past: people he passes stay and are simply drawn in front of or behind him by depth
+      if (!walk && p.row >= 1 && (Math.abs(p.x - CC_SPOT) < 10 || Math.abs(p.x - CC_SPOT - 16) < 9)) return;
       // dancing: during a song the jumpers bounce on every other beat (half the room up, half down, swapping each beat),
       // the rest sway side to side; in the quiet parts they just stand and film
       const dance = !walk && live && !quiet, up = dance && p.jumps && (i + c.beat) % 2 === 0 ? (p.row === 2 ? 2 : 1) : 0;
@@ -2327,7 +2328,7 @@
     });
   }
   // who comes to a concert: seeded by the night, so everyone sees the same crowd arrive
-  const CC_DOOR = 182, CC_ROWS = [61, 66, 72];
+  const CC_DOOR = 182, CC_ROWS = [61, 66, 72], CC_SPOT = 96;   // CC_SPOT: where Ishai stands at a concert (SCENES.arena.stand.concert)
   const ccCache = {};
   function concertCrowd(e){
     if (ccCache[e.id]) return ccCache[e.id];
