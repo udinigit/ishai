@@ -1480,9 +1480,9 @@
       // stairs / exit
       R(172,34,20,44,'#1c1c1c'); R(174,38,16,4,'#2a2a2a'); R(176,44,14,4,'#2f2f2f'); R(178,50,12,4,'#333'); R(180,56,10,4,'#383838');
       R(174,24,14,6,'#1f7a3a'); R(176,26,10,2,'#d8ffd8');
-      // plant
-      if (Math.floor(t/80000) % 3 === 1) crowdWalk(t, 4, 80000, 0, 74, -1, .85);
+      // plant (against the wall, so a neighbour walking the hall passes in front of it)
       R(68,70,6,8,C.terracotta); R(69,62,1,8,C.leaf); R(71,60,1,10,C.leafDark); R(73,63,1,7,C.leaf); R(67,64,2,2,C.leaf); R(73,61,2,2,C.leafDark);
+      if (Math.floor(t/80000) % 3 === 1) crowdWalk(t, 4, 80000, 0, 74, -1, .85);
       drawFloor(t,a,settled,actor,this);
       liveLayer(t, this);
       if (isNight(hf)) alpha(.15,()=>R(0,0,W,H,'#050a1e'));
@@ -2437,7 +2437,8 @@
       zOn();
       // other customers
       crowdStill(t, 3, 24, 66, {legs:false, face:1}); if (!regular('lior', 40, 66, t, {legs:false, face:-1}) && Math.floor(t/150000) % 3) crowdVisit(t, 150000, 5, 40, 66, 4, 74, {legs:false, face:-1});
-      zAdd(98, () => { R(20,80,34,2,'#9a7048'); R(35,82,4,16,'#5e4027'); R(30,79,3,3,'#e8e4d8'); R(44,79,3,3,'#e8e4d8'); });
+      // the left table: behind anyone walking the aisle (96), in front of the customer sitting at it (88)
+      zAdd(95, () => { R(20,80,34,2,'#9a7048'); R(35,82,4,16,'#5e4027'); R(30,79,3,3,'#e8e4d8'); R(44,79,3,3,'#e8e4d8'); });
       if (Math.floor(t/70000) % 2) crowdVisit(t, 70000, 6, 100, 74, 4, 74);
       // plant & lamp
       R(100,8,1,14,'#222'); R(96,22,9,4,'#e0b04a'); alpha(.12,()=>R(86,26,30,50,'#ffe8a0'));
