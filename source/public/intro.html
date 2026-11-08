@@ -369,22 +369,40 @@
     VOICES = {m, f, all};
   }
   if (SPEECH){ loadVoices(); try { SPEECH.addEventListener('voiceschanged', loadVoices); } catch (e) { SPEECH.onvoiceschanged = loadVoices; } }
-  function duck(on){ if (master && ac) master.gain.setTargetAtTime(muted ? 0 : on ? .3 : .85, ac.currentTime, .08); }
+  let duckTimer = 0;
+  function duck(on, ms){ clearTimeout(duckTimer); if (master && ac) master.gain.setTargetAtTime(muted ? 0 : on ? .3 : .85, ac.currentTime, .08);
+    if (on) duckTimer = setTimeout(() => duck(false), ms || 6000); }   // some phones never say the speech ended: the music comes back anyway
   function speak(text, who){
     if (!SPEECH || !voxOn || muted) return;
     const p = VOX[who] || VOX.narr, list = VOICES[p.g].length ? VOICES[p.g] : VOICES.all;
     const u = new SpeechSynthesisUtterance(text);
     if (list.length) u.voice = list[p.n % list.length];
     u.pitch = p.pitch; u.rate = p.rate; u.volume = p.vol ?? 1;
-    u.onstart = () => duck(true); u.onend = u.onerror = () => duck(false);
+    u.onstart = () => duck(true, 1500 + text.length * 90); u.onend = u.onerror = () => duck(false);
     if (SPEECH.speaking || SPEECH.pending){ SPEECH.cancel(); setTimeout(() => SPEECH.speak(u), 40); } else SPEECH.speak(u);
   }
   function hush(){ if (SPEECH) SPEECH.cancel(); duck(false); }
 
   // ---------- music: a little chiptune, all synthesised ----------
   let ac = null, master = null, nbuf = null, t0 = 0, muted = false;
+  // iPhones mute Web Audio with the ring/silent switch (speech still plays), so the music goes out on the media channel:
+  // the page asks for playback audio, and a silent looping <audio> keeps that channel open while the trailer plays
+  let keepAlive = null;
+  function mediaChannel(on) {
+    try { if (navigator.audioSession) navigator.audioSession.type = on ? 'playback' : 'auto'; } catch (e) {}
+    try {
+      if (!keepAlive) {
+        const n = 8000, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), w = (o, t) => [...t].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+        w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+        v.setUint32(24, 8000, true); v.setUint32(28, 16000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+        keepAlive = new Audio(URL.createObjectURL(new Blob([b], {type: 'audio/wav'}))); keepAlive.loop = true; keepAlive.setAttribute('playsinline', '');
+      }
+      if (on) { const p = keepAlive.play(); if (p && p.catch) p.catch(() => {}); } else keepAlive.pause();
+    } catch (e) {}
+  }
   function audioInit() {
     ac = new (window.AudioContext || window.webkitAudioContext)();
+    ac.onstatechange = () => { if (running && ac && ac.state !== 'running' && ac.state !== 'closed') ac.resume().catch(() => {}); };   // a call, the speech or the system paused it
     master = ac.createGain(); master.gain.value = muted ? 0 : .85;
     const comp = ac.createDynamicsCompressor(); master.connect(comp); comp.connect(ac.destination);
     nbuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate); const d = nbuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -471,16 +489,17 @@
   function wakeOff(){ try { if (wake) wake.release(); } catch (e) {} wake = null; }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && running) wakeOn(); });
   async function start() {
-    wakeOn();
     if (ac) try { ac.close(); } catch (e) {}
-    audioInit(); try { await ac.resume(); } catch (e) {}
+    mediaChannel(true); audioInit(); const resumed = ac.resume();   // all inside the tap, before anything that waits
+    wakeOn();
+    try { await resumed; } catch (e) {}
     t0 = ac.currentTime + .1; score();
     cueI = 0; hush(); if (SPEECH){ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; SPEECH.speak(u); }   // unlocks speech on phones (needs the tap)
     running = true; ended = false;
     $('gate').hidden = true; $('end').hidden = true; $('ctrl').hidden = false; stage.classList.remove('open');
   }
   function finish(skipped) {
-    running = false; ended = true; wakeOff();
+    running = false; ended = true; wakeOff(); setTimeout(() => { if (!running) mediaChannel(false); }, 6000);
     CARDS.forEach(k => k.el.classList.remove('on'));
     hush();
     if (skipped && ac) { try { ac.close(); } catch (e) {} audioInit(); endOnly(); }
