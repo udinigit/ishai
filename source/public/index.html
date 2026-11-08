@@ -575,13 +575,21 @@
       try { legs(x,y,mode); } finally { C.pants = kp; C.shoe = ks; C.towel = true; }
       R(x+1,y+15,8,5,'#eef2f4'); R(x+1,y+15,8,1,'#c9d3d8'); R(x+6,y+16,1,4,'#c9d3d8'); R(x+1,y+19,8,1,'#dfe6ea'); return;
     }
+    if ((C.bottom === 'shorts' || C.bottom === 'skirt') && !C.towel){   // bare legs under shorts or a skirt
+      const kp = C.pants, kb = C.bottom; C.pants = C.skin; C.bottom = null;
+      try { legs(x,y,mode); } finally { C.pants = kp; C.bottom = kb; }
+      if (kb === 'shorts'){ R(x+2,y+16,6,2,C.pants); R(x+2,y+18,2,1,C.pants); R(x+6,y+18,2,1,C.pants); }
+      else { R(x+2,y+16,6,1,C.pants); R(x+1,y+17,8,2,C.pants); R(x+1,y+18,8,1,shade(C.pants,.8)); }
+      return;
+    }
     R(x+2,y+16,6,2,C.pants);
     if (mode==='apart'){ R(x+1,y+18,2,3,C.pants); R(x+7,y+18,2,3,C.pants); R(x,y+21,3,1,C.shoe); R(x+7,y+21,3,1,C.shoe); }
     else if (mode===1){ R(x+2,y+18,2,2,C.pants); R(x+6,y+18,2,3,C.pants); R(x+1,y+20,3,1,C.shoe); R(x+6,y+21,3,1,C.shoe); }
     else if (mode===2){ R(x+2,y+18,2,3,C.pants); R(x+6,y+18,2,2,C.pants); R(x+1,y+21,3,1,C.shoe); R(x+6,y+20,3,1,C.shoe); }
     else { R(x+2,y+18,2,3,C.pants); R(x+6,y+18,2,3,C.pants); R(x+1,y+21,3,1,C.shoe); R(x+6,y+21,3,1,C.shoe); }
   }
-  function sitLegs(x,y){ R(x+2,y+16,6,2,C.pants); R(x+2,y+18,2,4,C.pants); R(x+6,y+18,2,4,C.pants); R(x+1,y+22,3,1,C.shoe); R(x+6,y+22,3,1,C.shoe); }
+  function sitLegs(x,y){ if (C.bottom === 'shorts' || C.bottom === 'skirt'){ R(x+2,y+16,6,2,C.pants); R(x+2,y+18,2,4,C.skin); R(x+6,y+18,2,4,C.skin); if (C.bottom === 'skirt') R(x+1,y+17,8,2,C.pants); R(x+1,y+22,3,1,C.shoe); R(x+6,y+22,3,1,C.shoe); return; }
+    R(x+2,y+16,6,2,C.pants); R(x+2,y+18,2,4,C.pants); R(x+6,y+18,2,4,C.pants); R(x+1,y+22,3,1,C.shoe); R(x+6,y+22,3,1,C.shoe); }
   const blinkOn = (t, seed=0) => ((t+seed) % 3600) < 160;
   // now and then, at the desk or in the armchair: a stretch in the chair, a sip, rubbing his eyes (same clock for every viewer)
   function seatFid(t, seed){
@@ -777,6 +785,11 @@
     const n=parseInt(hex.slice(1),16); const c=[n>>16,(n>>8)&255,n&255]; const gr=(c[0]+c[1]+c[2])/3*.85+20;
     return '#'+c.map(v=>Math.round(v+(gr-v)*k).toString(16).padStart(2,'0')).join('');
   }
+  // every look option the drawing knows (the worker's LOOK must match)
+  const LOOK_OPTS = {hair: ['short','long','bald','bun','curly','buzz','side','spiky','bob','ponytail','pigtails','braids','dreads','afro','mohawk'],
+    hat: ['none','cap','beanie','fedora','bucket','sunhat','kippah','headband','bandana','headscarf'],
+    top: ['tshirt','shirt','polo','hoodie','sweater','stripes','jacket','tank','dress'], bottom: ['trousers','shorts','skirt'],
+    extras: ['glasses','sunglasses','beard','stubble','mustache','freckles','earring','headphones','necklace','tie','scarf','apron','watch','bag','backpack']};
   function lookPal(L, muted){
     const s = SKINC[L.skin]||SKINC.fair, sh = CLOTH[L.shirt]||CLOTH.gray;
     const p = {hair:HAIRC[L.hairColor]||HAIRC.black, skin:s[0], skinShade:s[1], shirt:sh, shirtShade:shade(sh), pants:CLOTH[L.pants]||CLOTH.navy};
@@ -824,14 +837,52 @@
   }
   const legsFid = (t, kind) => kind==='tap' ? (t % 900 < 200 ? 1 : 0) : kind==='stomp' ? (t % 1300 < 180 ? 2 : 0) : 0;
   const lookFid = (t, kind, dflt) => kind==='look' ? (Math.floor(t/900)%2 ? 1 : -1) : kind==='turn' ? 0 : dflt;
-  function backHair(x,y,h){ R(x+1,y+1,8,7,h); R(x+2,y,6,1,h); }   // turned away: the back of the head
+  function backHair(x,y,h,st,skin){   // turned away: the back of the head, by hair style
+    if (st === 'bald' || st === 'buzz' || st === 'mohawk'){ R(x+1,y+1,8,7,skin || h); R(x+2,y,6,1,skin || h); if (st === 'buzz'){ for (let i = 0; i < 8; i++) if (i % 2 === 0) R(x+1+i,y+1+(i%4 ? 1 : 0),1,1,h); }
+      if (st === 'mohawk') R(x+4,y-3,2,8,h); return; }
+    R(x+1,y+1,8,7,h); R(x+2,y,6,1,h);
+    if (st === 'long' || st === 'dreads'){ R(x+1,y+8,8,4,h); if (st === 'dreads') for (let i = 0; i < 4; i++) R(x+2+i*2,y+9,1,3,shade(h,.7)); }
+    else if (st === 'ponytail'){ R(x+4,y+8,2,4,h); R(x+4,y+7,2,1,shade(h,.7)); }
+    else if (st === 'braids'){ R(x+2,y+8,1,5,h); R(x+7,y+8,1,5,h); R(x+2,y+10,1,1,shade(h,.7)); R(x+7,y+10,1,1,shade(h,.7)); }
+    else if (st === 'pigtails'){ R(x-1,y+3,2,4,h); R(x+9,y+3,2,4,h); }
+    else if (st === 'afro'){ R(x,y-2,10,3,h); R(x-1,y,12,7,h); }
+    else if (st === 'bun'){ R(x+3,y-2,4,2,h); R(x+4,y-3,2,1,h); }
+    else if (st === 'bob'){ R(x+1,y+7,8,2,h); }
+  }
+  // hats (L.hat, colour L.hatColor from CLOTH): drawn over the hair, the same from the back
+  function hat(x, y, L, back, muted){
+    const k = L.hat; if (!k || k === 'none') return;
+    let cc = CLOTH[L.hatColor] || CLOTH[L.pants] || CLOTH.red; if (muted) cc = mute(cc, .65);
+    if (k === 'cap'){ R(x+1,y,8,2,cc); R(x+2,y-1,6,1,cc); R(x+1,y+2,8,1,shade(cc)); if (!back) R(x+1,y+2,9,1,shade(cc,.7)); }
+    else if (k === 'beanie'){ R(x+1,y-2,8,4,cc); R(x+1,y+1,8,1,shade(cc)); R(x+4,y-3,2,1,tint(cc,.4)); for (let i = 1; i < 8; i += 2) R(x+1+i,y-1,1,2,shade(cc,.88)); }
+    else if (k === 'fedora'){ R(x-1,y+1,12,1,cc); R(x+2,y-2,6,3,cc); R(x+2,y,6,1,shade(cc,.55)); R(x+4,y-2,2,1,shade(cc,.8)); }
+    else if (k === 'bucket'){ R(x+2,y-2,6,3,cc); R(x,y+1,10,2,cc); R(x,y+2,10,1,shade(cc)); }
+    else if (k === 'kippah') R(x+3,y-1,4,1,cc);
+    else if (k === 'headband'){ R(x+1,y+2,8,1,cc); if (back) R(x+5,y+3,1,3,cc); }
+    else if (k === 'sunhat'){ R(x-2,y+1,14,1,cc); R(x+2,y-2,6,3,cc); R(x+2,y,6,1,tint(cc,.35)); }
+    else if (k === 'headscarf'){ R(x+1,y-1,8,4,cc); R(x,y+1,1,7,cc); R(x+9,y+1,1,7,cc); R(x+1,y+8,8,1,cc); if (back) R(x+1,y+1,8,7,cc); R(x+1,y+2,8,1,shade(cc,.85)); }
+    else if (k === 'bandana'){ R(x+1,y,8,2,cc); if (back){ R(x+4,y+2,2,2,cc); } for (let i = 2; i < 8; i += 3) R(x+i,y,1,1,tint(cc,.5)); }
+  }
+  // clothes styles over the plain shirt (L.top): seen from the front unless back
+  function top(x, y, k, back){
+    if (!k || k === 'tshirt') return;
+    const S = C.shirt, D = C.shirtShade;
+    if (k === 'hoodie'){ R(x+2,y+8,6,1,D); if (back) R(x+3,y+9,4,3,D); else { R(x+4,y+10,1,2,'#e8e4d8'); R(x+5,y+10,1,2,'#e8e4d8'); R(x+3,y+13,4,2,D); } }
+    else if (k === 'shirt'){ if (!back){ R(x+3,y+9,1,1,'#f2f0ea'); R(x+6,y+9,1,1,'#f2f0ea'); R(x+4,y+10,2,6,shade(S,.9)); R(x+5,y+11,1,1,'#f2f0ea'); R(x+5,y+13,1,1,'#f2f0ea'); } }
+    else if (k === 'polo'){ R(x+3,y+9,4,1,tint(S,.4)); if (!back) R(x+5,y+10,1,2,D); }
+    else if (k === 'stripes'){ R(x+2,y+11,6,1,tint(S,.6)); R(x+2,y+13,6,1,tint(S,.6)); }
+    else if (k === 'sweater'){ R(x+2,y+15,6,1,shade(S,.6)); R(x+3,y+9,4,1,shade(S,.7)); }
+    else if (k === 'jacket'){ if (!back){ R(x+4,y+10,2,6,'#e8e4d8'); R(x+3,y+9,1,2,D); R(x+6,y+9,1,2,D); } else R(x+2,y+9,6,1,D); }
+    else if (k === 'tank'){ R(x+2,y+9,1,1,C.skin); R(x+7,y+9,1,1,C.skin); }
+    else if (k === 'dress'){ R(x+2,y+15,6,1,S); }
+  }
   // o: face (-1/0/1), legs ('stand'|'sit'|false), talkPhase, walk
   function person(L, x, y, t, o={}){
     if (NO_CROWD && o.muted) return;
     if (!o.muted && !o._inner) return outlined(x-12, y-10, 36, 36, () => person(L, x, y, t, Object.assign({}, o, {_inner:true})));
     const pal = lookPal(L, o.muted), ex = L.extras||[];
-    const keep = {hair:C.hair,skin:C.skin,skinShade:C.skinShade,shirt:C.shirt,shirtShade:C.shirtShade,pants:C.pants,inner:C.inner,pjs:C.pjs,towel:C.towel};
-    const fit = L._fit; C.inner = null; C.pjs = false; C.towel = false;
+    const keep = {hair:C.hair,skin:C.skin,skinShade:C.skinShade,shirt:C.shirt,shirtShade:C.shirtShade,pants:C.pants,inner:C.inner,pjs:C.pjs,towel:C.towel,bottom:C.bottom};
+    const fit = L._fit; C.inner = null; C.pjs = false; C.towel = false; C.bottom = (fit && fit.pants) || L.top === 'dress' ? null : L.bottom || null;
     if (fit && !o.muted){ if (fit.inner) pal.inner = pal.shirt; pal.shirt = fit.shirt; pal.shirtShade = shade(fit.shirt, .82); if (fit.pants) pal.pants = fit.pants; }
     Object.assign(C, pal);
     const theirs = o.talkPhase && !!SPEAKING && SPEAKING!=='ishai' && !(SPEAKING in {zohar:1,oren:1});
@@ -849,18 +900,41 @@
     else if (L.hair==='bun'){ R(x+3,y-2,4,2,h); R(x+4,y-3,2,1,h); }
     else if (L.hair==='curly'){ R(x+1,y-1,8,2,h); R(x,y+1,1,5,h); R(x+9,y+1,1,5,h);
       R(x+2,y,1,1,shade(h,.7)); R(x+5,y-1,1,1,shade(h,.7)); R(x+7,y+1,1,1,shade(h,.7)); R(x,y+3,1,1,shade(h,.7)); }
-    else if (L.hair==='cap'){ const cc = CLOTH[L.pants]||CLOTH.red; R(x+1,y,8,2,cc); R(x+2,y-1,6,1,cc); R(x+1,y+2,8,1,shade(cc)); }
+    else if (L.hair==='cap' && !L.hat){ const cc = CLOTH[L.pants]||CLOTH.red; R(x+1,y,8,2,cc); R(x+2,y-1,6,1,cc); R(x+1,y+2,8,1,shade(cc)); }   // the old cap-as-hair: kept for looks saved before hats
+    else if (L.hair==='buzz'){ R(x+2,y,6,2,pal.skin); for (let i = 0; i < 6; i += 2) R(x+2+i,y,1,1,h); R(x+3,y+1,1,1,h); R(x+6,y+1,1,1,h); R(x+2,y+2,6,1,shade(pal.skin,.85)); }
+    else if (L.hair==='mohawk'){ R(x+2,y,6,3,pal.skin); R(x+1,y+1,1,2,pal.skin); R(x+8,y+1,1,2,pal.skin); R(x+4,y-3,2,5,h); }
+    else if (L.hair==='afro'){ R(x,y-2,10,3,h); R(x-1,y,1,6,h); R(x+10,y,1,6,h); R(x,y+1,1,5,h); R(x+9,y+1,1,5,h); R(x+2,y-2,1,1,shade(h,.7)); R(x+6,y-1,1,1,shade(h,.7)); }
+    else if (L.hair==='ponytail'){ R(x+9,y+2,1,5,h); R(x+10,y+4,1,4,h); }
+    else if (L.hair==='braids'){ R(x+1,y+3,1,9,h); R(x+8,y+3,1,9,h); R(x+1,y+6,1,1,shade(h,.7)); R(x+8,y+6,1,1,shade(h,.7)); R(x+1,y+9,1,1,shade(h,.7)); R(x+8,y+9,1,1,shade(h,.7)); }
+    else if (L.hair==='pigtails'){ R(x-1,y+3,2,4,h); R(x+9,y+3,2,4,h); R(x,y+2,1,1,'#c23b3b'); R(x+9,y+2,1,1,'#c23b3b'); }
+    else if (L.hair==='spiky'){ R(x+2,y-1,1,1,h); R(x+4,y-2,1,2,h); R(x+6,y-1,1,1,h); R(x+8,y,1,1,h); R(x+1,y,1,1,h); }
+    else if (L.hair==='bob'){ R(x+1,y+3,1,5,h); R(x+8,y+3,1,5,h); R(x+2,y+2,6,1,h); R(x+1,y+7,1,1,shade(h,.7)); R(x+8,y+7,1,1,shade(h,.7)); }
+    else if (L.hair==='dreads'){ R(x+1,y+3,1,8,h); R(x,y+4,1,6,h); R(x+8,y+3,1,8,h); R(x+9,y+4,1,6,h); R(x,y+6,1,1,shade(h,.7)); R(x+9,y+7,1,1,shade(h,.7)); }
+    else if (L.hair==='side'){ R(x+2,y+2,4,1,h); R(x+1,y+1,1,3,h); R(x+5,y+1,1,1,shade(h,.7)); }
     // face extras
     if (ex.includes('glasses')){ R(x+2,y+3,3,1,'#1a1a1a'); R(x+5,y+3,3,1,'#1a1a1a'); R(x+2,y+4,1,1,'#1a1a1a'); R(x+7,y+4,1,1,'#1a1a1a'); }
     if (ex.includes('mustache')) R(x+3,y+5,4,1,h);
     if (ex.includes('beard')){ R(x+2,y+6,1,2,h); R(x+7,y+6,1,2,h); R(x+3,y+7,4,1,h); }
     if (ex.includes('earring')) R(x+1,y+6,1,1,'#d4af37');
-    if (kind==='turn') backHair(x,y,h);
+    if (ex.includes('sunglasses') && kind !== 'turn'){ R(x+2,y+3,6,2,'#111'); R(x+2,y+3,1,1,'#6a7a8a'); R(x+5,y+3,1,1,'#6a7a8a'); }
+    if (ex.includes('freckles') && kind !== 'turn'){ R(x+3,y+5,1,1,pal.skinShade); R(x+6,y+5,1,1,pal.skinShade); R(x+4,y+6,1,1,pal.skinShade); }
+    if (ex.includes('stubble') && kind !== 'turn'){ for (let i = 0; i < 6; i += 2) R(x+2+i,y+7,1,1,shade(h,.9)); R(x+3,y+6,1,1,shade(h,.9)); R(x+6,y+6,1,1,shade(h,.9)); }
+    if (ex.includes('headphones') && kind !== 'turn'){ R(x+1,y-1,8,1,'#222'); R(x,y+2,1,4,'#222'); R(x+9,y+2,1,4,'#222'); R(x,y+3,1,2,'#c23b3b'); R(x+9,y+3,1,2,'#c23b3b'); }
+    if (kind==='turn') backHair(x,y,h,L.hair,pal.skin);
+    hat(x, y, L, kind === 'turn', o.muted);                                           // a hat goes over the hair, from the front or the back
+    if (kind==='turn' && ex.includes('headphones')) R(x+1,y-1,8,1,'#222');
     y = y0;
-    torso(x,y);
+    torso(x,y); top(x, y, L.top, kind === 'turn');
+    if (ex.includes('necklace') && kind !== 'turn') R(x+3,y+9,4,1,'#d4af37');
+    if (ex.includes('tie') && kind !== 'turn'){ R(x+4,y+9,2,1,'#8a2a2a'); R(x+4,y+10,2,4,'#a83232'); R(x+4,y+14,2,1,'#8a2a2a'); }
+    if (ex.includes('backpack')){ if (kind === 'turn'){ R(x+2,y+9,6,6,'#3a4a5a'); R(x+3,y+10,4,2,'#4a5a6a'); } else { R(x+2,y+9,1,5,'#3a4a5a'); R(x+7,y+9,1,5,'#3a4a5a'); } }
+    if (ex.includes('bag')){ R(x+2,y+9,1,1,'#5a3a22'); R(x+3,y+10,1,1,'#5a3a22'); R(x+4,y+11,1,1,'#5a3a22'); R(x+5,y+12,1,1,'#5a3a22'); R(x+6,y+13,1,1,'#5a3a22'); R(x+7,y+13,3,3,'#6b4a2f'); }
     if (o.walk) armsDown(x,y, fw===1?1:fw===3?-1:0); else if (o.armPose) armsCrowd(x,y,o.armPose,o.armK||0); else if (o.arms!==false) armsFid(x,y,t,kind);
     if (ex.includes('apron')){ R(x+3,y+10,4,6,'#f0ead8'); R(x+3,y+9,1,1,'#f0ead8'); R(x+6,y+9,1,1,'#f0ead8'); }
     if (ex.includes('scarf')){ R(x+2,y+8,6,2,'#c23b3b'); R(x+6,y+10,1,3,'#c23b3b'); }
+    if (ex.includes('watch') && !o.walk && !o.armPose) R(x+8,y+13,1,1,'#d8d8d8');
+    if (L.top === 'tank' && !o.walk && !o.armPose){ R(x+1,y+9,1,4,pal.skin); R(x+8,y+9,1,4,pal.skin); }   // a tank top: bare arms
+    if (L.top === 'dress') R(x+1,y+16,8,3,C.shirt);
     if (o.legs==='sit') sitLegs(x,y); else if (o.legs!==false) legs(x,y, o.walk ? (fw===1?1:fw===3?2:0) : legsFid(t, kind));
     if (UMB && !DREAMING && o.legs!==false){   // everyone outdoors (not behind a counter, like Avi in his kiosk) in the rain has an umbrella; the colour stays with the person (no brands)
       const k = strHash(L.hair + L.shirt + L.skin + L.pants + (o.seed ?? '')) % UMBS.length, u = UMBS[k];
@@ -2276,7 +2350,15 @@
   function instrument(m, x, y, c){
     const hit = c.on && c.song;
     switch (m.instrument){
-      case 'guitar': R(x+1,y+13,6,4,'#b8402a'); R(x+2,y+14,2,2,'#2a1a10'); R(x+6,y+12,6,1,'#5a3a1a'); R(x+12,y+11,2,2,'#2a1a10'); break;
+      case 'acoustic': {   // wooden body, a round sound hole, a long neck to the headstock; the strumming hand moves on the beat
+        R(x,y+12,5,3,'#c8904a'); R(x,y+15,7,3,'#c8904a'); R(x+1,y+18,5,1,'#a8703a'); R(x,y+12,1,6,'#a8703a'); R(x+3,y+14,2,2,'#2a1a10'); R(x+1,y+16,1,1,'#2a1a10');
+        R(x+5,y+12,8,1,'#6a4a2a'); for (let i = 6; i < 13; i += 2) R(x+i,y+12,1,1,'#c8c8c8'); R(x+13,y+11,2,2,'#4a3020');
+        R(x+2,y+(hit ? 15 : 13),1,2,SKINC[m.look?.skin]?.[0] || '#e0ac7e'); break; }
+      case 'electric': case 'guitar': {   // a solid coloured body with pickups, a thinner neck, and the cable to the amp
+        const bc = CLOTH[m.look?.pants === 'black' ? 'red' : 'black'] || '#b8402a';
+        R(x+1,y+13,6,4,bc); R(x,y+14,1,2,bc); R(x+2,y+12,2,1,bc); R(x+2,y+14,1,2,'#e8e8e8'); R(x+4,y+14,1,2,'#e8e8e8'); R(x+5,y+16,1,1,'#d8b43a');
+        R(x+7,y+13,6,1,'#3a2a1a'); for (let i = 8; i < 13; i += 2) R(x+i,y+13,1,1,'#c8c8c8'); R(x+13,y+12,2,2,'#1a1a1a');
+        R(x+1,y+17,1,6,'#222'); R(x+2,y+(hit ? 15 : 13),1,2,SKINC[m.look?.skin]?.[0] || '#e0ac7e'); break; }
       case 'bass': R(x+1,y+13,6,5,'#2c3a66'); R(x+6,y+12,8,1,'#5a3a1a'); R(x+14,y+11,2,2,'#2a1a10'); break;
       case 'keys': R(x-4,y+14,18,3,'#1a1a1a'); R(x-4,y+14,18,1,'#e8e8e8'); for (let i = 0; i < 6; i++) R(x-3+i*3,y+14,1,1,'#1a1a1a'); R(x-3,y+17,1,6,'#444'); R(x+12,y+17,1,6,'#444'); break;
       case 'sax': R(x+7,y+10,2,8,'#d8b43a'); R(x+6,y+17,3,2,'#d8b43a'); break;
@@ -4642,7 +4724,7 @@
     const reset = () => { TL.forEach(e => { e.dead = true; }); TL.clear(); tlLast = null; held.clear(); queue.length = 0; [...WAITS].forEach(f => f()); setSpeaking(null); SAY.who = null; Sound.hush(); if (SHOW_STOP) SHOW_STOP(); };
     const event = m => ({id: 'sb-' + (++n), t: NOW(), location: m.location, action: m.action, with: m.with || null, ride: m.ride || undefined, delivery: m.delivery || undefined, media: m.media || undefined, art: m.art || undefined, text: '', lines: m.lines || [], commentary: m.commentary || []});
     window.__sandbox = {
-      menus: () => ({locations: Object.fromEntries(Object.entries(LOCATIONS).filter(([k]) => k !== 'bathroom')), hair: ['short','long','bald','bun','curly','cap'], hairColor: Object.keys(HAIRC), skin: Object.keys(SKINC), cloth: Object.keys(CLOTH), extras: ['glasses','beard','mustache','earring','apron','scarf']}),
+      menus: () => ({locations: Object.fromEntries(Object.entries(LOCATIONS).filter(([k]) => k !== 'bathroom')), hair: LOOK_OPTS.hair, hairColor: Object.keys(HAIRC), skin: Object.keys(SKINC), cloth: Object.keys(CLOTH), hat: LOOK_OPTS.hat, top: LOOK_OPTS.top, bottom: LOOK_OPTS.bottom, extras: LOOK_OPTS.extras}),
       cast: () => Object.values(CAST), setCast: list => setCast([...base, ...list]), reset,
       play(m){ const e = event(m); ingest([e], false); },
       arena(a){ ARENA = a || null; arenaPreload(); },

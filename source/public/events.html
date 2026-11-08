@@ -159,7 +159,9 @@
     return look;
   }
   function randomLook(){ const p = a => a[Math.floor(Math.random() * a.length)], L = V.look;
-    return {hair: p(L.hair), hairColor: p(L.hairColor), skin: p(L.skin), shirt: p(L.cloth), pants: p(['black','navy','gray','brown','blue']), extras: Math.random() < .5 ? [p(L.extras.filter(e => e !== 'apron'))] : []}; }
+    return {hair: p(L.hair.filter(h => h !== 'cap')), hairColor: p(L.hairColor), skin: p(L.skin), shirt: p(L.cloth), pants: p(['black','navy','gray','brown','blue']),
+      top: p(L.top || ['tshirt']), bottom: Math.random() < .75 ? 'trousers' : p(L.bottom || ['trousers']), hat: Math.random() < .35 ? p((L.hat || ['none']).filter(h => h !== 'kippah' && h !== 'headscarf')) : 'none', hatColor: p(L.cloth),
+      extras: [...new Set([p(L.extras.filter(e => e !== 'apron')), p(L.extras.filter(e => e !== 'apron'))])].slice(0, Math.floor(Math.random() * 3))}; }
 
   // ---- a song: its length, beats and loudness, worked out once here ----
   async function analyse(file){
@@ -207,9 +209,9 @@
       box.append(el('div', {className: 'member'}, el('div', {}, cv),
         el('div', {}, el('div', {className: 'grid'},
           el('div', {}, el('label', {textContent: 'Name'}), el('input', {value: m.name, maxLength: 30, on: {input: e => m.name = e.target.value}})),
-          el('div', {}, el('label', {textContent: 'Plays'}), el('select', {on: {change: e => m.instrument = e.target.value}}, ...V.instruments.map(v => el('option', {value: v, textContent: v === 'dj' ? 'decks (DJ)' : v === 'vocals' ? 'nothing, sings' : v, selected: m.instrument === v})))),
+          el('div', {}, el('label', {textContent: 'Plays'}), el('select', {on: {change: e => m.instrument = e.target.value}}, ...V.instruments.map(v => el('option', {value: v, textContent: v === 'dj' ? 'decks (DJ)' : v === 'vocals' ? 'nothing, sings' : v === 'electric' ? 'electric guitar' : v === 'acoustic' ? 'acoustic guitar' : v === 'guitar' ? 'guitar (old, electric)' : v, selected: m.instrument === v})))),
           el('div', {}, el('label', {textContent: 'Voice'}), el('select', {on: {change: e => m.vocal = e.target.value}}, ...V.vocals.map(v => el('option', {value: v, textContent: v === 'lead' ? 'lead singer' : v === 'backing' ? 'backing vocals' : 'does not sing', selected: m.vocal === v}))))),
-          el('div', {className: 'grid'}, sel('hair', V.look.hair, 'Hair'), sel('hairColor', V.look.hairColor, 'Hair colour'), sel('skin', V.look.skin, 'Skin'), sel('shirt', V.look.cloth, 'Shirt'), sel('pants', V.look.cloth, 'Trousers')),
+          el('div', {className: 'grid'}, sel('hair', V.look.hair, 'Hair'), sel('hairColor', V.look.hairColor, 'Hair colour'), sel('skin', V.look.skin, 'Skin'), sel('shirt', V.look.cloth, 'Shirt colour'), sel('top', V.look.top || ['tshirt'], 'Top'), sel('pants', V.look.cloth, 'Trousers colour'), sel('bottom', V.look.bottom || ['trousers'], 'Bottom'), sel('hat', V.look.hat || ['none'], 'Hat'), sel('hatColor', V.look.cloth, 'Hat colour')),
           ex,
           el('div', {className: 'bar', style: 'margin-top:6px'}, el('button', {className: 'ghost', textContent: '🎲 Random look', on: {click: () => { m.look = randomLook(); renderMembers(); }}}),
             el('button', {className: 'ghost', textContent: '📷 From a photo', on: {click: () => photo.click()}}), photo,

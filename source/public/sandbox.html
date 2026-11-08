@@ -130,7 +130,11 @@
           <div><label for="cHairC">Hair colour</label><select id="cHairC"></select></div>
           <div><label for="cSkin">Skin</label><select id="cSkin"></select></div>
           <div><label for="cShirt">Shirt</label><select id="cShirt"></select></div>
-          <div><label for="cPants">Trousers</label><select id="cPants"></select></div>
+          <div><label for="cPants">Trousers colour</label><select id="cPants"></select></div>
+          <div><label for="cTop">Top</label><select id="cTop"></select></div>
+          <div><label for="cBottom">Bottom</label><select id="cBottom"></select></div>
+          <div><label for="cHat">Hat</label><select id="cHat"></select></div>
+          <div><label for="cHatC">Hat colour</label><select id="cHatC"></select></div>
         </div>
       </div>
       <div class="chips" id="cExtras" style="margin-top:8px"></div>
@@ -272,6 +276,7 @@ Back to the cameras.</textarea>
     api.unlock([...document.querySelectorAll('#things [data-k]:checked')].map(x => x.dataset.k).filter(k => k !== 'shabbat'));
   }
   const look = () => ({hair: $('cHair').value, hairColor: $('cHairC').value, skin: $('cSkin').value, shirt: $('cShirt').value, pants: $('cPants').value,
+    hat: $('cHat').value, hatColor: $('cHatC').value, top: $('cTop').value, bottom: $('cBottom').value,
     extras: [...document.querySelectorAll('#cExtras input:checked')].map(x => x.value)});
   const evLines = () => $('evText').value.split('\n').map(x => x.trim()).filter(Boolean);
   const hostTurns = () => evLines().map((say, i) => ({who: i % 2 ? 'oren' : 'zohar', say}));
@@ -280,7 +285,7 @@ Back to the cameras.</textarea>
     api = $('stage').contentWindow.__sandbox; M = api.menus();
     api.setCast(D.people);
     fill($('loc'), Object.keys(M.locations).map(x => [x, x])); $('loc').value = 'street'; actions(); $('act').value = 'idle';
-    [['cHair',M.hair],['cHairC',M.hairColor],['cSkin',M.skin],['cShirt',M.cloth],['cPants',M.cloth]].forEach(([id, l]) => fill($(id), l.map(x => [x, x])));
+    [['cHair',M.hair],['cHairC',M.hairColor],['cSkin',M.skin],['cShirt',M.cloth],['cPants',M.cloth],['cHat',M.hat],['cHatC',M.cloth],['cTop',M.top],['cBottom',M.bottom]].forEach(([id, l]) => fill($(id), l.map(x => [x, x])));
     $('cShirt').value = 'teal'; $('cPants').value = 'navy';
     M.extras.forEach(e => { const l = document.createElement('label'); l.innerHTML = `<input type="checkbox" value="${e}"> ${e}`; $('cExtras').appendChild(l); });
     [['shabbat','Shabbat'],['dog','Falafel the dog'],['tv','TV'],['radio','Radio'],['stray','Stray cat']].forEach(([k, n]) => { const l = document.createElement('label'); l.innerHTML = `<input type="checkbox" data-k="${k}"> ${n}`; $('things').appendChild(l); });

@@ -257,12 +257,15 @@ const NEXT = {
 };
 // drawing menu for characters (must match the page)
 const LOOK = {
-  hair: ["short","long","bald","bun","curly","cap"],
+  hair: ["short","long","bald","bun","curly","buzz","side","spiky","bob","ponytail","pigtails","braids","dreads","afro","mohawk","cap"],   // "cap" as hair is the old way; use hat now
+  hat: ["none","cap","beanie","fedora","bucket","sunhat","kippah","headband","bandana","headscarf"],
+  top: ["tshirt","shirt","polo","hoodie","sweater","stripes","jacket","tank","dress"],
+  bottom: ["trousers","shorts","skirt"],
   hairColor: ["black","brown","auburn","blonde","gray","white","red"],
   skin: ["light","fair","tan","brown","dark"],
   cloth: ["red","orange","yellow","green","teal","blue","navy","purple","pink","black","white","gray","brown"],
-  extras: ["glasses","beard","mustache","earring","apron","scarf"]
-};
+  extras: ["glasses","sunglasses","beard","stubble","mustache","freckles","earring","headphones","necklace","tie","scarf","apron","watch","bag","backpack"]
+};   // must match LOOK_OPTS in the page
 
 const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && a !== "lecture" && a !== "gallery" && a !== "concert" && a !== "poker" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" and "lecture" are only for planned classes
 
@@ -1003,7 +1006,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
   While a scene runs, every line serves it: people pursue what they want, dodge, change the subject, give in or push back, like real people.
 - When "with" is set, "update" holds that person's updated memory of Ishai (max 25 words, keep old facts that still matter) and "mood": -1, 0 or 1 for how this moment changed their feelings.
 - ${allowNew
-  ? `You MAY introduce one new person, only if the story really needs someone new. Describe them in "newCharacter" and use their name as "with". Look options: hair ${LOOK.hair.join("/")}; hairColor ${LOOK.hairColor.join("/")}; skin ${LOOK.skin.join("/")}; shirt and pants ${LOOK.cloth.join("/")}; extras any of ${LOOK.extras.join("/")}.`
+  ? `You MAY introduce one new person, only if the story really needs someone new. Describe them in "newCharacter" and use their name as "with". Look options: hair ${LOOK.hair.join("/")}; hairColor ${LOOK.hairColor.join("/")}; skin ${LOOK.skin.join("/")}; shirt and pants ${LOOK.cloth.join("/")}; hat ${LOOK.hat.join("/")} with hatColor from the same colours; top ${LOOK.top.join("/")}; bottom ${LOOK.bottom.join("/")}; extras up to 3 of ${LOOK.extras.join("/")}.`
   : `Do NOT introduce new people right now; "newCharacter" must be null.`}
 - VIEWERS NEVER READ "text". They see small pixel people and hear the lines. Anything in "text" the picture cannot show (something brought, held, handed over or given; what is in a bag or a pot; wet clothes, a cut, a new haircut; a smell; a sound off camera; a message he reads) must reach them in "lines": someone names it naturally ("You brought Moshe a little brother?", "Why are you soaked?"), never as a stage direction. In a moment with no talking, keep "text" to what the picture shows.
 - Do not repeat the previous event.${direction}
@@ -1401,7 +1404,8 @@ function cleanCard(c, s, loc) {
       hair: pick(L.hair, LOOK.hair, any(LOOK.hair)), hairColor: pick(L.hairColor, LOOK.hairColor, any(LOOK.hairColor)),
       skin: pick(L.skin, LOOK.skin, any(LOOK.skin)), shirt: pick(L.shirt, LOOK.cloth, any(LOOK.cloth)),
       pants: pick(L.pants, LOOK.cloth, "navy"),
-      extras: (Array.isArray(L.extras) ? L.extras : []).map(x => String(x).toLowerCase()).filter(x => LOOK.extras.includes(x)).slice(0, 2)
+      hat: pick(L.hat, LOOK.hat, "none"), hatColor: pick(L.hatColor, LOOK.cloth, "black"), top: pick(L.top, LOOK.top, "tshirt"), bottom: pick(L.bottom, LOOK.bottom, "trousers"),
+      extras: (Array.isArray(L.extras) ? L.extras : []).map(x => String(x).toLowerCase()).filter(x => LOOK.extras.includes(x)).slice(0, 3)
     },
     memory: "Just met Ishai.", relationship: 0, lastSeen: null, scenes: 0
   };
@@ -2939,7 +2943,7 @@ const pokerHealth = s => { const P = s.poker; if (!P) return null; return { nigh
 // ---------- the director's bands, concerts and promotions (/events) ----------
 // Bands live in s.bands, the director's nights in s.arena.custom[date] (they take the place of that week's gallery night), promotions in s.promos.
 // Uploaded files (songs, logos, posters) are KV values "asset:<id>" served from /asset/<id>; each song's beat map is "beats:<id>".
-const INSTRUMENTS = ["vocals", "guitar", "bass", "drums", "keys", "sax", "violin", "dj"];
+const INSTRUMENTS = ["vocals", "electric", "acoustic", "guitar", "bass", "drums", "keys", "sax", "violin", "dj"];   // "guitar" is the old name, drawn as electric
 const VOCALS = ["lead", "backing", "none"];
 const ASSET_MAX = { image: 2 * 1024 * 1024, song: 20 * 1024 * 1024 };
 const BANTER_GAP = 45000, CONCERT_INTRO = 40000, CONCERT_OUTRO = 40000;
@@ -2948,7 +2952,9 @@ const cleanId = v => String(v || "").replace(/[^a-z0-9]/gi, "").slice(0, 24);
 function cleanLook(l) {
   const pick = (v, list, d) => list.includes(v) ? v : d;
   return { hair: pick(l?.hair, LOOK.hair, "short"), hairColor: pick(l?.hairColor, LOOK.hairColor, "black"), skin: pick(l?.skin, LOOK.skin, "fair"),
-    shirt: pick(l?.shirt, LOOK.cloth, "black"), pants: pick(l?.pants, LOOK.cloth, "black"), extras: (Array.isArray(l?.extras) ? l.extras : []).filter(x => LOOK.extras.includes(x)).slice(0, 3) };
+    shirt: pick(l?.shirt, LOOK.cloth, "black"), pants: pick(l?.pants, LOOK.cloth, "black"),
+    hat: pick(l?.hat, LOOK.hat, "none"), hatColor: pick(l?.hatColor, LOOK.cloth, "black"), top: pick(l?.top, LOOK.top, "tshirt"), bottom: pick(l?.bottom, LOOK.bottom, "trousers"),
+    extras: (Array.isArray(l?.extras) ? l.extras : []).filter(x => LOOK.extras.includes(x)).slice(0, 5) };
 }
 function cleanBand(b, old) {
   const id = cleanId(b.id) || "b" + Date.now().toString(36);
