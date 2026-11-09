@@ -64,7 +64,15 @@
       <div id="pollNow" style="margin-top:6px">—</div>
       <div id="pollErr" class="muted" style="font-size:16px"></div>
       <div id="pollLog" style="margin-top:6px"></div>
-      <div class="muted" style="font-size:16px">One poll an hour, opening at hh:20 (08:20-20:20, not on Shabbat) for 10 minutes. The winner becomes a goal named poll-… that starts an hour or more later, in a free gap. Skip and stock work only before the poll opens.</div>
+      <div class="muted" style="font-size:16px" id="pollHelp">One poll an hour, opening at hh:20 (08:20-20:20, not on Shabbat) for 10 minutes. The winner becomes a goal named poll-… that starts an hour or more later, in a free gap. Skip and stock work only before the poll opens.</div>
+    </div>
+
+    <div class="box">
+      <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Surveys of the week</span>
+        <span><button id="survOff" class="ghost">Turn surveys off</button></span></div>
+      <div id="survList" style="margin-top:6px">—</div>
+      <div id="survMsg"></div>
+      <div class="muted" style="font-size:16px">Sunday 06:00 to Saturday 21:00, Google sign-in, one final vote each. New character and new place: viewers suggest until Thursday (only you see the suggestions), you publish a shortlist of 2-6, they vote until Saturday. Once the winner is built (a <code>SEED_CAST</code> entry, or a place on the map), link it here: it then happens in the story and the hosts say it was the viewers' choice.</div>
     </div>
 
     <div class="box">
@@ -164,8 +172,43 @@
     p.log.forEach(x => { const d = document.createElement('div'); d.style.fontSize = '16px';
       d.textContent = `${x.question} → ${x.winner ? x.winner + ' (' + x.pct + '% of ' + x.total + ')' : 'no votes'}${x.goal ? ' · goal ' + x.goal + (x.at ? ' at ' + hm(x.at) : '') : ''}`; lg.appendChild(d); });
   }
+  function renderSurveys(S){
+    const el = $('survList'); el.textContent = ''; if (!S) return;
+    if (S.err){ el.textContent = 'Error: ' + S.err; return; }
+    $('survOff').textContent = S.off ? 'Turn surveys on' : 'Turn surveys off'; $('survOff').onclick = async () => render(await api({action: 'surveysOff', off: !S.off}));
+    if (!S.list.length){ el.textContent = S.off ? 'Surveys are off (they also need the GOOGLE_CLIENT_ID secret).' : 'No surveys yet: the week\'s surveys start on Sunday at 06:00.'; return; }
+    const when = t => new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Jerusalem', weekday:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false}).format(new Date(t));
+    const say = async (body, done) => { const m = $('survMsg'); m.className = ''; m.textContent = 'Saving…'; try { render(await api(body)); $('survMsg').textContent = done; } catch(e){ m.className = 'err'; m.textContent = e.message; } };
+    S.list.forEach(v => {
+      const box = document.createElement('div'); box.className = 'goal';
+      const h = document.createElement('div'); h.textContent = `${v.question} · ${v.phase}${v.phase === 'suggest' ? ' until ' + when(v.suggestUntil) : ' · closes ' + when(v.closesAt)} · ${v.total} vote${v.total === 1 ? '' : 's'}`; box.appendChild(h);
+      v.options.forEach((o, i) => { const d = document.createElement('div'); d.className = 'muted'; d.style.fontSize = '16px';
+        d.textContent = `• ${o.label}${v.total ? ' · ' + Math.round(100 * v.counts[i] / v.total) + '%' : ''}${v.result && v.result.winner === i ? ' ★' : ''}`; box.appendChild(d); });
+      if (v.pokerWinner) { const d = document.createElement('div'); d.className = 'muted'; d.textContent = 'Poker winner: ' + v.pokerWinner; box.appendChild(d); }
+      if (v.suggestions){
+        const t = document.createElement('div'); t.style.marginTop = '6px'; t.textContent = v.suggestions.length ? `Suggestions (${v.suggestions.reduce((a, x) => a + x.n, 0)}), grouped by name:` : 'No suggestions yet.'; box.appendChild(t);
+        v.suggestions.forEach(x => { const d = document.createElement('div'); d.style.fontSize = '16px'; d.textContent = `${x.n > 1 ? x.n + '× ' : ''}${x.a}${x.b ? ' — ' + x.b : ''}${x.c ? ' (meets him: ' + x.c + ')' : ''}`; box.appendChild(d); });
+        if (!v.shortlisted && v.phase !== 'closed'){
+          const ta = document.createElement('textarea'); ta.rows = 4; ta.style.width = '100%'; ta.placeholder = 'The shortlist: one option per line (2-6). Publishing it ends the suggestions and opens the vote; it cannot be changed afterwards.';
+          const b = document.createElement('button'); b.textContent = 'Publish the shortlist';
+          b.onclick = () => { const options = ta.value.split('\n').map(x => x.trim()).filter(Boolean); if (confirm(`Publish ${options.length} options? Votes are final, so the list cannot change afterwards.`)) say({action: 'surveyShortlist', id: v.id, options}, 'Shortlist published.'); };
+          box.append(ta, b);
+        }
+      }
+      if ((v.kind === 'join' || v.kind === 'place') && v.result && v.result.winner != null){
+        const row = document.createElement('div'); row.style.marginTop = '6px';
+        const sel = document.createElement('select'); sel.className = 'snd';
+        (v.kind === 'join' ? S.cast.map(c => [c.id, c.name]) : S.places.map(p => [p, p])).forEach(([id, n]) => sel.add(new Option(n, id)));
+        if (v.linked) sel.value = v.linked;
+        const b = document.createElement('button'); b.textContent = v.linked ? 'Linked: ' + v.linked + (v.goal ? ' (goal ' + v.goal + ')' : ' (waiting for a free time)') : (v.kind === 'join' ? 'Link the new character' : 'Link the new place');
+        b.onclick = () => say({action: 'surveyLink', id: v.id, ref: sel.value}, 'Linked: it will happen in the story at the next free time.');
+        row.append(v.kind === 'place' ? `With ${v.aboutName}: ` : '', sel, ' ', b); box.appendChild(row);
+      }
+      el.appendChild(box);
+    });
+  }
   function render(v){
-    renderCourse(v.course); renderPolls(v.polls);
+    renderCourse(v.course); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('last').textContent = v.last ? `${fmt(v.last.created)} (${v.last.location}/${v.last.action}) ${v.last.text}` : '—';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';

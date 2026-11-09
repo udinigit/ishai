@@ -341,7 +341,8 @@ export default {
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
-        polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3), pushes: (s.pollPushes || []).map(j => ({ kind: j.kind, poll: j.poll, at: j.at, sent: j.sent, done: j.done })) } }, { "cache-control": "no-store" });
+        polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3), pushes: (s.pollPushes || []).map(j => ({ kind: j.kind, poll: j.poll, at: j.at, sent: j.sent, done: j.done })) },
+        surveys: { off: !!s.surveysOff, err: s.surveyErr || null, list: (s.surveys || []).map(x => ({ id: x.id, kind: x.kind, options: x.options.length, closesAt: x.closesAt, result: x.result ? { total: x.result.total, winner: x.result.winner } : null, linked: x.linked, goal: x.goal })), say: (s.surveySay || []).length } }, { "cache-control": "no-store" });
     }
     // quick story fix for the scheduled health check: /api/fix?token=...&endScene=1&note=...&minutes=45
     if (url.pathname === "/api/fix") {
@@ -397,6 +398,9 @@ export default {
     if (ICONS[url.pathname]) return new Response(iconOf(url.pathname), { headers: { "content-type": ICONS[url.pathname].type, "cache-control": "public, max-age=86400" } });
     if (url.pathname === "/api/alert") return alertFor(env, url.searchParams.get("ep") || "");
     if (url.pathname === "/api/remind" && req.method === "POST") return pollRemind(req, env);
+    if (url.pathname === "/api/surveys") return surveysApi(req, env);
+    if (url.pathname === "/api/survey/vote" && req.method === "POST") return surveyVote(req, env);
+    if (url.pathname === "/api/survey/suggest" && req.method === "POST") return surveySuggest(req, env);
     if (url.pathname === "/api/push" && (req.method === "POST" || req.method === "DELETE")) {
       const b = await req.json().catch(() => ({})), ep = String(b.endpoint || ""), key = ep.length < 700 && pushAllowed(ep) ? await pushKey(ep) : null;
       if (!key) return json({ error: "not a push address" }, {}, 400);
@@ -695,6 +699,8 @@ async function tick(env, force) {
   { const q = quietHosts(s, ev, s.nextId); if (q.length) ev.commentary = q; }   // nobody speaks: the hosts fill the silence
   { const u = unseenHosts(s, ev, s.nextId); if (u) ev.commentary = [...(ev.commentary || []), u]; }   // something only the narration says: a host names it
   if (!force) try { await pollTick(env, s, ev, now, last); } catch (e) { s.pollErr = { at: now, why: [String(e && e.message || e).slice(0, 160)] }; }
+  if (!force) try { await surveyTick(env, s, ev, now); } catch (e) { s.surveyErr = { at: now, msg: String(e && e.message || e).slice(0, 160) }; }
+  try { surveyHosts(s, ev, now); } catch (e) {}
   if (!force) try { homeLifeTick(s, now, ev); } catch (e) { s.homeErr = String(e && e.message || e).slice(0, 160); }   // visits and dog walks   // viewers' poll: count the last one, write the next
   if (goal && goal.status !== "done" && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
 
@@ -2204,6 +2210,7 @@ function scheduleLecture(s, now) {
 function courseFinished(s, now) {
   const c = courseOf(s), cur = c.queue.shift();
   c.used = [...c.used, cur.id].slice(-90);
+  surveyLecture(s, cur.title, now);
   if (cur.note) c.memory = [...(c.memory || []), { title: cur.title, note: cur.note, at: now, offered: 0 }].slice(-10);   // he remembers one thing from each of the last 10 topics
   c.goalId = null; c.at = null; c.err = null; c.tries = 0; courseOf(s);
 }
@@ -2465,6 +2472,7 @@ const PRIVACY_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"
 <p>Watching Ishai is a fictional, AI-written show. You can watch it without an account.</p>
 <p><b>Voting.</b> To vote in the hourly viewers' poll you sign in with Google. From Google we use only your account number, and we store only a scrambled (hashed) version of it next to your vote, so each account votes once. We never store your name, email or picture. Your first name is shown back to you in your own browser only.</p>
 <p><b>Cookies.</b> Signing in leaves one cookie, <code>ishai_voter</code>, valid for ${VOTER_DAYS} days, which proves you signed in. Signing out removes it. Your browser also keeps a random id and the polls you voted in, on your device only.</p>
+<p><b>Surveys of the week.</b> Survey votes and the suggestions you send (a character or a place) are kept with the same scrambled id. Suggestions are read only by the director; the public sees only the shortlist the director picks.</p>
 <p><b>Votes</b> are counted to show the results and to steer the story. They are never sold or shared.</p>
 <p><a href="/">Back to the show</a></p></body></html>`;
 
@@ -2522,6 +2530,218 @@ async function pollTick(env, s, ev, now, last) {
   if (!made) made = bankPoll(s, key, closesAt);
   s.pollErr = why ? { at: now, why: why.slice(0, 4) } : null;
   if (made) s.poll = { id: "p-" + new Date(opensAt).toLocaleString("sv-SE", { timeZone: TZ }).slice(0, 13).replace(/\D/g, ""), ...made, opensAt, closesAt };
+}
+
+
+// ---------- surveys of the week (docs/SURVEY_PLAN.md) ----------
+// Sunday 06:00 to Saturday 21:00 (Israel time), Google sign-in only, one final vote per account. No AI, no KV writes:
+// the surveys live in the state (s.surveys), votes and suggestions in D1. Nobody in the story knows; only the hosts talk about them.
+// Story effects only for the "who would you like" kinds (join, place), once the director has built the winner and linked it.
+const SURVEY_FROM_H = 6, SURVEY_CLOSE_H = 21, SUGGEST_MAX = 2, SURVEY_KEEP_D = 7;
+const SURVEY_Q = {
+  fav: "Who is your favourite character this week?",
+  poker: "Who wins poker night at Boaz's?",
+  lecture: "What was your favourite lecture this week?",
+  join: "Who would you like to join the show?",
+  place: about => `Where would you like ${about} to take Ishai?` };
+const SURVEY_ORDER = ["poker", "fav", "lecture", "join", "place"];
+let surveyTablesOk = false;
+async function surveyTables(env) {
+  if (surveyTablesOk || !env.DB) return;
+  await env.DB.batch([
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS survey_votes (survey TEXT NOT NULL, voter TEXT NOT NULL, opt INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (survey, voter))"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS suggestions (id INTEGER PRIMARY KEY AUTOINCREMENT, survey TEXT NOT NULL, voter TEXT NOT NULL, a TEXT NOT NULL, b TEXT, c TEXT, at INTEGER NOT NULL)")]);
+  surveyTablesOk = true;
+}
+// the week "now" is in: its Sunday, when it opens (Sun 06:00), when suggestions end (Thu 00:00) and when it closes (Sat 21:00)
+function surveyWeek(now) {
+  const day = dayOfTZ(now), [y, m, d] = day.split("-").map(Number), wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  const at = (dd, h) => { const u = Date.UTC(y, m - 1, d - wd + dd, h); return u - tzOffset(u); };
+  return { key: new Date(Date.UTC(y, m - 1, d - wd)).toISOString().slice(0, 10), start: at(0, SURVEY_FROM_H), suggestUntil: at(4, 0), close: at(6, SURVEY_CLOSE_H) };
+}
+const surveyName = (s, id) => id === "ishai" ? "Ishai" : id === "falafel" ? "Falafel" : s.cast[id] ? s.cast[id].name : P_NAME[id] || id;
+// Ishai's friends, for "where would you like … to take Ishai": the friends in their role, or anyone close to him now
+function surveyFriends(s) {
+  return Object.values(s.cast).filter(c => !c.phoneOnly && !POLL_NOT.includes(c.id) && (/\bIshai's (best )?friend\b/i.test(c.role || "") || (c.relationship || 0) >= 3)).map(c => c.id).sort();
+}
+function surveysOf(s) { return s.surveys || (s.surveys = []); }
+function surveyMake(s, W, now) {
+  const list = [], mk = (kind, x) => ({ id: W.key.replace(/-/g, "") + "-" + kind, week: W.key, kind, question: SURVEY_Q[kind], about: null, options: [], opensAt: W.start, closesAt: W.close,
+    suggestUntil: null, result: null, said: false, linked: null, goal: null, ...x });
+  list.push(mk("fav", { options: [{ label: "Ishai", ref: "ishai" }] }));
+  const pt = !(s.poker && s.poker.off) && nextPokerAt(s, W.start);
+  if (pt && pt > W.start && pt < W.close) list.push(mk("poker", { closesAt: pt, options: ["ishai", "boaz", "ronit", "moti", "yossi"].map(p => ({ label: P_NAME[p], ref: p })) }));
+  list.push(mk("lecture"));
+  list.push(mk("join", { suggestUntil: W.suggestUntil }));
+  const fr = surveyFriends(s), who = fr.length ? fr[pollHash(W.key) % fr.length] : "noa";
+  list.push(mk("place", { about: who, question: SURVEY_Q.place(surveyName(s, who)), suggestUntil: W.suggestUntil }));
+  s.surveys = [...surveysOf(s).filter(x => x.closesAt > now - (SURVEY_KEEP_D + 7) * 86400000), ...list];
+}
+// after a lecture: it joins the week's lecture survey (a two-part lecture counts once)
+function surveyLecture(s, title, now) {
+  const sv = surveysOf(s).find(x => x.kind === "lecture" && now >= x.opensAt && now < x.closesAt); if (!sv) return;
+  const t = String(title || "").replace(/\s*[(:,–—-]*\s*part\s*(\d|one|two|i+)\)?\s*$/i, "").trim().slice(0, 80);
+  if (t && !sv.options.some(o => o.label.toLowerCase() === t.toLowerCase())) sv.options.push({ label: t, ref: null });
+}
+// after poker night: who won, for the hosts' line once the votes are counted
+function surveyPoker(s, R, date) {
+  const sv = surveysOf(s).find(x => x.kind === "poker" && dayOfTZ(x.closesAt) === date); if (!sv || sv.pokerWinner) return;
+  const res = R.results || {}, top = Object.keys(res).sort((a, b) => res[b] - res[a])[0]; if (top) sv.pokerWinner = top;
+}
+const svPhase = (sv, now) => now < sv.opensAt ? "soon" : sv.suggestUntil && now < sv.suggestUntil && !sv.shortlisted ? "suggest"
+  : now >= sv.closesAt ? "closed" : !sv.options.length ? (sv.kind === "lecture" ? "waiting" : "shortlist") : "open";
+const svPct = (r, i) => r && r.total ? Math.round(100 * r.counts[i] / r.total) : 0;
+function surveySay(s, say) { (s.surveySay = s.surveySay || []).push({ who: pollHash(say) % 2 ? "zohar" : "oren", say, at: Date.now() }); }
+// in tick(): make the week's surveys, grow the favourite list, count closed ones, line up the hosts and the story
+async function surveyTick(env, s, ev, now, force) {
+  if (!env.DB || !env.GOOGLE_CLIENT_ID || s.surveysOff) return;
+  await surveyTables(env);
+  const W = surveyWeek(now);
+  if (now >= W.start && !surveysOf(s).some(x => x.week === W.key)) surveyMake(s, W, now);
+  for (const sv of surveysOf(s)) {
+    if (sv.kind === "fav" && now < sv.closesAt) {   // everyone seen on camera this week can be picked (the list only grows: votes keep their numbers)
+      const seen = Object.values(s.cast).filter(c => !c.phoneOnly && !/^student/.test(c.id) && (c.lastSeen || 0) >= sv.opensAt).map(c => c.id);
+      if ((s.unlocked || []).includes("dog")) seen.push("falafel");
+      for (const id of seen) if (!sv.options.some(o => o.ref === id)) sv.options.push({ label: surveyName(s, id), ref: id });
+    }
+    if (!sv.result && now > sv.closesAt + 5000 && sv.options.length) {
+      sv.result = await surveyCount(env, sv);
+      const r = sv.result, w = r.winner, o = w == null ? null : sv.options[w];
+      if (sv.kind === "fav" && o) surveySay(s, `The week's survey is in: your favourite character this week is ${o.label}, with ${svPct(r, w)}% of the votes.`);
+      if (sv.kind === "lecture" && o) surveySay(s, `Your favourite lecture this week: "${o.label}", ${svPct(r, w)}% of you. Dr. Sasson will never know.`);
+      if (sv.kind === "join" && o) surveySay(s, `You voted, ${svPct(r, w)}% of you: ${o.label} should join the show. The director is on it. Watch this space.`);
+      if (sv.kind === "place" && o) surveySay(s, `${svPct(r, w)}% of you want ${surveyName(s, sv.about)} to take Ishai to ${o.label}. Noted. Someday.`);
+    }
+    if (sv.kind === "poker" && sv.pokerWinner && sv.result && !sv.said) {
+      sv.said = true; const r = sv.result, i = sv.options.findIndex(o => o.ref === sv.pokerWinner), name = surveyName(s, sv.pokerWinner), best = r.winner == null ? null : sv.options[r.winner];
+      surveySay(s, !r.total ? `${name} won poker night. Nobody guessed it, because nobody guessed at all.`
+        : r.winner === i ? `${svPct(r, i)}% of you picked ${name} to win poker night, and ${name} took it. Well read, everyone.`
+        : `${svPct(r, r.winner)}% of you picked ${best.label}, but ${name} took poker night. Only ${svPct(r, i)}% saw that coming.`);
+    }
+    if (sv.linked && !sv.goal) surveyGoal(s, sv, now);   // the director built and linked the winner: it happens in the story
+  }
+  s.surveys = surveysOf(s).filter(x => x.closesAt > now - (SURVEY_KEEP_D + 7) * 86400000);
+}
+async function surveyCount(env, sv) {
+  const { results } = await env.DB.prepare("SELECT opt, COUNT(*) AS n FROM survey_votes WHERE survey = ? GROUP BY opt").bind(sv.id).all();
+  const counts = sv.options.map((_, i) => Number((results || []).find(r => Number(r.opt) === i)?.n || 0)), total = counts.reduce((a, b) => a + b, 0);
+  const top = Math.max(0, ...counts), tied = counts.map((n, i) => n === top ? i : -1).filter(i => i >= 0);
+  return { counts, total, winner: total ? tied[pollHash(sv.id) % tied.length] : null, tie: total > 0 && tied.length > 1 };
+}
+// a linked wish becomes a goal in a free gap (like a poll's winner); nobody in the story knows about any vote
+function surveyGoal(s, sv, now) {
+  const r = sv.result, w = r && r.winner, o = w == null ? null : sv.options[w]; if (!o) return;
+  const who = sv.kind === "join" ? sv.linked : sv.about, c = s.cast[who]; if (!c) return;
+  const where = sv.kind === "join" ? (c.hangouts || [])[0] || "street" : sv.linked;
+  if (!LOCATIONS[where]) return;
+  const at = pollStart(s, { who, kind: "meet", where }, now - (POLL_DELAY_MIN - 15) * 60000); if (!at) return;   // try again next tick
+  const goal = sv.kind === "join" ? `Ishai meets ${c.name} (${c.role}) for the first time, at the ${where}. They get talking naturally.`
+    : `${c.name} takes Ishai to ${o.label} (${where}). It is ${c.name}'s idea; they go there together, the real way, and spend some time there.`;
+  const g = newGoal({ id: "survey-" + sv.id, goal: goal + " Nobody in the story knows about any vote: it simply happens, naturally.", forceText: goal.split(". ")[0] + ".",
+    startAt: new Date(at).toISOString(), deadlineAt: new Date(at + POLL_LEN_MIN * 60000).toISOString(), location: where, with: c.name, forceWith: who, forceAction: "talking" }, now);
+  g.survey = sv.id; s.director.push(g); sv.goal = g.id;
+}
+// in tick(): a linked wish reaching its moment gets its host line; then one queued survey line a moment (not while he sleeps)
+function surveyHosts(s, ev, now) {
+  for (const g of (s.director || []).filter(d => d.survey && !d.saidAt && (d.status === "active" || d.doneAt === now))) {
+    if (!(ev.with === g.forceWith || (ev.lines || []).some(l => l && l.who === g.forceWith))) continue;
+    const sv = surveysOf(s).find(x => x.id === g.survey); if (!sv || !sv.result) { g.saidAt = now; continue; }
+    g.saidAt = now; const r = sv.result, o = sv.options[r.winner];
+    ev.commentary = [...(ev.commentary || []), { who: "zohar", say: sv.kind === "join" ? `Say hello to ${o.label}. ${svPct(r, r.winner)}% of you voted for them to join the show, and here they are.`
+      : `Remember the survey? ${svPct(r, r.winner)}% of you wanted ${surveyName(s, sv.about)} to take Ishai to ${o.label}. Here we go.` }];
+  }
+  s.surveySay = (s.surveySay || []).filter(x => now - x.at < 18 * 3600000);
+  if (s.surveySay.length && ev.action !== "sleeping" && (ev.commentary || []).length < 2) { const x = s.surveySay.shift(); ev.commentary = [...(ev.commentary || []), { who: x.who, say: x.say }]; }
+}
+// live results for everyone, counted at most once a minute per isolate
+let surveyLive = { at: 0, by: {} };
+async function surveyCounts(env, list) {
+  if (Date.now() - surveyLive.at > 60000 && list.length) {
+    const { results } = await env.DB.prepare(`SELECT survey, opt, COUNT(*) AS n FROM survey_votes WHERE survey IN (${list.map(() => "?").join(",")}) GROUP BY survey, opt`).bind(...list.map(x => x.id)).all();
+    const by = {}; (results || []).forEach(r => { (by[r.survey] = by[r.survey] || {})[r.opt] = Number(r.n); }); surveyLive = { at: Date.now(), by };
+  }
+  return surveyLive.by;
+}
+const surveyShown = (s, now) => surveysOf(s).filter(x => now >= x.opensAt && x.closesAt > now - SURVEY_KEEP_D * 86400000 && (x.options.length || x.suggestUntil))
+  .sort((a, b) => (b.week > a.week) - (b.week < a.week) || SURVEY_ORDER.indexOf(a.kind) - SURVEY_ORDER.indexOf(b.kind));
+async function surveysApi(req, env) {
+  if (!env.DB || !env.GOOGLE_CLIENT_ID) return json({ surveys: [], off: true }, { "cache-control": "no-store" });
+  await surveyTables(env);
+  const s = await loadState(env), now = Date.now(), list = surveyShown(s, now), voter = await voterOf(req, env), live = await surveyCounts(env, list.filter(x => !x.result));
+  const mine = {}, sent = {};
+  if (voter && list.length) {
+    const ids = list.map(x => x.id), q = ids.map(() => "?").join(",");
+    ((await env.DB.prepare(`SELECT survey, opt FROM survey_votes WHERE voter = ? AND survey IN (${q})`).bind(voter, ...ids).all()).results || []).forEach(r => mine[r.survey] = Number(r.opt));
+    ((await env.DB.prepare(`SELECT survey, COUNT(*) AS n FROM suggestions WHERE voter = ? AND survey IN (${q}) GROUP BY survey`).bind(voter, ...ids).all()).results || []).forEach(r => sent[r.survey] = Number(r.n));
+  }
+  return json({ signedIn: !!voter, surveys: list.map(sv => {
+    const phase = svPhase(sv, now), r = sv.result || (() => { const c = live[sv.id] || {}, counts = sv.options.map((_, i) => c[i] || 0); return { counts, total: counts.reduce((a, b) => a + b, 0), winner: null }; })();
+    return { id: sv.id, kind: sv.kind, question: sv.question, options: sv.options.map(o => o.label), phase, opensAt: sv.opensAt, closesAt: sv.closesAt, suggestUntil: sv.suggestUntil,
+      counts: r.counts, total: r.total, winner: sv.result ? r.winner : null, linked: !!sv.linked, mine: mine[sv.id] ?? null, sent: sent[sv.id] || 0, maxSent: SUGGEST_MAX };
+  }) }, { "cache-control": "no-store" });
+}
+async function surveyVote(req, env) {
+  if (!env.DB || !env.GOOGLE_CLIENT_ID) return json({ error: "surveys are not set up" }, {}, 503);
+  const voter = await voterOf(req, env); if (!voter) return json({ error: "please sign in to vote", signIn: true }, {}, 401);
+  await surveyTables(env);
+  const b = await req.json().catch(() => ({})), s = await loadState(env), now = Date.now(), sv = surveysOf(s).find(x => x.id === b.id);
+  if (!sv || svPhase(sv, now) !== "open") return json({ error: "this survey is not open" }, {}, 409);
+  const opt = Number(b.opt); if (!Number.isInteger(opt) || opt < 0 || opt >= sv.options.length) return json({ error: "no such option" }, {}, 400);
+  const r = await env.DB.prepare("INSERT OR IGNORE INTO survey_votes (survey, voter, opt, at) VALUES (?, ?, ?, ?)").bind(sv.id, voter, opt, now).run();
+  surveyLive.at = 0;
+  const mine = r.meta.changes === 1 ? opt : await env.DB.prepare("SELECT opt FROM survey_votes WHERE survey = ? AND voter = ?").bind(sv.id, voter).first("opt");
+  return json({ ok: true, counted: r.meta.changes === 1, mine }, { "cache-control": "no-store" });
+}
+const SUGGEST_BAD = /https?:|www\.|@|\.(com|net|org|io|co|il|ly|me|app)\b|\d{5,}|<|>/i;
+async function surveySuggest(req, env) {
+  if (!env.DB || !env.GOOGLE_CLIENT_ID) return json({ error: "surveys are not set up" }, {}, 503);
+  const voter = await voterOf(req, env); if (!voter) return json({ error: "please sign in to suggest", signIn: true }, {}, 401);
+  await surveyTables(env);
+  const b = await req.json().catch(() => ({})), s = await loadState(env), now = Date.now(), sv = surveysOf(s).find(x => x.id === b.id);
+  if (!sv || svPhase(sv, now) !== "suggest") return json({ error: "suggestions for this survey are closed" }, {}, 409);
+  const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n), a = str(b.a, 40), bb = str(b.b, 140), c = str(b.c, 60);
+  if (a.length < 2) return json({ error: sv.kind === "join" ? "give them a name" : "name the place" }, {}, 400);
+  if (SUGGEST_BAD.test(a + " " + bb + " " + c)) return json({ error: "no links, emails or numbers, please" }, {}, 400);
+  const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM suggestions WHERE survey = ? AND voter = ?").bind(sv.id, voter).first("n");
+  if (n >= SUGGEST_MAX) return json({ error: `you have sent your ${SUGGEST_MAX} suggestions for this one` }, {}, 429);
+  await env.DB.prepare("INSERT INTO suggestions (survey, voter, a, b, c, at) VALUES (?, ?, ?, ?, ?, ?)").bind(sv.id, voter, a, bb || null, c || null, now).run();
+  return json({ ok: true, sent: n + 1 }, { "cache-control": "no-store" });
+}
+// the director page: the surveys with live counts and, for join/place, the suggestions grouped by name
+async function surveyDirector(env, s) {
+  if (!env.DB) return { off: true, list: [] };
+  try { await surveyTables(env); } catch (e) { return { err: String(e.message || e), list: [] }; }
+  const now = Date.now(), list = surveysOf(s).filter(x => x.closesAt > now - SURVEY_KEEP_D * 86400000), live = await surveyCounts(env, list.filter(x => !x.result)).catch(() => ({}));
+  const out = [];
+  for (const sv of list) {
+    let sug = null;
+    if (sv.suggestUntil) sug = ((await env.DB.prepare("SELECT a, MIN(b) AS b, MIN(c) AS c, COUNT(*) AS n FROM suggestions WHERE survey = ? GROUP BY lower(a) ORDER BY n DESC, MIN(at) LIMIT 80").bind(sv.id).all()).results || []);
+    const counts = sv.result ? sv.result.counts : sv.options.map((_, i) => (live[sv.id] || {})[i] || 0);
+    out.push({ ...sv, phase: svPhase(sv, now), counts, total: counts.reduce((a, b) => a + b, 0), suggestions: sug, aboutName: sv.about ? surveyName(s, sv.about) : null });
+  }
+  return { off: !env.GOOGLE_CLIENT_ID || !!s.surveysOff, list: out, cast: Object.values(s.cast).map(c => ({ id: c.id, name: c.name })), places: Object.keys(LOCATIONS).filter(k => !["offscreen", "bus", "taxi", "apartment", "corridor"].includes(k)) };
+}
+async function surveyAction(env, s, b, now) {
+  const sv = surveysOf(s).find(x => x.id === b.id);
+  if (b.action === "surveysOff") { s.surveysOff = !!b.off; return null; }
+  if (!sv) return "no such survey";
+  if (b.action === "surveyShortlist") {
+    if (!sv.suggestUntil) return "this survey has no shortlist";
+    if (sv.shortlisted) return "the shortlist is already published (votes are final)";
+    const opts = (Array.isArray(b.options) ? b.options : []).map(x => String(x || "").replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean).slice(0, 6);
+    if (opts.length < 2) return "a shortlist needs 2 to 6 options";
+    sv.options = opts.map(label => ({ label, ref: null })); sv.shortlisted = true; sv.suggestUntil = Math.min(sv.suggestUntil, now);
+    return null;
+  }
+  if (b.action === "surveyLink") {
+    if (!sv.result || sv.result.winner == null) return "link the winner after the survey closes";
+    const ref = String(b.ref || "").toLowerCase();
+    if (sv.kind === "join" && !s.cast[ref]) return "that character is not in the cast yet (add it to SEED_CAST first)";
+    if (sv.kind === "place" && !LOCATIONS[ref]) return "that place is not on the map yet";
+    if (!["join", "place"].includes(sv.kind)) return "only the join and place surveys are linked";
+    sv.linked = ref; sv.goal = null; return null;
+  }
+  return "unknown survey action";
 }
 
 // ---------- director ----------
@@ -3082,6 +3302,7 @@ async function pokerTick(env, s, now) {
     }
     const g = R.goalId && s.director.find(d => d.id === R.goalId);
     if (g && g.status === "done" && !R.remembered) { R.remembered = true; P.nights++;
+      surveyPoker(s, R, date);
       if (R.story) { addLife(s, now, "poker", R.story.text); P.last = { place: R.story.place, bust: R.story.bust }; if (/Ronit told him/.test(R.story.text)) P.told = true; }
       const res = R.results || {}, sh = p => Math.round((res[p] || 0) / 10), word = p => sh(p) > 0 ? `won ${sh(p)}` : sh(p) < 0 ? `lost ${-sh(p)}` : "broke even";
       const mem = { boaz: `Hosts poker every second Monday. Ishai from upstairs plays now; last time he ${word("ishai")} shekels. Quiet, apologises too much.`,
@@ -3337,6 +3558,8 @@ async function directorApi(req, env) {
       if (g) { g.status = "done"; g.how = "cancelled"; g.doneAt = now; }
     } else if (String(b.action || "").startsWith("course")) {
       const r = await courseAction(env, s, b, now); if (r) return json({ error: r }, {}, 400);
+    } else if (/^surve/.test(String(b.action || ""))) {
+      const r = await surveyAction(env, s, b, now); if (r) return json({ error: r }, {}, 400);
     } else if (b.action === "pollSkip") {   // drop the coming poll (this hour has none)
       if (s.poll && !s.poll.done && now < s.poll.opensAt) s.poll = null;
     } else if (b.action === "pollsOff") {
@@ -3348,11 +3571,11 @@ async function directorApi(req, env) {
       const sent = await sendAlerts(env, s); await saveState(env, s); return json({ ok: true, sent });
     } else if (b.action === "tick") {
       await saveState(env, s); await tick(env, true);
-      return json(directorView(await loadState(env), JSON.parse(await env.ISHAI.get("bugs") || "[]")));
+      const s2 = await loadState(env); return json({ ...directorView(s2, JSON.parse(await env.ISHAI.get("bugs") || "[]")), surveys: await surveyDirector(env, s2).catch(e => ({ err: String(e.message || e), list: [] })) });
     }
     await saveState(env, s);
   }
-  return json(directorView(s, JSON.parse(await env.ISHAI.get("bugs") || "[]")));
+  return json({ ...directorView(s, JSON.parse(await env.ISHAI.get("bugs") || "[]")), surveys: await surveyDirector(env, s).catch(e => ({ err: String(e.message || e), list: [] })) });
 }
 function directorView(s, bugs) {
   const last = s.events[s.events.length - 1];
