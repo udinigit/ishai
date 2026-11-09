@@ -225,19 +225,19 @@
     font-size:clamp(12px,3vw,18px);line-height:1.2;height:3.7em;overflow:hidden;color:#f4f1ff}
   .stvBack{position:absolute;top:2.5%;right:2.5%;font-size:clamp(11px,2.6vw,15px)}
   .term.sum p{margin:.2em 0 .8em}
-.term.surv .sv{border:1px solid #2f4a2f;border-radius:8px;padding:8px 10px;margin:0 0 10px;background:#030803}
-.term.surv .svH{display:flex;justify-content:space-between;gap:8px;color:var(--amber,#ffb84d);font-size:.8em;letter-spacing:1px}
-.term.surv .svQ{margin:3px 0 6px;color:#eaffea;font-size:1.08em}
-.term.surv .svO{display:grid;gap:5px}
-.term.surv .svB{font:inherit;position:relative;display:flex;justify-content:space-between;gap:10px;width:100%;min-height:1.9em;padding:2px 9px;text-align:left;cursor:pointer;
+.surv .sv{border:1px solid #2f4a2f;border-radius:8px;padding:8px 10px;margin:0 0 10px;background:#030803}
+.surv .svH{display:flex;justify-content:space-between;gap:8px;color:var(--amber,#ffb84d);font-size:.8em;letter-spacing:1px}
+.surv .svQ{margin:3px 0 6px;color:#eaffea;font-size:1.08em}
+.surv .svO{display:grid;gap:5px}
+.surv .svB{font:inherit;position:relative;display:flex;justify-content:space-between;gap:10px;width:100%;min-height:1.9em;padding:2px 9px;text-align:left;cursor:pointer;
   background:#071207;color:#cfffd6;border:1px solid #2f5a34;border-radius:6px;overflow:hidden}
-.term.surv .svB:disabled{cursor:default} .term.surv .svB>span{position:relative}
-.term.surv .svB i{position:absolute;left:0;top:0;bottom:0;background:#14361a}
-.term.surv .svB.win{border-color:var(--amber,#ffb84d)} .term.surv .svB.win i{background:#3a2d0a} .term.surv .svB.mine{box-shadow:inset 0 0 0 1px #8dffa0}
-.term.surv .svF{font-size:.85em;opacity:.85;margin-top:5px}
-.term.surv .svS{display:grid;gap:5px;margin-top:4px} .term.surv .svS input{font:inherit;background:#020502;color:#cfffd6;border:1px solid #2f5a34;border-radius:6px;padding:3px 7px}
-.term.surv .svS button{font:inherit;justify-self:start;background:#0d240f;color:#cfffd6;border:1px solid #4dff7a;border-radius:6px;padding:1px 10px;cursor:pointer}
-.term.surv .svG{margin-top:6px} .term.sum h4{margin:.4em 0 .1em;font-weight:normal;color:var(--amber,#ffb84d)}
+.surv .svB:disabled{cursor:default} .surv .svB>span{position:relative}
+.surv .svB i{position:absolute;left:0;top:0;bottom:0;background:#14361a}
+.surv .svB.win{border-color:var(--amber,#ffb84d)} .surv .svB.win i{background:#3a2d0a} .surv .svB.mine{box-shadow:inset 0 0 0 1px #8dffa0}
+.surv .svF{font-size:.85em;opacity:.85;margin-top:5px}
+.surv .svS{display:grid;gap:5px;margin-top:4px} .surv .svS input{font:inherit;background:#020502;color:#cfffd6;border:1px solid #2f5a34;border-radius:6px;padding:3px 7px}
+.surv .svS button{font:inherit;justify-self:start;background:#0d240f;color:#cfffd6;border:1px solid #4dff7a;border-radius:6px;padding:1px 10px;cursor:pointer}
+.surv .svG{margin-top:6px} .term.sum h4{margin:.4em 0 .1em;font-weight:normal;color:var(--amber,#ffb84d)}
   .bugf{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}
   .bugf .in{background:#050705;border:2px solid var(--phos-faint);border-radius:10px;padding:12px;width:100%;max-width:480px;display:flex;flex-direction:column;gap:8px}
   .bugf textarea{font:inherit;font-size:18px;background:#071007;color:var(--phos);border:1px solid var(--phos-faint);border-radius:6px;min-height:110px;padding:6px}
@@ -269,6 +269,10 @@
   </div>
   <div style="font-size:14px;opacity:.75">Times are Israel time.</div>
   <div class="row"><span id="alertM" style="font-size:15px"></span><button id="alertC" class="snd">CANCEL</button><button id="alertS" class="snd">SAVE</button></div>
+</div></div>
+<div class="bugf" id="survF" hidden><div class="in">
+  <div class="row" style="justify-content:space-between"><span>SURVEYS OF THE WEEK</span><button id="survC" class="snd">CLOSE</button></div>
+  <div class="surv" id="survBox" style="max-height:min(70vh,560px);overflow:auto"></div>
 </div></div>
 <div class="bugf" id="acctF" hidden><div class="in">
   <div id="acctT">SIGN IN / SIGN UP</div>
@@ -4608,7 +4612,7 @@
                          : [G.items && G.items.length ? {kind: 'list', when: 'TODAY · ' + G.day, items: G.items, today: true} : null,
                             G.week && G.week.length ? {kind: 'list', when: 'THIS WEEK', items: G.week} : null];
     const turn = slot % 4;   // a schedule, the merch, the other schedule (or the next big night), the merch's turn again for the next big night
-    const sv = surveyCard(slot);   // the surveys of the week take the third and fourth turns now and then
+    const sv = surveyCard(slot);   // the surveys of the week: the fourth turn (every other hour when a promotion runs) and the third turn every other hour
     const pick = turn === 0 ? lists[0] : turn === 1 ? {kind: 'merch'} : turn === 2 ? (promo && slot % 8 === 2 ? {kind: 'promo', ev} : sv && slot % 8 === 6 ? sv : lists[1])
       : (sv && (!promo || slot % 8 === 3) ? sv : promo ? {kind: 'promo', ev} : lists[0]);
     return pick || lists[0] || lists[1] || {kind: 'merch'};
@@ -4662,8 +4666,8 @@
         if (c.results){ const top = v.options.map((l, i) => [l, v.counts[i]]).sort((x, y) => y[1] - x[1]).slice(0, 3);
           top.forEach(([l, n]) => { const r = document.createElement('small'); r.className = 'svr'; const a = document.createElement('span'); a.textContent = (v.winner != null && v.options[v.winner] === l ? '★ ' : '') + l;
             const p = document.createElement('b'); p.textContent = Math.round(100 * n / v.total) + '%'; r.append(a, p); b.appendChild(r); }); }
-        else { const sm = document.createElement('small'); sm.textContent = v.phase === 'suggest' ? 'Send your idea. Tap to suggest' : 'Sign in and vote. Tap to vote'; b.appendChild(sm); }
-        const go = document.createElement('span'); go.className = 'go'; go.textContent = c.results ? 'SEE ALL ▸' : v.phase === 'suggest' ? 'SUGGEST ▸' : 'VOTE NOW ▸'; b.appendChild(go);
+        else { const sm = document.createElement('small'); sm.textContent = v.mine != null ? 'Your vote is in. Tap for the results' : 'Tap to vote'; b.appendChild(sm); }
+        const go = document.createElement('span'); go.className = 'go'; go.textContent = c.results || v.mine != null ? 'SEE ALL ▸' : 'VOTE NOW ▸'; b.appendChild(go);
         body.append(b); }
       else if (c.kind === 'merch'){ tag.textContent = '● OFFICIAL MERCH';
         const a = document.createElement('a'); a.className = 'merch'; a.href = MERCH_URL; a.target = '_blank'; a.rel = 'noopener noreferrer';
@@ -4677,7 +4681,7 @@
           const b = document.createElement('b'); b.textContent = x.t; li.append(b, document.createTextNode(x.what)); ul.append(li); });
         body.append(ul); } }
     if (guideOn !== sig){ guideOn = sig; el.classList.add('on'); el.setAttribute('aria-hidden', tappable ? 'false' : 'true');
-      el.classList.toggle('tap', c.kind === 'survey'); el.onclick = c.kind === 'survey' ? (() => openSurvey(c.v.id)) : null; }
+      el.classList.toggle('tap', c.kind === 'survey'); el.onclick = c.kind === 'survey' ? (e => { e.stopPropagation(); openSurvey(c.v.id); }) : null; }
   }
   setInterval(guideTick, 500);
   // ================= preview of the planned day (/?preview): plays the planner's beats in order =================
@@ -5492,66 +5496,50 @@
     if (!force && NOW() - survAt < 5 * 60000) return;
     survBusy = true;
     try { const r = await (await fetch('/api/surveys', {cache: 'no-store'})).json(); if (!r.off){ SURV = r; survAt = NOW(); } else SURV = null; } catch(e){}
-    survBusy = false; $('tabSurv').hidden = !SURV || !SURV.surveys.length; survSig = ''; survRender();
+    survBusy = false; $('tabSurv').hidden = !DEV || !SURV || !SURV.surveys.length; survSig = ''; survRender();   // the tab is the developer's; viewers vote from the guide card
   }
   const svWhen = t => new Intl.DateTimeFormat('en-GB', {timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false}).format(new Date(t));
   function survRender(){
-    const el = $('survPanel'); if (el.hidden) return;
     const sig = JSON.stringify([SURV, survMsg, AUTH.signedIn, AUTH.gis]); if (sig === survSig) return; survSig = sig;
+    [$('survPanel'), $('survBox')].forEach(el => { if (!el.hidden && !(el.id === 'survBox' && $('survF').hidden)) survFill(el); });
+  }
+  function survFill(el){
     el.textContent = '';
     if (!SURV || !SURV.surveys.length){ const d = document.createElement('div'); d.className = 'empty'; d.textContent = 'No surveys right now. New ones every Sunday morning.'; el.appendChild(d); return; }
     const login = !SURV.signedIn;
     SURV.surveys.forEach(v => {
-      const box = document.createElement('div'); box.className = 'sv'; box.id = 'sv-' + v.id;
+      const box = document.createElement('div'); box.className = 'sv'; box.dataset.id = v.id;
       const h = document.createElement('div'); h.className = 'svH';
       const k = document.createElement('span'); k.textContent = '📋 ' + (SURV_KIND[v.kind] || 'SURVEY');
-      const w = document.createElement('span'); w.textContent = v.phase === 'closed' ? 'FINAL RESULT' : v.phase === 'suggest' ? 'SUGGESTIONS UNTIL ' + svWhen(v.suggestUntil).toUpperCase() : 'CLOSES ' + svWhen(v.closesAt).toUpperCase();
+      const w = document.createElement('span'); w.textContent = v.phase === 'closed' ? 'FINAL RESULT' : 'CLOSES ' + svWhen(v.closesAt).toUpperCase();
       h.append(k, w); box.appendChild(h);
       const q = document.createElement('div'); q.className = 'svQ'; q.textContent = v.question; box.appendChild(q);
       const foot = document.createElement('div'); foot.className = 'svF';
-      if (v.phase === 'suggest'){
-        if (login) foot.textContent = 'Sign in with Google to send a suggestion.';
-        else if (v.sent >= v.maxSent) foot.textContent = `You sent your ${v.maxSent} suggestions. The director reads every one; the shortlist vote opens on Thursday.`;
-        else {
-          const f = document.createElement('form'); f.className = 'svS';
-          const inp = (ph, n) => { const i = document.createElement('input'); i.placeholder = ph; i.maxLength = n; f.appendChild(i); return i; };
-          const a = inp(v.kind === 'join' ? 'Name' : 'The place (e.g. the beach, a bowling alley)', 40);
-          const b = inp(v.kind === 'join' ? 'Who they are, in a line' : 'Why there, in a line', 140);
-          const c = v.kind === 'join' ? inp('Where Ishai would meet them', 60) : null;
-          const go = document.createElement('button'); go.type = 'submit'; go.textContent = 'SEND'; f.appendChild(go);
-          f.onsubmit = async e => { e.preventDefault(); go.disabled = true;
-            try { const r = await fetch('/api/survey/suggest', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({id: v.id, a: a.value, b: b.value, c: c ? c.value : ''})});
-              const j = await r.json().catch(() => ({}));
-              survMsg[v.id] = r.ok ? 'Thanks! The director reads every one; the shortlist vote opens on Thursday.' : (j.error ? j.error.charAt(0).toUpperCase() + j.error.slice(1) + '.' : 'That did not work.');
-              if (r.ok) v.sent = j.sent; if (j.signIn) AUTH.signedIn = false;
-            } catch(err){ survMsg[v.id] = 'No connection, try again.'; }
-            survSig = ''; survRender(); };
-          box.appendChild(f);
-          foot.textContent = `Up to ${v.maxSent} suggestions. Only the director sees them; viewers then vote on the director's shortlist.`;
-        }
-      } else if (v.phase === 'shortlist') foot.textContent = 'The director is reading your suggestions. The vote on the shortlist opens soon.';
-      else if (v.phase === 'waiting') foot.textContent = 'The week\'s lectures join this survey as they happen.';
-      else {
-        const o = document.createElement('div'); o.className = 'svO'; const open = v.phase === 'open';
-        v.options.forEach((label, i) => {
-          const b = document.createElement('button'); b.type = 'button'; b.className = 'svB';
-          const pct = v.total ? Math.round(100 * v.counts[i] / v.total) : 0, fill = document.createElement('i'); fill.style.width = pct + '%'; b.appendChild(fill);
-          const t = document.createElement('span'); t.textContent = label; const n = document.createElement('span');
-          n.textContent = (v.mine === i ? '✓ ' : '') + (v.winner === i ? '★ ' : '') + (v.total ? pct + '%' : ''); b.append(t, n);
-          if (v.mine === i) b.classList.add('mine'); if (v.winner === i) b.classList.add('win');
-          b.disabled = !open || v.mine != null || login;
-          b.onclick = () => survVote(v, i); o.appendChild(b); });
-        box.appendChild(o);
-        foot.textContent = v.phase === 'closed' ? (v.total ? `${v.total} vote${v.total === 1 ? '' : 's'}.` + ((v.kind === 'join' || v.kind === 'place') && v.winner != null ? (v.linked ? ' On its way into the show.' : ' Coming to the show soon.') : '') : 'Nobody voted.')
-          : login ? 'Sign in with Google to vote. One vote per account, and it is final.' : v.mine != null ? `Your vote is in. Results so far: ${v.total} vote${v.total === 1 ? '' : 's'}.` : 'One vote per account, and it is final.';
-        if (v.kind === 'lecture' && v.phase !== 'closed') foot.textContent += ' The first topic is the course\'s own plan. The winner is taught right after the next lecture.';
-      }
+      const o = document.createElement('div'); o.className = 'svO'; const open = v.phase === 'open';
+      v.options.forEach((label, i) => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'svB';
+        const pct = v.total ? Math.round(100 * v.counts[i] / v.total) : 0, fill = document.createElement('i'); fill.style.width = pct + '%'; b.appendChild(fill);
+        const t = document.createElement('span'); t.textContent = label; const n = document.createElement('span');
+        n.textContent = (v.mine === i ? '✓ ' : '') + (v.winner === i ? '★ ' : '') + (v.total ? pct + '%' : ''); b.append(t, n);
+        if (v.mine === i) b.classList.add('mine'); if (v.winner === i) b.classList.add('win');
+        b.disabled = !open || v.mine != null || login;
+        b.onclick = () => survVote(v, i); o.appendChild(b); });
+      box.appendChild(o);
+      foot.textContent = v.phase === 'closed' ? (v.total ? `${v.total} vote${v.total === 1 ? '' : 's'}.` + ((v.kind === 'join' || v.kind === 'place') && v.winner != null ? (v.linked ? ' On its way into the show.' : ' Coming to the show soon.') : '') : 'Nobody voted.')
+        : login ? 'Sign in with Google to vote. One vote per account, and it is final.' : v.mine != null ? `Your vote is in. Results so far: ${v.total} vote${v.total === 1 ? '' : 's'}.` : 'One vote per account, and it is final.';
+      if (v.kind === 'lecture' && v.phase !== 'closed') foot.textContent += ' The first topic is the course\'s own plan. The winner is taught right after the next lecture.';
       if (survMsg[v.id]) foot.textContent = survMsg[v.id];
       box.appendChild(foot);
-      if (login && v.phase !== 'closed' && v.phase !== 'shortlist' && v.phase !== 'waiting'){ const g = document.createElement('div'); g.className = 'svG'; box.appendChild(g); gisButton(g); }
+      if (login && open){ const g = document.createElement('div'); g.className = 'svG'; box.appendChild(g); gisButton(g); }
       el.appendChild(box);
     });
   }
+  function openSurvey(id){   // the guide card's tap: the voting window over the picture, scrolled to that survey
+    if (camEl.classList.contains('fs')) setFs(false);   // full screen would cover the window
+    $('survF').hidden = false; survSig = ''; survRender(); survLoad(true);
+    const b = [...$('survBox').querySelectorAll('.sv')].find(x => x.dataset.id === id); if (b) b.scrollIntoView({block: 'nearest'});
+  }
+  $('survC').onclick = () => { $('survF').hidden = true; };
   async function survVote(v, i){
     if (v.mine != null) return;
     v.mine = i; survMsg[v.id] = 'Sending your vote…'; survSig = ''; survRender();
@@ -5562,15 +5550,14 @@
     } catch(e){ v.mine = null; survMsg[v.id] = 'No connection, try again.'; }
     survSig = ''; survRender();
   }
-  setInterval(() => { survLoad(!$('survPanel').hidden && NOW() - survAt > 60000); survRender(); }, 5000);
+  setInterval(() => { survLoad((!$('survPanel').hidden || !$('survF').hidden) && NOW() - survAt > 60000); survRender(); }, 5000);
   // the guide card's survey: alternately "vote now" and "results so far", picked from the clock (the same for everyone who has the same surveys)
   function surveyCard(slot){
-    const list = (SURV && SURV.surveys || []).filter(v => v.phase === 'open' || v.phase === 'suggest' || (v.phase === 'closed' && v.total));
+    const list = (SURV && SURV.surveys || []).filter(v => v.phase === 'open' || (v.phase === 'closed' && v.total));
     if (!list.length) return null;
     const v = list[Math.floor(slot / 2) % list.length];
     return {kind: 'survey', v, results: v.phase === 'closed' || (v.phase === 'open' && v.total > 0 && slot % 2 === 1)};
   }
-  function openSurvey(id){ showTab('surv'); setTimeout(() => { const b = $('sv-' + id) || $('survPanel'); b.scrollIntoView({behavior: 'smooth', block: 'nearest'}); }, 120); }
   setInterval(pollTick, 250);
   $('pollR').onclick = e => { e.stopPropagation(); pollRemind(); };
   if (!new URLSearchParams(location.search).has('sandbox')) authLoad();

@@ -72,7 +72,7 @@
         <span><button id="survOff" class="ghost">Turn surveys off</button></span></div>
       <div id="survList" style="margin-top:6px">—</div>
       <div id="survMsg"></div>
-      <div class="muted" style="font-size:16px">Sunday 06:00 to Saturday 21:00, Google sign-in, one final vote each. New character and new place: viewers suggest until Thursday (only you see the suggestions), you publish a shortlist of 2-6, they vote until Saturday. Once the winner is built (a <code>SEED_CAST</code> entry, or a place on the map), link it here: it then happens in the story and the hosts say it was the viewers' choice.</div>
+      <div class="muted" style="font-size:16px">Sunday 06:00 to Saturday 21:00, Google sign-in, one final vote each. Viewers vote from the survey card on the picture. New character and new place: four of our own ideas a week (<code>NEW_CAST_IDEAS</code>, <code>NEW_PLACE_IDEAS</code> in the worker); viewers only pick. Once the winner is built (a <code>SEED_CAST</code> entry, or a place on the map), link it here: it then happens in the story and the hosts say it was the viewers' choice.</div>
     </div>
 
     <div class="box">
@@ -181,20 +181,10 @@
     const say = async (body, done) => { const m = $('survMsg'); m.className = ''; m.textContent = 'Saving…'; try { render(await api(body)); $('survMsg').textContent = done; } catch(e){ m.className = 'err'; m.textContent = e.message; } };
     S.list.forEach(v => {
       const box = document.createElement('div'); box.className = 'goal';
-      const h = document.createElement('div'); h.textContent = `${v.question} · ${v.phase}${v.phase === 'suggest' ? ' until ' + when(v.suggestUntil) : ' · closes ' + when(v.closesAt)} · ${v.total} vote${v.total === 1 ? '' : 's'}`; box.appendChild(h);
+      const h = document.createElement('div'); h.textContent = `${v.question} · ${v.phase} · closes ${when(v.closesAt)} · ${v.total} vote${v.total === 1 ? '' : 's'}`; box.appendChild(h);
       v.options.forEach((o, i) => { const d = document.createElement('div'); d.className = 'muted'; d.style.fontSize = '16px';
-        d.textContent = `• ${o.label}${v.total ? ' · ' + Math.round(100 * v.counts[i] / v.total) + '%' : ''}${v.result && v.result.winner === i ? ' ★' : ''}`; box.appendChild(d); });
+        d.textContent = `• ${o.label}${v.total ? ' · ' + Math.round(100 * v.counts[i] / v.total) + '%' : ''}${v.result && v.result.winner === i ? ' ★' : ''}${o.note ? ' (' + o.note + ')' : ''}`; box.appendChild(d); });
       if (v.pokerWinner) { const d = document.createElement('div'); d.className = 'muted'; d.textContent = 'Poker winner: ' + v.pokerWinner; box.appendChild(d); }
-      if (v.suggestions){
-        const t = document.createElement('div'); t.style.marginTop = '6px'; t.textContent = v.suggestions.length ? `Suggestions (${v.suggestions.reduce((a, x) => a + x.n, 0)}), grouped by name:` : 'No suggestions yet.'; box.appendChild(t);
-        v.suggestions.forEach(x => { const d = document.createElement('div'); d.style.fontSize = '16px'; d.textContent = `${x.n > 1 ? x.n + '× ' : ''}${x.a}${x.b ? ' — ' + x.b : ''}${x.c ? ' (meets him: ' + x.c + ')' : ''}`; box.appendChild(d); });
-        if (!v.shortlisted && v.phase !== 'closed'){
-          const ta = document.createElement('textarea'); ta.rows = 4; ta.style.width = '100%'; ta.placeholder = 'The shortlist: one option per line (2-6). Publishing it ends the suggestions and opens the vote; it cannot be changed afterwards.';
-          const b = document.createElement('button'); b.textContent = 'Publish the shortlist';
-          b.onclick = () => { const options = ta.value.split('\n').map(x => x.trim()).filter(Boolean); if (confirm(`Publish ${options.length} options? Votes are final, so the list cannot change afterwards.`)) say({action: 'surveyShortlist', id: v.id, options}, 'Shortlist published.'); };
-          box.append(ta, b);
-        }
-      }
       if ((v.kind === 'join' || v.kind === 'place') && v.result && v.result.winner != null){
         const row = document.createElement('div'); row.style.marginTop = '6px';
         const sel = document.createElement('select'); sel.className = 'snd';

@@ -90,3 +90,7 @@ These are template lines added to `ev.commentary` in `tick()`, the same way `qui
 2. **Effects on the story:** yes, but only for "who would you like" questions (who joins the show, where someone takes Ishai), never for "who is" or "what is" questions (favourite character, favourite lecture, the poker guess), and no assumptions drawn from them.
 3. **The place survey:** a random friend of Ishai's each week.
 4. **Votes are final:** one vote per account, no changes.
+
+## Changes after the first build (2026-11-09, the director)
+- No suggestions from viewers: the new character and new place choices are ours (four a week from fixed idea pools in the worker); viewers only pick.
+- Viewers vote from the survey card on the picture, which now shows more often; tapping it opens a voting window. The SURVEYS tab is for the developer only.
