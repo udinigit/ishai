@@ -370,7 +370,7 @@
   }
   if (SPEECH){ loadVoices(); try { SPEECH.addEventListener('voiceschanged', loadVoices); } catch (e) { SPEECH.onvoiceschanged = loadVoices; } }
   let duckTimer = 0;
-  function duck(on, ms){ clearTimeout(duckTimer); if (master && ac) master.gain.setTargetAtTime(muted ? 0 : on ? .3 : .85, ac.currentTime, .08);
+  function duck(on, ms){ clearTimeout(duckTimer); if (master && ac) master.gain.setTargetAtTime(muted ? 0 : on ? .5 : .85, ac.currentTime, .08);
     if (on) duckTimer = setTimeout(() => duck(false), ms || 6000); }   // some phones never say the speech ended: the music comes back anyway
   function speak(text, who){
     if (!SPEECH || !voxOn || muted) return;
@@ -436,13 +436,13 @@
   const stinger = (x, notes, gap = .09, vol = .07, len = .25) => notes.forEach((n, i) => osc('square', NF(n), t0 + x + i * gap, len, vol, {lp: 4000}));
   function score() {
     const A = x => t0 + x;
-    groove(0, AT(1), {arp: .02});
-    groove(AT(1), AT(2), {arp: .025, bass: 1});
+    groove(0, AT(1), {arp: .04, bass: 1, hats: 1});   // the tune is there from the first second, under the narrator
+    groove(AT(1), AT(2), {arp: .04, bass: 1, kick: 1, hats: 1});
     groove(AT(2), AT(3), {arp: .03, bass: 1, kick: 1, snare: 1, hats: 1});
     noise(A(AT(3)), .5, .35, {type: 'bandpass', f: 3000, f2: 300, q: 4}); osc('sawtooth', 600, A(AT(3)), .45, .1, {f2: 80, lp: 2500});
-    groove(AT(3) + 1.5, AT(4), {bass: 1, hats: 1});
+    groove(AT(3) + 1.5, AT(4), {bass: 1, kick: 1, hats: 1, arp: .03});
     for (let i = 0; i < 4; i++) osc('square', NF(84), A(AT(3) + 3 + i * .45), .06, .05);
-    groove(AT(4), AT(9), {bass: 1, hats: 1, arp: .015});
+    groove(AT(4), AT(9), {bass: 1, kick: 1, hats: 1, arp: .035});   // a steady groove under the interviews
     for (let i = 4; i < 9; i++) noise(A(AT(i)), .06, .12, {f: 3000});
     stinger(AT(9), [72, 76, 79, 84], .1, .08, .3);
     groove(AT(9) + .5, AT(10), {bass: 1, kick: 1, snare: 1, hats: 1, arp: .02});
