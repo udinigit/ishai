@@ -110,6 +110,9 @@
   .pollC{border:2px solid var(--amber);border-radius:10px;background:#0d0a03;padding:8px 10px 9px;color:#ffe2ad;font-size:clamp(15px,3.9vw,20px);line-height:1.15}
   .pollH{display:flex;justify-content:space-between;gap:8px;color:var(--amber);letter-spacing:1px;font-size:.85em}
   .pollH b{font-weight:normal;color:#fff3d6}
+  .pollH span{white-space:nowrap} .pollR{font:inherit;font-size:.85em;margin-left:auto;background:#1a1405;color:#ffe2ad;border:1px solid #6b5420;border-radius:6px;padding:0 6px;cursor:pointer;white-space:nowrap}
+  .pollR[aria-pressed="true"]{border-color:var(--amber);color:#fff3d6;background:#2a1f07}
+  .guide .rem{pointer-events:auto;font:inherit;display:inline-block;margin-top:3px;background:#ffd36a;color:#0a0f2a;border:0;padding:0 5px;cursor:pointer;font-size:.95em}
   .pollQ{margin:4px 0 7px;font-size:1.15em;color:#fff3d6}
   .pollO{display:grid;gap:6px}
   .pollB{font:inherit;position:relative;display:flex;justify-content:space-between;gap:10px;align-items:center;width:100%;min-height:2em;padding:3px 10px;text-align:left;cursor:pointer;
@@ -197,7 +200,7 @@
   .guide .big .n{color:#ffd36a}
   .guide .promo{display:flex;align-items:center;gap:2px;padding-left:6px} .guide .promo .big{min-width:0}
   .guide .promo img{flex:none;max-width:38%;max-height:4.6em;object-fit:contain}
-  .guide:not(.on) a{pointer-events:none!important}
+  .guide:not(.on) a,.guide:not(.on) .rem{pointer-events:none!important}
   .guide .big a.go{pointer-events:auto;display:inline-block;margin-top:3px;background:#ffd36a;color:#0a0f2a;padding:0 5px;text-decoration:none;font-size:.95em}
   .guide a.merch{pointer-events:auto;display:flex;gap:6px;align-items:center;padding:4px 6px 5px;color:inherit;text-decoration:none}
   .guide a.merch canvas{width:clamp(44px,12vw,72px);image-rendering:pixelated;image-rendering:crisp-edges;flex:none}
@@ -239,9 +242,10 @@
 </head>
 <body>
 <div class="bugf" id="alertF" hidden><div class="in">
-  <div>KEY MOMENT ALERTS</div>
-  <div style="font-size:15px;opacity:.75">A short heads-up about 5 minutes before something important happens. Saved on this device.</div>
-  <label style="display:flex;gap:8px;align-items:center;font-size:18px"><input type="checkbox" id="alertOn"> Send me alerts</label>
+  <div>NOTIFICATIONS</div>
+  <div style="font-size:15px;opacity:.75">Saved on this device. Vote reminders are set with the 🔔 on the vote card.</div>
+  <label style="display:flex;gap:8px;align-items:center;font-size:18px"><input type="checkbox" id="alertOn"> Key moments: a heads-up about 5 minutes before something important happens</label>
+  <label style="display:flex;gap:8px;align-items:center;font-size:18px"><input type="checkbox" id="alertPick"> Tell me when a moment I voted for happens (if my pick wins)</label>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:16px">
     <label>From <select id="alertFrom" class="snd" style="width:100%"></select></label>
     <label>Until <select id="alertTo" class="snd" style="width:100%"></select></label>
@@ -290,7 +294,7 @@
   </div>
 
   <div class="promoC" id="promoC" hidden><span>📣 COMING UP</span><b id="promoT"></b><button id="promoMore" type="button">SEE ▸</button></div>
-  <div class="pollC" id="pollC" hidden><div class="pollH"><span>🗳 VIEWERS' VOTE</span><b id="pollT"></b></div><div class="pollQ" id="pollQ"></div><div class="pollO" id="pollO"></div><div class="pollF" id="pollF" aria-live="polite"></div><div class="pollG" id="pollG" hidden></div></div>
+  <div class="pollC" id="pollC" hidden><div class="pollH"><span>🗳 VIEWERS' VOTE</span><button id="pollR" class="pollR" type="button" hidden></button><b id="pollT"></b></div><div class="pollQ" id="pollQ"></div><div class="pollO" id="pollO"></div><div class="pollF" id="pollF" aria-live="polite"></div><div class="pollG" id="pollG" hidden></div></div>
 
   <div class="status">
     <div class="info">
@@ -4601,7 +4605,7 @@
         : k === 'week' ? {kind: 'list', when: 'THIS WEEK', items: G.week || []} : k === 'tomorrow' ? {kind: 'list', when: 'TOMORROW · ' + ((G.tomorrow || {}).day || ''), items: (G.tomorrow || {}).items || []}
         : {kind: 'list', when: 'TODAY · ' + (G.day || ''), items: G.items || [], today: true};
       if (c){ e = 0; } }
-    const tappable = c && (c.kind === 'merch' || (c.kind === 'promo' && c.ev && c.ev.band && (c.ev.band.links || []).length));
+    const tappable = c && (c.kind === 'merch' || (c.kind === 'vote' && PUSH.ok) || (c.kind === 'promo' && c.ev && c.ev.band && (c.ev.band.links || []).length));
     if (c && !tappable && e >= GUIDE_SHOW && !(GUIDE_FORCE && now < GUIDE_FORCE.until)) c = null;   // the merch card stays a little longer, so there is time to tap it
     if (!c){ if (guideOn){ guideOn = ''; el.classList.remove('on'); } return; }
     const tag = $('guideTag'), body = $('guideB'), when = at => { const d = new Date(at), dd = new Date(now);
@@ -4609,8 +4613,12 @@
       return (new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Jerusalem'}).format(d) === new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Jerusalem'}).format(dd) ? 'TONIGHT' : day) + ' ' + fmtHM.format(d); };
     const sig = c.kind + (c.when || '') + slot + (GUIDE_FORCE && now < GUIDE_FORCE.until ? GUIDE_FORCE.until : '');
     if (c.kind === 'vote'){ tag.textContent = '● STAY TUNED';
-      body.innerHTML = '<div class="big">VIEWERS\' VOTE IN <span class="n" id="guideN"></span><small>You decide what happens to Ishai next</small></div>';
-      $('guideN').textContent = mmss(c.opensAt - now); }
+      if (guideOn !== sig || !$('guideN')){
+        body.innerHTML = '<div class="big">VIEWERS\' VOTE IN <span class="n" id="guideN"></span><small>You decide what happens to Ishai next</small></div>';
+        if (PUSH.ok && POLL && !POLL.sandbox){ const b = document.createElement('button'); b.type = 'button'; b.className = 'rem'; b.id = 'guideR';
+          b.addEventListener('click', e => { e.stopPropagation(); pollRemind(); }); body.querySelector('small').append(document.createElement('br'), b); } }
+      $('guideN').textContent = mmss(c.opensAt - now);
+      const rb = $('guideR'); if (rb){ const t = POLL && REMINDS[POLL.id] ? '🔔 REMINDER ON' : '🔔 REMIND ME'; if (rb.textContent !== t) rb.textContent = t; } }
     else if (guideOn !== sig){
       body.innerHTML = '';
       if (c.kind === 'promo'){ const ev = c.ev; tag.textContent = '● COMING UP';
@@ -4864,7 +4872,7 @@
       hostFill: () => hostFill(true), overhear: () => overhear(true), city: id => cityTick(CITY.find(e => e.id === id) || CITY[0]), chat: () => { const c = CHAT_STOCK[Math.floor(NOW() / 1000) % CHAT_STOCK.length]; showChat(c[0], c[1]); },
       texture: x => { TEXTURE = x; },
       poll(o){ const t = NOW(), id = 'sb-poll-' + (++n); POLL = {id, sandbox: true, question: o.question || 'How will Avi make Ishai\'s next falafel?', options: o.options || ['Extremely spicy', 'Drowning in tahini', 'Just the usual'],
-        opensAt: t + (o.inSec ?? 5) * 1000, closesAt: t + ((o.inSec ?? 5) + 60) * 1000, result: null}; if (o.result){ POLL.opensAt = t - 70000; POLL.closesAt = t - 10000; POLL.result = pollFake(POLL); } pollSig = ''; },
+        opensAt: t + (o.inSec ?? 5) * 1000, closesAt: t + ((o.inSec ?? 5) + 300) * 1000, result: null}; if (o.result){ POLL.opensAt = t - 310000; POLL.closesAt = t - 10000; POLL.result = pollFake(POLL); } pollSig = ''; },
       fillLine: slot => hostFillLine(slot), sfx: k => Sound.sfx(k),
       home: (k, skip) => { actor.homeTest = k ? {k, t0: NOW() - (skip || 0) * 1000} : null; },   // play one home activity now, from its start (or `skip` seconds in)
       homeNow: () => actor.err ? {home: actor.err.home, pose: actor.err.pose, seat: actor.err.seat, tag: actor.err.tag, x: Math.round(actor.x)} : null,
@@ -5272,10 +5280,15 @@
   }
   let loaded = false, fails = 0;
   // ================= viewers' poll =================
-  // The worker writes one poll an hour (opens hh:20 for 60 s). Times are the server's (NOW()), so the card opens and closes for everyone together.
+  // The worker writes one poll an hour (opens hh:20 for 5 minutes). Times are the server's (NOW()), so the card opens and closes for everyone together.
   // Anyone can vote once per browser; the result shows percentages with the winner highlighted, and the story plays it out an hour or more later.
   let POLL = null, pollSig = '', pollFetch = 0, pollTries = 0, pollPinged = '', pollMsg = '';
   const POLL_SOON = 20 * 60000, POLL_KEEP = 10 * 60000;
+  // push notifications, shared by the header bell (which fills these in once it knows the browser can do it) and the vote card's reminder bell
+  const PUSH = {ok: false, sub: async () => null, ensure: async () => null, picks: () => false};
+  const REMINDS = (() => { try { return JSON.parse(localStorage.getItem('ishaiReminds')) || {}; } catch(e){ return {}; } })();
+  const keepRemind = (id, on) => { if (on) REMINDS[id] = 1; else delete REMINDS[id]; try { const k = Object.keys(REMINDS).slice(-10), o = {}; k.forEach(x => o[x] = 1); localStorage.setItem('ishaiReminds', JSON.stringify(o)); } catch(e){} };
+  let remindMsg = '';
   const pollVoter = (() => { const mk = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16)));
     try { let v = localStorage.getItem('ishaiVoter'); if (!v){ v = mk(); localStorage.setItem('ishaiVoter', v); } return v; } catch(e){ return mk(); } })();
   const MYVOTES = (() => { try { return JSON.parse(localStorage.getItem('ishaiVotes')) || {}; } catch(e){ return {}; } })();
@@ -5369,12 +5382,29 @@
     const p = POLL; if (!p || MYVOTES[p.id] != null) return;
     if (needSignIn(p)){ pollMsg = 'Sign in with Google first (the button below).'; pollSig = ''; return; }
     keepVote(p.id, i); pollMsg = 'Sending your vote…'; pollSig = ''; pollTick();
-    if (p.sandbox){ pollMsg = 'Vote counted (sandbox: nothing is sent). Results when the minute is up.'; pollSig = ''; return; }
-    try { const r = await fetch('/api/vote', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({poll: p.id, opt: i, voter: pollVoter})});
+    if (p.sandbox){ pollMsg = 'Vote counted (sandbox: nothing is sent). Results when the voting time is up.'; pollSig = ''; return; }
+    let endpoint; try { const sub = PUSH.ok && PUSH.picks() ? await PUSH.sub() : null; if (sub) endpoint = sub.endpoint; } catch(e){}   // so this device hears when its pick happens
+    try { const r = await fetch('/api/vote', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({poll: p.id, opt: i, voter: pollVoter, endpoint})});
       const j = await r.json().catch(() => ({}));
-      if (r.ok) pollMsg = j.counted === false ? 'You already voted in this one.' : 'Vote counted. Results when the minute is up.';
+      if (r.ok) pollMsg = j.counted === false ? 'You already voted in this one.' : 'Vote counted. Results when the voting time is up.' + (endpoint ? ' If your pick wins, we\'ll notify you when it happens.' : '');
       else { pollMsg = j.error ? j.error.charAt(0).toUpperCase() + j.error.slice(1) + '.' : 'That did not work.'; if (r.status !== 429) forgetVote(p.id); if (j.signIn){ AUTH.signedIn = false; AUTH.sig = ''; } }
     } catch(e){ pollMsg = 'No connection, try again.'; forgetVote(p.id); }
+    pollSig = ''; pollTick();
+  }
+  // the vote card's bell: a push when this poll opens (only before it opens)
+  async function pollRemind(){
+    const p = POLL; if (!p || NOW() >= p.opensAt) return;
+    const on = !REMINDS[p.id];
+    if (p.sandbox){ keepRemind(p.id, on); remindMsg = on ? 'Reminder set (sandbox: nothing is sent).' : 'Reminder off.'; pollSig = ''; return; }
+    remindMsg = on ? 'Setting a reminder…' : ''; pollSig = '';
+    try {
+      const sub = on ? await PUSH.ensure() : await PUSH.sub();
+      if (!sub){ remindMsg = on ? 'Your browser is blocking notifications for this site. Allow them in its settings.' : ''; if (!on) keepRemind(p.id, false); pollSig = ''; return; }
+      const r = await fetch('/api/remind', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({endpoint: sub.endpoint, poll: p.id, on})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'server');
+      keepRemind(p.id, on); remindMsg = on ? 'We\'ll notify you when the vote opens.' : 'Reminder off.';
+    } catch(e){ remindMsg = e && e.message && e.message !== 'server' ? e.message.charAt(0).toUpperCase() + e.message.slice(1) + '.' : 'That did not work. Try again.'; }
     pollSig = ''; pollTick();
   }
   function pollTick(){
@@ -5385,7 +5415,12 @@
     if (phase === 'open' && pollPinged !== p.id){ pollPinged = p.id; if (now - p.opensAt < 3000) Sound.sfx('ping'); }
     $('pollT').textContent = phase === 'soon' ? 'OPENS IN ' + mmss(p.opensAt - now) : phase === 'open' ? mmss(p.closesAt - now) + ' LEFT' : phase === 'count' ? 'CLOSED' : 'RESULT';
     authBox(p);
-    const login = needSignIn(p), sig = p.id + phase + mine + pollMsg + login;
+    const rb = $('pollR'), canRemind = phase === 'soon' && (PUSH.ok || p.sandbox), rOn = !!REMINDS[p.id];
+    if (rb.hidden === canRemind) rb.hidden = !canRemind;
+    if (canRemind){ const t = rOn ? '🔔 ON' : '🔕 REMIND ME'; if (rb.textContent !== t){ rb.textContent = t; rb.setAttribute('aria-pressed', String(rOn));
+      rb.title = rOn ? 'You get a notification when the vote opens. Tap to cancel' : 'Get a notification when the vote opens'; } }
+    if (phase !== 'soon') remindMsg = '';
+    const login = needSignIn(p), sig = p.id + phase + mine + pollMsg + remindMsg + login;
     if (sig === pollSig) return;
     pollSig = sig; card.hidden = false;
     $('pollQ').textContent = p.question;
@@ -5405,12 +5440,13 @@
       b.onclick = () => pollVote(i);
       box.appendChild(b);
     });
-    $('pollF').textContent = pollMsg && phase !== 'done' && phase !== 'count' ? pollMsg : login && (phase === 'soon' || phase === 'open') ? 'Sign in with Google to vote. One vote per account; we keep no name or email.'
-      : phase === 'soon' ? (AUTH.google ? 'One vote per account. You get 60 seconds.' : 'Anyone can vote once. You get 60 seconds.') : phase === 'open' ? 'Tap your pick. One vote each.'
+    $('pollF').textContent = remindMsg && phase === 'soon' ? remindMsg : pollMsg && phase !== 'done' && phase !== 'count' ? pollMsg : login && (phase === 'soon' || phase === 'open') ? 'Sign in with Google to vote. One vote per account; we keep no name or email.'
+      : phase === 'soon' ? (AUTH.google ? 'One vote per account. You get 5 minutes.' : 'Anyone can vote once. You get 5 minutes.') : phase === 'open' ? 'Tap your pick. One vote each.'
       : phase === 'count' ? 'Counting the votes…' : !total ? 'No votes this time, so nothing changes.'
       : `${total} vote${total === 1 ? '' : 's'}.` + (r.tie ? ' A tie, settled by the studio coin.' : '') + ' It plays out in the story later today.';
   }
   setInterval(pollTick, 250);
+  $('pollR').onclick = e => { e.stopPropagation(); pollRemind(); };
   if (!new URLSearchParams(location.search).has('sandbox')) authLoad();
 
   async function poll(){
@@ -5470,33 +5506,43 @@
     eye.onclick = e => { e.stopPropagation(); on = !on; try { localStorage.setItem('ishaiAwake', on ? '1' : '0'); } catch(err){} show(); if (on) stayAwake(); else if (lock) lock.release().catch(() => {}); };
     stayAwake(); document.addEventListener('visibilitychange', stayAwake); document.addEventListener('pointerdown', stayAwake);   // some browsers need a tap first
   }
-  // key-moment alerts: a bell for each viewer, off until they turn it on
+  // notifications: a bell for each viewer, off until they turn it on (key moments, and the moments they voted for)
   const ALERT_KEY = 'BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI';
   (async () => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || forceLoc || params.has('sandbox') || params.has('builder') || params.has('preview') || params.has('demo') || location.protocol !== 'https:' && location.hostname !== '127.0.0.1') return;
-    const bell = $('bell'), DEF = {from: 8, to: 23, max: 4}, PK = 'ishaiAlerts'; bell.hidden = false;
+    const bell = $('bell'), DEF = {from: 8, to: 23, max: 4, alerts: true, picks: true}, PK = 'ishaiAlerts'; bell.hidden = false;
     const load = () => { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(PK)) || {}); } catch(e){ return {...DEF}; } };
     const keep = p => { try { localStorage.setItem(PK, JSON.stringify(p)); } catch(e){} };
     const hh = h => String(h).padStart(2, '0') + ':00';
     for (let h = 0; h < 24; h++) $('alertFrom').add(new Option(hh(h), h));
     for (let h = 1; h <= 24; h++) $('alertTo').add(new Option(h === 24 ? '24:00' : hh(h), h));
-    const show = on => { bell.textContent = on ? '\u{1F514}' : '\u{1F515}'; bell.setAttribute('aria-label', on ? 'Alerts are on' : 'Alerts are off'); bell.title = 'Alert settings'; };
+    const show = on => { bell.textContent = on ? '\u{1F514}' : '\u{1F515}'; bell.setAttribute('aria-label', on ? 'Notifications are on' : 'Notifications are off'); bell.title = 'Notification settings'; };
     const key = () => Uint8Array.from(atob(ALERT_KEY.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
     const send = (method, sub, p) => fetch('/api/push', {method, headers: {'content-type': 'application/json'}, body: JSON.stringify({endpoint: sub.endpoint, ...p})});
     const current = async () => { const reg = await navigator.serviceWorker.getRegistration('/'); return reg ? reg.pushManager.getSubscription() : null; };
-    try { const sub = await current(); show(!!sub); if (sub) send('POST', sub, load()).catch(() => {}); } catch(e){}
+    // subscribe this device if it isn't yet (asks the browser's permission)
+    const ensure = async () => {
+      const reg = await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub){ if ((await Notification.requestPermission()) !== 'granted') return null;
+        sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: key()});
+        const p = load(); p.alerts = false; keep(p);   // key moments stay off until turned on in the settings
+        const r = await send('POST', sub, p); if (!r.ok) throw new Error('server'); show(true); }
+      return sub; };
+    Object.assign(PUSH, {ok: true, sub: current, ensure, picks: () => load().picks});
+    try { const sub = await current(); show(!!sub); if (sub){ send('POST', sub, load()).catch(() => {}); navigator.serviceWorker.getRegistration('/').then(r => r && r.update()).catch(() => {}); } } catch(e){}
     const close = () => { $('alertF').hidden = true; };
     bell.onclick = async e => { e.stopPropagation(); const p = load(); let on = false; try { on = !!(await current()); } catch(err){}
-      $('alertOn').checked = on; $('alertFrom').value = p.from; $('alertTo').value = p.to; $('alertMax').value = p.max; $('alertM').textContent = ''; $('alertF').hidden = false; };
+      $('alertOn').checked = on && p.alerts; $('alertPick').checked = on ? p.picks : true; $('alertFrom').value = p.from; $('alertTo').value = p.to; $('alertMax').value = p.max; $('alertM').textContent = ''; $('alertF').hidden = false; };
     $('alertC').onclick = close;
     $('alertS').onclick = async () => {
-      const p = {from: +$('alertFrom').value, to: +$('alertTo').value, max: +$('alertMax').value}, msg = $('alertM'); keep(p); $('alertS').disabled = true; msg.textContent = '';
+      const p = {from: +$('alertFrom').value, to: +$('alertTo').value, max: +$('alertMax').value, alerts: $('alertOn').checked, picks: $('alertPick').checked}, msg = $('alertM'); keep(p); $('alertS').disabled = true; msg.textContent = '';
       try {
         const reg = await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready;
         let sub = await reg.pushManager.getSubscription();
-        if (!$('alertOn').checked){ if (sub){ await send('DELETE', sub, {}); await sub.unsubscribe(); } show(false); close(); }
+        if (!p.alerts && !p.picks){ if (sub){ await send('DELETE', sub, {}); await sub.unsubscribe(); } show(false); close(); }   // nothing wanted: this device stops getting anything (vote reminders included)
         else if (sub || (await Notification.requestPermission()) === 'granted'){ if (!sub) sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: key()}); const r = await send('POST', sub, p); if (!r.ok) throw new Error('server'); show(true); close(); }
-        else msg.textContent = 'Your browser is blocking alerts for this site. Allow them in its settings.';
+        else msg.textContent = 'Your browser is blocking notifications for this site. Allow them in its settings.';
       } catch(err){ console.error('alerts', err); msg.textContent = 'That did not work. Try again.'; }
       $('alertS').disabled = false; };
   })();

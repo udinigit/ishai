@@ -341,7 +341,7 @@ export default {
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
-        polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3) } }, { "cache-control": "no-store" });
+        polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3), pushes: (s.pollPushes || []).map(j => ({ kind: j.kind, poll: j.poll, at: j.at, sent: j.sent, done: j.done })) } }, { "cache-control": "no-store" });
     }
     // quick story fix for the scheduled health check: /api/fix?token=...&endScene=1&note=...&minutes=45
     if (url.pathname === "/api/fix") {
@@ -395,12 +395,13 @@ export default {
     if (url.pathname === "/manifest.json") return json({ name: "Watching Ishai", short_name: "Ishai", start_url: "/", display: "standalone", background_color: "#050705", theme_color: "#050705",
       icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png" }] });
     if (ICONS[url.pathname]) return new Response(iconOf(url.pathname), { headers: { "content-type": ICONS[url.pathname].type, "cache-control": "public, max-age=86400" } });
-    if (url.pathname === "/api/alert") { const s = await loadState(env); return json(s.alert ? { title: s.alert.title, body: s.alert.body } : {}, { "cache-control": "no-store" }); }
+    if (url.pathname === "/api/alert") return alertFor(env, url.searchParams.get("ep") || "");
+    if (url.pathname === "/api/remind" && req.method === "POST") return pollRemind(req, env);
     if (url.pathname === "/api/push" && (req.method === "POST" || req.method === "DELETE")) {
       const b = await req.json().catch(() => ({})), ep = String(b.endpoint || ""), key = ep.length < 700 && pushAllowed(ep) ? await pushKey(ep) : null;
       if (!key) return json({ error: "not a push address" }, {}, 400);
       const num = (v, lo, hi, d) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= lo && n <= hi ? n : d; };
-      const dev = JSON.stringify({ ep, from: num(b.from, 0, 23, 8), to: num(b.to, 0, 24, 23), max: num(b.max, 1, ALERTS_A_DAY, ALERTS_A_DAY) });
+      const dev = JSON.stringify({ ep, from: num(b.from, 0, 23, 8), to: num(b.to, 0, 24, 23), max: num(b.max, 1, ALERTS_A_DAY, ALERTS_A_DAY), alerts: b.alerts !== false, picks: b.picks !== false });
       if (req.method === "DELETE") await env.ISHAI.delete(key); else if ((await env.ISHAI.get(key)) !== dev) await env.ISHAI.put(key, dev);
       return json({ ok: true }, { "cache-control": "no-store" });
     }
@@ -767,7 +768,9 @@ async function tick(env, force) {
       s.geminiErrs = [...(s.geminiErrs || []), ...GEMINI_FAILS].slice(-8); GEMINI_FAILS.length = 0; }
     s.geminiOutUntil = geminiOutUntil; }
   if (GEMINI_SEEN) s.geminiModel = GEMINI_SEEN;
-  try { maybeAlert(s, ev, last, clock.hour, now); await sendAlerts(env, s); } catch (e) { console.log("alert", e && e.message); }   // never let an alert stop the show
+  let pushed = 0;   // vote pushes first (the vote is only 5 minutes long), then the key-moment alert, within one batch of requests
+  try { if (!force) { remindTick(s, now); pickTick(s, ev, now); } pushed = await sendPollPushes(env, s); } catch (e) { console.log("vote push", e && e.message); }
+  try { maybeAlert(s, ev, last, clock.hour, now); await sendAlerts(env, s, PUSH_BATCH - pushed); } catch (e) { console.log("alert", e && e.message); }   // never let an alert stop the show
   await saveState(env, s);
   return s;
 }
@@ -1991,26 +1994,99 @@ function maybeAlert(s, ev, last, hour, now) {
 // each device has its own hours (Israel time; "from" later than "to" runs past midnight) and its own limit: it gets the day's first "max" alerts
 function deviceWants(d, a) {
   if (a.test) return true;
-  if (a.n > d.max) return false;
+  if (d.alerts === false || a.n > d.max) return false;   // key moments off: the device only wants vote reminders and its picks
   if (d.from === d.to) return true;
   return d.from < d.to ? a.hour >= d.from && a.hour < d.to : a.hour >= d.from || a.hour < d.to;
 }
 // a batch at each run: the free plan allows only so many requests at a time
-async function sendAlerts(env, s) {
-  const job = s.alertSend; if (!job || !env.VAPID_JWK) return 0;
+async function sendAlerts(env, s, budget = PUSH_BATCH) {
+  const job = s.alertSend; if (!job || !env.VAPID_JWK || budget < 1) return 0;
   if (Date.now() - s.alert.at > 20 * 60000) { s.alertSend = null; return 0; }
-  const page = await env.ISHAI.list({ prefix: "push:", limit: PUSH_BATCH, cursor: job.cursor || undefined }), auth = {};
+  const page = await env.ISHAI.list({ prefix: "push:", limit: Math.min(budget, PUSH_BATCH), cursor: job.cursor || undefined }), auth = {};
   const rs = await Promise.allSettled(page.keys.map(async k => {
     const raw = await env.ISHAI.get(k.name); if (!raw) return 0;
-    const dev = JSON.parse(raw), ep = dev.ep; if (!deviceWants(dev, s.alert)) return 0;
-    const origin = new URL(ep).origin; auth[origin] = auth[origin] || await vapidHeader(env, origin);
-    const r = await fetch(ep, { method: "POST", headers: { authorization: auth[origin], ttl: "300", urgency: "high", "content-length": "0" } });
-    if (r.status === 404 || r.status === 410) await env.ISHAI.delete(k.name);     // that device has gone
-    return r.ok ? 1 : 0;
+    const dev = JSON.parse(raw); if (!deviceWants(dev, s.alert)) return 0;
+    return pushTo(env, k.name, dev.ep, auth);
   }));
   const n = rs.reduce((a, r) => a + (r.status === "fulfilled" ? r.value : 0), 0);
   job.sent += n; if (page.list_complete) s.alertSend = null; else job.cursor = page.cursor;
   return n;
+}
+
+async function pushTo(env, key, ep, auth) {   // an empty push; the device then asks /api/alert what to show
+  const origin = new URL(ep).origin; auth[origin] = auth[origin] || await vapidHeader(env, origin);
+  const r = await fetch(ep, { method: "POST", headers: { authorization: auth[origin], ttl: "300", urgency: "high", "content-length": "0" } });
+  if (r.status === 404 || r.status === 410) await env.ISHAI.delete(key);     // that device has gone
+  return r.ok ? 1 : 0;
+}
+// ---------- vote pushes: a reminder when a poll opens, and "your pick is happening" ----------
+// Both go only to the devices that asked: the vote card's bell (D1 push_remind) and the device that voted for the winner
+// (D1 push_votes, sent with the vote) when its settings keep "picks" on (the default). Not counted in the daily key-moment limit.
+// The job list s.pollPushes says what each one reads; /api/alert?ep= checks the device is on that job's list.
+let pushTablesOk = false;
+async function pushTables(env) {
+  if (pushTablesOk || !env.DB) return;
+  await env.DB.batch([
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS push_remind (poll TEXT NOT NULL, dev TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (poll, dev))"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS push_votes (poll TEXT NOT NULL, dev TEXT NOT NULL, opt INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (poll, dev))")]);
+  pushTablesOk = true;
+}
+const REMIND_AHEAD = 6.5 * 60000;   // ticks come every 6 minutes: the one just before hh:20 sends it (hh:18), or the first one inside the 5 minutes
+async function pollRemind(req, env) {   // the vote card's bell: remind this device when the coming poll opens
+  if (!env.DB) return json({ error: "voting is not set up yet" }, {}, 503);
+  const b = await req.json().catch(() => ({})), ep = String(b.endpoint || ""), key = ep.length < 700 && pushAllowed(ep) ? await pushKey(ep) : null;
+  if (!key) return json({ error: "not a push address" }, {}, 400);
+  const s = await loadState(env), p = s.poll, now = Date.now();
+  if (!p || p.id !== b.poll || now >= p.opensAt) return json({ error: "this vote has already opened" }, {}, 409);
+  if (!await env.ISHAI.get(key)) return json({ error: "turn notifications on first" }, {}, 409);
+  await pushTables(env);
+  if (b.on === false) await env.DB.prepare("DELETE FROM push_remind WHERE poll = ? AND dev = ?").bind(p.id, key).run();
+  else await env.DB.prepare("INSERT OR IGNORE INTO push_remind (poll, dev, at) VALUES (?, ?, ?)").bind(p.id, key, now).run();
+  return json({ ok: true, on: b.on !== false }, { "cache-control": "no-store" });
+}
+function pollPushJob(s, job, now) { s.pollPushes = [...(s.pollPushes || []).filter(j => now - j.at < 60 * 60000), { ...job, at: now, offset: 0, done: false, sent: 0 }].slice(-6); }
+// in tick(): start the reminder for the coming poll
+function remindTick(s, now) {
+  const p = s.poll; if (!p || p.done || p.reminded || now < p.opensAt - REMIND_AHEAD || now > p.closesAt - 45000) return;
+  p.reminded = true;
+  const m = Math.round((p.opensAt - now) / 60000), left = Math.max(1, Math.round((p.closesAt - now) / 60000));
+  pollPushJob(s, { kind: "remind", poll: p.id, title: "Viewers' vote", body: (m > 0 ? `The vote opens in ${m} minute${m === 1 ? "" : "s"}` : `The vote is open now, ${left} minute${left === 1 ? "" : "s"} left`) + ": " + p.question }, now);
+}
+// in tick(): the poll's goal reaches the moment it was voted for (written 5 minutes ahead, like the key-moment alerts)
+function pickTick(s, ev, now) {
+  const g = (s.director || []).find(d => d.poll && d.pollOpt != null && !d.pickAt && (d.status === "active" || d.doneAt === now)); if (!g) return;
+  const w = g.forceWith; if (!w || !(ev.with === w || (ev.lines || []).some(l => l && l.who === w))) return;
+  g.pickAt = now;
+  pollPushJob(s, { kind: "pick", poll: g.poll, opt: g.pollOpt, title: "Your vote won", body: `It's about to happen: "${g.pollLabel || "your pick"}". In 5 minutes.` }, now);
+}
+async function sendPollPushes(env, s, budget = PUSH_BATCH) {
+  const job = (s.pollPushes || []).find(j => !j.done); if (!job || !env.VAPID_JWK || !env.DB) return 0;
+  if (Date.now() - job.at > 15 * 60000) { job.done = true; return 0; }
+  await pushTables(env);
+  const q = job.kind === "pick" ? env.DB.prepare("SELECT dev FROM push_votes WHERE poll = ? AND opt = ? ORDER BY dev LIMIT ? OFFSET ?").bind(job.poll, job.opt, budget, job.offset)
+    : env.DB.prepare("SELECT dev FROM push_remind WHERE poll = ? ORDER BY dev LIMIT ? OFFSET ?").bind(job.poll, budget, job.offset);
+  const rows = (await q.all()).results || [], auth = {};
+  const rs = await Promise.allSettled(rows.map(async row => {
+    const raw = await env.ISHAI.get(row.dev); if (!raw) return 0;          // notifications turned off since
+    const dev = JSON.parse(raw); if (job.kind === "pick" && dev.picks === false) return 0;
+    return pushTo(env, row.dev, dev.ep, auth);
+  }));
+  job.sent += rs.reduce((a, r) => a + (r.status === "fulfilled" ? r.value : 0), 0); job.offset += rows.length;
+  if (rows.length < budget) job.done = true;
+  return rows.length;
+}
+// what a device shows for a push: the key-moment alert (when it wants it) and its own vote pushes, each once (the device remembers the tags it showed)
+async function alertFor(env, ep) {
+  const s = await loadState(env), now = Date.now(), items = [], a = s.alert, fresh = a && now - a.at < 20 * 60000;
+  if (!ep) return json(a ? { title: a.title, body: a.body, items: fresh ? [{ title: a.title, body: a.body, tag: "alert-" + a.at }] : [] } : {}, { "cache-control": "no-store" });   // an old background script
+  const key = ep.length < 700 && pushAllowed(ep) ? await pushKey(ep) : null, raw = key ? await env.ISHAI.get(key) : null, dev = raw ? JSON.parse(raw) : null;
+  if (fresh && (!dev || deviceWants(dev, a))) items.push({ title: a.title, body: a.body, tag: "alert-" + a.at });
+  if (key && env.DB) for (const j of (s.pollPushes || []).filter(j => now - j.at < 20 * 60000)) try {
+    const row = j.kind === "pick" ? (dev && dev.picks !== false ? await env.DB.prepare("SELECT 1 AS y FROM push_votes WHERE poll = ? AND dev = ? AND opt = ?").bind(j.poll, key, j.opt).first() : null)
+      : await env.DB.prepare("SELECT 1 AS y FROM push_remind WHERE poll = ? AND dev = ?").bind(j.poll, key).first();
+    if (row) items.push({ title: j.title, body: j.body, tag: j.kind + "-" + j.poll });
+  } catch (e) {}
+  return json({ items }, { "cache-control": "no-store" });
 }
 
 // ---------- Strange But True: the history course (story/course.json holds the topics and the first lecture) ----------
@@ -2185,9 +2261,9 @@ function courseNote(s, now, company) {
 
 
 // ---------- viewers' polls (D1 database "ishai-polls", binding DB) ----------
-// Once an hour a question about the people around Ishai: it opens at hh:20 (Israel time) for 60 seconds, anyone can vote once.
+// Once an hour a question about the people around Ishai: it opens at hh:20 (Israel time) for 5 minutes, anyone can vote once.
 // The winner becomes a secret goal that starts at least an hour later, in a free gap, so it never touches the next hour.
-const POLL_AT_MIN = 20, POLL_SEC = 60, POLL_SHOW_MIN = 10;       // opens at hh:20, 60 s of voting, the result stays on screen 10 minutes
+const POLL_AT_MIN = 20, POLL_SEC = 300, POLL_SHOW_MIN = 10;      // opens at hh:20, 5 minutes of voting, the result stays on screen 10 minutes
 const POLL_FROM_H = 8, POLL_TO_H = 20;                             // the first poll opens at 08:20, the last at 20:20
 const POLL_DELAY_MIN = 60, POLL_LEN_MIN = 90, POLL_LOOK_H = 6;     // the result starts an hour or more after the vote, in a free 90-minute gap within 6 hours
 const POLL_AWAKE = [8, 22];                                        // results only play out between 08:00 and 22:00
@@ -2407,6 +2483,9 @@ async function pollVote(req, env) {
   const n = gVoter ? 0 : await env.DB.prepare("SELECT COUNT(*) AS n FROM votes WHERE poll = ? AND ip = ?").bind(p.id, ip).first("n");   // signed-in voters: one per account, no limit per connection
   if (!gVoter && n >= POLL_IP_MAX) return json({ error: "too many votes from this connection" }, {}, 429);
   const r = await env.DB.prepare("INSERT OR IGNORE INTO votes (poll, voter, ip, opt, at) VALUES (?, ?, ?, ?, ?)").bind(p.id, voter.toLowerCase(), ip, opt, now).run();
+  const ep = String(b.endpoint || "");   // this device gets a push when its pick wins and plays out (if its settings allow)
+  if (r.meta.changes === 1 && ep && ep.length < 700 && pushAllowed(ep)) try { await pushTables(env);
+    await env.DB.prepare("INSERT OR REPLACE INTO push_votes (poll, dev, opt, at) VALUES (?, ?, ?, ?)").bind(p.id, await pushKey(ep), opt, now).run(); } catch (e) {}
   return json({ ok: true, counted: r.meta.changes === 1 }, { "cache-control": "no-store" });
 }
 // in tick(): count a closed poll and hand the winner to the story; write the next poll at the start of each hour
@@ -2424,7 +2503,7 @@ async function pollTick(env, s, ev, now, last) {
         const c = s.cast[o.who], act = o.kind === "message" ? "phoning" : o.kind === "serve" && LOCATIONS[o.where].includes("eating") ? "eating" : "talking";
         const g = newGoal({ id: "poll-" + p.id.slice(2), goal: o.goal + " Nobody in the story knows about any vote: it simply happens, naturally.", forceText: o.forceText,
           startAt: new Date(at).toISOString(), deadlineAt: new Date(at + POLL_LEN_MIN * 60000).toISOString(), location: o.where || undefined, with: c.name, forceWith: o.who, forceAction: act }, now);
-        g.poll = p.id; s.director.push(g); goalId = g.id;
+        g.poll = p.id; g.pollOpt = r.winner; g.pollLabel = o.label; s.director.push(g); goalId = g.id;
       }
     }
     const say = !r.total ? "Nobody voted this hour, so life goes on exactly as planned. Your loss." : o.kind === "none" ? `The votes are in: ${pct}% said "${o.label}". So, nothing. Democracy!`
@@ -2435,6 +2514,7 @@ async function pollTick(env, s, ev, now, last) {
   const key = Math.floor(now / 3600000), opensAt = key * 3600000 + POLL_AT_MIN * 60000, closesAt = opensAt + POLL_SEC * 1000, h = storyClock(opensAt).hour;
   if (s.pollKey === key || now > opensAt - 3 * 60000) return;   // one per hour, written before hh:17 so pages see it coming
   s.pollKey = key;
+  if (env.DB) try { await pushTables(env); await env.DB.batch(["push_remind", "push_votes"].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE at < ?`).bind(now - 2 * 86400000))); } catch (e) {}   // old reminders and picks
   if (!env.DB || s.pollsOff || h < POLL_FROM_H || h > POLL_TO_H || pollShabbat(s, opensAt) || last.action === "sleeping" || ev.action === "sleeping") return;
   let made = null, why = null;
   if (now >= (s.aiOutUntil || 0)) { try { const r = await writePoll(env, s, opensAt, closesAt); made = r.poll || null; why = r.why || null; } catch (e) { why = [String(e && e.message || e).slice(0, 120)]; } }
