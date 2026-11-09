@@ -248,7 +248,7 @@ const NEXT = {
   park:      ["street","plaza"],
   plaza:     ["park","arena"],
   arena:     ["plaza"],
-  cafe:      ["shops"],
+  cafe:      ["shops", "street"],
   gym:       ["street"],
   bar:       ["street"],
   bus:       ["street","market","campus","offscreen"],
@@ -1351,7 +1351,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     return { ev, problem: `"${ev.action}" is not possible in ${ev.location} (allowed: ${allowed(ev.location, s.unlocked).join(", ")})` };
   if (NEEDS[ev.action] && !s.unlocked.includes(NEEDS[ev.action]) && !(goal && goal.unlock === NEEDS[ev.action] && ev.complete))
     return { ev, problem: `he does not own ${ITEMS[NEEDS[ev.action]]} yet, so he cannot be ${ev.action}` };
-  if (ev.location !== last.location && !NEXT[last.location].includes(ev.location))
+  if (ev.location !== last.location && !NEXT[last.location].includes(ev.location) && !nextPath(last.location, ev.location))
     return { ev, problem: `he cannot go directly from ${last.location} to ${ev.location}; next place must be one of ${NEXT[last.location].join(", ")}` };
   { const h = storyClock(Date.now() + DELAY_MIN * 60000).hour, LATE_OK = ["sleeping", "bathroom", "drinking"];
     if (h >= 1 && h < 6 && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts)
@@ -1453,7 +1453,7 @@ function cleanCard(c, s, loc) {
 // last resort: keep the text but force legal values
 function repair(ev, s, last) {
   let loc = LOCATIONS[ev.location] ? ev.location : last.location;
-  if (loc !== last.location && !NEXT[last.location].includes(loc)) loc = last.location;
+  if (loc !== last.location && !NEXT[last.location].includes(loc) && !nextPath(last.location, loc)) loc = last.location;
   const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : ev.action === "concert" && loc === "arena" ? ["concert"] : ev.action === "poker" && loc === "apt2" ? ["poker"] : allowed(loc, s.unlocked);
   const act = legal.includes(ev.action) ? ev.action : (legal.includes("idle") ? "idle" : legal[0]);
   const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with) && act !== "sleeping";
@@ -3626,4 +3626,14 @@ function directorView(s, bugs) {
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 function json(data, headers = {}, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "access-control-allow-origin": "*", ...headers } });
+}
+
+// accept a move that skips places when a short route exists (the page walks him through the stops)
+function nextPath(from, to) {
+  if (!NEXT[from] || !NEXT[to]) return null;
+  const prev = { [from]: null }, q = [from];
+  while (q.length) { const n = q.shift(); if (n === to) break; for (const m of NEXT[n] || []) if (!(m in prev)) { prev[m] = n; q.push(m); } }
+  if (!(to in prev)) return null;
+  const p = []; for (let n = to; n !== null; n = prev[n]) p.unshift(n);
+  return p.length <= 5 ? p : null;
 }
