@@ -110,6 +110,11 @@
   .pollC{border:2px solid var(--amber);border-radius:10px;background:#0d0a03;padding:8px 10px 9px;color:#ffe2ad;font-size:clamp(15px,3.9vw,20px);line-height:1.15}
   .pollH{display:flex;justify-content:space-between;gap:8px;color:var(--amber);letter-spacing:1px;font-size:.85em}
   .pollH b{font-weight:normal;color:#fff3d6}
+  #pollC{touch-action:pan-y;transition:transform .25s ease,opacity .25s ease} #pollC.drag{transition:none}
+  .pollX{font:inherit;background:none;border:0;color:#ffe2ad;opacity:.7;cursor:pointer;padding:0 2px;margin-left:4px;line-height:1} .pollX:hover{opacity:1}
+  .guide .big small.prr{position:relative;display:flex;justify-content:space-between;gap:8px;white-space:nowrap;margin-top:3px;padding:1px 5px;border:1px solid #3d4f9e;background:#0a1030;overflow:hidden}
+  .guide .prr i{position:absolute;left:0;top:0;bottom:0;background:#2b3c8f} .guide .prr span,.guide .prr b{position:relative}
+  .guide .prr b{font-weight:normal;color:#ffd36a} .guide .prr.win{color:#fff3d6;border-color:#ffd36a} .guide .prr.win i{background:#6b5420}
   .pollH span{white-space:nowrap} .pollR{font:inherit;font-size:.85em;margin-left:auto;background:#1a1405;color:#ffe2ad;border:1px solid #6b5420;border-radius:6px;padding:0 6px;cursor:pointer;white-space:nowrap}
   .pollR[aria-pressed="true"]{border-color:var(--amber);color:#fff3d6;background:#2a1f07}
   .guide .rem{pointer-events:auto;font:inherit;display:inline-block;margin-top:3px;background:#ffd36a;color:#0a0f2a;border:0;padding:0 5px;cursor:pointer;font-size:.95em}
@@ -314,7 +319,7 @@
   </div>
 
   <div class="promoC" id="promoC" hidden><span>📣 COMING UP</span><b id="promoT"></b><button id="promoMore" type="button">SEE ▸</button></div>
-  <div class="pollC" id="pollC" hidden><div class="pollH"><span>🗳 VIEWERS' VOTE</span><button id="pollR" class="pollR" type="button" hidden></button><b id="pollT"></b></div><div class="pollQ" id="pollQ"></div><div class="pollO" id="pollO"></div><div class="pollF" id="pollF" aria-live="polite"></div><div class="pollG" id="pollG" hidden></div></div>
+  <div class="pollC" id="pollC" hidden><div class="pollH"><span>🗳 VIEWERS' VOTE</span><button id="pollR" class="pollR" type="button" hidden></button><b id="pollT"></b><button id="pollX" class="pollX" type="button" aria-label="Hide this vote" title="Hide this vote">✕</button></div><div class="pollQ" id="pollQ"></div><div class="pollO" id="pollO"></div><div class="pollF" id="pollF" aria-live="polite"></div><div class="pollG" id="pollG" hidden></div></div>
 
   <div class="status">
     <div class="info">
@@ -4603,8 +4608,16 @@
   const GUIDE_DAY = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
   let GUIDE_FORCE = null;   // the sandbox's button: one card now, whatever the clock says
   const MERCH_URL = 'https://www.redbubble.com/people/watchingishai/shop?asc=u';
+  // the vote's result as a card on the picture: shown for 20 s as soon as it is in (when it is quiet), then in the guide's slots while it stays
+  let pollResAt = {};
+  function pollResCard(now, quiet){
+    const p = POLL; if (!p || !p.result || now > p.closesAt + POLL_KEEP) return null;
+    if (!pollResAt[p.id] && quiet) pollResAt[p.id] = now;
+    return {kind: 'pollres', p, fresh: pollResAt[p.id] && now - pollResAt[p.id] < 20000};
+  }
   function guideCard(slot, now){
     const p = POLL, asleep = actor.action === 'sleeping', G = GUIDE || {};
+    const pr = pollResCard(now, true); if (pr) return pr;
     if (!asleep && p && !p.sandbox && now < p.opensAt && p.opensAt - now < 30 * 60000) return {kind: 'vote', opensAt: p.opensAt};
     const ev = ARENA && ARENA.event, promo = ev && ev.at > now + 30 * 60000 && ev.at - now < 7 * 86400000;
     const lists = asleep ? [G.tomorrow && G.tomorrow.items && G.tomorrow.items.length ? {kind: 'list', when: 'TOMORROW · ' + G.tomorrow.day, items: G.tomorrow.items} : null,
@@ -4629,6 +4642,7 @@
     const quiet = !forceLoc && !PREVIEW && !BUILDER && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !adOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
       && !['talking','phoning','improv','lecture','concert','gallery','poker'].includes(actor.action);
     let c = e >= 0 && e < GUIDE_SHOW + 8000 && quiet ? guideCard(slot, now) : null;
+    const pr = pollResCard(now, quiet); if (pr && pr.fresh && !studioOn && !showOn && !adOn){ c = pr; e = 0; }
     if (GUIDE_FORCE && now < GUIDE_FORCE.until){ const F = GUIDE_FORCE, k = F.kind, G = F.guide || GUIDE || {};
       c = k === 'merch' ? {kind: 'merch'} : k === 'vote' ? {kind: 'vote', opensAt: F.opensAt} : k === 'survey' || k === 'surveyResults' ? {kind: 'survey', v: F.v, results: k === 'surveyResults'} : k === 'promo' ? {kind: 'promo', ev: F.ev}
         : k === 'week' ? {kind: 'list', when: 'THIS WEEK', items: G.week || []} : k === 'tomorrow' ? {kind: 'list', when: 'TOMORROW · ' + ((G.tomorrow || {}).day || ''), items: (G.tomorrow || {}).items || []}
@@ -4640,7 +4654,7 @@
     const tag = $('guideTag'), body = $('guideB'), when = at => { const d = new Date(at), dd = new Date(now);
       const day = new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Jerusalem', weekday: 'long'}).format(d).toUpperCase();
       return (new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Jerusalem'}).format(d) === new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Jerusalem'}).format(dd) ? 'TONIGHT' : day) + ' ' + fmtHM.format(d); };
-    const sig = c.kind + (c.when || '') + (c.v ? c.v.id + c.results : '') + slot + (GUIDE_FORCE && now < GUIDE_FORCE.until ? GUIDE_FORCE.until : '');
+    const sig = c.kind + (c.when || '') + (c.v ? c.v.id + c.results : '') + (c.p ? c.p.id : '') + slot + (GUIDE_FORCE && now < GUIDE_FORCE.until ? GUIDE_FORCE.until : '');
     if (c.kind === 'vote'){ tag.textContent = '● STAY TUNED';
       if (guideOn !== sig || !$('guideN')){
         body.innerHTML = '<div class="big">VIEWERS\' VOTE IN <span class="n" id="guideN"></span><small>You decide what happens to Ishai next</small></div>';
@@ -4661,6 +4675,14 @@
           a.textContent = `${l.label} ↗`; a.title = host; a.addEventListener('click', e => e.stopPropagation()); sm.append(i ? ' ' : document.createElement('br'), a); });
         if (logo){ const row = document.createElement('div'); row.className = 'promo'; const im = new Image(); im.alt = ''; im.src = '/asset/' + encodeURIComponent(logo);
           im.onerror = () => im.remove(); row.append(im, b); body.append(row); } else body.append(b); }
+      else if (c.kind === 'pollres'){ const p = c.p, r = p.result, tot = r.total || 0, mine = MYVOTES[p.id]; tag.textContent = '● VOTE RESULT';
+        const b = document.createElement('div'); b.className = 'big'; const q = document.createElement('div'); q.textContent = p.question; b.appendChild(q);
+        if (!tot){ const sm = document.createElement('small'); sm.textContent = 'No votes this time, so nothing changes.'; b.appendChild(sm); }
+        else p.options.map((l, i) => [l, r.counts[i], i]).sort((x, y) => y[1] - x[1]).forEach(([l, n, i]) => { const row = document.createElement('small'); row.className = 'prr' + (i === r.winner ? ' win' : '');
+          const a = document.createElement('span'); a.textContent = (i === r.winner ? '★ ' : '') + l + (mine === i ? ' ✓' : ''); const pct = Math.round(100 * n / tot), bar = document.createElement('i'); bar.style.width = pct + '%';
+          const pc = document.createElement('b'); pc.textContent = pct + '%'; row.append(bar, a, pc); b.appendChild(row); });
+        if (tot){ const sm = document.createElement('small'); sm.textContent = `${tot} vote${tot === 1 ? '' : 's'}. It plays out in the story later today.`; b.appendChild(sm); }
+        body.append(b); }
       else if (c.kind === 'survey'){ const v = c.v; tag.textContent = c.results ? (v.phase === 'closed' ? '● SURVEY RESULTS' : '● RESULTS SO FAR') : '● SURVEY OF THE WEEK';
         const b = document.createElement('div'); b.className = 'big'; const q = document.createElement('div'); q.textContent = v.question; b.appendChild(q);
         if (c.results){ const top = v.options.map((l, i) => [l, v.counts[i]]).sort((x, y) => y[1] - x[1]).slice(0, 3);
@@ -5329,7 +5351,10 @@
   const PUSH = {ok: false, sub: async () => null, ensure: async () => null, picks: () => false};
   const REMINDS = (() => { try { return JSON.parse(localStorage.getItem('ishaiReminds')) || {}; } catch(e){ return {}; } })();
   const keepRemind = (id, on) => { if (on) REMINDS[id] = 1; else delete REMINDS[id]; try { const k = Object.keys(REMINDS).slice(-10), o = {}; k.forEach(x => o[x] = 1); localStorage.setItem('ishaiReminds', JSON.stringify(o)); } catch(e){} };
-  let remindMsg = '';
+  let remindMsg = '', pollVotedAt = 0;
+  // a viewer can put the vote card away (✕ or a swipe), per poll and on this device; after voting it closes by itself
+  const POLL_HIDE = (() => { try { return JSON.parse(localStorage.getItem('ishaiPollHide')) || {}; } catch(e){ return {}; } })();
+  function pollHide(id){ POLL_HIDE[id] = 1; try { const k = Object.keys(POLL_HIDE).slice(-10), o = {}; k.forEach(x => o[x] = 1); localStorage.setItem('ishaiPollHide', JSON.stringify(o)); } catch(e){} pollSig = ''; pollTick(); }
   const pollVoter = (() => { const mk = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16)));
     try { let v = localStorage.getItem('ishaiVoter'); if (!v){ v = mk(); localStorage.setItem('ishaiVoter', v); } return v; } catch(e){ return mk(); } })();
   const MYVOTES = (() => { try { return JSON.parse(localStorage.getItem('ishaiVotes')) || {}; } catch(e){ return {}; } })();
@@ -5422,7 +5447,7 @@
   async function pollVote(i){
     const p = POLL; if (!p || MYVOTES[p.id] != null) return;
     if (needSignIn(p)){ pollMsg = 'Sign in with Google first (the button below).'; pollSig = ''; return; }
-    keepVote(p.id, i); pollMsg = 'Sending your vote…'; pollSig = ''; pollTick();
+    keepVote(p.id, i); pollVotedAt = NOW(); pollMsg = 'Sending your vote…'; pollSig = ''; pollTick();
     if (p.sandbox){ pollMsg = 'Vote counted (sandbox: nothing is sent). Results when the voting time is up.'; pollSig = ''; return; }
     let endpoint; try { const sub = PUSH.ok && PUSH.picks() ? await PUSH.sub() : null; if (sub) endpoint = sub.endpoint; } catch(e){}   // so this device hears when its pick happens
     try { const r = await fetch('/api/vote', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({poll: p.id, opt: i, voter: pollVoter, endpoint})});
@@ -5453,6 +5478,9 @@
     if (!p || PREVIEW || BUILDER || (demoMode && !p.sandbox) || now < p.opensAt - POLL_SOON || now > p.closesAt + POLL_KEEP){ if (!card.hidden){ card.hidden = true; pollSig = ''; } return; }
     const phase = now < p.opensAt ? 'soon' : now <= p.closesAt ? 'open' : p.result ? 'done' : 'count', mine = MYVOTES[p.id];
     if (phase === 'count' && now > p.closesAt + 6000 && now >= pollFetch && pollTries < 15){ pollFetch = now + 4000; pollGetResult(p); }
+    // put away: closed by hand, voted (after a moment to see the tick), or voting is over (the result comes as a card on the picture)
+    const gone = POLL_HIDE[p.id] || phase === 'count' || phase === 'done' || (mine != null && NOW() - (pollVotedAt || 0) > 2500);
+    if (gone){ if (!card.hidden){ card.hidden = true; card.style.transform = card.style.opacity = ''; pollSig = ''; } return; }
     if (phase === 'open' && pollPinged !== p.id){ pollPinged = p.id; if (now - p.opensAt < 3000) Sound.sfx('ping'); }
     $('pollT').textContent = phase === 'soon' ? 'OPENS IN ' + mmss(p.opensAt - now) : phase === 'open' ? mmss(p.closesAt - now) + ' LEFT' : phase === 'count' ? 'CLOSED' : 'RESULT';
     authBox(p);
@@ -5559,6 +5587,17 @@
     return {kind: 'survey', v, results: v.phase === 'closed' || (v.phase === 'open' && v.total > 0 && slot % 2 === 1)};
   }
   setInterval(pollTick, 250);
+  $('pollX').onclick = e => { e.stopPropagation(); if (POLL) pollHide(POLL.id); };
+  (() => {   // swipe the vote card sideways to put it away
+    const c = $('pollC'); let x0 = null, y0 = 0, dx = 0, id = null;
+    c.addEventListener('pointerdown', e => { if (e.target.closest('button,a,iframe')) return; x0 = e.clientX; y0 = e.clientY; dx = 0; id = e.pointerId; });
+    c.addEventListener('pointermove', e => { if (x0 == null || e.pointerId !== id) return; dx = e.clientX - x0;
+      if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(e.clientY - y0)) return; c.classList.add('drag'); c.style.transform = `translateX(${dx}px)`; c.style.opacity = String(Math.max(.2, 1 - Math.abs(dx) / 260)); });
+    const end = () => { if (x0 == null) return; x0 = null; c.classList.remove('drag');
+      if (Math.abs(dx) > 90 && POLL){ c.style.transform = `translateX(${dx > 0 ? 120 : -120}%)`; c.style.opacity = '0'; const pid = POLL.id; setTimeout(() => pollHide(pid), 250); }
+      else { c.style.transform = ''; c.style.opacity = ''; } };
+    c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
+  })();
   $('pollR').onclick = e => { e.stopPropagation(); pollRemind(); };
   if (!new URLSearchParams(location.search).has('sandbox')) authLoad();
 
