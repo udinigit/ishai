@@ -4029,12 +4029,17 @@
     const budget = {ms: ev._late || 0};
     const fresh = () => budget.ms <= 0; // only speak lines the viewer gets from the start
     await Promise.all([animate && fresh() ? Sound.say('narrator', ev.text) : null, typeInto(tx, '> ' + ev.text, animate, ch=>Sound.key(ch), budget)]);
-    for (const l of (ev.lines||[])){
+    // the spoken lines follow the moment's schedule (the same slots as the Conversation tab), and stay silent:
+    // the Conversation tab already gives each line its voice, blips and bubble at its time
+    const entry = animate ? TL.get(ev.id) : null;
+    for (const [k, l] of (ev.lines||[]).entries()){
+      const slot = entry && entry.plan.find(x => !x.host && x.i === k);
+      if (slot){ await untilT(entry.start + slot.at); if (entry.dead) return; }
       const sp = speaker(l.who), q = newLine('say');
       const nm = document.createElement('span'); nm.style.color = sp.color; nm.textContent = sp.name + ': ';
       const tx2 = document.createElement('span'); tx2.style.color = sp.color; const cur2 = document.createElement('span'); cur2.className='cursor';
       q.append(nm, tx2, cur2);
-      await Promise.all([animate && fresh() ? Sound.say(l.who, l.say) : null, typeInto(tx2, '"' + l.say + '"', animate, ch=>Sound.blip(l.who, ch), budget)]);
+      await typeInto(tx2, '"' + l.say + '"', animate, null, slot ? {at: entry.start + slot.at} : budget);
     }
   }
   async function pump(){
@@ -4051,7 +4056,7 @@
       actor.hint = homeHint(ev.text); actor.hintUntil = entry ? entry.end : NOW() + 360000;
       actor.delivery = ev.delivery && ev._late < 35000 ? {at: start} : null;   // an ateBite courier at the door
       enterScene(ev.location, ev.with);
-      if (DEV){ addTalk(ev, true); await addLine(ev,true); }   // talk + hosts play in their own time (hosts wait for the picture)
+      if (DEV){ await Promise.all([addTalk(ev, true), addLine(ev,true)]); }   // talk + hosts play in their own time (hosts wait for the picture); the next moment waits for both, as it does for viewers
       else { shown.add(ev.id);
         if (PREVIEW) for (let w = 0; w < 40 && (actor.pending || actor.travelling || actor.switching || actor.ride); w++) await new Promise(r => setTimeout(r, 500)); // preview: talk once they have arrived
         if (PREVIEW && entry){ const d = entry.end - entry.start; entry.start = NOW(); entry.end = entry.start + d; }
