@@ -17,7 +17,7 @@ A week runs Sunday 06:00 to Saturday 21:00 (after Shabbat), Israel time. Results
 |---|---|---|---|
 | **Favourite character of the week** | everyone who appeared on camera this week (`scenes`/`lastSeen` this week), Ishai and Falafel too | Saturday 21:00 | Saturday night / Sunday morning: "Your favourite this week: Ronit, with 34%." |
 | **Who wins the next poker night?** | Boaz, Ronit, Moti, Yossi, Ishai | poker night 20:00 (only in weeks with a poker night) | at the walk-home moment: "41% of you picked Ronit… and Ronit took it. Only 6% believed in Ishai." |
-| **Favourite lecture of the week** | the week's lectures by title (up to 3; a two-part lecture counts as one) | Saturday 21:00 | Sunday, the first awake moment |
+| **What would you like to hear in the history course next?** (changed 2026-11-09) | the topic the course would pick next by itself, plus 3 random topics from other strands, held back from the course until the vote ends | Saturday 21:00 | Saturday night; the winner becomes the lecture after next (the next one is already set and announced), and Dr. Sasson announces it at the end of Sunday's lecture. No survey in a week that starts with a two-part lecture lined up; the winner never goes between two parts |
 | **Who should join the show?** | free-text suggestions, then a vote among the director's shortlist (see below) | suggestions Sun-Wed, vote Thu-Sat | when the winner first appears on camera |
 | **Where should [someone] take Ishai?** | free-text suggestions of a place, then a shortlist vote | suggestions Sun-Wed, vote Thu-Sat | when Ishai first goes there with that person |
 

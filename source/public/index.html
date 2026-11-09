@@ -5481,7 +5481,7 @@
   // ================= surveys of the week (docs/SURVEY_PLAN.md): the SURVEYS tab and the TV guide's survey cards =================
   // Google sign-in to vote, one final vote per account; live results for everyone. Fetched when the tab opens and every 5 minutes for the guide card.
   let SURV = null, survAt = 0, survSig = '', survMsg = {}, survBusy = false;
-  const SURV_KIND = {fav: 'FAVOURITE', poker: 'POKER NIGHT', lecture: 'LECTURES', join: 'NEW CHARACTER', place: 'NEW PLACE'};
+  const SURV_KIND = {fav: 'FAVOURITE', poker: 'POKER NIGHT', lecture: 'NEXT LECTURE', join: 'NEW CHARACTER', place: 'NEW PLACE'};
   async function survLoad(force){
     if (PREVIEW || BUILDER || survBusy) return;
     if (!force && NOW() - survAt < 5 * 60000) return;
@@ -5539,6 +5539,7 @@
         box.appendChild(o);
         foot.textContent = v.phase === 'closed' ? (v.total ? `${v.total} vote${v.total === 1 ? '' : 's'}.` + ((v.kind === 'join' || v.kind === 'place') && v.winner != null ? (v.linked ? ' On its way into the show.' : ' Coming to the show soon.') : '') : 'Nobody voted.')
           : login ? 'Sign in with Google to vote. One vote per account, and it is final.' : v.mine != null ? `Your vote is in. Results so far: ${v.total} vote${v.total === 1 ? '' : 's'}.` : 'One vote per account, and it is final.';
+        if (v.kind === 'lecture' && v.phase !== 'closed') foot.textContent += ' The first topic is the course\'s own plan. The winner is taught right after the next lecture.';
       }
       if (survMsg[v.id]) foot.textContent = survMsg[v.id];
       box.appendChild(foot);

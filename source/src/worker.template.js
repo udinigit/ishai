@@ -2121,7 +2121,7 @@ function courseOf(s) {
 }
 // the strands take turns, so a run of disasters never happens
 function pickTopic(c, sameStrand) {
-  const names = Object.keys(COURSE.strands), taken = new Set([...c.used, ...c.queue.map(q => q.id)]);
+  const names = Object.keys(COURSE.strands), taken = new Set([...c.used, ...c.queue.map(q => q.id), ...(c.reserved || [])]);   // reserved: choices in the week's lecture survey
   let pool = allTopics().filter(t => !taken.has(t.id)); if (!pool.length) { c.used = []; pool = allTopics().filter(t => !c.queue.some(q => q.id === t.id)); }
   for (let i = 0; i < names.length; i++) {
     const strand = sameStrand || names[(c.strandAt + i) % names.length], l = pool.filter(t => t.strand === strand);
@@ -2210,7 +2210,6 @@ function scheduleLecture(s, now) {
 function courseFinished(s, now) {
   const c = courseOf(s), cur = c.queue.shift();
   c.used = [...c.used, cur.id].slice(-90);
-  surveyLecture(s, cur.title, now);
   if (cur.note) c.memory = [...(c.memory || []), { title: cur.title, note: cur.note, at: now, offered: 0 }].slice(-10);   // he remembers one thing from each of the last 10 topics
   c.goalId = null; c.at = null; c.err = null; c.tries = 0; courseOf(s);
 }
@@ -2541,7 +2540,7 @@ const SURVEY_FROM_H = 6, SURVEY_CLOSE_H = 21, SUGGEST_MAX = 2, SURVEY_KEEP_D = 7
 const SURVEY_Q = {
   fav: "Who is your favourite character this week?",
   poker: "Who wins poker night at Boaz's?",
-  lecture: "What was your favourite lecture this week?",
+  lecture: "What would you like to hear in the history course next?",
   join: "Who would you like to join the show?",
   place: about => `Where would you like ${about} to take Ishai?` };
 const SURVEY_ORDER = ["poker", "fav", "lecture", "join", "place"];
@@ -2571,17 +2570,34 @@ function surveyMake(s, W, now) {
   list.push(mk("fav", { options: [{ label: "Ishai", ref: "ishai" }] }));
   const pt = !(s.poker && s.poker.off) && nextPokerAt(s, W.start);
   if (pt && pt > W.start && pt < W.close) list.push(mk("poker", { closesAt: pt, options: ["ishai", "boaz", "ronit", "moti", "yossi"].map(p => ({ label: P_NAME[p], ref: p })) }));
-  list.push(mk("lecture"));
+  const lec = surveyTopics(s);   // no lecture survey while a two-part lecture is lined up
+  if (lec) list.push(mk("lecture", { topics: lec, options: lec.map(t => ({ label: t.title, ref: t.id })) }));
   list.push(mk("join", { suggestUntil: W.suggestUntil }));
   const fr = surveyFriends(s), who = fr.length ? fr[pollHash(W.key) % fr.length] : "noa";
   list.push(mk("place", { about: who, question: SURVEY_Q.place(surveyName(s, who)), suggestUntil: W.suggestUntil }));
   s.surveys = [...surveysOf(s).filter(x => x.closesAt > now - (SURVEY_KEEP_D + 7) * 86400000), ...list];
 }
-// after a lecture: it joins the week's lecture survey (a two-part lecture counts once)
-function surveyLecture(s, title, now) {
-  const sv = surveysOf(s).find(x => x.kind === "lecture" && now >= x.opensAt && now < x.closesAt); if (!sv) return;
-  const t = String(title || "").replace(/\s*[(:,–—-]*\s*part\s*(\d|one|two|i+)\)?\s*$/i, "").trim().slice(0, 80);
-  if (t && !sv.options.some(o => o.label.toLowerCase() === t.toLowerCase())) sv.options.push({ label: t, ref: null });
+// the lecture survey's choices: the topic the course would pick next by itself (the strands take turns), and three random
+// topics from other strands. They are held back (c.reserved) until the survey closes, so no lecture uses one up during the week.
+function surveyTopics(s) {
+  const c = s.course; if (!c || !c.queue || c.queue.slice(0, 2).some(q => q.part)) return null;
+  const at = c.strandAt, planned = pickTopic(c); c.strandAt = at; if (!planned) return null;
+  const taken = new Set([...c.used, ...c.queue.map(q => q.id), ...(c.reserved || []), planned.id]);
+  const rest = allTopics().filter(t => !taken.has(t.id) && t.strand !== planned.strand), out = [planned];
+  while (out.length < 4 && rest.length) { const t = rest.splice(Math.floor(Math.random() * rest.length), 1)[0]; if (!out.some(o => o.strand === t.strand)) out.push(t); else if (rest.every(r => out.some(o => o.strand === r.strand))) out.push(t); }
+  c.reserved = [...(c.reserved || []), ...out.map(t => t.id)];
+  return out.map(t => ({ id: t.id, title: t.title, wiki: t.wiki, strand: t.strand }));
+}
+// the vote is in: the winner becomes the lecture after next (the next one is already set and announced). Never between the two
+// parts of a lecture, never over a topic the director chose; if the next lecture is already written, its closing announcement is redone.
+function surveyLectureApply(s, sv, now) {
+  const c = courseOf(s), ids = new Set((sv.topics || []).map(t => t.id)); c.reserved = (c.reserved || []).filter(id => !ids.has(id));
+  const r = sv.result, t = r && r.winner != null && sv.topics ? sv.topics[r.winner] : null; if (!t) return null;
+  if (c.queue.some(q => q.id === t.id)) return 1;
+  let i = 1; while (c.queue[i] && (c.queue[i].part === 2 || c.queue[i].strand === "Director's choice")) i++;
+  if (c.queue[i] && c.queue[i].part === 1) c.queue.splice(i, 0, { ...t }); else c.queue[i] = { ...t };
+  if (i === 1) { const live = s.director.find(d => d.id === c.goalId && d.status === "active"); if (!live) unscheduleLecture(s); }   // courseTick() schedules it again with the new announcement
+  return i;
 }
 // after poker night: who won, for the hosts' line once the votes are counted
 function surveyPoker(s, R, date) {
@@ -2594,10 +2610,18 @@ const svPct = (r, i) => r && r.total ? Math.round(100 * r.counts[i] / r.total) :
 function surveySay(s, say) { (s.surveySay = s.surveySay || []).push({ who: pollHash(say) % 2 ? "zohar" : "oren", say, at: Date.now() }); }
 // in tick(): make the week's surveys, grow the favourite list, count closed ones, line up the hosts and the story
 async function surveyTick(env, s, ev, now, force) {
+  if (s.course && (s.course.reserved || []).length) {   // topics are held back only for a lecture survey still open
+    const keep = new Set(surveysOf(s).filter(x => x.kind === "lecture" && !x.result && !s.surveysOff).flatMap(x => (x.topics || []).map(t => t.id)));
+    s.course.reserved = s.course.reserved.filter(id => keep.has(id));
+  }
   if (!env.DB || !env.GOOGLE_CLIENT_ID || s.surveysOff) return;
   await surveyTables(env);
   const W = surveyWeek(now);
   if (now >= W.start && !surveysOf(s).some(x => x.week === W.key)) surveyMake(s, W, now);
+  for (const sv of surveysOf(s)) if (sv.kind === "lecture" && !sv.topics && !sv.options.length && now < sv.closesAt) {   // a lecture survey from before v201 becomes a next-topic vote
+    const t = surveyTopics(s); sv.question = SURVEY_Q.lecture;
+    if (t) { sv.topics = t; sv.options = t.map(x => ({ label: x.title, ref: x.id })); } else sv.closesAt = now;
+  }
   for (const sv of surveysOf(s)) {
     if (sv.kind === "fav" && now < sv.closesAt) {   // everyone seen on camera this week can be picked (the list only grows: votes keep their numbers)
       const seen = Object.values(s.cast).filter(c => !c.phoneOnly && !/^student/.test(c.id) && (c.lastSeen || 0) >= sv.opensAt).map(c => c.id);
@@ -2608,7 +2632,8 @@ async function surveyTick(env, s, ev, now, force) {
       sv.result = await surveyCount(env, sv);
       const r = sv.result, w = r.winner, o = w == null ? null : sv.options[w];
       if (sv.kind === "fav" && o) surveySay(s, `The week's survey is in: your favourite character this week is ${o.label}, with ${svPct(r, w)}% of the votes.`);
-      if (sv.kind === "lecture" && o) surveySay(s, `Your favourite lecture this week: "${o.label}", ${svPct(r, w)}% of you. Dr. Sasson will never know.`);
+      if (sv.kind === "lecture") { const at = surveyLectureApply(s, sv, now);
+        if (o && at) surveySay(s, `You picked the history course's next topic: "${o.label}", ${svPct(r, w)}% of you. ${at === 1 ? "It comes right after the next lecture" : "It comes after the lectures already lined up"}. Dr. Sasson will never know why.`); }
       if (sv.kind === "join" && o) surveySay(s, `You voted, ${svPct(r, w)}% of you: ${o.label} should join the show. The director is on it. Watch this space.`);
       if (sv.kind === "place" && o) surveySay(s, `${svPct(r, w)}% of you want ${surveyName(s, sv.about)} to take Ishai to ${o.label}. Noted. Someday.`);
     }
