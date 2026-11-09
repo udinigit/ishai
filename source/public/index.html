@@ -4872,7 +4872,7 @@
       hostFill: () => hostFill(true), overhear: () => overhear(true), city: id => cityTick(CITY.find(e => e.id === id) || CITY[0]), chat: () => { const c = CHAT_STOCK[Math.floor(NOW() / 1000) % CHAT_STOCK.length]; showChat(c[0], c[1]); },
       texture: x => { TEXTURE = x; },
       poll(o){ const t = NOW(), id = 'sb-poll-' + (++n); POLL = {id, sandbox: true, question: o.question || 'How will Avi make Ishai\'s next falafel?', options: o.options || ['Extremely spicy', 'Drowning in tahini', 'Just the usual'],
-        opensAt: t + (o.inSec ?? 5) * 1000, closesAt: t + ((o.inSec ?? 5) + 300) * 1000, result: null}; if (o.result){ POLL.opensAt = t - 310000; POLL.closesAt = t - 10000; POLL.result = pollFake(POLL); } pollSig = ''; },
+        opensAt: t + (o.inSec ?? 5) * 1000, closesAt: t + ((o.inSec ?? 5) + 600) * 1000, result: null}; if (o.result){ POLL.opensAt = t - 610000; POLL.closesAt = t - 10000; POLL.result = pollFake(POLL); } pollSig = ''; },
       fillLine: slot => hostFillLine(slot), sfx: k => Sound.sfx(k),
       home: (k, skip) => { actor.homeTest = k ? {k, t0: NOW() - (skip || 0) * 1000} : null; },   // play one home activity now, from its start (or `skip` seconds in)
       homeNow: () => actor.err ? {home: actor.err.home, pose: actor.err.pose, seat: actor.err.seat, tag: actor.err.tag, x: Math.round(actor.x)} : null,
@@ -5280,7 +5280,7 @@
   }
   let loaded = false, fails = 0;
   // ================= viewers' poll =================
-  // The worker writes one poll an hour (opens hh:20 for 5 minutes). Times are the server's (NOW()), so the card opens and closes for everyone together.
+  // The worker writes one poll an hour (opens hh:20 for 10 minutes). Times are the server's (NOW()), so the card opens and closes for everyone together.
   // Anyone can vote once per browser; the result shows percentages with the winner highlighted, and the story plays it out an hour or more later.
   let POLL = null, pollSig = '', pollFetch = 0, pollTries = 0, pollPinged = '', pollMsg = '';
   const POLL_SOON = 20 * 60000, POLL_KEEP = 10 * 60000;
@@ -5441,7 +5441,7 @@
       box.appendChild(b);
     });
     $('pollF').textContent = remindMsg && phase === 'soon' ? remindMsg : pollMsg && phase !== 'done' && phase !== 'count' ? pollMsg : login && (phase === 'soon' || phase === 'open') ? 'Sign in with Google to vote. One vote per account; we keep no name or email.'
-      : phase === 'soon' ? (AUTH.google ? 'One vote per account. You get 5 minutes.' : 'Anyone can vote once. You get 5 minutes.') : phase === 'open' ? 'Tap your pick. One vote each.'
+      : phase === 'soon' ? (AUTH.google ? 'One vote per account. You get 10 minutes.' : 'Anyone can vote once. You get 10 minutes.') : phase === 'open' ? 'Tap your pick. One vote each.'
       : phase === 'count' ? 'Counting the votes…' : !total ? 'No votes this time, so nothing changes.'
       : `${total} vote${total === 1 ? '' : 's'}.` + (r.tie ? ' A tie, settled by the studio coin.' : '') + ' It plays out in the story later today.';
   }

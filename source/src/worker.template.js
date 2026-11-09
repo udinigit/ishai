@@ -768,7 +768,7 @@ async function tick(env, force) {
       s.geminiErrs = [...(s.geminiErrs || []), ...GEMINI_FAILS].slice(-8); GEMINI_FAILS.length = 0; }
     s.geminiOutUntil = geminiOutUntil; }
   if (GEMINI_SEEN) s.geminiModel = GEMINI_SEEN;
-  let pushed = 0;   // vote pushes first (the vote is only 5 minutes long), then the key-moment alert, within one batch of requests
+  let pushed = 0;   // vote pushes first (the vote is only 10 minutes long), then the key-moment alert, within one batch of requests
   try { if (!force) { remindTick(s, now); pickTick(s, ev, now); } pushed = await sendPollPushes(env, s); } catch (e) { console.log("vote push", e && e.message); }
   try { maybeAlert(s, ev, last, clock.hour, now); await sendAlerts(env, s, PUSH_BATCH - pushed); } catch (e) { console.log("alert", e && e.message); }   // never let an alert stop the show
   await saveState(env, s);
@@ -2031,7 +2031,7 @@ async function pushTables(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS push_votes (poll TEXT NOT NULL, dev TEXT NOT NULL, opt INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (poll, dev))")]);
   pushTablesOk = true;
 }
-const REMIND_AHEAD = 6.5 * 60000;   // ticks come every 6 minutes: the one just before hh:20 sends it (hh:18), or the first one inside the 5 minutes
+const REMIND_AHEAD = 6.5 * 60000;   // ticks come every 6 minutes: the one just before hh:20 sends it (hh:18), or the first one inside the 10 minutes
 async function pollRemind(req, env) {   // the vote card's bell: remind this device when the coming poll opens
   if (!env.DB) return json({ error: "voting is not set up yet" }, {}, 503);
   const b = await req.json().catch(() => ({})), ep = String(b.endpoint || ""), key = ep.length < 700 && pushAllowed(ep) ? await pushKey(ep) : null;
@@ -2261,9 +2261,9 @@ function courseNote(s, now, company) {
 
 
 // ---------- viewers' polls (D1 database "ishai-polls", binding DB) ----------
-// Once an hour a question about the people around Ishai: it opens at hh:20 (Israel time) for 5 minutes, anyone can vote once.
+// Once an hour a question about the people around Ishai: it opens at hh:20 (Israel time) for 10 minutes, anyone can vote once.
 // The winner becomes a secret goal that starts at least an hour later, in a free gap, so it never touches the next hour.
-const POLL_AT_MIN = 20, POLL_SEC = 300, POLL_SHOW_MIN = 10;      // opens at hh:20, 5 minutes of voting, the result stays on screen 10 minutes
+const POLL_AT_MIN = 20, POLL_SEC = 600, POLL_SHOW_MIN = 10;      // opens at hh:20, 10 minutes of voting, the result stays on screen 10 minutes
 const POLL_FROM_H = 8, POLL_TO_H = 20;                             // the first poll opens at 08:20, the last at 20:20
 const POLL_DELAY_MIN = 60, POLL_LEN_MIN = 90, POLL_LOOK_H = 6;     // the result starts an hour or more after the vote, in a free 90-minute gap within 6 hours
 const POLL_AWAKE = [8, 22];                                        // results only play out between 08:00 and 22:00
@@ -2491,6 +2491,7 @@ async function pollVote(req, env) {
 // in tick(): count a closed poll and hand the winner to the story; write the next poll at the start of each hour
 async function pollTick(env, s, ev, now, last) {
   const p = s.poll;
+  if (p && !p.done && now < p.opensAt && p.closesAt !== p.opensAt + POLL_SEC * 1000) p.closesAt = p.opensAt + POLL_SEC * 1000;   // a poll written before POLL_SEC changed gets the new length
   if (p && !p.done && now > p.closesAt + 5000) {
     p.done = true;
     const r = env.DB ? await pollResult(env, p) : { counts: p.options.map(() => 0), total: 0, winner: null };

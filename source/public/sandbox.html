@@ -323,7 +323,7 @@ Back to the cameras.</textarea>
     $('evChat').onclick = () => api.chat();
     $('evGuide').onclick = () => api.guide($('evGuideK').value);
     $('evHome').onchange = e => { api.go({location:'apartment', action:'idle', lines:[], commentary:[], text:''}); api.home(e.target.value); };
-    $('evPoll').onclick = () => api.poll({inSec: 5});            // opens in 5 s for 5 minutes; vote, then see the pretend result
+    $('evPoll').onclick = () => api.poll({inSec: 5});            // opens in 5 s for 10 minutes; vote, then see the pretend result
     $('evPollRes').onclick = () => api.poll({result: true});
     setInterval(() => { const s = api.state(); $('status').textContent = `${s.loc} · ${s.action}${s.moving ? ' · on the way' : ''} · voice: ${s.voice}`; }, 500);
   }
