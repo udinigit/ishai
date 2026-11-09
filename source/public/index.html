@@ -50,6 +50,15 @@
     font-size:clamp(14px,3.8vw,22px);color:#eaffea;pointer-events:none;
     text-shadow:0 0 3px #000,0 0 6px rgba(0,0,0,.9)}
   .hud.top{top:0}.hud.bot{bottom:0}
+  .pban{position:absolute;z-index:8;top:0;left:0;right:0;cursor:pointer;font-size:clamp(13px,3.4vw,20px);color:#1a1405}
+  .pban .pbTop{display:flex;justify-content:center;gap:.6em;padding:3px 10px;background:#ffb84d;letter-spacing:1px;white-space:nowrap}
+  .pban .pbTop b{font-weight:normal;background:#1a1405;color:#ffd36a;padding:0 6px;font-variant-numeric:tabular-nums}
+  .pban.open .pbTop{background:#ff5a4f;color:#fff;animation:pbPulse 1.2s ease-in-out infinite} .pban.open .pbTop b{color:#fff}
+  .pban.voted .pbTop{background:#2b3c8f;color:#eaf0ff}
+  @keyframes pbPulse{50%{background:#ff7a5f}}
+  .pban .pbRun{position:relative;overflow:hidden;height:1.55em;background:rgba(10,8,2,.82);border-bottom:1px solid #ffb84d;color:#fff3d6}
+  .pban .pbRun span{position:absolute;top:.15em;left:0;white-space:nowrap;will-change:transform}
+  .pban .pbRun[hidden]{display:none}
   .cam{cursor:zoom-in}
   .cam.fs{position:fixed;inset:0;z-index:100;border:0;border-radius:0;display:flex;align-items:center;justify-content:center;cursor:zoom-out;margin:0}
   .cam.fs > canvas#scene{width:min(100vw, calc(100vh * 16 / 9));height:auto}
@@ -300,6 +309,7 @@
     <canvas id="scene" width="192" height="108"></canvas>
 
     <div class="pip" id="pip" aria-hidden="true"><span class="tag">● LIVE · STUDIO</span><canvas id="pipCv" width="64" height="40"></canvas><div class="cap" id="pipCap"></div></div>
+    <div class="pban" id="pban" hidden role="button" tabindex="0"><div class="pbTop"><span id="pbLbl"></span><b id="pbT"></b></div><div class="pbRun" id="pbRun"><span id="pbQ"></span></div></div>
     <div class="guide" id="guide" aria-hidden="true"><span class="tag" id="guideTag"></span><div id="guideB"></div></div>
     <div class="adb" id="adb" aria-hidden="true"><canvas id="adCv" width="40" height="20"></canvas><div class="t" id="adT"></div><span class="ad">AD</span></div>
     <div class="pvb" id="pvb" hidden></div>
@@ -4618,7 +4628,7 @@
   function guideCard(slot, now){
     const p = POLL, asleep = actor.action === 'sleeping', G = GUIDE || {};
     const pr = pollResCard(now, true); if (pr) return pr;
-    if (!asleep && p && !p.sandbox && now < p.opensAt && p.opensAt - now < 30 * 60000) return {kind: 'vote', opensAt: p.opensAt};
+    if (!asleep && p && !p.sandbox && now < p.opensAt && p.opensAt - now < 30 * 60000 && p.opensAt - now >= POLL_SOON) return {kind: 'vote', opensAt: p.opensAt};
     const ev = ARENA && ARENA.event, promo = ev && ev.at > now + 30 * 60000 && ev.at - now < 7 * 86400000;
     const lists = asleep ? [G.tomorrow && G.tomorrow.items && G.tomorrow.items.length ? {kind: 'list', when: 'TOMORROW · ' + G.tomorrow.day, items: G.tomorrow.items} : null,
                             G.week && G.week.length ? {kind: 'list', when: 'THIS WEEK', items: G.week} : null]
@@ -5351,10 +5361,35 @@
   const PUSH = {ok: false, sub: async () => null, ensure: async () => null, picks: () => false};
   const REMINDS = (() => { try { return JSON.parse(localStorage.getItem('ishaiReminds')) || {}; } catch(e){ return {}; } })();
   const keepRemind = (id, on) => { if (on) REMINDS[id] = 1; else delete REMINDS[id]; try { const k = Object.keys(REMINDS).slice(-10), o = {}; k.forEach(x => o[x] = 1); localStorage.setItem('ishaiReminds', JSON.stringify(o)); } catch(e){} };
-  let remindMsg = '', pollVotedAt = 0;
+  let remindMsg = '', pollVotedAt = 0, pollCardFor = null;
+  // the banner across the top of the picture: "VOTING OPENS IN mm:ss" (or "VOTING IS NOW OPEN!" and the time left), with the question
+  // scrolling under it three times at the start of every minute, on the shared clock so everyone sees the same; tapping it opens the vote card
+  const pbEl = $('pban'); let pbKey = '', pbQ = null, pbRaf = 0;
+  function pollBanner(p, phase, mine, now){
+    const show = phase === 'soon' || phase === 'open';
+    if (pbEl.hidden === show) pbEl.hidden = !show;
+    if (!show){ pbQ = null; return; }
+    const t = mmss((phase === 'soon' ? p.opensAt : p.closesAt) - now), voted = phase === 'open' && mine != null;
+    const lbl = phase === 'soon' ? '🗳 VOTING OPENS IN' : voted ? '✓ YOU VOTED · RESULTS IN' : '🗳 VOTING IS NOW OPEN!';
+    const k = phase + voted; if (pbKey !== k){ pbKey = k; pbEl.classList.toggle('open', phase === 'open' && !voted); pbEl.classList.toggle('voted', voted); $('pbLbl').textContent = lbl; }
+    if ($('pbT').textContent !== t) $('pbT').textContent = t;
+    if ($('pbQ').textContent !== p.question) $('pbQ').textContent = p.question;
+    pbQ = p; if (!pbRaf) pbRaf = requestAnimationFrame(pbFrame);
+  }
+  function pbFrame(){
+    pbRaf = 0; if (!pbQ || pbEl.hidden) return;
+    const run = $('pbRun'), q = $('pbQ'), W = run.clientWidth || 300, w = q.offsetWidth || 200;
+    const dur = Math.max(7000, (W + w) * 22), e = NOW() % 60000, on = e < Math.min(3 * dur, 57000);
+    if (run.hidden === on) run.hidden = !on;
+    if (on) q.style.transform = `translateX(${Math.round(W - ((e % dur) / dur) * (W + w))}px)`;
+    pbRaf = requestAnimationFrame(pbFrame);
+  }
+  function pollOpenCard(){ const p = POLL; if (!p) return; if (camEl.classList.contains('fs')) setFs(false);
+    pollCardFor = p.id; delete POLL_HIDE[p.id]; pollSig = ''; pollTick(); $('pollC').scrollIntoView({behavior: 'smooth', block: 'center'}); }
   // a viewer can put the vote card away (✕ or a swipe), per poll and on this device; after voting it closes by itself
   const POLL_HIDE = (() => { try { return JSON.parse(localStorage.getItem('ishaiPollHide')) || {}; } catch(e){ return {}; } })();
-  function pollHide(id){ POLL_HIDE[id] = 1; try { const k = Object.keys(POLL_HIDE).slice(-10), o = {}; k.forEach(x => o[x] = 1); localStorage.setItem('ishaiPollHide', JSON.stringify(o)); } catch(e){} pollSig = ''; pollTick(); }
+  function pollHide(id){ pollCardFor = null; return pollTick();   // the ✕ or a swipe closes the card; the banner stays on the picture
+    POLL_HIDE[id] = 1; try { const k = Object.keys(POLL_HIDE).slice(-10), o = {}; k.forEach(x => o[x] = 1); localStorage.setItem('ishaiPollHide', JSON.stringify(o)); } catch(e){} pollSig = ''; pollTick(); }
   const pollVoter = (() => { const mk = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16)));
     try { let v = localStorage.getItem('ishaiVoter'); if (!v){ v = mk(); localStorage.setItem('ishaiVoter', v); } return v; } catch(e){ return mk(); } })();
   const MYVOTES = (() => { try { return JSON.parse(localStorage.getItem('ishaiVotes')) || {}; } catch(e){ return {}; } })();
@@ -5479,7 +5514,8 @@
     const phase = now < p.opensAt ? 'soon' : now <= p.closesAt ? 'open' : p.result ? 'done' : 'count', mine = MYVOTES[p.id];
     if (phase === 'count' && now > p.closesAt + 6000 && now >= pollFetch && pollTries < 15){ pollFetch = now + 4000; pollGetResult(p); }
     // put away: closed by hand, voted (after a moment to see the tick), or voting is over (the result comes as a card on the picture)
-    const gone = POLL_HIDE[p.id] || phase === 'count' || phase === 'done' || (mine != null && NOW() - (pollVotedAt || 0) > 2500);
+    pollBanner(p, phase, mine, now);
+    const gone = pollCardFor !== p.id || POLL_HIDE[p.id] || phase === 'count' || phase === 'done' || (mine != null && NOW() - (pollVotedAt || 0) > 2500);
     if (gone){ if (!card.hidden){ card.hidden = true; card.style.transform = card.style.opacity = ''; pollSig = ''; } return; }
     if (phase === 'open' && pollPinged !== p.id){ pollPinged = p.id; if (now - p.opensAt < 3000) Sound.sfx('ping'); }
     $('pollT').textContent = phase === 'soon' ? 'OPENS IN ' + mmss(p.opensAt - now) : phase === 'open' ? mmss(p.closesAt - now) + ' LEFT' : phase === 'count' ? 'CLOSED' : 'RESULT';
@@ -5587,6 +5623,8 @@
     return {kind: 'survey', v, results: v.phase === 'closed' || (v.phase === 'open' && v.total > 0 && slot % 2 === 1)};
   }
   setInterval(pollTick, 250);
+  pbEl.addEventListener('click', e => { e.stopPropagation(); pollOpenCard(); });
+  pbEl.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pollOpenCard(); } });
   $('pollX').onclick = e => { e.stopPropagation(); if (POLL) pollHide(POLL.id); };
   (() => {   // swipe the vote card sideways to put it away
     const c = $('pollC'); let x0 = null, y0 = 0, dx = 0, id = null;
