@@ -50,18 +50,20 @@
     font-size:clamp(14px,3.8vw,22px);color:#eaffea;pointer-events:none;
     text-shadow:0 0 3px #000,0 0 6px rgba(0,0,0,.9)}
   .hud.top{top:0}.hud.bot{bottom:0}
-  .pban{position:absolute;z-index:8;top:0;left:0;right:0;cursor:pointer;font-size:clamp(13px,3.4vw,20px);color:#1a1405}
+  /* the vote banner pushes in from above and the whole picture shrinks back a little to make room, like a TV squeeze */
+  .camIn{position:relative;overflow:hidden;transform-origin:50% 100%;transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+  .pban{position:absolute;z-index:8;top:0;left:0;right:0;cursor:pointer;font-size:clamp(13px,3.4vw,20px);color:#1a1405;
+    transform:translateY(-101%);transition:transform .7s cubic-bezier(.2,.8,.2,1)} .pban.in{transform:none}
   .pban .pbTop{display:flex;justify-content:center;gap:.6em;padding:3px 10px;background:#ffb84d;letter-spacing:1px;white-space:nowrap}
   .pban .pbTop b{font-weight:normal;background:#1a1405;color:#ffd36a;padding:0 6px;font-variant-numeric:tabular-nums}
   .pban.open .pbTop{background:#ff5a4f;color:#fff;animation:pbPulse 1.2s ease-in-out infinite} .pban.open .pbTop b{color:#fff}
-  .pban.voted .pbTop{background:#2b3c8f;color:#eaf0ff}
   @keyframes pbPulse{50%{background:#ff7a5f}}
   .pban .pbRun{position:relative;overflow:hidden;height:1.55em;background:rgba(10,8,2,.82);border-bottom:1px solid #ffb84d;color:#fff3d6}
   .pban .pbRun span{position:absolute;top:.15em;left:0;white-space:nowrap;will-change:transform}
   .pban .pbRun[hidden]{display:none}
   .cam{cursor:zoom-in}
   .cam.fs{position:fixed;inset:0;z-index:100;border:0;border-radius:0;display:flex;align-items:center;justify-content:center;cursor:zoom-out;margin:0}
-  .cam.fs > canvas#scene{width:min(100vw, calc(100vh * 16 / 9));height:auto}
+  .cam.fs .camIn{position:absolute;inset:0;display:flex;align-items:center;justify-content:center} .cam.fs .camIn > canvas#scene{width:min(100vw, calc(100vh * 16 / 9));height:auto}
   .cam.fs .stv > canvas{object-fit:contain}
   .fsCap{display:none}
   .cam.fs .fsCap{display:block;position:absolute;z-index:7;left:50%;transform:translateX(-50%);bottom:8%;width:min(92vw,960px);pointer-events:none;
@@ -305,11 +307,12 @@
   <div class="title"><span>&gt; WATCHING_ISHAI</span><span class="titleR"><a id="trailer" class="snd" href="/intro" title="Watch the trailer" aria-label="Watch the trailer" style="text-decoration:none;margin:0;padding:0 4px;line-height:1.2">▶</a><button id="eye" class="snd" title="Keep the screen on" aria-label="Keep the screen on" aria-pressed="true" hidden>👁</button><button id="bell" class="snd" title="Tell me before key moments" aria-label="Alerts are off" hidden>🔕</button><button id="acct" class="snd" title="Sign in or sign up" aria-label="Sign in or sign up" hidden>👤</button><small id="day">DAY --</small></span></div>
 
   <div class="cam">
+    <div class="pban" id="pban" hidden role="button" tabindex="0"><div class="pbTop"><span id="pbLbl"></span><b id="pbT"></b></div><div class="pbRun" id="pbRun"><span id="pbQ"></span></div></div>
+    <div class="camIn" id="camIn">
     <div class="hud top"><span class="rec"><span class="dot"></span>REC <span id="cam">CAM-01</span></span><span id="clock">--:--:--</span></div>
     <canvas id="scene" width="192" height="108"></canvas>
 
     <div class="pip" id="pip" aria-hidden="true"><span class="tag">● LIVE · STUDIO</span><canvas id="pipCv" width="64" height="40"></canvas><div class="cap" id="pipCap"></div></div>
-    <div class="pban" id="pban" hidden role="button" tabindex="0"><div class="pbTop"><span id="pbLbl"></span><b id="pbT"></b></div><div class="pbRun" id="pbRun"><span id="pbQ"></span></div></div>
     <div class="guide" id="guide" aria-hidden="true"><span class="tag" id="guideTag"></span><div id="guideB"></div></div>
     <div class="adb" id="adb" aria-hidden="true"><canvas id="adCv" width="40" height="20"></canvas><div class="t" id="adT"></div><span class="ad">AD</span></div>
     <div class="pvb" id="pvb" hidden></div>
@@ -326,6 +329,7 @@
     <div class="say" id="say" hidden><b id="sayWho"></b><span id="sayText"></span></div>
     <div class="nosig" id="nosig"><span id="nosigText">[ SUBJECT NOT IN FRAME ]</span></div>
     <div class="hud bot"><span id="place">ISHAI // APARTMENT</span><span id="hudAction">--</span></div>
+    </div>
   </div>
 
   <div class="promoC" id="promoC" hidden><span>📣 COMING UP</span><b id="promoT"></b><button id="promoMore" type="button">SEE ▸</button></div>
@@ -4810,7 +4814,7 @@
   let SHOW_STOP = null;
   $('studioBtn').onclick = (e) => { e.stopPropagation(); if (showOn){ if (SHOW_STOP) SHOW_STOP(); } else playShow(); };   // the same button switches Studio <-> Live
   // ================= full screen: tap the picture (works for the live picture and the Studio); the last lines stay visible =================
-  const camEl = $('scene').parentElement, FS = [];
+  const camEl = $('scene').closest('.cam'), FS = [];
   function fsPush(who, say, nm, col){
     const sp = nm ? {name: nm, color: col || '#ffd36a'} : speaker(who); FS.push({name: sp.name, color: sp.color, say, at: NOW()}); if (FS.length > 2) FS.shift();
     const el = $('fsCap'); el.textContent = '';
@@ -5367,9 +5371,9 @@
   const pbEl = $('pban'); let pbKey = '', pbQ = null, pbRaf = 0;
   function pollBanner(p, phase, mine, now){
     const show = phase === 'soon' || phase === 'open';
-    if (pbEl.hidden === show) pbEl.hidden = !show;
-    if (!show){ pbQ = null; return; }
-    const t = mmss((phase === 'soon' ? p.opensAt : p.closesAt) - now), voted = phase === 'open' && mine != null;
+    if (!show){ if (pbQ){ pbQ = null; pbEl.classList.remove('in'); $('camIn').style.transform = ''; setTimeout(() => { if (!pbQ) pbEl.hidden = true; }, 750); } return; }
+    if (pbEl.hidden){ pbEl.hidden = false; requestAnimationFrame(() => requestAnimationFrame(() => pbEl.classList.add('in'))); }
+    const t = mmss((phase === 'soon' ? p.opensAt : p.closesAt) - now), voted = false;   // the same for everyone, voted or not, like a TV show
     const lbl = phase === 'soon' ? '🗳 VOTING OPENS IN' : voted ? '✓ YOU VOTED · RESULTS IN' : '🗳 VOTING IS NOW OPEN!';
     const k = phase + voted; if (pbKey !== k){ pbKey = k; pbEl.classList.toggle('open', phase === 'open' && !voted); pbEl.classList.toggle('voted', voted); $('pbLbl').textContent = lbl; }
     if ($('pbT').textContent !== t) $('pbT').textContent = t;
@@ -5382,6 +5386,9 @@
     const dur = Math.max(7000, (W + w) * 22), e = NOW() % 60000, on = e < Math.min(3 * dur, 57000);
     if (run.hidden === on) run.hidden = !on;
     if (on) q.style.transform = `translateX(${Math.round(W - ((e % dur) / dur) * (W + w))}px)`;
+    const H = camEl.clientHeight, need = Math.max(0, pbEl.offsetHeight - $('scene').offsetTop);   // full screen with black above the picture: no squeeze needed
+    const sc = pbEl.classList.contains('in') && H ? Math.max(.7, 1 - need / H) : 1, t = sc < 1 ? `scale(${sc.toFixed(4)})` : '';
+    if ($('camIn').style.transform !== t) $('camIn').style.transform = t;   // the banner's height (one or two rows) sets the squeeze
     pbRaf = requestAnimationFrame(pbFrame);
   }
   function pollOpenCard(){ const p = POLL; if (!p) return; if (camEl.classList.contains('fs')) setFs(false);
