@@ -704,6 +704,7 @@ async function tick(env, force) {
   if (goal && goal.status !== "done" && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
 
   if (ev.newCard) { s.cast[ev.newCard.id] = ev.newCard; s.lastNewAt = now; }
+  if (ev.action === "lecture") ev.commentary = [];   // the hosts stay quiet while Dr. Sasson teaches
   if ((ev.commentary || []).some(c => SPONSORS.some(sp => c.say.toLowerCase().includes(sp.name.toLowerCase())))) s.lastAd = now;
   const did = { eating: ["eat"], cooking: [], drinking: ["drink"], bathroom: ["bathroom"], showering: ["shower", "bathroom"] }[ev.action] || [];
   if (ev.action === "eating" && (ev.location === "cafe" || ev.location === "bar")) did.push("drink");
@@ -2148,7 +2149,7 @@ RULES
 - Moment 1 starts with Dr. Sasson naming today's title and one question the lecture will answer. Moment ${LECTURE_MOMENTS} answers it and ends with one question for the class. Do NOT announce the next lecture; that is added later.
 - Use ONLY facts from the SOURCE. Keep real names, dates and numbers, use metric units, say so when sources disagree, and mark a popular legend as a legend.
 - Stop joking when people died; speak of deaths with respect, and never joke about a victim, a child or a tragedy.
-- "commentary": the TV hosts zohar or oren, at most one short line, in at most 3 of the moments, about Ishai or the class, never about deaths. Empty list otherwise.
+- "commentary": always an empty list (the TV hosts stay quiet during the lecture).
 - Plain speech only: no markdown, no stage directions, nothing about cameras or being filmed.`;
 const BREAKS = [
   [["ishai", "Excuse me, did this machine just take my coin? It took my coin."], ["sasson", "It does that. I've been in a dispute with it since March."]],
@@ -2515,7 +2516,9 @@ async function pollTick(env, s, ev, now, last) {
     }
     const say = !r.total ? "Nobody voted this hour, so life goes on exactly as planned. Your loss." : o.kind === "none" ? `The votes are in: ${pct}% said "${o.label}". So, nothing. Democracy!`
       : at ? `The votes are in: ${pct}% chose "${o.label}"${r.tie ? " (a tie, settled by the studio coin)" : ""}. Keep watching, it happens later today.` : `The votes are in: "${o.label}" won, but life got too busy for it today.`;
-    ev.commentary = [...(ev.commentary || []), { who: pollHash(p.id) % 2 ? "zohar" : "oren", say }];
+    const pc = { who: pollHash(p.id) % 2 ? "zohar" : "oren", say };
+    if (ev.action === "lecture") s.surveySay = [...(s.surveySay || []), { ...pc, at: now }];   // no hosts in class: it airs after the lecture
+    else ev.commentary = [...(ev.commentary || []), pc];
     s.pollLog = [...(s.pollLog || []), { id: p.id, question: p.question, bank: p.bank || null, winner: o ? o.label : null, kind: o ? o.kind : null, pct, total: r.total, goal: goalId, at: at }].slice(-20);
   }
   const key = Math.floor(now / 3600000), opensAt = key * 3600000 + POLL_AT_MIN * 60000, closesAt = opensAt + POLL_SEC * 1000, h = storyClock(opensAt).hour;
@@ -2705,14 +2708,14 @@ function surveyGoal(s, sv, now) {
 // in tick(): a linked wish reaching its moment gets its host line; then one queued survey line a moment (not while he sleeps)
 function surveyHosts(s, ev, now) {
   for (const g of (s.director || []).filter(d => d.survey && !d.saidAt && (d.status === "active" || d.doneAt === now))) {
-    if (!(ev.with === g.forceWith || (ev.lines || []).some(l => l && l.who === g.forceWith))) continue;
+    if (ev.action === "lecture" || !(ev.with === g.forceWith || (ev.lines || []).some(l => l && l.who === g.forceWith))) continue;
     const sv = surveysOf(s).find(x => x.id === g.survey); if (!sv || !sv.result) { g.saidAt = now; continue; }
     g.saidAt = now; const r = sv.result, o = sv.options[r.winner];
     ev.commentary = [...(ev.commentary || []), { who: "zohar", say: sv.kind === "join" ? `Say hello to ${surveyName(s, g.forceWith)}. ${svPct(r, r.winner)}% of you voted for them to join the show, and here they are.`
       : `Remember the survey? ${svPct(r, r.winner)}% of you wanted ${surveyName(s, sv.about)} to take Ishai to ${o.label}. Here we go.` }];
   }
   s.surveySay = (s.surveySay || []).filter(x => now - x.at < 18 * 3600000);
-  if (s.surveySay.length && ev.action !== "sleeping" && (ev.commentary || []).length < 2) { const x = s.surveySay.shift(); ev.commentary = [...(ev.commentary || []), { who: x.who, say: x.say }]; }
+  if (s.surveySay.length && ev.action !== "sleeping" && ev.action !== "lecture" && (ev.commentary || []).length < 2) { const x = s.surveySay.shift(); ev.commentary = [...(ev.commentary || []), { who: x.who, say: x.say }]; }
 }
 // live results for everyone, counted at most once a minute per isolate
 let surveyLive = { at: 0, by: {} };

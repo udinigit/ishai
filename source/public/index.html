@@ -4101,7 +4101,7 @@
   const WAITS = new Set();    // the sandbox can cut waits short
   const untilT = at => { const ms = at - NOW(); if (ms <= 0) return Promise.resolve(); return new Promise(r => { const f = () => { WAITS.delete(f); clearTimeout(id); r(); }, id = setTimeout(f, ms); WAITS.add(f); }); };
   function talkPlan(ev, prevLoc, prevEv){
-    const lines = ev.lines || [], hosts = ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines), plan = [];
+    const lines = ev.lines || [], hosts = ev.action === 'lecture' ? [] : ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines), plan = [];
     // arriving by bus or taxi: the talk waits until he is there
     const r = prevLoc && !PREVIEW && prevLoc !== (ev.location || 'apartment') ? route(prevLoc, ev.location || 'apartment') : [], onBoard = r.some(x => VEH.has(x)) && !VEH.has(prevLoc) && !VEH.has(ev.location);
     // a gallery night: after the break the curtain rises first (CURTAIN_MS), then a few seconds of looking before anyone speaks or a picture is shown
@@ -4270,7 +4270,7 @@
     const entry = TL.get(ev.id);
     if (!animate || !entry){    // history: everything at once
       (ev.lines||[]).forEach((l, i) => addMsg({id: ev.id + ':' + i, t: ev.t, who: l.who, say: l.say, loc: ev.location}, false));
-      (ev.commentary||[]).forEach((c, i) => addMsg({id: ev.id + ':c' + i, t: ev.t, who: c.who, say: c.say, loc: ev.location, host: true}, false));
+      if (ev.action !== 'lecture') (ev.commentary||[]).forEach((c, i) => addMsg({id: ev.id + ':c' + i, t: ev.t, who: c.who, say: c.say, loc: ev.location, host: true}, false));
       return;
     }
     for (let k = 0; k < entry.plan.length; k++){
@@ -4544,7 +4544,7 @@
       if (at === undefined) return undefined;      // wait: the recap goes first
       if (at !== null && at + ms > from && at < c.t + 12 * 60000) from = at + ms;
     }
-    return slotAfter(from, 12 * 60000, T => { const m = momentAt(T); return m && m.ev.action !== 'sleeping' && arrivedBy(m, T) && !talkBetween(T, T + 1) && !songBetween(T, T + 120000); });
+    return slotAfter(from, 12 * 60000, T => { const m = momentAt(T); return m && m.ev.action !== 'sleeping' && m.ev.action !== 'lecture' && arrivedBy(m, T) && !talkBetween(T, T + 1) && !songBetween(T, T + 120000); });
   }
   async function playStudio(st, start, opt = {}){
     const times = STUDIO_TIMES(st.lines);
@@ -5298,7 +5298,7 @@
   const talkSoon = ms => { const now = NOW(); for (const e of TL.values()){ if (e.start > now && e.start < now + ms) return true; if (e.start <= now && e.plan.some(p => e.start + p.at + p.ms > now - 1500 && e.start + p.at < now + ms)) return true; } return false; };
   function hostFill(force){
     const now = NOW(), slot = Math.floor(now / FILL_SLOT), at = slot * FILL_SLOT + hash(slot * 37 + 1) * 12000;
-    if (!force && (slot === hostFill.done || now < at || now > at + 9000 || forceLoc || PREVIEW)) return false;
+    if (!force && (slot === hostFill.done || now < at || now > at + 9000 || forceLoc || PREVIEW || actor.action === 'lecture')) return false;
     if (!force && (songBetween(now, now + 15000) || now - TALK_AT < FILL_QUIET || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || studioOn || showOn || callOn || talkSoon(7000) || (document.hidden && !POP.on))) return false;
     hostFill.done = slot;
     const say = hostFillLine(slot); if (!say) return false;
