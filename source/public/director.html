@@ -16,6 +16,10 @@
   .wrap{width:100%;max-width:640px;display:flex;flex-direction:column;gap:14px}
   h1{font-size:30px;margin:0;font-weight:normal;text-shadow:0 0 8px rgba(77,255,122,.45)}
   .box{border:2px solid var(--faint);border-radius:10px;padding:12px 14px;background:#020502}
+  .vrow{display:grid;grid-template-columns:minmax(90px,1.2fr) 74px minmax(110px,1.4fr) 64px 64px auto;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid var(--faint);font-size:17px}
+  .vrow select,.vrow input{padding:3px 4px} .vrow .play{display:flex;gap:4px} .vrow .play button{padding:3px 8px}
+  .vhead{font-size:15px;opacity:.75;border-bottom:none}
+  @media (max-width:560px){ .vrow{grid-template-columns:1fr 70px 1fr;} .vrow .p2{grid-column:span 1} .vhead{display:none} }
   label{display:block;color:var(--dim);margin:8px 0 2px}
   input,textarea,select{width:100%;font:inherit;background:#071007;color:var(--phos);border:1px solid var(--faint);border-radius:6px;padding:6px 8px}
   textarea{min-height:96px;resize:vertical}
@@ -56,6 +60,15 @@
       <div class="muted" style="font-size:16px">New moments appear on the page after the 5-minute delay. "Run now" uses AI budget.</div>
       <div id="aiErr" class="err"></div>
       <div id="tickMsg"></div>
+    </div>
+
+    <div class="box" id="voicesBox">
+      <div style="font-size:24px">Voices</div>
+      <div class="muted" style="font-size:16px">How each character sounds on the show, in the Studio and in the trailer. Empty = automatic. Gender picks the device's voice (each viewer's phone or computer has its own); the HD voice is the one used in SOUND: HD VOICES. Pitch and speed apply to both (about 0.8 to 1.3; 1 = natural). ▶ plays a line with this device's voice, ▶HD with the HD voice (load HD here first).</div>
+      <input id="vSample" value="Hi, it's me. Did anyone water Moshe today?" style="margin:6px 0" aria-label="Sample line">
+      <div class="bar" style="flex-wrap:wrap;gap:6px"><button id="vHD" class="ghost">Load HD voices here (~90 MB)</button> <span id="vHDst" class="muted" style="font-size:16px"></span></div>
+      <div id="vList" style="margin-top:6px"></div>
+      <div class="bar" style="flex-wrap:wrap;gap:6px;margin-top:8px"><button id="vSave">Save voices</button> <button id="vReset" class="ghost">All back to automatic</button> <span id="vMsg" class="muted" style="font-size:16px"></span></div>
     </div>
 
     <div class="box">
@@ -197,8 +210,62 @@
       el.appendChild(box);
     });
   }
+  // ---------- voices: the shared module (voices.js), the director's draft, previews ----------
+  /*__VOICES_JS__*/
+  const V_SPECIAL = [['zohar','Zohar (host)'],['oren','Oren (host)'],['ishai','Ishai'],['radio','Radio DJ'],['tv','TV news (Channel 9)'],
+    ['dj_benny','DJ Benny'],['dj_shira','DJ Shira'],['dj_yoni','DJ Yoni'],['narrator','Trailer narrator']];
+  let vDraft = null, vCast = {}, vBuilt = '';
+  Voices.setCast(id => vCast[id] || null);
+  const vPick = (id, k) => vDraft[id] && vDraft[id][k] !== undefined ? vDraft[id][k] : '';
+  function vSet(id, k, val){ const o = vDraft[id] || (vDraft[id] = {}); if (val === '' || val === null) delete o[k]; else o[k] = val; if (!Object.keys(o).length) delete vDraft[id]; Voices.setConfig(vDraft); $('vMsg').textContent = 'Not saved yet.'; vPlaceholders(); }
+  function vPlaceholders(){ document.querySelectorAll('#vList [data-auto]').forEach(el => { const id = el.dataset.id, k = el.dataset.auto, t = Voices.tone(id);
+    if (k === 'g') el.options[0].textContent = 'auto (' + Voices.genderOf(id) + ')';
+    else if (k === 'kv'){ const auto = Voices.K_LIST.find(x => x.id === Voices.kVoice(id)); el.options[0].textContent = 'auto (' + (auto ? auto.name : '') + ')'; }
+    else el.placeholder = t[k].toFixed(2); }); }
+  function renderVoices(vv){
+    if (!vv) return; vCast = Object.fromEntries((vv.cast || []).map(c => [c.id, c]));
+    const sig = JSON.stringify([vv.cfg, Object.keys(vCast)]); if (sig === vBuilt) return; vBuilt = sig;
+    vDraft = JSON.parse(JSON.stringify(vv.cfg || {})); Voices.setConfig(vDraft);
+    const ids = [...V_SPECIAL, ...(vv.cast || []).filter(c => !V_SPECIAL.some(x => x[0] === c.id)).map(c => [c.id, c.name])];
+    const L = $('vList'); L.textContent = '';
+    const head = document.createElement('div'); head.className = 'vrow vhead'; ['Who','Gender','HD voice','Pitch','Speed',''].forEach(t => { const d = document.createElement('div'); d.textContent = t; head.appendChild(d); }); L.appendChild(head);
+    ids.forEach(([id, name]) => {
+      const row = document.createElement('div'); row.className = 'vrow';
+      const n = document.createElement('div'); n.textContent = name;
+      const g = document.createElement('select'); g.dataset.auto = 'g'; g.dataset.id = id; g.setAttribute('aria-label', name + ' gender');
+      [['', 'auto'], ['m', 'male'], ['f', 'female']].forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; g.appendChild(o); });
+      g.value = vPick(id, 'g'); g.onchange = () => vSet(id, 'g', g.value);
+      const kv = document.createElement('select'); kv.dataset.auto = 'kv'; kv.dataset.id = id; kv.setAttribute('aria-label', name + ' HD voice');
+      kv.appendChild(Object.assign(document.createElement('option'), {value: '', textContent: 'auto'}));
+      Voices.K_LIST.forEach(k => kv.appendChild(Object.assign(document.createElement('option'), {value: k.id, textContent: `${k.name} · ${k.g === 'f' ? 'female' : 'male'} · ${k.grade}`})));
+      kv.value = vPick(id, 'kv'); kv.onchange = () => vSet(id, 'kv', kv.value);
+      const num = k => { const i = document.createElement('input'); i.type = 'number'; i.step = '0.05'; i.min = '0.6'; i.max = '1.5'; i.inputMode = 'decimal';
+        i.dataset.auto = k; i.dataset.id = id; i.setAttribute('aria-label', name + ' ' + (k === 'rate' ? 'speed' : k)); i.value = vPick(id, k);
+        i.onchange = () => vSet(id, k, i.value === '' ? '' : Math.max(.6, Math.min(1.5, +i.value))); return i; };
+      const play = document.createElement('div'); play.className = 'play';
+      const b1 = document.createElement('button'); b1.className = 'ghost'; b1.textContent = '▶'; b1.title = 'This device\'s voice';
+      b1.onclick = () => { if (!Voices.deviceSay(id, $('vSample').value || 'Hello.', null, {cancel: true})) $('vMsg').textContent = 'This browser has no speech.'; };
+      const b2 = document.createElement('button'); b2.className = 'ghost'; b2.textContent = '▶HD'; b2.title = 'The HD voice';
+      b2.onclick = () => vPlayHD(id, b2);
+      play.append(b1, b2); row.append(n, g, kv, num('pitch'), num('rate'), play); L.appendChild(row);
+    });
+    vPlaceholders(); $('vMsg').textContent = '';
+  }
+  const vAudio = new Audio();
+  async function vPlayHD(id, btn){
+    const h = Voices.hd(); if (h.state !== 'ready'){ $('vMsg').textContent = h.state === 'loading' ? 'HD voices are still loading…' : 'Load HD voices here first.'; return; }
+    const text = $('vSample').value || 'Hello.'; Voices.prefetch(id, text, 0, null, true); btn.disabled = true;
+    for (let i = 0; i < 120 && !Voices.get(id, text); i++) await new Promise(r => setTimeout(r, 250));
+    btn.disabled = false; const c = Voices.get(id, text); if (!c){ $('vMsg').textContent = 'That took too long, try again.'; return; }
+    try { speechSynthesis.cancel(); } catch(e){} vAudio.src = URL.createObjectURL(Voices.wav(c)); vAudio.play().catch(() => {});
+  }
+  Voices.onChange(() => { const h = Voices.hd(); $('vHDst').textContent = h.state === 'off' ? '' : h.state === 'loading' ? `loading ${h.pct}%` : h.state === 'ready' ? 'ready' : 'failed: ' + h.err;
+    $('vHD').disabled = h.state === 'loading' || h.state === 'ready'; });
+  $('vHD').onclick = () => Voices.start();
+  $('vSave').onclick = async () => { $('vMsg').textContent = 'Saving…'; try { const v = await api({action: 'voicesSave', voices: vDraft || {}}); vBuilt = ''; render(v); $('vMsg').textContent = 'Saved. Open pages pick it up within a minute.'; } catch(e){ $('vMsg').textContent = e.message; } };
+  $('vReset').onclick = () => { if (!confirm('Set every voice back to automatic? (Save to keep it.)')) return; vDraft = {}; Voices.setConfig(vDraft); vBuilt = 'reset'; renderVoices({cfg: {}, cast: Object.values(vCast)}); $('vMsg').textContent = 'Not saved yet.'; };
   function render(v){
-    renderCourse(v.course); renderPolls(v.polls); renderSurveys(v.surveys);
+    renderVoices(v.voices); renderCourse(v.course); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('last').textContent = v.last ? `${fmt(v.last.created)} (${v.last.location}/${v.last.action}) ${v.last.text}` : '—';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';

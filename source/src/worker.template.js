@@ -375,6 +375,7 @@ export default {
       return json({ poll: { ...pollPublic(p), result } }, { "cache-control": "no-store" });
     }
     if (url.pathname === "/api/ambient") return json({ city: CITY, texture: PLAN.texture || null });
+    if (url.pathname === "/api/voices") { const s = await loadState(env); return json(s.voiceCfg || {}, { "cache-control": "public, max-age=60" }); }   // the director's voice settings (the trailer reads them)
     if (url.pathname === "/api/plan") {
       const s = await loadState(env);
       return json({ version: PLAN.version || null, written: PLAN.written || null, arcs: PLAN.arcs || [], beats: PLAN.beats || [], unlocked: s.unlocked,
@@ -558,7 +559,7 @@ function publicState(s, dev) {
     studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
-    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()), promos: promosPublic(s, Date.now()), guide: guideToday(s, Date.now()),
+    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()), promos: promosPublic(s, Date.now()), guide: guideToday(s, Date.now()), voices: s.voiceCfg || {},
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [], barStations: s.world.barStations || [], cafeStations: s.world.cafeStations || [] } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
@@ -3602,6 +3603,8 @@ async function directorApi(req, env) {
       const r = await surveyAction(env, s, b, now); if (r) return json({ error: r }, {}, 400);
     } else if (b.action === "pollSkip") {   // drop the coming poll (this hour has none)
       if (s.poll && !s.poll.done && now < s.poll.opensAt) s.poll = null;
+    } else if (b.action === "voicesSave") {   // the director's voice settings: gender, HD voice, pitch and speed per character
+      s.voiceCfg = cleanVoices(b.voices);
     } else if (b.action === "pollsOff") {
       s.pollsOff = !!b.off;
     } else if (b.action === "pollBank") {     // replace the coming poll with a stock one
@@ -3617,9 +3620,21 @@ async function directorApi(req, env) {
   }
   return json({ ...directorView(s, JSON.parse(await env.ISHAI.get("bugs") || "[]")), surveys: await surveyDirector(env, s).catch(e => ({ err: String(e.message || e), list: [] })) });
 }
+// the director's voice settings, kept only in known shapes: {id: {g: "m"|"f", kv: "<kokoro voice>", pitch, rate}}
+function cleanVoices(v) {
+  const out = {}; if (!v || typeof v !== "object") return out;
+  for (const [id, o] of Object.entries(v).slice(0, 120)) {
+    if (!/^[a-z0-9_-]{1,40}$/.test(id) || !o || typeof o !== "object") continue;
+    const c = {}; if (o.g === "m" || o.g === "f") c.g = o.g;
+    if (typeof o.kv === "string" && /^[ab][fm]_[a-z]{2,12}$/.test(o.kv)) c.kv = o.kv;
+    for (const k of ["pitch", "rate"]) { const n = Number(o[k]); if (o[k] !== null && o[k] !== "" && o[k] !== undefined && isFinite(n)) c[k] = Math.round(clamp(n, 0.6, 1.5) * 100) / 100; }
+    if (Object.keys(c).length) out[id] = c;
+  }
+  return out;
+}
 function directorView(s, bugs) {
   const last = s.events[s.events.length - 1];
-  return { course: courseDirector(s), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
+  return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse(), lastError: s.lastError || null,
     polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },

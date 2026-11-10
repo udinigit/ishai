@@ -352,6 +352,7 @@
   });
   CUES.sort((x, y) => x.at - y.at);
 
+  /*__VOICES_JS__*/
   // ---------- voices: the browser's own speech, a narrator and one voice per character ----------
   const SPEECH = 'speechSynthesis' in window ? window.speechSynthesis : null;
   const VOX = {
@@ -370,15 +371,30 @@
     VOICES = {m, f, all};
   }
   if (SPEECH){ loadVoices(); try { SPEECH.addEventListener('voiceschanged', loadVoices); } catch (e) { SPEECH.onvoiceschanged = loadVoices; } }
+  // the show's voices (voices.js): the device's best voice per character and the director's settings; HD (Kokoro) voices when this
+  // browser already has the model from the show page (HD VOICES), every line made ahead at load and played as media (one <audio>, unlocked by the tap)
+  const vid = w => (!w || w === 'narr' || w === 'hush') ? 'narrator' : w;
+  const baseOf = who => { const p = VOX[who] || VOX.narr; return {pitch: p.pitch, rate: p.rate}; };
+  const HD_ON = Voices.wasReady() && 'Worker' in window;
+  const hdEl = new Audio(); hdEl.setAttribute('playsinline', ''); let hdQ = Promise.resolve(), hdGen = 0;
+  fetch('/api/voices', {cache: 'no-store'}).then(r => r.ok ? r.json() : {}).catch(() => ({})).then(c => {
+    Voices.setConfig(c || {});
+    if (HD_ON){ Voices.start(); CUES.forEach((q, i) => Voices.prefetch(vid(q.who), q.text, i, baseOf(q.who), true)); Voices.prefetch('narrator', 'Watching Ishai. On air now, all day, every day.', CUES.length, baseOf('narr'), true); }
+  });
   function speak(text, who){
-    if (!SPEECH || !voxOn || muted) return;
-    const p = VOX[who] || VOX.narr, list = VOICES[p.g].length ? VOICES[p.g] : VOICES.all;
-    const u = new SpeechSynthesisUtterance(text);
-    if (list.length) u.voice = list[p.n % list.length];
-    u.pitch = p.pitch; u.rate = p.rate; u.volume = p.vol ?? 1;
+    if (!voxOn || muted) return;
+    const p = VOX[who] || VOX.narr, id = vid(who), c = HD_ON && Voices.get(id, text, baseOf(who));
+    if (c){ const g = hdGen; hdQ = hdQ.then(() => g !== hdGen ? null : new Promise(res => {   // queued after the line before, never cut off
+        const url = URL.createObjectURL(Voices.wav(c)), done = () => { URL.revokeObjectURL(url); res(); };
+        hdEl.src = url; hdEl.volume = p.vol ?? 1; hdEl.onended = hdEl.onerror = done; hdEl.play().catch(done); })); return; }
+    if (!SPEECH) return;
+    const o = Voices.config()[id] || {}, u = new SpeechSynthesisUtterance(text), v = Voices.pickVoice(id);
+    const list = VOICES[p.g].length ? VOICES[p.g] : VOICES.all;
+    if (v) u.voice = v; else if (list.length) u.voice = list[p.n % list.length];
+    u.pitch = o.pitch ?? p.pitch; u.rate = o.rate ?? p.rate; u.volume = p.vol ?? 1;
     SPEECH.speak(u);   // queued after any line still being spoken, never cut off
   }
-  function hush(){ if (SPEECH) SPEECH.cancel(); }
+  function hush(){ if (SPEECH) SPEECH.cancel(); hdGen++; hdQ = Promise.resolve(); try { hdEl.pause(); } catch (e) {} }
 
   // ---------- music: a little chiptune, synthesised once at load into a WAV, then played like any media file ----------
   // (live Web Audio went silent on phones while the speech played: a media <audio> plays alongside it, and the iPhone silent switch doesn't mute it)
@@ -497,6 +513,7 @@
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
     hush(); cueI = 0; lastCT = -1;
     if (SPEECH){ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; SPEECH.speak(u); }   // unlocks speech on phones (needs the tap)
+    if (HD_ON){ hdEl.src = URL.createObjectURL(Voices.wav({pcm: new Float32Array(2400), sr: 24000})); hdEl.play().catch(() => {}); }   // and the HD voices' player
     clock0 = performance.now(); useMusic = false;
     if (music) {
       music.muted = muted; try { music.currentTime = 0; } catch (e) {}

@@ -3683,6 +3683,8 @@
   setInterval(()=>{ $('clock').textContent = fmtClock.format(new Date(NOW())); }, 500);
   $('clock').textContent = fmtClock.format(new Date(NOW()));
 
+  /*__VOICES_JS__*/
+  Voices.setCast(id => (typeof CAST !== 'undefined' && CAST[id]) || null);
   // ================= sound (Web Audio, generated in code, no files) =================
   const Sound = (() => {
     let ac = null, out = null, mode = 'off', amb = null, ambKey = '', wanted = '', brown = null, white = null;
@@ -3735,103 +3737,26 @@
     }
     function key(ch){ if (on() && mode==='blips' && ch!==' ' && Math.random()<.45) noise(.012,{vol:.02,type:'highpass',freq:3000}); }
     let voices = [], voiceState = 'not tried', blocked = false;
-    // ---- the device's voices, best first: neural/natural voices, matched to each character's gender, gentle pitch ----
-    const GENDER = {zohar:'f', oren:'m', ishai:'m', levi:'f', noa:'f', avi:'m', dana:'f', tomer:'m', gadi:'m', michal:'f', sivan:'f', zelig:'m', kobi:'m', lior:'m',
-      yael:'f', sasson:'m', hagit:'f', boaz:'m', ronit:'f', moti:'m', yossi:'m', radio:'m', tv:'f', narrator:'m', dj_benny:'m', dj_shira:'f', dj_yoni:'m'};
-    function genderOf(id){
-      if (GENDER[id]) return GENDER[id];
-      const c = (typeof CAST !== 'undefined' && CAST[id]) || null, L = c && c.look;
-      if (c && /^(mrs|ms|miss)\b/i.test(c.name || '')) return 'f';
-      if (L) return (/^(long|bun|ponytail|pigtails|braids|bob)$/.test(L.hair) || L.top === 'dress' || L.bottom === 'skirt') ? 'f' : 'm';
-      return hash(id) % 2 ? 'f' : 'm';
-    }
-    const V_FEM = /\b(female|woman|samantha|victoria|karen|moira|tessa|fiona|serena|allison|ava|susan|zira|hazel|aria|jenny|michelle|libby|sonia|natasha|emma|clara|catherine|joanna|salli|kimberly|ivy|kendra|nicky|sara|martha|kate|amy|ashley|cora|elizabeth|jane|nancy|maisie|molly|olivia|isla|heather|linda|veena|evie|stephanie|sinead|ana|ava|zoe|nora|jessa|monica|emily|abbi|bella|hollie)\b/i;
-    const V_MAL = /\b(male|man|daniel|alex|tom|aaron|arthur|gordon|lee|rishi|oliver|thomas|david|mark|george|guy|ryan|eric|christopher|roger|steffan|brian|andrew|william|liam|james|evan|nathan|tony|jason|noah|mitchell|sean|connor|neil|prabhat|ravi|davis|brandon|elliot|ethan|alfie|matthew|joey|justin)\b/i;
-    const V_BAD = /\b(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|deranged|hysterical|princess|junior|ralph|fred|kathy|grandma|grandpa|rocko|shelley|flo|eddy|reed|sandy)\b|espeak|eloquence/i;
-    const vGender = v => /google us english$/i.test(v.name) ? 'f' : V_FEM.test(v.name) ? 'f' : V_MAL.test(v.name) ? 'm' : '';
-    const vScore = v => { const n = v.name + ' ' + (v.voiceURI || '');
-      return (/natural|neural/i.test(n) ? 100 : /online/i.test(n) ? 90 : /google/i.test(n) ? 80 : /premium/i.test(n) ? 75 : /enhanced|siri/i.test(n) ? 65 : 30)
-        - (V_BAD.test(v.name) ? 300 : 0) + (/en[-_](us|gb)/i.test(v.lang) ? 5 : 0); };
-    let voiceFor = {};
-    function pickVoice(id){
-      if (id in voiceFor) return voiceFor[id];
-      const ok = voices.filter(v => vScore(v) > 0), g = genderOf(id);
-      let pool = ok.filter(v => vGender(v) === g); if (!pool.length) pool = ok.filter(v => !vGender(v)); if (!pool.length) pool = ok;
-      const best = Math.max(-1, ...pool.map(vScore)), tier = pool.filter(v => vScore(v) >= best - 15);
-      return (voiceFor[id] = tier.length ? tier[hash(id) % tier.length] : null);
-    }
-    const gentle = v => ({pitch: Math.min(1.2, Math.max(.85, 1 + (v.pitch - 1) * .3)), rate: Math.min(1.12, Math.max(.9, 1 + (v.rate - 1) * .5))});
-    const loadVoices = () => { try { voices = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); voiceFor = {}; } catch(e){} };
-    if ('speechSynthesis' in window){ loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
-    // ---- HD voices: the Kokoro neural voice model, run in the viewer's browser (a web worker), downloaded once (~90 MB) ----
-    // Lines are made ahead of time from the schedule (prefetch); a line that isn't ready yet is spoken by the device's voice.
-    const KOKORO_URL = 'https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js';
-    const KVOICE = {ishai:'am_michael', zohar:'af_bella', oren:'bm_george', noa:'af_heart', levi:'bf_isabella', avi:'am_fenrir', dana:'af_nicole', tomer:'am_puck',
-      gadi:'am_eric', michal:'af_sky', sivan:'af_sarah', zelig:'bm_lewis', kobi:'am_onyx', lior:'bm_fable', yael:'af_kore', sasson:'bm_daniel', hagit:'af_aoede',
-      boaz:'am_liam', ronit:'bf_emma', moti:'am_echo', yossi:'am_eric', radio:'am_echo', tv:'af_nova', narrator:'bm_fable', dj_benny:'am_echo', dj_shira:'af_alloy', dj_yoni:'am_onyx'};
-    const K_F = ['af_heart','af_bella','af_nicole','bf_emma','af_aoede','af_kore','af_sarah','bf_isabella','af_nova','af_alloy','af_sky'];
-    const K_M = ['am_michael','am_fenrir','am_puck','bm_george','bm_fable','am_eric','am_liam','am_onyx','am_echo','bm_lewis','bm_daniel'];
-    const kVoice = id => KVOICE[id] || (genderOf(id) === 'f' ? K_F : K_M)[hash(id) % 11];
-    const HD = {state: 'off', w: null, pct: 0, cache: new Map(), want: new Map(), doing: null, src: null, err: '', made: 0};
-    const hdLabel = () => { if (mode === 'hd') btn.textContent = HD.state === 'loading' ? `SOUND: HD ${HD.pct}%` : HD.state === 'failed' ? 'SOUND: HD (FAILED)' : LABELS.hd; };
-    const HD_WORKER = `let tts = null;
-self.onmessage = async ({data: m}) => {
-  try {
-    if (m.type === 'load'){
-      const { KokoroTTS } = await import('${KOKORO_URL}');
-      tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8', device: 'wasm',
-        progress_callback: p => { if (p && p.status === 'progress' && /onnx/.test(p.file || '')) self.postMessage({type: 'progress', pct: Math.round(p.progress || 0)}); } });
-      self.postMessage({type: 'ready'});
-    } else if (m.type === 'gen'){
-      const a = await tts.generate(m.text, { voice: m.voice, speed: m.speed });
-      const pcm = a.audio; self.postMessage({type: 'audio', key: m.key, pcm, sr: a.sampling_rate}, [pcm.buffer]);
-    }
-  } catch (e){ self.postMessage({type: m.type === 'gen' ? 'genfail' : 'fail', key: m.key, msg: String(e && e.message || e)}); }
-};`;
-    function hdFail(msg){ HD.state = 'failed'; HD.err = String(msg || 'error').slice(0, 160); try { HD.w && HD.w.terminate(); } catch(e){} HD.w = null; HD.want.clear(); HD.doing = null; hdLabel(); }
-    function hdStart(){
-      if (HD.w || HD.state === 'failed' || HD.state === 'ready') return;
-      try {
-        HD.w = new Worker(URL.createObjectURL(new Blob([HD_WORKER], {type: 'text/javascript'})), {type: 'module'});
-        HD.state = 'loading'; HD.pct = 0; hdLabel();
-        HD.w.onerror = e => hdFail(e && e.message || 'worker error');
-        HD.w.onmessage = ({data: m}) => {
-          if (m.type === 'progress'){ if (m.pct > HD.pct){ HD.pct = Math.min(99, m.pct); hdLabel(); } }
-          else if (m.type === 'ready'){ HD.state = 'ready'; hdLabel(); hdPump(); }
-          else if (m.type === 'audio' || m.type === 'genfail'){
-            if (m.type === 'audio' && m.pcm && m.pcm.length){ HD.cache.set(m.key, {pcm: m.pcm, sr: m.sr}); HD.made++; if (HD.cache.size > 160) HD.cache.delete(HD.cache.keys().next().value); }
-            if (HD.doing === m.key) HD.doing = null; hdPump(); }
-          else if (m.type === 'fail') hdFail(m.msg);
-        };
-        HD.w.postMessage({type: 'load'});
-      } catch(e){ hdFail(e && e.message); }
-    }
-    const hdKey = (id, text) => { const g = gentle(voiceOf(id)); return kVoice(id) + '|' + g.rate.toFixed(2) + '|' + text; };
-    function hdPump(){
-      if (HD.state !== 'ready' || HD.doing || !HD.w) return;
-      const now = NOW(); let k = null, best = Infinity;
-      for (const [key, x] of HD.want){ if (x.at < now - 4000){ HD.want.delete(key); continue; } if (x.at < best){ best = x.at; k = key; } }
-      if (!k) return; const x = HD.want.get(k); HD.want.delete(k); HD.doing = k;
-      HD.w.postMessage({type: 'gen', key: k, text: x.text, voice: x.voice, speed: x.speed});
-    }
-    function prefetch(id, text, at){
-      if (mode !== 'hd' || HD.state === 'failed' || !text) return; if (!HD.w) hdStart();
-      const k = hdKey(id, text); if (HD.cache.has(k) || HD.want.has(k) || HD.doing === k) return;
-      HD.want.set(k, {text: String(text).slice(0, 400), voice: kVoice(id), speed: gentle(voiceOf(id)).rate, at: at || NOW()}); hdPump();
-    }
+    // device voices, HD voices and the director's settings come from the shared Voices module (voices.js)
+    const hdLabel = () => { if (mode !== 'hd') return; const h = Voices.hd();
+      btn.textContent = h.state === 'loading' ? `SOUND: HD ${h.pct}%` : h.state === 'failed' ? 'SOUND: HD (FAILED)' : LABELS.hd; };
+    Voices.onChange(() => hdLabel());
+    let hdSrc = null;
+    const hdOn = () => mode === 'hd' && Voices.hd().state !== 'failed';
+    const prefetch = (id, text, at, keep) => { if (hdOn()) Voices.prefetch(id, text, at, voiceOf(id), keep); };
     function hdPlay(c){
       return new Promise(res => {
-        let done = false; const fin = () => { if (done) return; done = true; saying--; if (HD.src === src) HD.src = null; res(); };
+        let done = false; const fin = () => { if (done) return; done = true; saying--; if (hdSrc === src) hdSrc = null; res(); };
         const b = ac.createBuffer(1, c.pcm.length, c.sr); b.copyToChannel(c.pcm, 0);
         const src = ac.createBufferSource(), gn = ac.createGain(); gn.gain.value = 1.4; src.buffer = b; src.connect(gn).connect(out);
-        saying++; HD.src = src; src.onended = fin; setTimeout(fin, c.pcm.length / c.sr * 1000 + 1500); voiceState = 'speaking (HD)';
+        saying++; hdSrc = src; src.onended = fin; setTimeout(fin, c.pcm.length / c.sr * 1000 + 1500); voiceState = 'speaking (HD)';
         try { if (ac.state === 'suspended') ac.resume(); src.start(); } catch(e){ fin(); }
       });
     }
     function say(id, text){
       if (!on() || !voiced()) return Promise.resolve();
-      if (mode === 'hd' && HD.state !== 'failed'){
-        const c = HD.cache.get(hdKey(id, text)); if (c) return hdPlay(c);
+      if (hdOn()){
+        const c = Voices.get(id, text, voiceOf(id)); if (c) return hdPlay(c);
         prefetch(id, text, NOW());      // not ready in time: the device's voice reads this one
       }
       if (!('speechSynthesis' in window)) return Promise.resolve();
@@ -3842,7 +3767,7 @@ self.onmessage = async ({data: m}) => {
         // the speaker's own voice first; a voice that fails or never starts gives way once to the device's default voice
         const speak = (own) => {
           const u = new SpeechSynthesisUtterance(text); let started = false;
-          const pv = own ? pickVoice(id) : null, gv = gentle(v); if (pv) u.voice = pv;
+          const pv = own ? Voices.pickVoice(id) : null, gv = Voices.tone(id, v); if (pv) u.voice = pv;
           u.pitch = gv.pitch; u.rate = gv.rate; u.volume = .9;
           const fallback = () => { u.onerror = u.onend = null; try { speechSynthesis.cancel(); } catch(e){} speak(false); };
           u.onstart = () => { started = true; voiceState = own ? 'speaking' : 'speaking (default voice)'; };
@@ -4047,9 +3972,8 @@ self.onmessage = async ({data: m}) => {
       if (voiced() && 'speechSynthesis' in window) try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch(e){}   // a tap is what allows speech: use it now
       try { sessionStorage.setItem('ishaiSound', mode); } catch(e){}
       if (!voiced() && 'speechSynthesis' in window) speechSynthesis.cancel();
-      if (mode === 'hd' && HD.state === 'failed'){ HD.state = 'off'; HD.err = ''; }   // tapped back to HD after a failed download: try again
-      if (mode === 'hd'){ hdLabel(); clearTimeout(setMode.hdT); setMode.hdT = setTimeout(() => { if (mode === 'hd') hdStart(); }, 2500); }   // a viewer just tapping past HD downloads nothing
-      else if (HD.src) try { HD.src.stop(); } catch(e){}
+      if (mode === 'hd'){ hdLabel(); clearTimeout(setMode.hdT); setMode.hdT = setTimeout(() => { if (mode === 'hd') Voices.start(); }, 2500); }   // a viewer just tapping past HD downloads nothing; after a failed download this tries again
+      else if (hdSrc) try { hdSrc.stop(); } catch(e){}
       ambKey = ''; setAmbience(wanted);
     }
     btn.onclick = (e) => { e.stopPropagation(); setMode(blocked ? 'voices' : MODES[(MODES.indexOf(mode)+1) % MODES.length]); };
@@ -4079,7 +4003,7 @@ self.onmessage = async ({data: m}) => {
     const speaking = () => voiced();
     // anyone speaking right now (a voice still talking, or one queued)? sound effects wait for it
     const busy = () => saying > 0 || ('speechSynthesis' in window && (speechSynthesis.speaking || speechSynthesis.pending));
-    function hush(){ try { if (HD.src) HD.src.stop(); } catch(e){} try { if ('speechSynthesis' in window && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); } catch(e){} }   // a slow voice never runs into the next scheduled line
+    function hush(){ try { if (hdSrc) hdSrc.stop(); } catch(e){} try { if ('speechSynthesis' in window && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); } catch(e){} }   // a slow voice never runs into the next scheduled line
     // the pop-out window plays the page's sound, which keeps it running in the background; a faint tone holds the track open when nothing else plays
     function popAudio(){
       if (!init()) return null; try { ac.resume(); } catch(e){}
@@ -4088,8 +4012,8 @@ self.onmessage = async ({data: m}) => {
       out.connect(dest); out.disconnect(ac.destination);
       return {stream: dest.stream, stop(){ try { o.stop(); out.disconnect(dest); out.connect(ac.destination); } catch(e){} }};
     }
-    return { isOn: () => on(), voiceInfo: () => `${voiceState} · ${voices.length} English voices` + (HD.state !== 'off' ? ` · HD ${HD.state}${HD.state === 'loading' ? ' ' + HD.pct + '%' : ''}, ${HD.made} made, ${HD.want.size} waiting${HD.err ? ' (' + HD.err + ')' : ''}` : ''),
-      prefetch, hdOn: () => mode === 'hd' && HD.state !== 'failed', blip, key, say, hush, popAudio, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
+    return { isOn: () => on(), voiceInfo: () => `${voiceState} · ${Voices.info()}`,
+      prefetch, hdOn, blip, key, say, hush, popAudio, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -4770,6 +4694,8 @@ self.onmessage = async ({data: m}) => {
       for (const p of e.plan){ const at = e.start + p.at; if (p.l && p.l.say && at > now - 1000 && at < now + 150000) Sound.prefetch(p.l.who, p.l.say, at); } }
     const st = typeof STUDIO !== 'undefined' && STUDIO; if (st && !studioDone.has(st.id) && st.lines) st.lines.forEach((l, i) => Sound.prefetch(l.who, l.say, now + 90000 + i));
     const c = typeof CALL !== 'undefined' && CALL; if (c && !callDone.has(c.id) && c.lines && c.caller) c.lines.forEach((l, i) => Sound.prefetch(l.who === 'caller' ? 'caller-' + c.caller.name : l.who, l.say, now + 100000 + i));
+    // the Studio break (auto on odd hours, or the 📺 STUDIO button any time): made in the background, after everything due sooner
+    const sh = typeof SHOW !== 'undefined' && SHOW; if (sh && sh.lines) sh.lines.forEach((l, i) => l && l.say && Sound.prefetch(l.who, l.say, now + 200000 + i, true));
   }, 1000);
   // ================= commercial breaks: sliding banners for fake brands and Watch-Ishai merch =================
   // Only when it is quiet (he is alone, or asleep); every 6 minutes, same banner for every viewer.
@@ -5883,7 +5809,7 @@ self.onmessage = async ({data: m}) => {
       if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;
       if (s.course) COURSE = s.course;
-      ARENA = s.arena || null; GUIDE = s.guide || null; arenaPreload(); pokerSync(s.poker); PROMOS = s.promos || []; renderPromos();
+      ARENA = s.arena || null; GUIDE = s.guide || null; if (s.voices && JSON.stringify(s.voices) !== JSON.stringify(Voices.config())) Voices.setConfig(s.voices); arenaPreload(); pokerSync(s.poker); PROMOS = s.promos || []; renderPromos();
       if ('poll' in s) setPoll(s.poll);
       if (s.summary) SUMMARY = s.summary;
       if (s.summary || s.course) renderSummary();

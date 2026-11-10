@@ -1,12 +1,15 @@
 import fs from 'fs';
 const BUILD = Date.now().toString(36); // lets open pages notice a new deploy
-const html = fs.readFileSync('public/index.html','utf8').replace('__BUILD__', BUILD);
+// the shared voices (voices.js) go into every page that speaks, where it has the /*__VOICES_JS__*/ marker
+const VOICES_JS = fs.readFileSync('public/voices.js','utf8');
+const withVoices = (h, name) => { if (!h.includes('/*__VOICES_JS__*/')) throw new Error(name + ' has no /*__VOICES_JS__*/ marker'); return h.replace('/*__VOICES_JS__*/', () => VOICES_JS); };
+const html = withVoices(fs.readFileSync('public/index.html','utf8').replace('__BUILD__', BUILD), 'index.html');
 const tpl = fs.readFileSync('src/worker.template.js','utf8');
 
-const dir = fs.readFileSync('public/director.html','utf8');
+const dir = withVoices(fs.readFileSync('public/director.html','utf8'), 'director.html');
 const sandbox = fs.readFileSync('public/sandbox.html','utf8');
 const builder = fs.readFileSync('public/builder.html','utf8');
-const intro = fs.readFileSync('public/intro.html','utf8');
+const intro = withVoices(fs.readFileSync('public/intro.html','utf8'), 'intro.html');
 const events = fs.readFileSync('public/events.html','utf8');
 const sw = fs.readFileSync('public/sw.js','utf8');
 // favicons and the link-preview picture (WhatsApp etc.), served by the worker from memory

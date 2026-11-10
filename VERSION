@@ -1,1 +1,1 @@
-v207 — 2026-11-10 (better voices: the device's best voices by quality and each character's gender, gentle pitch; new SOUND: HD VOICES mode runs the Kokoro neural voice model in the browser, lines made ahead of time)
+v208 — 2026-11-10 (voices everywhere: shared voices.js for the show, the Studio and the trailer; the trailer uses HD voices when the browser has them; director page Voices box with gender, HD voice, pitch and speed per character and previews)
