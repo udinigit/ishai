@@ -1,128 +1,91 @@
 {
- "version": "2026-11-09a",
- "written": "2026-11-09T05:40:00+02:00",
+ "version": "2026-11-10a",
+ "written": "2026-11-10T05:35:00+02:00",
  "arcs": [
   {
    "id": "dana-basil",
    "title": "Dana and the basil cups",
-   "stage": "4/5 — her number is in his phone; Sun Nov 8 two leaves on his cup and a good-luck 'drive it home'. He took a photo of Moshe Sunday night but did not send it (the deal is a week). Next: the photo about Sat Nov 14, then a first date."
+   "stage": "4/5 — her number is in his phone. Mon Nov 9 she drew a running dog on his foam and left at the end of her shift. Today: she hears about the wink and draws a winking basil leaf, on the house; reminds him of the Moshe photo Saturday. Next: the photo about Sat Nov 14, then a first date."
   },
   {
    "id": "moshe",
    "title": "Saving Moshe",
-   "stage": "2/3 — recovering on the kitchen counter by the sink, tops pinched, Dana's small unnamed sprout beside him. Next: new leaves, then thriving."
+   "stage": "2/3 — recovering by the sink with Dana's sprout ('Moshe's roommate'); he touched a fresh leaf Mon Nov 9. Next: visibly thriving, the photo for Dana."
   },
   {
    "id": "chickpea",
    "title": "Gadi and the chickpea logo",
-   "stage": "Invoice sent Sun Nov 8 at thirty days (Gadi wanted sixty). Today 10:00: the video presentation; the client asks for something extra and Ishai answers with improv's 'yes, and' and a price. Next: the extra version and getting paid."
+   "stage": "Mon Nov 9: the client loved it; the wink sold for 1,000 extra (he asked 1,200); main logo files sent; invoice at thirty days. Today: which eye (left, same price, a blink is another job) and a rough preview a day early. Next: final wink files Wed Nov 11 night before the concert, then getting paid."
   },
   {
    "id": "noa",
    "title": "Noa, the best friend",
-   "stage": "Coached him Sunday (blue shirt). Today she waits for the result and texts at lunch. Next: she'll want him to come to the Pump House or celebrate."
+   "stage": "Phoned him three times Monday; said she'll celebrate with him at the Pump House Wednesday. Next: Penguins can Fly Wed Nov 11 (the engine picks his company)."
   },
   {
    "id": "improv",
    "title": "Improv on Thursdays",
-   "stage": "Lesson 1 done; homework done with Lior. Today 'yes, and' shows up for real in the presentation. Next: lesson 2 Thu Nov 12 at 17:00, then a beer with Tomer."
+   "stage": "'Yes, and' now leaks into everything: Gadi, Lior's deposit, Moti's committee. Next: lesson 2 Thu Nov 12 at 17:00, then the beer for Tomer (now partly paid by the committee, receipt required)."
   },
   {
    "id": "circle",
    "title": "The wider circle",
-   "stage": "Tomer fixed the hallway light; Mrs. Levi approves of him. Today: Avi at the kiosk, Sivan and Michal at the gym for the first real chat, Tomer by phone hears about the Penguins can Fly poster. Next: Mr. Zelig, Kobi, Boaz's poker invitation (Nov 19-21)."
+   "stage": "Mon: Avi brought leftover falafel at night; Tomer borrowed the drill and wants to hear about the penguins Wednesday; Hagit at the ticket window; Sivan and Michal at the gym. Today: Lior (half up front), Mr. Zelig (a wink is a secret), Moti (fees, a beer for Tomer, Boaz calls him 'the quiet one'). Next: Boaz's poker invitation Nov 19-21."
   }
  ],
  "beats": [
   {
-   "id": "1109-chickpea-call",
-   "startAt": "2026-11-09T09:40:00+02:00",
-   "sceneAt": "2026-11-09T09:58:00+02:00",
-   "deadlineAt": "2026-11-09T10:40:00+02:00",
+   "id": "1110-wink-eye",
+   "startAt": "2026-11-10T08:15:00+02:00",
+   "deadlineAt": "2026-11-10T09:30:00+02:00",
    "location": "apartment",
    "with": "Gadi (gadi)",
-   "goal": "In the blue shirt at his desk, Ishai presents the chickpea logo on a video call with Gadi and the client (Ruti, camera off; Gadi relays her). She loves it but asks if the chickpea can wink for the app. Ishai almost apologises, then says 'yes, and' and offers a winking version as a paid extra. Gadi is stunned and agrees to 1,000 more.",
-   "teaser": "Ishai presents the chickpea logo live on a video call at 10:00",
-   "forceText": "At his desk in the blue shirt, Ishai finishes the chickpea presentation on a video call and closes the laptop with both hands.",
-   "forceAction": "phoning",
-   "forceWith": "gadi",
+   "goal": "Ishai starts the winking-chickpea animation (three frames, due to Gadi Wednesday night). Gadi texts a new question from the client Ruti: which eye winks? Ishai phones him and, with improv's 'yes, and', keeps it to one eye for the agreed thousand; a second eye would be another job. Then he draws the frames with Falafel at his feet.",
+   "teaser": "The client has a new question about the chickpea's wink",
+   "forceText": "At his desk Ishai draws three chickpea faces in a row. Gadi texts about which eye should wink; Ishai answers 'the left one, same price'.",
+   "forceAction": "working",
    "forceLines": [
     {
-     "who": "gadi",
-     "say": "She wants it to wink. A small thing. For the app."
-    },
-    {
      "who": "ishai",
-     "say": "Yes. And a winking version is a thousand more."
+     "say": "Left eye. One eye, one wink, one thousand. Done."
     }
    ],
    "forceCommentary": [
     {
-     "who": "zohar",
-     "say": "He said a number. Out loud. To Gadi. I need to sit down."
-    },
-    {
      "who": "oren",
-     "say": "The chickpea winks. The invoice does not."
+     "say": "A chickpea with a dominant eye. Science has peaked."
     }
    ],
    "preview": {
     "moments": [
      {
       "location": "apartment",
-      "action": "phoning",
-      "with": "gadi",
-      "text": "Ishai sits at the desk in a pressed blue shirt and pyjama trousers, the laptop open on the video call, the chickpea logo filling the shared screen. Falafel lies on his feet under the desk.",
+      "action": "working",
+      "with": null,
+      "message": {
+       "from": "gadi",
+       "kind": "text",
+       "say": "Ruti again. Which eye winks? Left or right? She says it matters. She's left-handed. Don't ask."
+      },
+      "text": "Morning light on the desk. Ishai, coffee in hand, has three empty frames open on the screen when his phone buzzes; Falafel lifts his head from the rug.",
       "lines": [
        {
-        "who": "gadi",
-        "say": "You're on. Ruti is here, camera off. She's eating, don't take it personally."
+        "who": "ishai",
+        "say": "Which eye. Which eye? It's a chickpea. It doesn't have a left."
        },
        {
         "who": "ishai",
-        "say": "Good morning, Ruti. Thank you for... okay. I'll start."
-       },
-       {
-        "who": "ishai",
-        "say": "This is the chickpea. Rounder than before. Friendlier eyebrows."
-       },
-       {
-        "who": "gadi",
-        "say": "She says 'friendlier eyebrows' is a sentence she never expected to hear."
-       },
-       {
-        "who": "ishai",
-        "say": "The old one looked worried. Like it owed money."
-       },
-       {
-        "who": "gadi",
-        "say": "She laughed. Keep going, keep going."
-       },
-       {
-        "who": "ishai",
-        "say": "The leaf on top is the brand. It works small, on a lid, on a sticker."
-       },
-       {
-        "who": "gadi",
-        "say": "She's asking what font. Don't say the font has feelings."
-       },
-       {
-        "who": "ishai",
-        "say": "It's round and heavy. It sits like someone who isn't in a hurry."
-       },
-       {
-        "who": "gadi",
-        "say": "That's feelings, Ishai. She liked it. Next slide."
+        "say": "Okay. Calm. Yes, and. Call him."
        }
       ],
       "commentary": [
        {
         "who": "zohar",
-        "say": "Blue shirt on top, pyjamas below. The duality of the freelance man."
+        "say": "A left-handed client wants a left-eyed chickpea. Respect the vision."
        },
        {
         "who": "oren",
-        "say": "Friendlier eyebrows. Somewhere a chickpea is finally at peace."
+        "say": "Day two of the wink. It has not winked yet."
        }
       ]
      },
@@ -130,702 +93,741 @@
       "location": "apartment",
       "action": "phoning",
       "with": "gadi",
-      "text": "Ishai clicks to the last slide: the logo on a jar, a bag and a phone icon. He leans in to listen, then stops with his mouth half open.",
+      "text": "Ishai paces between the desk and the kitchen counter with the phone at his ear, one hand drawing small circles in the air.",
       "lines": [
        {
         "who": "gadi",
-        "say": "Small thing. Ruti asks: can the chickpea wink? On the phone icon. Small."
+        "say": "So? Left or right? She's waiting. She's always waiting."
        },
        {
         "who": "ishai",
-        "say": "Oh. Sorry, I didn't... I mean..."
+        "say": "Left. People read from the right here, so the eye lands last. It feels like a goodbye."
        },
        {
         "who": "gadi",
-        "say": "Is that a no? She's waiting."
+        "say": "That's very clever. Did you just make that up?"
        },
        {
         "who": "ishai",
-        "say": "No. Wait. Yes."
-       },
-       {
-        "who": "ishai",
-        "say": "Yes, and the wink becomes a tiny animation. It winks when the order is ready."
+        "say": "Yes. And it's also true."
        },
        {
         "who": "gadi",
-        "say": "She put her sandwich down. She never puts her sandwich down."
+        "say": "Fine. And what if she wants both eyes later? For a blink?"
        },
        {
         "who": "ishai",
-        "say": "Three frames. Eyes, half closed, wink. It feels like a friend saying 'done'."
+        "say": "Then that's a blink. A blink is a different job."
        },
        {
         "who": "gadi",
-        "say": "She says she wants it. When?"
+        "say": "A different job. You've got a price list now? Since yesterday?"
        },
        {
         "who": "ishai",
-        "say": "Thursday morning. And it's a separate job. A small one, but separate."
+        "say": "Since yesterday. It's a short list. One line."
        },
        {
         "who": "gadi",
-        "say": "...She says fine. Who are you today?"
+        "say": "Wednesday night, Ishai. Not Thursday morning. Wednesday."
+       },
+       {
+        "who": "ishai",
+        "say": "Wednesday night. Before ten. I have a concert at eight."
+       },
+       {
+        "who": "gadi",
+        "say": "A concert. Freelancers. Send it before the drummer starts."
+       },
+       {
+        "who": "ishai",
+        "say": "Before the drummer. Promise. Bye, Gadi."
        }
       ],
       "commentary": [
        {
         "who": "zohar",
-        "say": "He almost said sorry and then said YES AND. Yael, take a bow."
+        "say": "'A blink is a different job.' Somebody frame that and hang it in Sababa Creative."
        },
        {
         "who": "oren",
-        "say": "The client put down her sandwich. In this industry that's a standing ovation."
-       }
-      ]
-     },
-     {
-      "location": "apartment",
-      "action": "phoning",
-      "with": "gadi",
-      "text": "The client has left the call. Gadi's voice stays on the line while Ishai stares at his own face in the small video window.",
-      "lines": [
-       {
-        "who": "gadi",
-        "say": "She's gone. What was that? Since when do you sell things?"
-       },
-       {
-        "who": "ishai",
-        "say": "I have a class on Thursdays. They make you say yes."
-       },
-       {
-        "who": "gadi",
-        "say": "They should make you say cheaper. How much is the wink?"
-       },
-       {
-        "who": "ishai",
-        "say": "Twelve hundred."
-       },
-       {
-        "who": "gadi",
-        "say": "Eight. It's three frames, Ishai. Three."
-       },
-       {
-        "who": "ishai",
-        "say": "Three frames she'll see every day. A thousand."
-       },
-       {
-        "who": "gadi",
-        "say": "A thousand. And I'm telling everyone you've become difficult."
-       },
-       {
-        "who": "ishai",
-        "say": "Tell them I've become... available on Thursday morning."
-       },
-       {
-        "who": "gadi",
-        "say": "Very funny. Send the files Wednesday night. Good job. Don't get used to it."
-       },
-       {
-        "who": "ishai",
-        "say": "You said good job first. Before anything else."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "oren",
-        "say": "Gadi said 'good job' before asking for something. Mark the date."
-       },
-       {
-        "who": "zohar",
-        "say": "Twelve hundred, settled at a thousand. That's a man who's done his homework."
+        "say": "He has a price list. One line long. Still longer than my patience."
        }
       ],
       "update": {
-       "memory": "Ishai sold the client a winking chickpea for 1,000 extra on the call, straight out of nowhere. Says his Thursday class taught him. Files due Wednesday night.",
+       "memory": "Ishai now says no to free extras: left eye only, a blink would be another job. Wink files due Wednesday night before his concert.",
+       "mood": 0
+      }
+     },
+     {
+      "location": "apartment",
+      "action": "working",
+      "with": null,
+      "text": "Back at the desk Ishai draws the chickpea three times: eyes open, the left eye half shut, the wink. He flips between them fast; Falafel tilts his head at the screen.",
+      "lines": [
+       {
+        "who": "ishai",
+        "say": "Open. Half. Wink. Falafel, look. It likes you."
+       },
+       {
+        "who": "ishai",
+        "say": "Too creepy. Softer eyebrow. Again."
+       }
+      ],
+      "commentary": [
+       {
+        "who": "zohar",
+        "say": "The dog tilted his head. That's a yes from the focus group."
+       },
+       {
+        "who": "oren",
+        "say": "Three frames. He'll redraw the eyebrow forty times. I've seen this before."
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "1110-cafe-lior",
+   "startAt": "2026-11-10T12:30:00+02:00",
+   "deadlineAt": "2026-11-10T13:45:00+02:00",
+   "location": "cafe",
+   "with": "Lior (lior)",
+   "goal": "After the lecture Ishai has lunch at Cafe Nahat. Dana asks how the presentation went and hears about the wink. Lior, still writing the same novel, brings up the book cover (2,000 'when it's finished'); for the first time Ishai asks for half up front, kindly, and Lior has to think about whether the book will ever be finished. Dana's next cup has a basil leaf with one eye shut. No date talk yet; the Moshe photo is still due Saturday.",
+   "teaser": "Lior wants his book cover, and Ishai names his terms",
+   "forceText": "At Cafe Nahat Ishai tells Lior the book cover needs half up front. Lior looks at his laptop for a long time. Dana brings a cup with a winking basil leaf.",
+   "forceAction": "talking",
+   "forceWith": "lior",
+   "forceLines": [
+    {
+     "who": "ishai",
+     "say": "Half up front, Lior. Then the cover waits for the book, not the other way."
+    },
+    {
+     "who": "lior",
+     "say": "Half of a book that isn't finished. That's philosophy."
+    }
+   ],
+   "forceCommentary": [
+    {
+     "who": "zohar",
+     "say": "Three days of improv and he's invoicing novelists. Who IS he?"
+    }
+   ],
+   "preview": {
+    "moments": [
+     {
+      "location": "cafe",
+      "action": "drinking",
+      "with": "dana",
+      "text": "Cafe Nahat at lunchtime. Ishai sits at the corner table with his jacket on the chair. Dana sets down his coffee and doesn't leave right away.",
+      "lines": [
+       {
+        "who": "dana",
+        "say": "So. The presentation. Did the chickpea survive?"
+       },
+       {
+        "who": "ishai",
+        "say": "It survived. Now the client wants it to wink."
+       },
+       {
+        "who": "dana",
+        "say": "A winking chickpea. That's either cute or a lawsuit."
+       },
+       {
+        "who": "ishai",
+        "say": "Cute. For a thousand shekels extra. I said the number out loud."
+       },
+       {
+        "who": "dana",
+        "say": "Out loud? With your mouth? I'm impressed."
+       },
+       {
+        "who": "ishai",
+        "say": "I almost said sorry first. I swallowed it."
+       },
+       {
+        "who": "dana",
+        "say": "Good. Sorry is for when you spill something. Like Lior."
+       },
+       {
+        "who": "ishai",
+        "say": "How's Lior's novel?"
+       },
+       {
+        "who": "dana",
+        "say": "Same page since August. I've read it upside down from the counter."
+       },
+       {
+        "who": "ishai",
+        "say": "Is it good?"
+       },
+       {
+        "who": "dana",
+        "say": "The first sentence is excellent. Ask him about the second."
+       }
+      ],
+      "commentary": [
+       {
+        "who": "zohar",
+        "say": "She stayed at the table. She had other tables. She stayed."
+       },
+       {
+        "who": "oren",
+        "say": "Same page since August. Lior, I relate on a spiritual level."
+       }
+      ],
+      "update": {
+       "memory": "Ishai sold a winking chickpea for a thousand extra and almost said sorry first. He swallowed it. Moshe photo still due Saturday.",
        "mood": 1
       }
+     },
+     {
+      "location": "cafe",
+      "action": "talking",
+      "with": "lior",
+      "text": "Lior drags his chair over from the window table with his laptop under his arm, the same document open as always.",
+      "lines": [
+       {
+        "who": "lior",
+        "say": "Ishai. The cover. I've been thinking. A man, a door, maybe fog."
+       },
+       {
+        "who": "ishai",
+        "say": "Fog is good. Lior, how far is the book?"
+       },
+       {
+        "who": "lior",
+        "say": "Far. Close. It depends on the chapter. Chapter one is perfect."
+       },
+       {
+        "who": "ishai",
+        "say": "Then here's how I work now. Half up front. A thousand."
+       },
+       {
+        "who": "lior",
+        "say": "Up front? For a cover of a book that isn't finished?"
+       },
+       {
+        "who": "ishai",
+        "say": "Yes. And the cover will make you finish it. You'll want to see it on a shelf."
+       },
+       {
+        "who": "lior",
+        "say": "That's... manipulative. And true. Who taught you that?"
+       },
+       {
+        "who": "ishai",
+        "say": "A woman named Yael. Thursdays. Long story."
+       },
+       {
+        "who": "lior",
+        "say": "I'll think about it. I'll write about it, actually. Chapter two."
+       },
+       {
+        "who": "ishai",
+        "say": "Chapter two. Finally. I'll take that as progress."
+       },
+       {
+        "who": "lior",
+        "say": "Don't tell Dana. She reads my screen from the counter."
+       }
+      ],
+      "commentary": [
+       {
+        "who": "oren",
+        "say": "'Half up front.' Lior just aged a year. The book aged ten."
+       },
+       {
+        "who": "zohar",
+        "say": "A deposit to finish a novel. He invented a business model in one sentence."
+       }
+      ],
+      "update": {
+       "memory": "Ishai asked for half up front for my cover: a thousand. Said the cover will make me finish. Annoyingly right. Chapter two, maybe.",
+       "mood": 0
+      }
+     },
+     {
+      "location": "cafe",
+      "action": "drinking",
+      "with": "dana",
+      "text": "Dana brings a second coffee he didn't order. On the foam is a basil leaf with a tiny face, one eye shut. She puts it down without a word and waits.",
+      "lines": [
+       {
+        "who": "ishai",
+        "say": "Is that... is the leaf winking at me?"
+       },
+       {
+        "who": "dana",
+        "say": "It's practising. For the chickpea. Professional courtesy."
+       },
+       {
+        "who": "ishai",
+        "say": "I didn't order a second one."
+       },
+       {
+        "who": "dana",
+        "say": "It's on the house. Don't tell Lior, he'll want a deposit."
+       },
+       {
+        "who": "ishai",
+        "say": "You heard that?"
+       },
+       {
+        "who": "dana",
+        "say": "The whole cafe heard it. Lior typed for ten minutes after. A record."
+       },
+       {
+        "who": "ishai",
+        "say": "How's Moshe's baby doing, by the way? The sprout? Is it his, or yours?"
+       },
+       {
+        "who": "dana",
+        "say": "It's Moshe's roommate. Saturday I want a photo of both. Don't forget."
+       },
+       {
+        "who": "ishai",
+        "say": "Saturday. I have a reminder. Two reminders."
+       },
+       {
+        "who": "dana",
+        "say": "One is confidence. Two is... cute. Drink it before it stops winking."
+       }
+      ],
+      "commentary": [
+       {
+        "who": "zohar",
+        "say": "A winking leaf. On the house. If that is not a love letter, nothing is."
+       },
+       {
+        "who": "oren",
+        "say": "Two reminders for one photo. A man with a system."
+       }
+      ],
+      "update": {
+       "memory": "Gave Ishai a winking basil leaf on the house. He asked Lior for a deposit. Moshe and the sprout photo due Saturday; he has two reminders.",
+       "mood": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "1110-park-zelig",
+   "startAt": "2026-11-10T15:00:00+02:00",
+   "deadlineAt": "2026-11-10T16:15:00+02:00",
+   "location": "park",
+   "with": "Mr. Zelig (zelig)",
+   "goal": "Ishai takes Falafel for an afternoon walk in the park with his sketchbook to test the wink on paper. On the bench Mr. Zelig is lecturing the pigeons. He looks at the drawings and says birds don't wink, they blink sideways, and a wink is a secret between two people. Ishai likes that and keeps it for the animation. Zelig asks Falafel his opinion.",
+   "teaser": "Mr. Zelig has opinions about winking. So do the pigeons.",
+   "forceText": "On the park bench Mr. Zelig studies Ishai's chickpea drawings and tells him a wink is a secret between two people. Falafel watches the pigeons.",
+   "forceAction": "talking",
+   "forceWith": "zelig",
+   "forceLines": [
+    {
+     "who": "zelig",
+     "say": "A wink is a secret between two people. The pigeons know nothing about it."
+    }
+   ],
+   "forceCommentary": [
+    {
+     "who": "oren",
+     "say": "Life advice from the man who negotiates with pigeons. And it was good. I'm upset."
+    }
+   ],
+   "preview": {
+    "moments": [
+     {
+      "location": "park",
+      "action": "talking",
+      "with": "zelig",
+      "text": "The park in the cool afternoon sun. Ishai sits at the end of the bench with a sketchbook on his knee and Falafel on the red leash; at the other end Mr. Zelig scatters crumbs and talks to the pigeons.",
+      "lines": [
+       {
+        "who": "zelig",
+        "say": "No. You had yours. Let the grey one eat. He's had a bad week."
+       },
+       {
+        "who": "ishai",
+        "say": "Afternoon, Mr. Zelig."
+       },
+       {
+        "who": "zelig",
+        "say": "The young man with the wolf. Sit, sit, you're already sitting. What are you drawing?"
+       },
+       {
+        "who": "ishai",
+        "say": "A chickpea. It has to wink. For an app."
+       },
+       {
+        "who": "zelig",
+        "say": "Let me see. Hm. That one looks like it has sand in its eye."
+       },
+       {
+        "who": "ishai",
+        "say": "That's the middle frame. Half closed."
+       },
+       {
+        "who": "zelig",
+        "say": "Birds don't wink, you know. They blink sideways. A skin, like a curtain."
+       },
+       {
+        "who": "ishai",
+        "say": "Sideways? I didn't know that."
+       },
+       {
+        "who": "zelig",
+        "say": "Nobody knows. Nobody asks the birds. I ask."
+       },
+       {
+        "who": "ishai",
+        "say": "What do they say?"
+       },
+       {
+        "who": "zelig",
+        "say": "Mostly 'bread'. They're not deep."
+       }
+      ],
+      "commentary": [
+       {
+        "who": "zohar",
+        "say": "Mr. Zelig, art critic. Harsh. Fair. Smells faintly of crumbs."
+       },
+       {
+        "who": "oren",
+        "say": "'They're not deep.' He's been talking to them for years and that's his verdict."
+       }
+      ]
+     },
+     {
+      "location": "park",
+      "action": "talking",
+      "with": "zelig",
+      "text": "Mr. Zelig holds the sketchbook at arm's length and squints; Falafel stares at the pigeons, trembling, sitting perfectly still.",
+      "lines": [
+       {
+        "who": "zelig",
+        "say": "A wink is a secret between two people. You know that? Not a joke. A secret."
+       },
+       {
+        "who": "ishai",
+        "say": "A secret. So the chickpea and the customer share something."
+       },
+       {
+        "who": "zelig",
+        "say": "Exactly. Your food is coming, and only you two know. Make the eye slower."
+       },
+       {
+        "who": "ishai",
+        "say": "Slower. Hold the wink a bit longer."
+       },
+       {
+        "who": "zelig",
+        "say": "My wife winked at me once across a wedding. Forty-one years it held."
+       },
+       {
+        "who": "ishai",
+        "say": "That's a long wink."
+       },
+       {
+        "who": "zelig",
+        "say": "The longest. Your wolf, does he agree? Ask him."
+       },
+       {
+        "who": "ishai",
+        "say": "Falafel? What do you think? He thinks pigeons."
+       },
+       {
+        "who": "zelig",
+        "say": "Everybody thinks pigeons. Go, draw. Slower, remember."
+       },
+       {
+        "who": "ishai",
+        "say": "Slower. Thank you, Mr. Zelig. Really."
+       }
+      ],
+      "commentary": [
+       {
+        "who": "oren",
+        "say": "He came for a sketch and left with a forty-one-year wink. I need a minute."
+       },
+       {
+        "who": "zohar",
+        "say": "Falafel has been frozen for six minutes. The pigeons are winning."
+       }
+      ],
+      "update": {
+       "memory": "The young man with the wolf draws a winking chickpea. I told him: a wink is a secret, make it slower. He listened. Rare.",
+       "mood": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "1110-moti-committee",
+   "startAt": "2026-11-10T18:45:00+02:00",
+   "deadlineAt": "2026-11-10T19:55:00+02:00",
+   "location": "corridor",
+   "with": "Moti (moti)",
+   "goal": "Moti from apartment 1, head of the building committee, comes up the stairs with his folder to collect Ishai's committee fees, including the share for the stair light. Ishai pays, and, with 'yes, and', points out that Tomer fixed the hallway light for free, so the committee could buy Tomer a beer from petty cash. Moti grumbles about receipts and agrees to one beer. He mentions, in passing, that Boaz from apartment 2 calls Ishai 'the quiet one'. Mrs. Levi's game show starts shouting through her door at 19:30.",
+   "teaser": "The building committee comes knocking, folder in hand",
+   "forceText": "In the corridor Moti from the committee collects Ishai's fees from his folder and, after some grumbling, agrees the committee owes Tomer a beer.",
+   "forceAction": "talking",
+   "forceWith": "moti",
+   "forceLines": [
+    {
+     "who": "moti",
+     "say": "One beer. From petty cash. I need a receipt, Ishai. A receipt."
+    },
+    {
+     "who": "ishai",
+     "say": "Yes, and I'll get him to sign it."
+    }
+   ],
+   "forceCommentary": [
+    {
+     "who": "oren",
+     "say": "A building committee paying in beer. Finally, a government I believe in."
+    }
+   ],
+   "preview": {
+    "moments": [
+     {
+      "location": "corridor",
+      "action": "talking",
+      "with": "moti",
+      "text": "Evening in the stairwell. Ishai opens his door to a knock; Moti from apartment 1 stands there in a cardigan with a thick plastic folder and a pen behind his ear. Falafel pushes his nose past Ishai's knee.",
+      "lines": [
+       {
+        "who": "moti",
+        "say": "Good evening. Committee. Apartment four, you're two months behind. Plus the stair light."
+       },
+       {
+        "who": "ishai",
+        "say": "Moti, hi. Right. Sorry, I... no. Not sorry. How much?"
+       },
+       {
+        "who": "moti",
+        "say": "Two months is two hundred forty. The stair light, thirty-five. Two seventy-five."
+       },
+       {
+        "who": "ishai",
+        "say": "Two hundred forty, fine. But the stair light, my friend Tomer fixed that. For free."
+       },
+       {
+        "who": "moti",
+        "say": "I know. I wrote it in the group. The committee thanked him officially."
+       },
+       {
+        "who": "ishai",
+        "say": "With a message. He's an electrician. He works for money, usually."
+       },
+       {
+        "who": "moti",
+        "say": "The thirty-five was for the bulb, Ishai. Bulbs cost money."
+       },
+       {
+        "who": "ishai",
+        "say": "He brought his own bulb. And tape from 1990. He was proud of the tape."
+       },
+       {
+        "who": "moti",
+        "say": "Hm. The tape I saw. Very old tape."
+       },
+       {
+        "who": "ishai",
+        "say": "So yes, I'll pay. And the committee buys Tomer a beer. Thursday. The Black Candle."
+       },
+       {
+        "who": "moti",
+        "say": "A beer. From the building's money. Do you know how this looks?"
+       }
+      ],
+      "commentary": [
+       {
+        "who": "zohar",
+        "say": "He started a sorry and cancelled it mid-air. Yael, that's your homework working."
+       },
+       {
+        "who": "oren",
+        "say": "Moti carries that folder like it holds nuclear codes. It holds the bulb budget."
+       }
+      ]
+     },
+     {
+      "location": "corridor",
+      "action": "talking",
+      "with": "moti",
+      "text": "Moti opens the folder on his knee and writes slowly while Ishai counts notes from his wallet; behind apartment 5's door a TV game show starts and Mrs. Levi shouts an answer at it.",
+      "lines": [
+       {
+        "who": "moti",
+        "say": "Fine. One beer. Petty cash. I need a receipt, Ishai. A real receipt."
+       },
+       {
+        "who": "ishai",
+        "say": "Yes, and Tomer will sign it. He'll love signing something."
+       },
+       {
+        "who": "moti",
+        "say": "Don't let him write jokes on it. The last receipt from apartment seven had a drawing."
+       },
+       {
+        "who": "ishai",
+        "say": "I can't promise anything about Tomer."
+       },
+       {
+        "who": "moti",
+        "say": "Two hundred forty. Received. You're a good tenant. Quiet. Boaz says it too."
+       },
+       {
+        "who": "ishai",
+        "say": "Boaz from two? The bus driver? He says I'm quiet?"
+       },
+       {
+        "who": "moti",
+        "say": "'The quiet one from four.' It's a compliment. In this building, quiet is rare."
+       },
+       {
+        "who": "ishai",
+        "say": "Mrs. Levi seems to agree. Listen to her."
+       },
+       {
+        "who": "moti",
+        "say": "She's right about one answer a week. Good night, Ishai. Receipt!"
+       },
+       {
+        "who": "ishai",
+        "say": "Receipt. Good night, Moti."
+       }
+      ],
+      "commentary": [
+       {
+        "who": "oren",
+        "say": "'The quiet one from four.' Boaz is taking notes. Why is Boaz taking notes?"
+       },
+       {
+        "who": "zohar",
+        "say": "Mrs. Levi just shouted 'PARIS' at a question about cheese. Love her."
+       }
+      ],
+      "update": {
+       "memory": "Ishai paid two months. Says Tomer fixed the light for free, so the committee owes Tomer a beer: one, petty cash, with a receipt. Quiet tenant, Boaz agrees.",
+       "mood": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "1110-wink-preview",
+   "startAt": "2026-11-10T20:45:00+02:00",
+   "deadlineAt": "2026-11-10T21:55:00+02:00",
+   "location": "apartment",
+   "with": "Gadi (gadi)",
+   "goal": "Ishai finishes a first test of the wink with Zelig's advice (a slower wink) and sends Gadi a rough preview a day early. Gadi texts back, grudgingly impressed. Ishai shows the wink to Moshe and Falafel and then stops working, because tomorrow is the lecture, the final files and the concert.",
+   "teaser": "The chickpea winks for the first time. Gadi reacts.",
+   "forceText": "At his desk Ishai plays the chickpea's slow wink on a loop, sends Gadi a preview, and gets back: 'It winked at me. I didn't like it. Ruti will love it.'",
+   "forceAction": "working",
+   "forceLines": [
+    {
+     "who": "ishai",
+     "say": "He didn't like it. That's Gadi for 'it's good'."
+    }
+   ],
+   "forceCommentary": [
+    {
+     "who": "zohar",
+     "say": "The chickpea winked. I felt seen. I need to lie down."
+    }
+   ],
+   "preview": {
+    "moments": [
+     {
+      "location": "apartment",
+      "action": "working",
+      "with": null,
+      "text": "Late evening, only the desk lamp on. On the laptop the chickpea winks on a loop: open, slowly half closed, the wink held a beat, then open again. Ishai leans back and watches it ten times.",
+      "lines": [
+       {
+        "who": "ishai",
+        "say": "Slower. He was right. The old man was right."
+       },
+       {
+        "who": "ishai",
+        "say": "Okay, Gadi. Rough preview. A day early. Don't get used to it."
+       }
+      ],
+      "commentary": [
+       {
+        "who": "zohar",
+        "say": "He's watching a chickpea wink on loop at night. This is what love looks like in 2026."
+       },
+       {
+        "who": "oren",
+        "say": "He's using the pigeon man's notes. Credit Mr. Zelig in the files."
+       }
+      ]
+     },
+     {
+      "location": "apartment",
+      "action": "working",
+      "with": null,
+      "message": {
+       "from": "gadi",
+       "kind": "text",
+       "say": "It winked at me. I didn't like it. Ruti will love it. Final files tomorrow night. Go to your concert."
+      },
+      "text": "His phone lights up next to the keyboard. Ishai reads it, laughs out loud and spins once in the squeaky chair.",
+      "lines": [
+       {
+        "who": "ishai",
+        "say": "He didn't like it. That's Gadi for 'it's very good'."
+       },
+       {
+        "who": "ishai",
+        "say": "Falafel! Gadi approved! In his language."
+       }
+      ],
+      "commentary": [
+       {
+        "who": "oren",
+        "say": "'I didn't like it.' From Gadi that's a medal and a hug."
+       },
+       {
+        "who": "zohar",
+        "say": "'Go to your concert.' Gadi just gave him the night off. Who are these people now?"
+       }
+      ]
      },
      {
       "location": "apartment",
       "action": "idle",
       "with": null,
-      "text": "Ishai closes the laptop, stands up, raises both arms and spins once. Falafel barks. He goes to the counter and bends down to Moshe and the sprout.",
+      "text": "Ishai carries the laptop to the kitchen counter and holds it up to Moshe and the little sprout so they can see the wink; Falafel follows and sits, watching the screen.",
       "lines": [
        {
         "who": "ishai",
-        "say": "A thousand. For a wink. Moshe, I said a number."
+        "say": "Moshe, look. It winks. Slowly. It's a secret between two people."
        },
        {
         "who": "ishai",
-        "say": "Don't tell Dana. I'll tell her. In a week."
+        "say": "Three people. And a dog. Okay, it's not a secret anymore."
        }
       ],
       "commentary": [
        {
-        "who": "zohar",
-        "say": "He's reporting to the basil first. Noa is going to be furious."
+        "who": "oren",
+        "say": "He showed the chickpea to Moshe first. Correct order. Moshe outranks everyone."
        },
        {
-        "who": "oren",
-        "say": "Moshe received the news calmly. As a professional."
+        "who": "zohar",
+        "say": "Laptop closed at a reasonable hour. Tomorrow: lecture, files, and penguins."
        }
       ]
-     }
-    ]
-   }
-  },
-  {
-   "id": "1109-avi-lunch",
-   "startAt": "2026-11-09T12:45:00+02:00",
-   "deadlineAt": "2026-11-09T14:00:00+02:00",
-   "location": "street",
-   "with": "Avi (avi)",
-   "goal": "Ishai treats himself to falafel at Avi's kiosk, still in the blue shirt. Avi thinks he's going to a wedding, hears about the wink and gives him a proverb. It's Sigd; Avi's neighbour went to Jerusalem for it at dawn (one mention). Noa texts demanding the result; Ishai answers out loud while Avi listens in.",
-   "teaser": "Ishai celebrates at Avi's kiosk, and Noa wants answers",
-   "forceText": "At Avi's kiosk Ishai eats a falafel in the blue shirt while typing a long text to Noa with one thumb.",
-   "forceAction": "eating",
-   "forceWith": "avi",
-   "forceLines": [
-    {
-     "who": "avi",
-     "say": "Blue shirt on a Monday, champion? Who's getting married?"
-    },
-    {
-     "who": "ishai",
-     "say": "Nobody. A chickpea winked and I got paid."
-    }
-   ],
-   "forceCommentary": [
-    {
-     "who": "oren",
-     "say": "Celebrating a chickpea with a chickpea. The circle of life."
-    }
-   ],
-   "preview": {
-    "moments": [
-     {
-      "location": "street",
-      "action": "eating",
-      "with": "avi",
-      "text": "Lunchtime on Herzl Street, cold and bright. Ishai stands at Avi's kiosk in the blue shirt under his jacket; Avi stuffs a pita and stops halfway to look at him.",
-      "lines": [
-       {
-        "who": "avi",
-        "say": "Champion! A blue shirt on a Monday. Who's getting married?"
-       },
-       {
-        "who": "ishai",
-        "say": "Nobody. I had a presentation. A video call."
-       },
-       {
-        "who": "avi",
-        "say": "On video you wear a shirt. Below?"
-       },
-       {
-        "who": "ishai",
-        "say": "Below is my business, Avi."
-       },
-       {
-        "who": "avi",
-        "say": "Ha! So it went well. I see it in your face. Extra amba?"
-       },
-       {
-        "who": "ishai",
-        "say": "Extra everything. The client asked for a chickpea that winks."
-       },
-       {
-        "who": "avi",
-        "say": "A chickpea that winks. Like my falafel. Every ball winks at you."
-       },
-       {
-        "who": "ishai",
-        "say": "And I told them it costs extra. And they said yes."
-       },
-       {
-        "who": "avi",
-        "say": "Listen to me. The man who names his price eats with both hands."
-       },
-       {
-        "who": "ishai",
-        "say": "I'm eating with both hands. Look."
-       },
-       {
-        "who": "avi",
-        "say": "My neighbour Tsega went to Jerusalem for Sigd at five this morning. You celebrate here."
-       },
-       {
-        "who": "ishai",
-        "say": "Then this is my little Jerusalem. With amba."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "Avi saw the shirt and assumed a wedding. Avi, keep that energy for Dana."
-       },
-       {
-        "who": "oren",
-        "say": "'The man who names his price eats with both hands.' Avi has never charged the same twice."
-       }
-      ]
-     },
-     {
-      "location": "street",
-      "action": "eating",
-      "with": "avi",
-      "message": {
-       "from": "noa",
-       "kind": "text",
-       "say": "WELL??? I've been staring at my phone since ten. Did you say sorry? How many times? Numbers, Ishush."
-      },
-      "text": "Ishai's phone buzzes on the counter next to the pita. He reads it, smiles and types with one thumb while Avi leans over the counter to see.",
-      "lines": [
-       {
-        "who": "ishai",
-        "say": "Noa. She wants numbers. Zero sorrys. One almost."
-       },
-       {
-        "who": "avi",
-        "say": "Who is this Noa? The coffee girl?"
-       },
-       {
-        "who": "ishai",
-        "say": "No. Noa is my friend since forever. The coffee girl is Dana."
-       },
-       {
-        "who": "avi",
-        "say": "Two girls. And a chickpea. Busy man."
-       },
-       {
-        "who": "ishai",
-        "say": "It's not like that. Noa tells me to raise my prices."
-       },
-       {
-        "who": "avi",
-        "say": "Then marry her. A woman who tells you to charge more is gold."
-       },
-       {
-        "who": "ishai",
-        "say": "Avi, I'm writing to her now. Stop reading over my shoulder."
-       },
-       {
-        "who": "avi",
-        "say": "I'm not reading. I'm adding tahini. Write 'a thousand extra'."
-       },
-       {
-        "who": "ishai",
-        "say": "I wrote 'a thousand extra'. With three exclamation marks."
-       },
-       {
-        "who": "avi",
-        "say": "Three? Two is confidence. Three is surprise. Delete one."
-       },
-       {
-        "who": "ishai",
-        "say": "I'm leaving three. I am surprised."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "Avi is now his PR department. And his marriage counsellor."
-       },
-       {
-        "who": "oren",
-        "say": "Two exclamation marks is confidence. Three is surprise. Write that on a mug."
-       }
-      ],
-      "update": {
-       "memory": "Ishai came in a blue shirt after a presentation: the client paid extra for a winking chickpea. He has Noa, who pushes his prices, and Dana, the coffee girl.",
-       "mood": 1
-      }
-     }
-    ]
-   }
-  },
-  {
-   "id": "1109-gym-sivan",
-   "startAt": "2026-11-09T18:00:00+02:00",
-   "deadlineAt": "2026-11-09T19:15:00+02:00",
-   "location": "gym",
-   "with": "Sivan (sivan)",
-   "goal": "Ishai burns off the day's adrenaline on the treadmill. Sivan, on the next one, watches 8bitTV on the second screen and comments dryly on his walking pace; they talk for the first time properly. Then Michal by the mirror invites him to her Friday 7am run club, which she herself never shows up to.",
-   "teaser": "Ishai meets the gym regulars properly. One of them is competitive.",
-   "forceText": "At Herzl Gym Ishai walks on the treadmill next to Sivan, who runs much faster and watches 8bitTV on the second screen.",
-   "forceAction": "exercising",
-   "forceWith": "sivan",
-   "forceLines": [
-    {
-     "who": "sivan",
-     "say": "You've been on the walking setting for ten minutes."
-    },
-    {
-     "who": "ishai",
-     "say": "It's a strategic walk."
-    }
-   ],
-   "forceCommentary": [
-    {
-     "who": "zohar",
-     "say": "Sivan is running like she's late. Ishai is walking like he's early."
-    }
-   ],
-   "preview": {
-    "moments": [
-     {
-      "location": "gym",
-      "action": "exercising",
-      "with": "sivan",
-      "text": "Herzl Gym in the evening. Ishai walks on a treadmill under the two wall screens: Channel 9 with the weather on the left, 8bitTV's blocky cooking show on the right. On the next treadmill Sivan runs fast, eyes on the right screen.",
-      "lines": [
-       {
-        "who": "sivan",
-        "say": "You've been on the walking setting for ten minutes."
-       },
-       {
-        "who": "ishai",
-        "say": "It's a strategic walk. I'm warming up."
-       },
-       {
-        "who": "sivan",
-        "say": "Your warm-up is longer than my run."
-       },
-       {
-        "who": "ishai",
-        "say": "I had a big day. I'm walking it off."
-       },
-       {
-        "who": "sivan",
-        "say": "Big day. You put on real trousers?"
-       },
-       {
-        "who": "ishai",
-        "say": "Partly. Do you always watch the pixel channel?"
-       },
-       {
-        "who": "sivan",
-        "say": "Channel 9 is just weather and people shouting. 8bitTV is honest."
-       },
-       {
-        "who": "ishai",
-        "say": "He's cooking a square egg."
-       },
-       {
-        "who": "sivan",
-        "say": "All eggs are square if you're brave."
-       },
-       {
-        "who": "ishai",
-        "say": "I'm putting that on a poster."
-       },
-       {
-        "who": "sivan",
-        "say": "You'd have to pay me. Speed it up. Four point five."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "Finally Ishai has a gym rival. She doesn't know it, he doesn't know it, I know it."
-       },
-       {
-        "who": "oren",
-        "say": "A square egg on 8bitTV. Finally, a show at Ishai's pace."
-       }
-      ]
-     },
-     {
-      "location": "gym",
-      "action": "exercising",
-      "with": "sivan",
-      "text": "Ishai raises the speed and starts to jog, breathing hard. Sivan glances at his display, then at her own, and quietly raises hers too.",
-      "lines": [
-       {
-        "who": "ishai",
-        "say": "Five. I'm at five. Look."
-       },
-       {
-        "who": "sivan",
-        "say": "I saw. I'm at eleven. Don't look."
-       },
-       {
-        "who": "ishai",
-        "say": "Is this a race? Nobody said it was a race."
-       },
-       {
-        "who": "sivan",
-        "say": "Everything here is a race. The man by the mirror is racing himself."
-       },
-       {
-        "who": "ishai",
-        "say": "I'm Ishai, by the way. From across the street."
-       },
-       {
-        "who": "sivan",
-        "say": "Sivan. I know. The guy with the husky."
-       },
-       {
-        "who": "ishai",
-        "say": "He's a Siberian... something. He's at home."
-       },
-       {
-        "who": "sivan",
-        "say": "Good. He'd beat you."
-       },
-       {
-        "who": "ishai",
-        "say": "Probably. He has four legs. That's cheating."
-       },
-       {
-        "who": "sivan",
-        "say": "No excuses on the treadmill. Only numbers."
-       },
-       {
-        "who": "ishai",
-        "say": "Funny. I said a number today too. It went well."
-       },
-       {
-        "who": "sivan",
-        "say": "Then say six. Go on."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "oren",
-        "say": "She knows the dog, not the man. Falafel's fame grows."
-       },
-       {
-        "who": "zohar",
-        "say": "Number six, Ishai. You've been training for this all day."
-       }
-      ],
-      "update": {
-       "memory": "Ishai, the guy with the husky from across the street, walked ten minutes and called it a warm-up. Then managed six. Has potential. Too slow.",
-       "mood": 1
-      }
-     },
-     {
-      "location": "gym",
-      "action": "talking",
-      "with": "michal",
-      "text": "Ishai steps off the treadmill, red-faced, and drinks from the fountain by the mirror, where Michal stretches with one foot on the bar.",
-      "lines": [
-       {
-        "who": "michal",
-        "say": "First time I see you run. Not walk. Run."
-       },
-       {
-        "who": "ishai",
-        "say": "Sivan made me. I think I'm dying a little."
-       },
-       {
-        "who": "michal",
-        "say": "Good dying. Come to my Friday run club. Seven in the morning, by the park."
-       },
-       {
-        "who": "ishai",
-        "say": "Seven? On a Friday? How many people come?"
-       },
-       {
-        "who": "michal",
-        "say": "Very many. Usually. In theory."
-       },
-       {
-        "who": "ishai",
-        "say": "How many came last Friday?"
-       },
-       {
-        "who": "michal",
-        "say": "...I had a thing. But the group is strong!"
-       },
-       {
-        "who": "ishai",
-        "say": "Do you go to your own run club, Michal?"
-       },
-       {
-        "who": "michal",
-        "say": "I go spiritually. Every Friday. Spiritually."
-       },
-       {
-        "who": "ishai",
-        "say": "Then I'll come spiritually too. Same time."
-       },
-       {
-        "who": "michal",
-        "say": "Deal. Don't tell Sivan, she'll come for real."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "A run club with no runners. That's not a club, that's a WhatsApp group."
-       },
-       {
-        "who": "oren",
-        "say": "Michal attends spiritually. Like me, at this job."
-       }
-      ],
-      "update": {
-       "memory": "The friendly guy with the dog finally ran. I invited him to the Friday run club. He said he'd come spiritually, like me.",
-       "mood": 1
-      }
-     }
-    ]
-   }
-  },
-  {
-   "id": "1109-tomer-call",
-   "startAt": "2026-11-09T20:45:00+02:00",
-   "deadlineAt": "2026-11-09T22:00:00+02:00",
-   "location": "apartment",
-   "with": "Tomer (tomer)",
-   "goal": "Tomer phones while Ishai is home with Falafel. He wants the presentation story and can't believe Ishai named a price. He reminds him of Thursday's beer and mentions a poster at the park for a band at the old Pump House on Wednesday, 'Penguins something'. Nobody commits.",
-   "teaser": "Tomer calls, and he's seen a poster about penguins",
-   "forceText": "Ishai lies on the bed with the phone on his chest, Falafel beside him, as Tomer shouts happily on speaker.",
-   "forceAction": "phoning",
-   "forceWith": "tomer",
-   "forceLines": [
-    {
-     "who": "tomer",
-     "say": "You said a NUMBER? Ishai habibi, who are you?"
-    },
-    {
-     "who": "ishai",
-     "say": "Same guy. Better shirt."
-    }
-   ],
-   "forceCommentary": [
-    {
-     "who": "oren",
-     "say": "Tomer's volume could light the hallway without the fitting."
-    }
-   ],
-   "preview": {
-    "moments": [
-     {
-      "location": "apartment",
-      "action": "phoning",
-      "with": "tomer",
-      "text": "Ishai lies on the bed in a t-shirt, the phone on speaker on his chest. Falafel is stretched out at his feet. Tomer's voice fills the room.",
-      "lines": [
-       {
-        "who": "tomer",
-        "say": "Ishai habibi! So? Did the chickpea get married?"
-       },
-       {
-        "who": "ishai",
-        "say": "It went fine. She loved it. And she wanted it to wink."
-       },
-       {
-        "who": "tomer",
-        "say": "To wink? Like a chickpea with a secret?"
-       },
-       {
-        "who": "ishai",
-        "say": "Exactly that. And I said yes, and it costs extra."
-       },
-       {
-        "who": "tomer",
-        "say": "You said a NUMBER? Out loud? To Gadi?"
-       },
-       {
-        "who": "ishai",
-        "say": "Twelve hundred. He said eight. We ended at a thousand."
-       },
-       {
-        "who": "tomer",
-        "say": "I bet you forty shekels you said sorry first."
-       },
-       {
-        "who": "ishai",
-        "say": "Almost. I said 'oh, sorry, I didn't'... then I stopped."
-       },
-       {
-        "who": "tomer",
-        "say": "Almost doesn't count. You owe me nothing. You owe me a beer."
-       },
-       {
-        "who": "ishai",
-        "say": "Thursday. After the class. I remember."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "Tomer's turning his best friend's breakthrough into a bet. Iconic."
-       },
-       {
-        "who": "oren",
-        "say": "Chickpea with a secret. That's my memoir title."
-       }
-      ]
-     },
-     {
-      "location": "apartment",
-      "action": "phoning",
-      "with": "tomer",
-      "text": "Ishai sits up and rubs Falafel's ears while Tomer talks fast; outside the window the street lights are on.",
-      "lines": [
-       {
-        "who": "tomer",
-        "say": "Wait. I walked through the park today. There's a poster at the old pump house."
-       },
-       {
-        "who": "ishai",
-        "say": "The Pump House. Hagit's place. What's on?"
-       },
-       {
-        "who": "tomer",
-        "say": "Wednesday. Some band. Penguins... something. Penguins Can't Fly?"
-       },
-       {
-        "who": "ishai",
-        "say": "Penguins can Fly. I saw the board. It says LIVE."
-       },
-       {
-        "who": "tomer",
-        "say": "Penguins can't fly, Ishai. It's science."
-       },
-       {
-        "who": "ishai",
-        "say": "Maybe that's the point. Like a chickpea that winks."
-       },
-       {
-        "who": "tomer",
-        "say": "Are you going? You're going. You go everywhere now."
-       },
-       {
-        "who": "ishai",
-        "say": "I don't know. I have files due Wednesday night."
-       },
-       {
-        "who": "tomer",
-        "say": "Files, files. Ask me Wednesday. Maybe I come, maybe I sleep."
-       },
-       {
-        "who": "ishai",
-        "say": "That's the most Tomer answer possible."
-       },
-       {
-        "who": "tomer",
-        "say": "Thank you! Go to sleep, mister thousand shekels."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "Penguins can Fly, Wednesday at the Pump House. Somebody book Ishai a date."
-       },
-       {
-        "who": "oren",
-        "say": "Tomer arguing with a band name. Science has never been louder."
-       }
-      ],
-      "update": {
-       "memory": "Ishai named a price to Gadi and got a thousand extra for a winking chickpea. Still owes me Thursday's beer. Told him about the penguin band at the Pump House Wednesday.",
-       "mood": 1
-      }
      }
     ]
    }
@@ -833,143 +835,144 @@
  ],
  "overrides": [],
  "texture": {
-  "date": "2026-11-09",
+  "date": "2026-11-10",
   "hosts": [
-   "Monday, Sigd today. Ishai's big holiday is a chickpea on a video call.",
-   "Rain's gone. Today the only storm is Gadi.",
-   "Blue shirt alert. Noa's orders, followed to the letter.",
-   "Ten o'clock. Laptop. Chickpea. Our boy against the client.",
-   "He rehearsed to the basil last night. Moshe gave notes.",
-   "Falafel under the desk: the world's fluffiest footrest.",
-   "Somewhere in this city a chickpea is about to become famous.",
-   "If Ishai says sorry on that call, I'm drinking. Coffee. It's Monday.",
-   "A pressed shirt above, pyjamas below. The video-call uniform.",
-   "Gadi has never said thank you first. Never. We checked.",
-   "Lunch at Avi's is a ritual. Today it might be a party.",
-   "Avi's proverbs: fifty percent wisdom, fifty percent amba.",
-   "Noa is staring at her phone like it owes her money.",
-   "Cold and clear out there. Jacket weather, Tel Aviv style. Twelve degrees and panic.",
-   "The hallway light still works. Tomer, we salute you.",
-   "Mrs. Levi's game show is at seven thirty. She shouts the answers. Wrong ones.",
-   "The gym tonight: treadmills, mirrors and a man in denial.",
-   "Sivan, next treadmill, runs like she's being chased by a deadline.",
-   "Michal by the mirror is very motivated. About other people.",
-   "Moshe is standing taller today. I'm not crying, Oren's crying.",
-   "Oren, you can't name the sprout. — I can. I haven't yet. Out of respect.",
-   "Dana's number is in his phone. The photo waits. One week. The man has rules.",
-   "Wednesday at the Pump House: a band called Penguins can Fly. Be there.",
-   "Thursday: improv lesson two. Yael doesn't know what's coming. Neither does he.",
-   "Tomorrow at eleven: Dr. Sasson and the War of Jenkins' Ear. Yes, an ear.",
-   "A thousand-word day for a man who usually says three."
+   "Tuesday. No holiday, no presentation. Just a man and a chickpea that must learn to wink.",
+   "The wink is three frames. He'll draw thirty. It's how he loves.",
+   "Lecture at eleven. The War of Jenkins' Ear. Yes, an ear. Started a war. History is unwell.",
+   "Gadi said 'good job' yesterday. Oren is still in recovery.",
+   "I am fine. I simply need Gadi to stay mean so the universe makes sense.",
+   "Falafel has a schedule now: breakfast, walk, rug, judging, walk, rug.",
+   "Moshe grew a leaf. A real one. Oren saw it on the monitor and stood up.",
+   "The sprout still has no name. Oren is drafting a shortlist. It's laminated.",
+   "Tomorrow at eight: Penguins can Fly at the Pump House. Science disagrees. We're going.",
+   "Hagit says eight sharp. Hagit has never said anything that wasn't sharp.",
+   "Noa promised to celebrate Wednesday. Tomer said maybe. Tomer always says maybe.",
+   "Thursday: improv lesson two. And a beer for Tomer. The man owes beer like a bank.",
+   "Cafe Nahat at lunch. Lior has been on chapter one since August. Respect the craft.",
+   "Lior's novel has a first sentence. A great one. And then the fog rolls in.",
+   "Mr. Zelig feeds the pigeons in order of who had a bad week. That's a system.",
+   "Mrs. Levi's game show at seven thirty. She shouts answers. Some are even to that show.",
+   "The building committee has a folder. The folder has a pen. The pen has power.",
+   "Ishai's price list has one line now. That's one more than yesterday.",
+   "Cool and clear today. He'll wear the jacket and then carry it.",
+   "Dana draws on foam. Ishai draws on screens. It's practically a joint exhibition.",
+   "He hasn't said sorry since nine this morning. We're tracking it. Don't jinx it.",
+   "The squeaky chair squeaks in three notes. It's become the show's theme song.",
+   "Fun fact: a chickpea has no eyelids. Ishai is overcoming biology.",
+   "If the chickpea winks at you in the app, you're welcome. Ishai did that.",
+   "Moshe's roommate. That's what we're calling the sprout until Oren finishes his list.",
+   "Saturday is photo day. Dana asked for Moshe. Ishai set two reminders. Plural."
   ],
   "radio": [
-   "Radio Herzl 88.2, Monday morning, and the sky has finally stopped crying on us.",
-   "Twelve degrees in Tel Aviv. Wear a jacket, say you're freezing, you've earned it.",
-   "Good Sigd to everyone celebrating, from Jerusalem to Herzl Street.",
-   "If you have a big meeting today: breathe, drink water, and don't apologise for existing.",
-   "Traffic on the coastal road, but traffic on the coastal road is a state of being.",
-   "Caller says her cat learned to open the fridge. Madam, that's not a cat, that's a tenant.",
-   "Coming up: songs for people pretending to work from home.",
-   "Lunchtime! Falafel is not a meal, it's a philosophy. Discuss.",
-   "Clear night tonight. Look up. Stars, satellites, maybe your neighbour's drone.",
-   "Wednesday the old Pump House in the park has live music. Tickets at Hagit's window.",
-   "The gym called. It misses you. It says it's not angry, just disappointed.",
-   "Radio Herzl, still here, still slightly out of tune, like all of us."
+   "Radio Herzl 88.2, Tuesday, and the city woke up cold and clear. Wear the jacket, take it off at noon.",
+   "Ten degrees at dawn, twenty-two by lunch. Tel Aviv, the city that dresses in layers.",
+   "Tuesday is the day nobody writes songs about. Let's fix that. Here's one anyway.",
+   "A listener asks: can you charge extra for a small thing? Yes. Small things take the longest.",
+   "Gas truck on the side streets this morning. If it plays music, it's not the ice cream man.",
+   "Somebody in Florentin says his neighbour practises piano at four every day. Same piece. Two years.",
+   "Traffic on the Ayalon: slow. Traffic on Herzl Street: one scooter and a very confident pigeon.",
+   "Tomorrow night, the old Pump House across the park has live music. Bring earplugs or a friend.",
+   "Fact of the day: a pigeon can recognise faces. So be nice. They talk.",
+   "School's out at half past one. Drivers, look twice. Kids, look once at least.",
+   "It's the evening hour on Radio Herzl. Put the kettle on, the day is almost over.",
+   "Weather tomorrow: clear again. No excuse not to go out Wednesday night.",
+   "To the man who sings along from apartment four: we can't hear you, but we believe in you."
   ],
   "mutter": {
    "zelig": [
-    "Eleven pigeons yesterday. Twelve today. One is a spy.",
-    "The pond is lower by one finger. Someone drinks it at night.",
-    "The rain left. It always leaves on Mondays.",
-    "A blue shirt walked by. Shirts know things."
+    "The grey one had a bad week. Let him eat first.",
+    "Sideways. They blink sideways. Nobody asks.",
+    "Forty-one years, one wink. Try that, pigeons.",
+    "Not you. You had bread on Sunday. I remember."
    ],
    "michal": [
-    "Friday, seven o'clock. Everyone's coming. Probably.",
-    "Three more sets. Then three more. Then maybe.",
-    "Core is life. Tomorrow."
+    "Ten more. Nine. Who's counting, I'm counting.",
+    "My cat would judge this form.",
+    "Run club Friday. I'll send it to the group. I won't go."
    ],
    "sivan": [
-    "Eleven point five. Fine.",
-    "Square egg. Respect.",
-    "Nobody touches my treadmill."
+    "Eleven point five. Not bad. Not good.",
+    "Heart rate one-forty. Still talking. Too slow.",
+    "The husky guy. Not today. Pity."
    ],
    "lior": [
-    "Chapter one, sentence one. Again.",
-    "A velvet chair or a leather one. This changes everything.",
-    "The detective sighs. No. The detective breathes."
+    "Chapter one. Again. It's perfect. That's the problem.",
+    "Half up front. Half of what?",
+    "A man, a door, fog. That's a cover. That's a life."
    ],
    "kobi": [
-    "Monday numbers are lucky numbers. Ask anyone.",
-    "Seven, fourteen, twenty-two. The machine will learn.",
-    "Another one, and then I go. Truly."
+    "Tuesday numbers: four, nine, twelve. Not a system. A feeling.",
+    "First beer is for thinking. Second is for answers.",
+    "Ishai? Haven't seen him since the scooter talk. Buy it, man."
    ]
   },
   "overheard": {
    "street": [
-    "...he said Sigd, I said what, he explained for an hour...",
-    "...the roof leaks only when it rains, so technically...",
-    "...a falafel at eleven is breakfast, at one it's lunch...",
-    "...my boss writes 'small thing' and I know my weekend is gone..."
+    "...he said the bus comes at ten, I said which ten...",
+    "...my mother wants me to fix her phone, so I gave her mine...",
+    "...the gas truck plays Für Elise, I can't hear it anymore without panic...",
+    "...two shekels more for amba? Since when, Avi?..."
    ],
    "market": [
-    "...the clementines are back, finally, real winter...",
-    "...don't buy the first tomato you see, it's a trap...",
-    "...my mother says sweet potato, I say sweet potato is a lie...",
-    "...forty shekels for spices? For that I want a story..."
+    "...these tomatoes are from Tuesday. Which Tuesday?...",
+    "...he wanted a discount for being a regular, he came once...",
+    "...you smell the za'atar? That's the real one, not the dust...",
+    "...I said one kilo, he gave me one and a half and a speech..."
    ],
    "park": [
-    "...the puddles are bigger than the pond today...",
-    "...he runs every day and still looks at me like that...",
-    "...is that poster about penguins? at the pump house?...",
-    "...the duck is fine, the duck is always fine..."
+    "...the duck has a name, but he won't tell anyone...",
+    "...my dog only listens in English, it's very annoying...",
+    "...I'm walking, not jogging, it's a choice...",
+    "...the old man said the pigeons voted against me..."
    ],
    "cafe": [
-    "...so I told him the deadline was flexible and he believed me...",
-    "...an oat flat white, but not too oat...",
-    "...I'm writing a novel too, everyone here is...",
-    "...the barista drew something on my cup, is that a leaf..."
+    "...she draws a heart for everyone, don't feel special...",
+    "...my thesis is basically done, except for writing it...",
+    "...oat milk, no, almond, no, just a regular, sorry...",
+    "...the guy by the window has been on page one since summer..."
    ]
   },
   "chat": [
    {
-    "at": "08:05",
+    "at": "08:30",
     "who": "Committee",
-    "say": "Good morning. The hallway light is fixed. Thanks to apt 4's friend. Invoice to the committee? None."
+    "say": "Reminder: committee fees for September and October. I'm coming round this evening with the folder."
    },
    {
-    "at": "08:20",
-    "who": "Mrs. Levi",
-    "say": "The electrician did it for rugelach. The committee should learn."
-   },
-   {
-    "at": "09:15",
+    "at": "08:45",
     "who": "Apt 7",
-    "say": "Roofer's son came. He said 'interesting' three times and left."
+    "say": "Can I pay in December? I'm emotionally in December already."
    },
    {
-    "at": "11:40",
-    "who": "Apt 1",
-    "say": "Who leaves wet umbrellas in the stairwell? It's a lake."
+    "at": "09:00",
+    "who": "Committee",
+    "say": "No."
    },
    {
-    "at": "13:10",
+    "at": "10:05",
     "who": "Mrs. Levi",
-    "say": "Good Sigd to Tsega in building 12. She brought me injera last year. Very good."
+    "say": "The gas truck is here. Whoever ordered, go down, he's playing that song again."
    },
    {
-    "at": "17:30",
+    "at": "13:40",
     "who": "Apt 2",
-    "say": "Anyone in the building play cards? Asking for a friend. The friend is me."
+    "say": "Who left a bicycle on the first floor landing? I nearly flew."
+   },
+   {
+    "at": "16:10",
+    "who": "Apt 1",
+    "say": "The piano upstairs is getting better. Slightly. Keep going."
    },
    {
     "at": "19:25",
     "who": "Mrs. Levi",
-    "say": "My show starts in five minutes. If you hear shouting, it's the contestants' fault."
+    "say": "My show starts. If you hear shouting, it's the questions, not me."
    },
    {
-    "at": "21:50",
+    "at": "20:10",
     "who": "Committee",
-    "say": "Reminder: the building fee for November. Some of you know who you are."
+    "say": "Thank you to apt 4. Committee will buy the electrician one beer. One. Receipt please."
    }
   ]
  }
