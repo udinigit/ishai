@@ -270,6 +270,10 @@
   .pip .tag{position:absolute;z-index:1;top:3px;left:5px;font-size:clamp(10px,2.4vw,14px);color:#fff;background:#c2185b;padding:0 5px;border-radius:3px;letter-spacing:.5px}
   .pip .cap{font-size:clamp(10px,2.3vw,14px);line-height:1.15;padding:2px 6px;color:#f4f1ff;height:2.3em;overflow:hidden;background:#140c26}
   .pip .cap b{font-weight:normal}
+  .pip .sch{display:none;list-style:none;margin:0;padding:2px 6px 3px;background:#0a0f2a;border-top:1px solid #4f6bff;font-size:clamp(9px,2.1vw,13px);line-height:1.2;color:#dfe5ff}
+  .pip .sch.on{display:block} .pip .sch .h{color:#9fb0ff;letter-spacing:.5px}
+  .pip .sch li{display:flex;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .pip .sch li b{font-weight:normal;color:#ffd36a;flex:none}
+  .pip .sch li.next{color:#fff;text-shadow:0 0 6px #4f6bff}
 </style>
 </head>
 <body>
@@ -312,7 +316,7 @@
     <div class="hud top"><span class="rec"><span class="dot"></span>REC <span id="cam">CAM-01</span></span><span id="clock">--:--:--</span></div>
     <canvas id="scene" width="192" height="108"></canvas>
 
-    <div class="pip" id="pip" aria-hidden="true"><span class="tag">● LIVE · STUDIO</span><canvas id="pipCv" width="64" height="40"></canvas><div class="cap" id="pipCap"></div></div>
+    <div class="pip" id="pip" aria-hidden="true"><span class="tag" id="pipTag">● LIVE · STUDIO</span><canvas id="pipCv" width="64" height="40"></canvas><ul class="sch" id="pipSch"></ul><div class="cap" id="pipCap"></div></div>
     <div class="guide" id="guide" aria-hidden="true"><span class="tag" id="guideTag"></span><div id="guideB"></div></div>
     <div class="adb" id="adb" aria-hidden="true"><canvas id="adCv" width="40" height="20"></canvas><div class="t" id="adT"></div><span class="ad">AD</span></div>
     <div class="pvb" id="pvb" hidden></div>
@@ -4542,9 +4546,10 @@
     }
     return slotAfter(from, 12 * 60000, T => { const m = momentAt(T); return m && m.ev.action !== 'sleeping' && arrivedBy(m, T) && !talkBetween(T, T + 1) && !songBetween(T, T + 120000); });
   }
-  async function playStudio(st, start){
+  async function playStudio(st, start, opt = {}){
     const times = STUDIO_TIMES(st.lines);
     studioDone.add(st.id); studioOn = true; const pip = $('pip'), cap = $('pipCap'); cap.textContent = '';
+    $('pipTag').textContent = opt.tag || '● LIVE · STUDIO'; pipPanel(opt.sched || STUDIO_UPNEXT(start));
     const anim = () => { if (!studioOn) return; drawStudio(wall()); requestAnimationFrame(anim); }; anim();
     pip.classList.add('on');
     for (let i = 0; i < times.items.length; i++){
@@ -4559,7 +4564,7 @@
       await untilT(at + it.ms); studioWho = null;
     }
     await untilT(start + times.ms);
-    pip.classList.remove('on'); await new Promise(r => setTimeout(r, 1000)); studioOn = false;
+    pip.classList.remove('on'); await new Promise(r => setTimeout(r, 1000)); studioOn = false; pipPanel(null);
   }
   setInterval(() => {
     const st = STUDIO; if (!st || studioOn || showOn || studioDone.has(st.id) || DEV_ONLY_NARRATION_SKIP()) return;
@@ -4567,6 +4572,96 @@
     if (at === null || NOW() >= at + STUDIO_TIMES(st.lines).ms) studioDone.add(st.id); else playStudio(st, at);
   }, 1000);
   function DEV_ONLY_NARRATION_SKIP(){ return !!forceLoc; }   // previews stay clean
+  // ================= the PiP between recaps: short studio segments with no AI, mostly Ishai's schedule =================
+  // Every 12 minutes (80 s after an ad slot, clear of the TV guide card), when it is quiet, the hosts pop up in the PiP for ~30 s.
+  // The turn is picked from the clock (PIP_TURN): mostly what's next on his schedule today, with this week's big nights,
+  // a sentence of today's summary or a cast member's file in between; every segment shows UP NEXT under the hosts.
+  // All from the server's state (GUIDE, SUMMARY, CAST) and the moments, so every viewer sees the same. No AI, no writes.
+  const PIP_EVERY = 12 * 60000, PIP_AT = 80000, PIP_LEN = 45000, PIP_WAIT = 3 * 60000;
+  const PIP_TURN = ['today', 'recap', 'today', 'week', 'today', 'people'];
+  const PIP_NOT = ['phoning','sleeping','talking','improv','lecture','concert','gallery','poker'];
+  const pipDone = new Set(); let PIP_FORCE = null;
+  const pipPick = (list, n, salt) => list.length ? list[Math.floor(hash(n * 31 + salt) * list.length)] : null;
+  const pipWhat = w => String(w || '').replace(/\s+/g, ' ').trim();
+  const pipToday = T => ((GUIDE && GUIDE.items) || []).filter(x => x.at > T);
+  const pipTomorrow = () => (GUIDE && GUIDE.tomorrow && GUIDE.tomorrow.items) || [];
+  function pipPanel(p){
+    const el = $('pipSch'); if (!el) return; el.innerHTML = ''; el.classList.toggle('on', !!(p && p.items && p.items.length)); if (!p || !p.items) return;
+    const h = document.createElement('li'); h.className = 'h'; h.textContent = p.title; el.appendChild(h);
+    p.items.slice(0, p.max || 3).forEach((x, i) => { const li = document.createElement('li'); if (i === 0 && p.lit) li.className = 'next';
+      const b = document.createElement('b'); b.textContent = x.t; const sp = document.createElement('span'); sp.textContent = pipWhat(x.what); li.append(b, sp); el.appendChild(li); });
+  }
+  // the one line of schedule the AI recap and every segment carry: what's next today, or tomorrow's first thing
+  function STUDIO_UPNEXT(T){
+    const up = pipToday(T); if (up.length) return {title: 'UP NEXT', items: up, max: 2, lit: true};
+    const tm = pipTomorrow(); return tm.length ? {title: 'TOMORROW · ' + GUIDE.tomorrow.day, items: tm, max: 2} : null;
+  }
+  function pipTeaser(T, n){
+    const x = pipToday(T)[0]; if (!x) return null;
+    return pipPick([`Coming up at ${x.t}: ${pipWhat(x.what)}.`, `Don't go far. At ${x.t}, ${pipWhat(x.what)}.`, `Next on his day: ${pipWhat(x.what)}, at ${x.t}.`], n, 7);
+  }
+  // the segment for clock slot n starting at T: {kind, lines, sched, tag} or null when there's nothing to say
+  function pipSegment(n, T, want){
+    const Z = say => ({who: 'zohar', say}), O = say => ({who: 'oren', say}), lines = [];
+    const close = () => pipPick(['He has no idea, of course.', 'We\'ll be watching.', 'Stay with us.', 'Back to the feed.', 'Set your alarms.', 'Snacks ready.'], n, 9);
+    let kind = want || PIP_TURN[n % PIP_TURN.length];
+    const up = pipToday(T), tm = pipTomorrow(), week = (GUIDE && GUIDE.week) || [];
+    if (kind === 'recap' && !fillRecap().some(x => x.startsWith('For anyone'))) kind = 'today';
+    if (kind === 'people' && !fillPeople().length) kind = 'today';
+    if (kind === 'week' && !week.length) kind = 'today';
+    if (kind === 'today' && !up.length && !tm.length) kind = week.length ? 'week' : null;
+    if (!kind) return null;
+    if (kind === 'today'){
+      if (up.length){
+        lines.push(Z(pipPick(['Quick look at Ishai\'s day.', 'Here\'s what\'s still ahead for Ishai today.', 'For those planning around him, the schedule.', 'Let\'s check his day.'], n, 1)));
+        lines.push(O(`Next up, at ${up[0].t}: ${pipWhat(up[0].what)}.`));
+        if (up[1]) lines.push(Z(`Then at ${up[1].t}, ${pipWhat(up[1].what)}${up[2] ? `, and at ${up[2].t}, ${pipWhat(up[2].what)}` : ''}.`));
+        lines.push(O(close()));
+        return {kind, lines, tag: '● LIVE · HIS DAY', sched: {title: 'TODAY · ' + GUIDE.day, items: up, max: 3, lit: true}};
+      }
+      lines.push(Z(pipPick(['That\'s it for today\'s schedule.', 'Nothing else on his calendar today.'], n, 2)));
+      lines.push(O(`Tomorrow starts with ${pipWhat(tm[0].what)} at ${tm[0].t}.`));
+      if (tm[1]) lines.push(Z(`Then ${pipWhat(tm[1].what)} at ${tm[1].t}.`));
+      return {kind, lines, tag: '● LIVE · TOMORROW', sched: {title: 'TOMORROW · ' + GUIDE.tomorrow.day, items: tm, max: 3}};
+    }
+    if (kind === 'week'){
+      lines.push(Z(pipPick(['The big nights this week.', 'Mark your calendars, this week on Herzl Street.', 'What\'s coming up this week.'], n, 3)));
+      lines.push(O(`${week[0].t}: ${pipWhat(week[0].what)}.`));
+      if (week[1]) lines.push(Z(`And ${week[1].t}: ${pipWhat(week[1].what)}.`));
+      const tz = pipTeaser(T, n); lines.push(O(tz || close()));
+      return {kind, lines, tag: '● LIVE · THIS WEEK', sched: {title: 'THIS WEEK', items: week, max: 3}};
+    }
+    if (kind === 'recap') lines.push(Z(pipPick(fillRecap().filter(x => x.startsWith('For anyone')), n, 4)));
+    else lines.push(Z(pipPick(fillPeople(), n, 5)));
+    lines.push(O(pipTeaser(T, n) || close()));
+    return {kind, lines, tag: '● LIVE · STUDIO', sched: STUDIO_UPNEXT(T)};
+  }
+  // keep clear of the other studio pieces by fixed windows from their own times (the same for every viewer, whether or not they have played yet):
+  // the PiP recap (even hours, may start up to 15 min late), the full break (odd hours, up to 20 min), a caller (usually within a few minutes)
+  const pipClear = (o, even, win, ms, T) => !o || (even !== null && !!(Math.floor(o.t / 3600000) % 2) === even) || T + PIP_LEN + 30000 < o.t || T > o.t + win + ms + 30000;
+  function pipFits(T){
+    const m = momentAt(T), h = storyHour(T);
+    if (!m || h < 7.5 || h >= 23 || m.ev.with || !arrivedBy(m, T) || PIP_NOT.includes(m.ev.action)) return false;
+    if (talkBetween(T, T + PIP_LEN) || songBetween(T, T + PIP_LEN)) return false;
+    const ge = T % GUIDE_EVERY - GUIDE_AT; if (ge > -PIP_LEN - 5000 && ge < GUIDE_SHOW + 8000) return false;     // the TV guide card's moment
+    const ae = T % AD_EVERY - 20000; if (ae > -PIP_LEN && ae < AD_SHOW) return false;                          // an ad banner's moment
+    return pipClear(STUDIO, true, 15 * 60000, STUDIO ? STUDIO_TIMES(STUDIO.lines).ms : 0, T)
+      && pipClear(SHOW, false, 20 * 60000, SHOW ? SHOW_TIMES(SHOW.lines).ms : 0, T)
+      && pipClear(CALL, null, 4 * 60000, CALL && CALL.lines ? CALL_TIMES(CALL.lines).ms : 0, T);
+  }
+  setInterval(() => {
+    if (studioOn || showOn || callOn || BUILDER) return;
+    if (PIP_FORCE){ const f = PIP_FORCE; PIP_FORCE = null; const sg = pipSegment(Math.floor(NOW() / 1000), NOW(), f);
+      if (sg) playStudio({id: 'pip-sb-' + NOW(), t: NOW(), lines: sg.lines}, NOW() + 300, sg); return; }
+    if (DEV_ONLY_NARRATION_SKIP() || PREVIEW) return;
+    const now = NOW(), n = Math.floor((now - PIP_AT) / PIP_EVERY), from = n * PIP_EVERY + PIP_AT, id = 'pip-' + n;
+    if (pipDone.has(id) || now < from) return;
+    const at = slotAfter(from, PIP_WAIT, pipFits); if (at === undefined) return;
+    pipDone.add(id); if (at === null || guideOn) return;
+    const sg = pipSegment(n, at); if (!sg) return;
+    if (now >= at + STUDIO_TIMES(sg.lines).ms) return;      // missed it: joined after it ended
+    playStudio({id, t: at, lines: sg.lines}, at, sg);
+  }, 1000);
   // ================= commercial breaks: sliding banners for fake brands and Watch-Ishai merch =================
   // Only when it is quiet (he is alone, or asleep); every 6 minutes, same banner for every viewer.
   const adCv = $('adCv'), actx = adCv.getContext('2d');
@@ -4945,6 +5040,13 @@
         const v = {id: 'sb-survey', kind: 'fav', question: 'Who is your favourite character this week?', options: ['Noa', 'Ronit', 'Avi', 'Ishai'], phase: kind === 'surveyResults' ? 'closed' : 'open',
           counts: [14, 22, 9, 5], total: 50, winner: kind === 'surveyResults' ? 1 : null, closesAt: now + 86400000};   // a sample survey (nothing is sent)
         GUIDE_FORCE = {kind, until: NOW() + 20000, guide: st.guide || null, ev, opensAt, v}; },
+      pip: async kind => {   // a studio segment now, from the live show's real schedule and summary (a sample schedule where it has none)
+        if (!GUIDE || !SUMMARY){ let st = {}; try { st = await (await fetch('/api/state', {cache: 'no-store'})).json(); } catch(e){}
+          if (!SUMMARY && st.summary) SUMMARY = st.summary;
+          const t = NOW(), hm = ms => fmtHM.format(new Date(ms));
+          GUIDE = GUIDE || st.guide || {day: 'TODAY', items: [{at: t + 40 * 60000, t: hm(t + 40 * 60000), what: 'Improv class at The Black Candle'}, {at: t + 3 * 3600000, t: hm(t + 3 * 3600000), what: 'Poker night at Boaz\'s'}],
+            tomorrow: {day: 'TOMORROW', items: [{at: t + 86400000, t: hm(t + 86400000), what: 'Strange But True lecture'}]}, week: [{t: 'Wed 20:00', what: 'Gallery night at the Pump House'}, {t: 'Mon 20:00', what: 'Poker night at Boaz\'s'}]}; }
+        PIP_FORCE = kind || 'today'; },
       hostFill: () => hostFill(true), overhear: () => overhear(true), city: id => cityTick(CITY.find(e => e.id === id) || CITY[0]), chat: () => { const c = CHAT_STOCK[Math.floor(NOW() / 1000) % CHAT_STOCK.length]; showChat(c[0], c[1]); },
       texture: x => { TEXTURE = x; },
       poll(o){ const t = NOW(), id = 'sb-poll-' + (++n); POLL = {id, sandbox: true, question: o.question || 'How will Avi make Ishai\'s next falafel?', options: o.options || ['Extremely spicy', 'Drowning in tahini', 'Just the usual'],
