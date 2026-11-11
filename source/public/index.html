@@ -4688,15 +4688,19 @@
     if (now >= at + STUDIO_TIMES(sg.lines).ms) return;      // missed it: joined after it ended
     playStudio({id, t: at, lines: sg.lines}, at, sg);
   }, 1000);
-  // ================= HD voices: make the lines due in the next 2.5 minutes ahead of time, in the order they will be spoken =================
+  // ================= HD voices: make every known line ahead of time, in the order it will be spoken =================
+  // Moments reach the page about 5 minutes before they play (the story clock runs ahead), so the whole known schedule is made, soonest first.
   setInterval(() => {
     if (!Sound.hdOn()) return; const now = NOW();
     for (const e of TL.values()){ if (e.dead || !e.plan) continue;
-      for (const p of e.plan){ const at = e.start + p.at; if (p.l && p.l.say && at > now - 1000 && at < now + 150000) Sound.prefetch(p.l.who, p.l.say, at); } }
-    const st = typeof STUDIO !== 'undefined' && STUDIO; if (st && !studioDone.has(st.id) && st.lines) st.lines.forEach((l, i) => Sound.prefetch(l.who, l.say, now + 90000 + i));
-    const c = typeof CALL !== 'undefined' && CALL; if (c && !callDone.has(c.id) && c.lines && c.caller) c.lines.forEach((l, i) => Sound.prefetch(l.who === 'caller' ? 'caller-' + c.caller.name : l.who, l.say, now + 100000 + i));
+      for (const p of e.plan){ const at = e.start + p.at; if (p.l && p.l.say && at > now - 1000 && at < now + 12 * 60000) Sound.prefetch(p.l.who, p.l.say, at); } }
+    // the recap and the caller: at their own start when it is known, otherwise in a few minutes
+    const st = typeof STUDIO !== 'undefined' && STUDIO; if (st && !studioDone.has(st.id) && st.lines){ const at = studioStart(st); const t0 = typeof at === 'number' ? at : now + 5 * 60000;
+      STUDIO_TIMES(st.lines).items.forEach(it => Sound.prefetch(it.l.who, it.l.say, t0 + it.at)); }
+    const c = typeof CALL !== 'undefined' && CALL; if (c && !callDone.has(c.id) && c.lines && c.caller){ const at = callStart(c); const t0 = typeof at === 'number' ? at : now + 5 * 60000;
+      CALL_TIMES(c.lines).items.forEach(it => Sound.prefetch(it.l.who === 'caller' ? 'caller-' + c.caller.name : it.l.who, it.l.say, t0 + it.at)); }
     // the Studio break (auto on odd hours, or the 📺 STUDIO button any time): made in the background, after everything due sooner
-    const sh = typeof SHOW !== 'undefined' && SHOW; if (sh && sh.lines) sh.lines.forEach((l, i) => l && l.say && Sound.prefetch(l.who, l.say, now + 200000 + i, true));
+    const sh = typeof SHOW !== 'undefined' && SHOW; if (sh && sh.lines) sh.lines.forEach((l, i) => l && l.say && Sound.prefetch(l.who, l.say, now + 86400000 + i, true));   // last in line, never dropped
   }, 1000);
   // ================= commercial breaks: sliding banners for fake brands and Watch-Ishai merch =================
   // Only when it is quiet (he is alone, or asleep); every 6 minutes, same banner for every viewer.

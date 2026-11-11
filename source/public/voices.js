@@ -70,18 +70,31 @@ const Voices = (() => {
   const kVoice = id => { const o = cfg[id]; if (o && K_OK.has(o.kv)) return o.kv;
     if (KVOICE[id] && !(o && o.g)) return KVOICE[id];
     const pool = K_LIST.filter(k => k.g === genderOf(id)).slice(0, 11); return pool[hsh(id) % pool.length].id; };
-  const HD = {state: 'off', w: null, pct: 0, cache: new Map(), want: new Map(), doing: null, err: '', made: 0};
+  const HD = {state: 'off', w: null, pct: 0, cache: new Map(), want: new Map(), doing: null, err: '', made: 0, fails: 0, device: '', rtf: 0};
   const WORKER = `let tts = null;
 self.onmessage = async ({data: m}) => {
   try {
     if (m.type === 'load'){
       const { KokoroTTS } = await import('${KOKORO_URL}');
-      tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8', device: 'wasm',
-        progress_callback: p => { if (p && p.status === 'progress' && /onnx/.test(p.file || '')) self.postMessage({type: 'progress', pct: Math.round(p.progress || 0)}); } });
-      self.postMessage({type: 'ready'});
+      const progress_callback = p => { if (p && p.status === 'progress' && /onnx/.test(p.file || '')) self.postMessage({type: 'progress', pct: Math.round(p.progress || 0)}); };
+      // a short line both warms the model up and measures its speed; silence or NaN means this device's graphics card can't run it
+      const warm = async () => { const t0 = performance.now(), a = await tts.generate('Hello there, how are you?', { voice: 'af_heart' });
+        let peak = 0; for (let i = 0; i < a.audio.length; i += 50){ const v = Math.abs(a.audio[i]); if (!(v === v)) return null; if (v > peak) peak = v; }
+        return peak > .01 ? { ms: performance.now() - t0, secs: a.audio.length / a.sampling_rate } : null; };
+      let device = 'wasm', w = null;
+      // the graphics card (WebGPU) is many times faster; it needs the full-precision model (~310 MB). Otherwise the processor with the small one (~90 MB).
+      if (m.gpu && self.navigator && navigator.gpu){
+        try { if (await navigator.gpu.requestAdapter()){
+          tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'fp32', device: 'webgpu', progress_callback });
+          w = await warm(); if (w) device = 'webgpu'; else tts = null; } }
+        catch (e){ tts = null; }
+      }
+      if (!tts){ self.postMessage({type: 'progress', pct: 0, restart: true});
+        tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8', device: 'wasm', progress_callback }); w = await warm(); }
+      self.postMessage({type: 'ready', device, ms: w ? w.ms : 0, secs: w ? w.secs : 0});
     } else if (m.type === 'gen'){
-      const a = await tts.generate(m.text, { voice: m.voice, speed: m.speed });
-      const pcm = a.audio; self.postMessage({type: 'audio', key: m.key, pcm, sr: a.sampling_rate}, [pcm.buffer]);
+      const t0 = performance.now(), a = await tts.generate(m.text, { voice: m.voice, speed: m.speed });
+      const pcm = a.audio; self.postMessage({type: 'audio', key: m.key, pcm, sr: a.sampling_rate, ms: performance.now() - t0}, [pcm.buffer]);
     }
   } catch (e){ self.postMessage({type: m.type === 'gen' ? 'genfail' : 'fail', key: m.key, msg: String(e && e.message || e)}); }
 };`;
@@ -95,14 +108,18 @@ self.onmessage = async ({data: m}) => {
       HD.state = 'loading'; HD.pct = 0; changed();
       HD.w.onerror = e => fail(e && e.message || 'worker error');
       HD.w.onmessage = ({data: m}) => {
-        if (m.type === 'progress'){ if (m.pct > HD.pct){ HD.pct = Math.min(99, m.pct); changed(); } }
-        else if (m.type === 'ready'){ HD.state = 'ready'; try { localStorage.setItem('ishaiHD', '1'); } catch(e){} changed(); pump(); }
+        if (m.type === 'progress'){ if (m.restart){ HD.pct = 0; changed(); } else if (m.pct > HD.pct){ HD.pct = Math.min(99, m.pct); changed(); } }
+        else if (m.type === 'ready'){ HD.state = 'ready'; HD.device = m.device || 'wasm'; if (m.secs) HD.rtf = m.ms / 1000 / m.secs;
+          try { localStorage.setItem('ishaiHD', '1'); } catch(e){} changed(); pump(); }
         else if (m.type === 'audio' || m.type === 'genfail'){
-          if (m.type === 'audio' && m.pcm && m.pcm.length){ HD.cache.set(m.key, {pcm: m.pcm, sr: m.sr}); HD.made++; if (HD.cache.size > 200) HD.cache.delete(HD.cache.keys().next().value); }
+          if (m.type === 'audio' && m.pcm && m.pcm.length){ HD.cache.set(m.key, {pcm: m.pcm, sr: m.sr}); HD.made++; HD.fails = 0;
+            const r = m.ms / 1000 / (m.pcm.length / m.sr); HD.rtf = HD.rtf ? HD.rtf * .7 + r * .3 : r;   // seconds of work per second of speech
+            if (HD.cache.size > 200) HD.cache.delete(HD.cache.keys().next().value); }
+          if (m.type === 'genfail'){ HD.err = String(m.msg || 'error').slice(0, 160); if (++HD.fails >= 3 && !HD.made){ fail('could not make speech: ' + HD.err); return; } }
           if (HD.doing === m.key) HD.doing = null; changed(); pump(); }
         else if (m.type === 'fail') fail(m.msg);
       };
-      HD.w.postMessage({type: 'load'});
+      HD.w.postMessage({type: 'load', gpu: true});   // computers only (phones never start HD): try the graphics card first
     } catch(e){ fail(e && e.message); }
   }
   const keyOf = (id, text, base) => kVoice(id) + '|' + tone(id, base).rate.toFixed(2) + '|' + text;
@@ -135,15 +152,17 @@ self.onmessage = async ({data: m}) => {
     if (v) u.voice = v; u.pitch = t.pitch; u.rate = t.rate; u.volume = opts.vol ?? 1;
     if (opts.cancel) speechSynthesis.cancel(); speechSynthesis.speak(u); return u;
   }
+  // how fast the HD voice is on this device, in words: "0.3× speech time" = it makes a 10-second line in 3 seconds
+  const speed = () => HD.rtf ? (HD.rtf < 1 ? `${HD.rtf.toFixed(2)}× speech time` : `${HD.rtf.toFixed(1)}× slower than speech`) : '';
   function info(){
-    return `${voices.length} English voices` + (HD.state !== 'off' ? ` · HD ${HD.state}${HD.state === 'loading' ? ' ' + HD.pct + '%' : ''}, ${HD.made} made, ${HD.want.size} waiting${HD.err ? ' (' + HD.err + ')' : ''}` : '');
+    return `${voices.length} English voices` + (HD.state !== 'off' ? ` · HD ${HD.state}${HD.state === 'loading' ? ' ' + HD.pct + '%' : ''}${HD.device ? ' on ' + (HD.device === 'webgpu' ? 'GPU' : 'CPU') : ''}${speed() ? ', ' + speed() : ''}, ${HD.made} made, ${HD.want.size} waiting${HD.err ? ' (last error: ' + HD.err + ')' : ''}` : '');
   }
   return {
     genderOf, tone, baseOf, pickVoice, kVoice, deviceSay, K_LIST, KVOICE, GENDER,
     setConfig(c){ cfg = (c && typeof c === 'object') ? c : {}; voiceFor = {}; changed(); }, config: () => cfg,
     setCast(f){ castOf = typeof f === 'function' ? f : () => null; voiceFor = {}; },
     start, prefetch, get, wav, info, onChange(f){ listeners.push(f); },
-    hd: () => ({state: HD.state, pct: HD.pct, made: HD.made, waiting: HD.want.size, err: HD.err}),
+    hd: () => ({state: HD.state, pct: HD.pct, made: HD.made, waiting: HD.want.size, err: HD.err, device: HD.device, rtf: HD.rtf, speed: speed()}),
     phone: PHONE, hdAllowed: () => !PHONE && typeof Worker !== 'undefined',
     wasReady: () => { if (PHONE) return false; try { return localStorage.getItem('ishaiHD') === '1'; } catch(e){ return false; } }
   };
