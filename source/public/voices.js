@@ -6,6 +6,10 @@
 //   (kokoro-js from jsdelivr, weights from Hugging Face, ~90 MB once, cached by the browser).
 // - The director's settings (/director → Voices) override gender, HD voice, pitch and speed per character.
 const Voices = (() => {
+  // phones and tablets (iPads report themselves as a Mac with touch): no HD voices there, the model is too heavy for them
+  const PHONE = (() => { try { const ua = navigator.userAgent || '';
+    return /Android|iPhone|iPad|iPod|Mobi|Silk|Kindle/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+      || !!(navigator.userAgentData && navigator.userAgentData.mobile); } catch(e){ return false; } })();
   const hsh = id => { let x = 0; for (const ch of String(id)) x = (x * 31 + ch.charCodeAt(0)) >>> 0; return x; };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const num = v => (typeof v === 'number' && isFinite(v)) ? v : null;
@@ -84,7 +88,7 @@ self.onmessage = async ({data: m}) => {
   const nowMs = () => (typeof NOW === 'function' ? NOW() : Date.now());
   function fail(msg){ HD.state = 'failed'; HD.err = String(msg || 'error').slice(0, 160); try { HD.w && HD.w.terminate(); } catch(e){} HD.w = null; HD.want.clear(); HD.doing = null; changed(); }
   function start(){
-    if (HD.w || HD.state === 'ready') return;
+    if (PHONE || HD.w || HD.state === 'ready') return;
     if (HD.state === 'failed'){ HD.state = 'off'; HD.err = ''; }
     try {
       HD.w = new Worker(URL.createObjectURL(new Blob([WORKER], {type: 'text/javascript'})), {type: 'module'});
@@ -140,6 +144,7 @@ self.onmessage = async ({data: m}) => {
     setCast(f){ castOf = typeof f === 'function' ? f : () => null; voiceFor = {}; },
     start, prefetch, get, wav, info, onChange(f){ listeners.push(f); },
     hd: () => ({state: HD.state, pct: HD.pct, made: HD.made, waiting: HD.want.size, err: HD.err}),
-    wasReady: () => { try { return localStorage.getItem('ishaiHD') === '1'; } catch(e){ return false; } }
+    phone: PHONE, hdAllowed: () => !PHONE && typeof Worker !== 'undefined',
+    wasReady: () => { if (PHONE) return false; try { return localStorage.getItem('ishaiHD') === '1'; } catch(e){ return false; } }
   };
 })();

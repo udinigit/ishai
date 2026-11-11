@@ -247,7 +247,7 @@
       b1.onclick = () => { if (!Voices.deviceSay(id, $('vSample').value || 'Hello.', null, {cancel: true})) $('vMsg').textContent = 'This browser has no speech.'; };
       const b2 = document.createElement('button'); b2.className = 'ghost'; b2.textContent = '▶HD'; b2.title = 'The HD voice';
       b2.onclick = () => vPlayHD(id, b2);
-      play.append(b1, b2); row.append(n, g, kv, num('pitch'), num('rate'), play); L.appendChild(row);
+      play.append(b1); if (Voices.hdAllowed()) play.append(b2); row.append(n, g, kv, num('pitch'), num('rate'), play); L.appendChild(row);
     });
     vPlaceholders(); $('vMsg').textContent = '';
   }
@@ -259,9 +259,10 @@
     btn.disabled = false; const c = Voices.get(id, text); if (!c){ $('vMsg').textContent = 'That took too long, try again.'; return; }
     try { speechSynthesis.cancel(); } catch(e){} vAudio.src = URL.createObjectURL(Voices.wav(c)); vAudio.play().catch(() => {});
   }
-  Voices.onChange(() => { const h = Voices.hd(); $('vHDst').textContent = h.state === 'off' ? '' : h.state === 'loading' ? `loading ${h.pct}%` : h.state === 'ready' ? 'ready' : 'failed: ' + h.err;
+  Voices.onChange(() => { if (!Voices.hdAllowed()) return; const h = Voices.hd(); $('vHDst').textContent = h.state === 'off' ? '' : h.state === 'loading' ? `loading ${h.pct}%` : h.state === 'ready' ? 'ready' : 'failed: ' + h.err;
     $('vHD').disabled = h.state === 'loading' || h.state === 'ready'; });
   $('vHD').onclick = () => Voices.start();
+  if (!Voices.hdAllowed()){ $('vHD').hidden = true; $('vHDst').textContent = 'HD voices can be previewed on a computer. The HD voice you choose here is used on computers only.'; }
   $('vSave').onclick = async () => { $('vMsg').textContent = 'Saving…'; try { const v = await api({action: 'voicesSave', voices: vDraft || {}}); vBuilt = ''; render(v); $('vMsg').textContent = 'Saved. Open pages pick it up within a minute.'; } catch(e){ $('vMsg').textContent = e.message; } };
   $('vReset').onclick = () => { if (!confirm('Set every voice back to automatic? (Save to keep it.)')) return; vDraft = {}; Voices.setConfig(vDraft); vBuilt = 'reset'; renderVoices({cfg: {}, cast: Object.values(vCast)}); $('vMsg').textContent = 'Not saved yet.'; };
   function render(v){

@@ -1,1 +1,1 @@
-v208 — 2026-11-10 (voices everywhere: shared voices.js for the show, the Studio and the trailer; the trailer uses HD voices when the browser has them; director page Voices box with gender, HD voice, pitch and speed per character and previews)
+v209 — 2026-11-11 (no HD voices on phones and tablets: the sound button skips HD there, the trailer never loads it, the director page hides the HD preview)

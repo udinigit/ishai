@@ -3688,7 +3688,7 @@
   // ================= sound (Web Audio, generated in code, no files) =================
   const Sound = (() => {
     let ac = null, out = null, mode = 'off', amb = null, ambKey = '', wanted = '', brown = null, white = null;
-    const MODES = ['off','blips','voices','hd'];
+    const MODES = Voices.hdAllowed() ? ['off','blips','voices','hd'] : ['off','blips','voices'];   // no HD on phones and tablets
     const LABELS = {off:'SOUND: OFF', blips:'SOUND: BLIPS', voices:'SOUND: VOICES', hd:'SOUND: HD VOICES'};
     const voiced = () => mode === 'voices' || mode === 'hd';
     function init(){
@@ -3979,6 +3979,7 @@
     btn.onclick = (e) => { e.stopPropagation(); setMode(blocked ? 'voices' : MODES[(MODES.indexOf(mode)+1) % MODES.length]); };
     // after an automatic update the browser mutes the page; the first tap anywhere brings the sound back
     let saved = 'off'; try { saved = sessionStorage.getItem('ishaiSound') || 'off'; } catch(e){}
+    if (!MODES.includes(saved)) saved = saved === 'hd' ? 'voices' : 'off';
     if (saved !== 'off'){
       btn.textContent = 'SOUND: TAP ANYWHERE';
       const resume = () => { document.removeEventListener('pointerdown', resume, true); document.removeEventListener('keydown', resume, true); if (mode === 'off') setMode(saved); };
