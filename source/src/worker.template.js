@@ -336,7 +336,7 @@ export default {
         studio: { lastShowAt: s.show ? s.show.t : null, lastSummaryAt: s.daySum ? s.daySum.at : null, err: s.studioErr || null },
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
-        homeLife: s.homeLife || null, homeErr: s.homeErr || null,
+        homeLife: s.homeLife || null, homeErr: s.homeErr || null, autoFixErr: s.autoFixErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
@@ -349,12 +349,8 @@ export default {
       const tok = url.searchParams.get("token") || "";
       const hex = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(tok)))].map(b => b.toString(16).padStart(2, "0")).join("");
       if (hex !== FIX_HASH) return json({ error: "bad token" }, {}, 403);
-      const s = await loadState(env), now = Date.now(), done = [];
-      if (url.searchParams.get("endScene") === "1") { s.stuck = Math.max(s.stuck || 0, 2); done.push("endScene"); }
-      if (url.searchParams.get("unstick") === "1") { s.stuck = 0; done.push("unstick"); }
-      const note = (url.searchParams.get("note") || "").slice(0, 300);
-      if (note) { s.fixNote = { text: note, until: now + clamp(Number(url.searchParams.get("minutes")) || 45, 5, 180) * 60000 }; done.push("note"); }
-      s.fixLog = [...(s.fixLog || []), { at: now, done, note }].slice(-10);
+      const s = await loadState(env), now = Date.now(), q = k => url.searchParams.get(k);
+      const done = applyFix(s, now, { endScene: q("endScene") === "1", unstick: q("unstick") === "1", note: q("note") || "", minutes: q("minutes"), auto: false });
       await saveState(env, s);
       return json({ ok: true, done, stuck: s.stuck || 0, note: s.fixNote || null }, { "cache-control": "no-store" });
     }
@@ -735,6 +731,7 @@ async function tick(env, force) {
   else s.scene = { w: ev.with, loc: ev.location, startedAt: storyMs, lines: (ev.lines || []).length,
     ...(ev.scene || { type: "small talk", why: "they ran into each other", ishaiWants: "a pleasant chat", theyWant: "a pleasant chat", beats: "greet, catch up, part", ending: "a natural goodbye", target: 14 }) };
   s.stuck = ev.stuck ? (s.stuck || 0) + 1 : 0;
+  try { if (autoFix(s, ev, goal, now, storyMs)) dropQueue(s, "automatic loop fix"); } catch (e) { s.autoFixErr = { at: now, msg: String(e && e.message || e).slice(0, 160) }; }   // the story went in circles: end the scene and move the plot on
   if (ev.notes) s.notes = ev.notes;
   s.events = s.events.slice(-KEEP_EVENTS);
   const evId = s.nextId - 1;
@@ -804,6 +801,64 @@ function castSection(s, last) {
 
 const BATH_ACTIONS = ["bathroom", "showering"];
 const FAREWELL = /\b(bye|goodbye|good ?night|see (you|ya)|laila tov|lehitraot|take care|i should go|i('ll| will) go|gotta go|i'm off|heading (out|home)|talk tomorrow|hang(ing)? up)\b/i;
+// One story fix: what /api/fix does, shared with the automatic loop repair (autoFix() in tick()).
+// endScene wraps up the running scene with a goodbye (stuck >= 2 → sceneOverdue()), unstick clears the counter,
+// note is a director note the story follows for `minutes` (5-180, default 45). Logged in s.fixLog with auto true/false.
+function applyFix(s, now, o) {
+  const done = [];
+  if (o.endScene) { s.stuck = Math.max(s.stuck || 0, 2); done.push("endScene"); }
+  if (o.unstick) { s.stuck = 0; done.push("unstick"); }
+  const note = String(o.note || "").slice(0, 300);
+  if (note) { s.fixNote = { text: note, until: now + clamp(Number(o.minutes) || 45, 5, 180) * 60000 }; done.push("note"); }
+  s.fixLog = [...(s.fixLog || []), { at: now, done, note, auto: !!o.auto, ...(o.why ? { why: o.why } : {}) }].slice(-10);
+  return done;
+}
+// Automatic loop repair: the story is going in circles (stuck >= 2, or the "repeats" problem on two AI calls in a row)
+// → end the scene and give a 45-minute note that moves the plot on, at most once per AUTOFIX_GAP_MIN (any fix in fixLog counts).
+const AUTOFIX_GAP_MIN = 40, AUTOFIX_MIN = 45;
+const LOOP_RE = /repeats an earlier moment|repeats lines already said|^repeat$/;
+function loopSignal(s, now) {
+  if ((s.stuck || 0) >= 2) return "stuck " + s.stuck;
+  const firsts = (s.diag || []).filter(x => x.attempt === 0 || x.attempt === "block").slice(-2);
+  if (firsts.length === 2 && firsts.every(x => LOOP_RE.test(x.problem || "") && now - x.at < 30 * 60000)) return "repeat problem twice in a row";
+  return null;
+}
+function autoFixNote(s, now, storyMs, last) {
+  const h = storyClock(storyMs).hour, guest = s.scene && s.scene.w ? (s.cast[s.scene.w]?.name || s.scene.w) : null;
+  const bye = guest ? `${guest} says goodbye and leaves; ` : "";
+  const home = last.location === "apartment";
+  if (h >= 6 && h < 23) {
+    const nx = comingUp(s, now, 3)[0];
+    if (nx) {
+      const at = storyClock(nx.at).label.slice(-5);
+      return nx.at - storyMs < 75 * 60000
+        ? `${bye}Ishai gets ready and heads out for ${nx.what} at ${at}.`
+        : `${bye}Ishai ${home ? "gets up and goes out to do something new outside the apartment" : "moves on and does something new somewhere else"}; later: ${nx.what} at ${at}.`;
+    }
+  }
+  if (h < 6) return `${bye}Ishai goes back to bed and sleeps until morning.`;
+  if (h >= 21 && guest) return `${guest} says good night and leaves.`;
+  if (h >= 23) return "Ishai winds down and goes to bed.";
+  return `${bye}Ishai ${home ? "gets up and does something new outside the apartment" : "moves on and does something new somewhere else"}.`;
+}
+function autoFix(s, ev, goal, now, storyMs) {
+  if (ev.action === "sleeping" || /^night/.test(ev.src || "")) return null;                       // sleep moments may look alike
+  if (goal && goal.script && goal.step > 0) return null;                                          // a planned scene is playing as written
+  if (["lecture", "poker", "concert", "improv"].includes(ev.action)) return null;
+  const why = loopSignal(s, now); if (!why) return null;
+  if ((s.fixLog || []).some(f => now - f.at < AUTOFIX_GAP_MIN * 60000)) return null;            // cooldown
+  const last = s.events[s.events.length - 1];
+  return applyFix(s, now, { endScene: !!s.scene, note: autoFixNote(s, now, storyMs, last), minutes: AUTOFIX_MIN, auto: true, why });
+}
+// While the backup host writes the story (Gemini missing, paused or failing), the prompt pushes harder to move on.
+function backupPush(s, now, clock, last) {
+  if (!TALK.brake || !s.talkBrake || /^Cloudflare over/.test(s.talkBrake)) return "";
+  if (last.action === "sleeping" || clock.hour < 6) return "";
+  const last3 = s.events.slice(-3).map(e => `- "${String(e.text || "").slice(0, 160)}"`).join("\n");
+  const nx = comingUp(s, now, 6)[0];
+  return `\nMOVE THE STORY FORWARD. The last 3 moments were:\n${last3}\nDo NOT repeat these, retell them or have him look at the same things again: something NEW must happen (a new action, a new topic, a new place, someone calls or comes over, he goes out).` +
+    (nx ? ` Next on the schedule: ${nx.what} at ${storyClock(nx.at).label.slice(-5)} (don't play it early; he can get ready or head out in time).` : "");
+}
 // a scene must end: well past its length, too long, or bedtime
 function sceneOverdue(sc, storyMs, stuck) {
   if (!sc) return false;
@@ -1042,7 +1097,7 @@ newCharacter format: {"name":"...","role":"...","personality":"...","speech":"..
 He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
 Plot notes: ${s.notes || "none"}${storySoFar(s)}${cityNote(now, s.world && s.world.shabbat)}${courseNote(s, now, cw)}${eventNote(s, now, cw)}
 ${body}
-${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
+${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${backupPush(s, now, clock, last)}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
 ${recent}${gap}${goneNote}${s.recoverUntil && now < s.recoverUntil ? "\nNOTE: Earlier Ishai felt unwell and rested at home. He feels better now, still a little slow; let that show naturally (and he may mention it to someone)." : ""}${convo}${sceneBrief}
 ${cue ? "\n" + liveText(cue, s, last) : ""}

@@ -1,1 +1,1 @@
-v210 — 2026-11-11 (faster HD voices on computers: the graphics card when the browser has one, checked and measured at load, falling back to the processor; every known line made ahead, not just the next 2.5 minutes)
+v211 — 2026-11-11 (automatic loop repair: stuck >= 2 or two repeats in a row end the scene and set a 45-minute note toward the next planned item, at most once per 40 minutes, logged in fixLog with auto: true; the backup writer is told the last 3 moments and what's next)
