@@ -89,15 +89,17 @@ A new tab on the director page (dev only, like `/builder`):
 - **Adding a place:** click a door to add a link, or add a new empty place.
 - **Brief:** a new place gets a short text field for what should be on it, e.g. "a Yemenite Quarter alley at dusk, a spice shop and a juice stand".
 - **Stubs never go on air.** A stub stays out of the live map until its art exists. This follows "a place without a connection must not ship" and the missing-art rule.
-- **Saving:**
-  - **Export:** the editor exports `world.json` with the briefs.
-  - **Draft (optional):** it can keep a draft in KV, a few writes a day.
+- **Saving (decided 2026-11-11):**
+  - **Autosave in the browser:** while the director edits, the draft is saved in `localStorage` on every change. It costs nothing.
+  - **Send to Claude:** a button writes the draft to one KV key (`world:draft`), one write per press, never on autosave. A dev-only `/api/world` serves it, so the director only has to say "build the new screens".
+  - **Export:** the editor can still download `world.json` with the briefs, as a backup or snapshot.
+  - **The repo is the truth.** The draft only holds proposals. When Claude builds them into `story/world.json` and pushes, it clears the built items from the draft. If the draft was made from an older map, the editor says so and offers to rebase it on the live one.
   - **No push from the page:** the page never commits by itself.
 
 ## Phase 5: the scenery generator (Claude, not the live AI)
 1. **Brief:** the director adds stub places and briefs in the editor.
 2. **Ask:** in a chat, the director asks Claude to "build the new screens".
-3. **Read:** Claude reads the briefs from the exported file or the draft. A dev-only `/api/world` can serve it.
+3. **Read:** Claude reads the briefs from the draft sent with Send to Claude (`/api/world`), or from an exported file.
 4. **Build:** Claude writes a block spec for each. A landmark gets a `custom` drawing, and new front or prop types are added to the library.
 5. **Check:** Claude checks the work against `SCENE_GUIDELINES.md` and previews it with Playwright: day, night and rain, with a companion, and in a dream.
 6. **Ship:** Claude builds, bumps `VERSION` and pushes.
@@ -121,7 +123,8 @@ Optional and cheap: long filler stretches (a bike path, the promenade) can be ma
 1. **Bike:** a bike-share (name and colours?), his own bike, or both?
 2. **First new ground:** the promenade, more of Herzl St. east, or something else?
 3. **Order:** build phases 1-2 first (no visible change), or start with the bike on today's map?
-4. **Saving:** should the map editor's drafts be kept in KV, or only exported?
+
+Decided: the map editor saves drafts in the browser and sends them to KV only with Send to Claude (see phase 4).
 
 ## Test before pushing (every phase)
 There is no test suite. Serve `source/public` and drive it with Playwright, as in `docs/BUILDER_PHASE2.md`. For each phase:
