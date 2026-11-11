@@ -1,1 +1,1 @@
-v211 — 2026-11-11 (automatic loop repair: stuck >= 2 or two repeats in a row end the scene and set a 45-minute note toward the next planned item, at most once per 40 minutes, logged in fixLog with auto: true; the backup writer is told the last 3 moments and what's next)
+v212 — 2026-11-11 (drama: secrets the viewers know before Ishai, the day's open question and a 'Previously on' morning recap, from the planner; Season 1 Part 2 'Yes, and' in story/season.md)

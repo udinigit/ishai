@@ -337,7 +337,7 @@ export default {
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, autoFixErr: s.autoFixErr || null,
-        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
+        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
@@ -588,7 +588,9 @@ function basicRecap(s, day, storyMs) {
   if (!pickN.length) return null;
   const sp = nextSponsor(s), out = [];
   out.push({ who: "zohar", say: `This recap is brought to you by ${sp.name}. Let's catch you up.` });
-  if (s.yesterdaySum) out.push({ who: "oren", say: "Yesterday: " + s.yesterdaySum.text.split(/(?<=\.)\s/)[0] });
+  const prev = storyClock(storyMs).hour < 12 ? planFor("previously", storyMs) : "";
+  if (prev) out.push({ who: "oren", say: ("Previously on Watching Ishai: " + prev).slice(0, 220) });
+  else if (s.yesterdaySum) out.push({ who: "oren", say: "Yesterday: " + s.yesterdaySum.text.split(/(?<=\.)\s/)[0] });
   pickN.forEach((x, i) => out.push({ who: (out.length % 2) ? "oren" : "zohar", say: `${x.time}: ${x.text}`.slice(0, 220) }));
   out.push({ who: (out.length % 2) ? "oren" : "zohar", say: `That's the day so far. Once again, ${sp.name}. Back to the cameras.` });
   sponsorUsed(s, sp, [], storyMs);
@@ -602,7 +604,7 @@ async function studioRecap(env, s, storyMs, day) {
   const todayLines = (s.log && s.log.date === day ? s.log.lines : []).map(l => l.split(' Ishai: "')[0].split(" [")[0].slice(0, 150));
   const earlier = todayLines.filter((_, i, a) => i % Math.max(1, Math.floor(a.length / 18)) === 0).slice(-18);
   if (!lastHour.length && !earlier.length) return null;
-  const hr = storyClock(storyMs).hour, yLines = hr < 11 ? "2-3 lines" : hr < 16 ? "1-2 lines" : "1 short line";   // the longer today, the shorter yesterday
+  const hr = storyClock(storyMs).hour, prev = hr < 12 ? planFor("previously", storyMs) : "", yLines = hr < 11 ? "2-3 lines" : hr < 16 ? "1-2 lines" : "1 short line";   // the longer today, the shorter yesterday
   const sp = nextSponsor(s), oldJokes = (s.spJokes || []).slice(-8);
   const messages = [{ role: "system", content:
 `You write for a reality show about Ishai, a man in Tel Aviv. Two hosts in the studio:
@@ -616,13 +618,13 @@ Reply with ONLY JSON:
 "show" is the studio recap, 8-12 lines, alternating hosts, max 30 words each. It is a REAL RECAP that tells viewers what happened, in order:
  THIS RECAP HAS ONE SPONSOR: ${sp.name} (${sp.pitch}). Make up NEW jokes about it: do not just repeat its slogan${oldJokes.length ? `, and do not reuse any of these earlier sponsor lines or their jokes: ${oldJokes.map(j => `"${j}"`).join("; ")}` : ""}.
  1) the FIRST line is a cheesy sponsor intro: "This recap is brought to you by ${sp.name}" plus a fresh joke;
- 2) yesterday: ${yLines} (skip if there is no yesterday), each stating what actually happened (who, where, what);
+ 2) yesterday: ${yLines} (skip if there is no yesterday), each stating what actually happened (who, where, what)${prev ? `; this morning the yesterday part opens with "Previously on Watching Ishai..." and ends on the PREVIOUSLY line below, the open question yesterday left` : ""};
  3) today in time order (morning, midday, afternoon...), ending with the last hour: every line first states a concrete fact from the log (time of day, place, who he was with, what was said or done), THEN may add a short sassy remark. The other host reacts or adds the next fact. No line may be only a joke;
  Write the "today" summary first and base the show on it, so a viewer who missed the day understands it from the show alone.
  3b) if COMING UP lists anything, one line just before the outro teases the next thing in it: its time and its hook, telling viewers to stay tuned or be back then. Never say how it turns out;
  4) the LAST line is a sponsor outro: once more ${sp.name}, with a DIFFERENT joke than the intro (the other host may groan at it), then back to the cameras.
 "pip" is a 4-5 line quick version about the last hour only (first line greets: "Live from the studio..."; if COMING UP lists anything, its last line teases the next one with its time).` },
-  { role: "user", content: `YESTERDAY (${s.yesterdaySum ? s.yesterdaySum.date : "none"}): ${s.yesterdaySum ? s.yesterdaySum.text : "(no summary)"}\n\nTODAY so far:\n${earlier.join("\n") || "(little)"}\n\nLAST HOUR:\n${lastHour.join("\n") || "(quiet)"}\n\nCOMING UP (the producers' plan; Ishai has no idea): ${comingUpText(s, storyMs, 8) || "(nothing planned)"}\n\nJSON only.` }];
+  { role: "user", content: `YESTERDAY (${s.yesterdaySum ? s.yesterdaySum.date : "none"}): ${s.yesterdaySum ? s.yesterdaySum.text : "(no summary)"}\n\n${prev ? `PREVIOUSLY (the producers' line: yesterday's open question): ${prev}\n\n` : ""}TODAY so far:\n${earlier.join("\n") || "(little)"}\n\nLAST HOUR:\n${lastHour.join("\n") || "(quiet)"}\n\nCOMING UP (the producers' plan; Ishai has no idea): ${comingUpText(s, storyMs, 8) || "(nothing planned)"}\n\nJSON only.` }];
   const raw = await runModel(env, messages, 1400, "hosts");
   const o = parseAI(raw); if (!o) return null;
   const clean = arr => (Array.isArray(arr) ? arr : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 220) }))
@@ -953,12 +955,27 @@ function homeLifeTick(s, now, last) {
 }
 // the longer memory of the show: what happened yesterday and today, and where each arc stands. Background for the writers, never to be rushed.
 const clip = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); if (t.length <= n) return t; const c = t.slice(0, n), i = Math.max(c.lastIndexOf(". "), c.lastIndexOf("! "), c.lastIndexOf("? ")); return i > n / 2 ? c.slice(0, i + 1) : c.slice(0, c.lastIndexOf(" ")) + "..."; };
+// ---------- drama: secrets and the day's open question (written by the daily planner; rules in story/season.md) ----------
+// An arc in plan.json may carry `secret` (what the viewers learn before Ishai), `knows` (who is in on it), `revealOn` (YYYY-MM-DD:
+// from that day the secret is no longer kept from him) and `told` (true: the hosts may say it plainly to the viewers; otherwise they only hint).
+// plan.json may also carry `hook` {date, text} (the open question today's episode ends on) and `previously` {date, text} (the morning recap's opening).
+const HINT_GAP_MIN = 45;   // the hosts' call gets the secrets at most this often
+function secretsNow(ms) {
+  const today = dayOfTZ(ms);
+  return (PLAN.arcs || []).filter(a => a && a.secret && (!a.revealOn || String(a.revealOn) > today))
+    .map(a => ({ title: clip(a.title || a.id || "", 60), secret: clip(a.secret, 220), knows: clip(Array.isArray(a.knows) ? a.knows.join(", ") : a.knows, 80), told: !!a.told }));
+}
+function planFor(key, ms) { const x = PLAN[key]; return x && x.text && x.date === dayOfTZ(ms) ? clip(x.text, 240) : ""; }
 function storySoFar(s) {
   const out = [];
   if (s.yesterdaySum) out.push(`Yesterday: ${clip(s.yesterdaySum.text, 450)}`);
   if (s.daySum) out.push(`Today so far: ${clip(s.daySum.text, 650)}`);
   const arcs = (PLAN.arcs || []).filter(a => a && a.title).map(a => `- ${a.title}: ${clip(a.stage, 170)}`);
   if (arcs.length) out.push(`Ongoing arcs (where they stand; let people remember and mention them, never rush them or play a future step early):\n${arcs.join("\n")}`);
+  const sec = secretsNow(Date.now());
+  if (sec.length) out.push(`SECRETS (the viewers know them; Ishai does NOT and must not learn or guess them yet). Only the people named know. Around Ishai they keep it hidden and act around it, at most a small slip (a pause, a changed subject, a call they don't take); nobody tells him:\n${sec.map(x => `- ${x.title}: ${x.secret}${x.knows ? ` (knows: ${x.knows})` : ""}`).join("\n")}`);
+  const hook = planFor("hook", Date.now());
+  if (hook) out.push(`Today's episode ends on this open question: build toward it, never answer it today: ${hook}`);
   return out.length ? `\nTHE STORY SO FAR (stay consistent with it):\n${out.join("\n")}` : "";
 }
 function buildMessages(s, clock, now, goal, opt = {}) {
@@ -1119,6 +1136,9 @@ async function addHosts(env, s, moments, clock, now) {
     const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : s.cast[id]?.name || id;
     const said = recentHostLines(s, 10);
     const teaseNow = now - (s.lastTease || 0) > 40 * 60000 ? comingUpText(s, now, 5) : "";
+    const secrets = now - (s.lastHint || 0) > HINT_GAP_MIN * 60000 ? secretsNow(now) : [];
+    if (secrets.length) s.lastHint = now;
+    const hintNow = secrets.length ? `WHAT ISHAI DOESN'T KNOW (the producers' secrets): ${secrets.map(x => `${x.title}: ${x.secret} [${x.told ? "may be told plainly to the viewers" : "hint only"}]`).join(" | ")}\nIn ONE moment at most, and only where it fits what is on screen, ONE line lets the viewers in on one of these: "hint only" = a knowing tease that never states it ("someone at the cafe is keeping something from him..."); "may be told plainly" = say it to the viewers ("what Ishai doesn't know..."). Ishai never hears the hosts.\n\n` : "";
     const sponsor = now - (s.lastAd || 0) > AD_EVERY_MIN * 60000 && Math.random() < 0.35 ? SPONSORS[Math.floor(Math.random() * SPONSORS.length)] : null;
     const list = moments.map((m, i) => { const loc = String(m.location || "").toLowerCase(), act = String(m.action || "").toLowerCase(), w = m.with ? String(m.with).toLowerCase() : null;
       return `#${i + 1} ${storyClock(now + DELAY_MIN * 60000 + i * INTERVAL_MIN * 60000).label.slice(-5)} CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}${dogInMoment(s, m) ? " | Falafel the dog is here" : ""}\n   what happens: ${String(m.text || "").slice(0, 220)}${m.then && m.then.action ? ` | about 3 minutes in he switches to ${m.then.action}` : ""}` +
@@ -1131,7 +1151,7 @@ async function addHosts(env, s, moments, clock, now) {
 For EACH moment below write 0-2 short lines (max 20 words each). The viewers see only the picture (the camera and what Ishai is doing) and hear the spoken lines; they cannot read "what happens", so usually one line says plainly what is going on, then a joke, an opinion or a guess. React only to what is visible or said: never invent drinks, food, objects, visitors, calls or plans. When "what happens" has a detail the picture can't show and nobody says it (an object someone brings, holds or hands over, wet clothes, a smell, a sound), one line names it plainly, for example: Dana's at the door with a wet coat and a little pot of basil. If the CAMERA is STATIC, they cannot see him: they wonder where he is, guess, or joke about losing him. Fresh every time: never repeat the lines below, their jokes, openings or catchphrases.${sponsor ? `\nIN ONE OF THESE MOMENTS one host slips in an obvious, cheesy "secret" plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending with a wink like "...not sponsored, by the way"; the other host reacts.` : ""}
 Mention Falafel the dog only in a moment marked "Falafel the dog is here": anywhere else (a concert, a lecture, poker at Boaz's) he is at home and not in the picture.
 Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..."}]}]} with exactly ${moments.length} entries, in order.` },
-      { role: "user", content: `${teaseNow ? `COMING UP LATER (the producers' plan for today; Ishai has no idea): ${teaseNow}\nIn ONE moment only (the quietest one), ONE line teases the next of these: name the time and the hook and urge viewers to stay tuned or be back then ("...at 20:00, don't miss it"). Never say how it turns out.\n\n` : ""}${s.daySum ? `TODAY SO FAR (to connect with earlier moments): ${clip(s.daySum.text, 300)}\n\n` : ""}ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
+      { role: "user", content: `${hintNow}${teaseNow ? `COMING UP LATER (the producers' plan for today; Ishai has no idea): ${teaseNow}\nIn ONE moment only (the quietest one), ONE line teases the next of these: name the time and the hook and urge viewers to stay tuned or be back then ("...at 20:00, don't miss it"). Never say how it turns out.\n\n` : ""}${s.daySum ? `TODAY SO FAR (to connect with earlier moments): ${clip(s.daySum.text, 300)}\n\n` : ""}ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
     // read whatever came back, even a cut-off or slightly broken reply: every {"commentary":[...]} found, in order
     const readHosts = raw => { const o = parseAI(raw); if (o && Array.isArray(o.moments)) return o.moments;
       const out = []; const re = /"commentary"\s*:\s*\[([\s\S]*?)\]/g; let m;

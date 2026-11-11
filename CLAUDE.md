@@ -48,6 +48,12 @@ Workers AI output costs ~6.5x input, so the engine avoids AI calls where it can 
 - AI replies are read by `parseAI()`: strict JSON, then `jsonrepair` (copied into `src/vendor/jsonrepair`; there is no npm step). A cut-off reply is cut at its last `}`, so its unfinished item is lost and no half sentence airs. `validate()` also splits an action like "walking with noa".
 - `/api/health` shows `usage` (today's AI calls, tokens, estimated neurons, moments, no-AI moments, wasted block moments, `drops` by reason, `jsonFixed`, `jsonBad`, `blockSaved`), `block`, `lastBlockDrop` and `writers` (who wrote the last 10 moments).
 
+## Drama: secrets and hooks (v212)
+The season plan is in `story/season.md` ("Season 1, Part 2"); the daily planner writes these into `story/plan.json`, no extra AI calls.
+- An arc may carry `secret`, `knows` (names), `revealOn` (YYYY-MM-DD) and `told`. Until `revealOn`, `secretsNow()` passes it to the story writer through `storySoFar()` ("Ishai does not know; the people named keep it hidden"), and to the hosts' call at most every `HINT_GAP_MIN` (45) minutes (`s.lastHint`): a hint, or said plainly to the viewers when `told`.
+- `hook` {date, text}: today's open question, in the story prompt for that date only (`planFor()`). `previously` {date, text}: before 12:00 the studio recap opens with "Previously on Watching Ishai..." (also the no-AI `basicRecap()`).
+- `/api/health` → `drama` (how many secrets are live, whether today has a hook and a previously; never their text).
+
 ## Everyone sees the same thing (sync)
 - The page never reads the device clock for timing: `NOW()` is the server's time (`/api/time`, `syncClock()`). Use `NOW()`, not `Date.now()`, and pass it to `new Date(...)`.
 - `schedule()` works out each moment's start and each line's slot from the moments alone (`TL`, `talkPlan()`, `lineMs()`): a line's slot fits its typing and its voice, and a long talk pushes the next moment back. Playback waits for those times (`untilT()`) and never for a device's speech. A viewer who arrives late joins by the clock, mid-line, and gets a voice only from the next line.
