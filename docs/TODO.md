@@ -22,3 +22,4 @@ Ideas and requests from the director. Newest at the bottom; mark done with the v
 - [x] Memories of the evenings: how poker went (place, an all-in lost and to whom, the best pot), the gallery nights; looking forward to what is coming. — v164
 - [x] Events page: bands and artists (members, instruments, voices, looks from a photo), song uploads with beat maps, concerts on stage in sync, promotions with links for viewers. — v165
 - [x] Surveys of the week on the TV guide card (sign-in required): favourite character, who wins the next poker night, favourite lecture, new characters and places suggested by viewers; results shown, and the hosts mention them when it happens. Plan: `docs/SURVEY_PLAN.md`. — v200
+- [ ] A bigger world: one world file for the map, a block kit for walk-through streets, a bike, a map editor with briefs, and new screens built by Claude on request. Plan: `docs/WORLD_PLAN.md`.
