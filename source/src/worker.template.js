@@ -230,7 +230,7 @@ const PLACES = {
   bar:       "The Black Candle, a small dark rock bar on Herzl Street next to his building: black brick, red neon, candles on the tables, band posters, a bearded bartender, rock and alternative music on the radio all night. He sits at a candle-lit table (drinking a beer, eating bar snacks). Opens 17:00, closes 02:00",
   bus:       "inside the city bus, line 88 (camera on board): he sits by the window with the city going past, a few other passengers around him",
   taxi:      "the back seat of a taxi (camera on board): the driver in front, the meter running, the city going past the window",
-  campus:    "Tel Herzl University, a bus ride away from Herzl Street (bus or taxi; it has its own stop): the courtyard, a vending machine, students. Open Sunday to Thursday 08:00-20:00. Ishai goes there for his history lectures",
+  campus:    "Tel Herzl University, a bus ride away from Herzl Street (bus or taxi; it has its own stop): the courtyard, a vending machine, students. Ishai only goes there for his history lectures (planned)",
   classroom: "a lecture room at the university, only used during a lecture",
   offscreen: "anywhere without a camera (the supermarket, a client's office, a friend's home); he gets there by bus or taxi from the bus stop on Herzl Street and comes back the same way"
 };
@@ -336,7 +336,7 @@ export default {
         studio: { lastShowAt: s.show ? s.show.t : null, lastSummaryAt: s.daySum ? s.daySum.at : null, err: s.studioErr || null },
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
-        homeLife: s.homeLife || null, homeErr: s.homeErr || null, autoFixErr: s.autoFixErr || null,
+        homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
@@ -660,6 +660,7 @@ async function tick(env, force) {
   let goal = activeGoal(s, now);
   let ev = null;
   if (goal && goal.course && now > deadlineOf(goal) && !(goal.step > 0)) { finishGoal(s, goal, "missed", now); goal = null; }   // a lecture he never reached moves to the next slot
+  if (goal && goal.outing && now > deadlineOf(goal)) { finishGoal(s, goal, "lapsed", now); goal = null; }   // an outing is only a chance: no cut to the place
   if (goal && now > deadlineOf(goal) && !(goal.step > 0)) {   // a planned scene already playing is not cut off
     ev = forcedEvent(goal, last, s); ev.src = "director goal (forced)";
     finishGoal(s, goal, "forced", now); ev.unlocks = goal.unlock || null;
@@ -699,6 +700,7 @@ async function tick(env, force) {
   if (!force) try { await pollTick(env, s, ev, now, last); } catch (e) { s.pollErr = { at: now, why: [String(e && e.message || e).slice(0, 160)] }; }
   if (!force) try { await surveyTick(env, s, ev, now); } catch (e) { s.surveyErr = { at: now, msg: String(e && e.message || e).slice(0, 160) }; }
   try { surveyHosts(s, ev, now); } catch (e) {}
+  if (!force) try { outingTick(s, now, ev); } catch (e) { s.outingErr = { at: now, msg: String(e && e.message || e).slice(0, 160) }; }   // a random outing, from story/places.json
   if (!force) try { homeLifeTick(s, now, ev); } catch (e) { s.homeErr = String(e && e.message || e).slice(0, 160); }   // visits and dog walks   // viewers' poll: count the last one, write the next
   if (goal && goal.status !== "done" && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
 
@@ -1114,7 +1116,7 @@ newCharacter format: {"name":"...","role":"...","personality":"...","speech":"..
 He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
 Plot notes: ${s.notes || "none"}${storySoFar(s)}${cityNote(now, s.world && s.world.shabbat)}${courseNote(s, now, cw)}${eventNote(s, now, cw)}
 ${body}
-${real}${media}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${backupPush(s, now, clock, last)}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
+${real}${media}${placesNote(now + DELAY_MIN * 60000)}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${backupPush(s, now, clock, last)}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
 ${recent}${gap}${goneNote}${s.recoverUntil && now < s.recoverUntil ? "\nNOTE: Earlier Ishai felt unwell and rested at home. He feels better now, still a little slow; let that show naturally (and he may mention it to someone)." : ""}${convo}${sceneBrief}
 ${cue ? "\n" + liveText(cue, s, last) : ""}
@@ -1407,17 +1409,9 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
     && /\b(stretch|stretches|break|stands? up|gets up|legs|back|neck|shoulders?|yawn)/i.test(ev.text) && !/\b(workout|push-?ups|sit-?ups|jog|run|yoga|weights|treadmill)\b/i.test(ev.text)) ev.action = last.action;
   // "walking" indoors is not a way to hang out: with someone it is talking, alone it is idle (the page adds errands)
   if (ev.action === "walking" && ["apartment", "cafe", "gym", "bar", "store"].includes(ev.location)) ev.action = ev.with ? "talking" : ev.location === "gym" ? "exercising" : "idle";
-  { const h = storyClock(Date.now() + DELAY_MIN * 60000).hour;
-    if (ev.location === "bar" && last.location !== "bar" && h >= 2 && h < 17) return { ev, problem: "The Black Candle bar is closed now (it opens at 17:00 and closes at 02:00); he cannot go in" };
-    if (ev.location === "gym" && last.location !== "gym" && (h >= 23 || h < 6)) return { ev, problem: "Herzl Gym is closed now (open 06:00-23:00)" };
-    const wd = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(new Date(Date.now() + DELAY_MIN * 60000));
-    const shut = (open, close) => wd === "Sat" || h < open || h >= (wd === "Fri" ? 14 : close);
-    if (ev.location === "apt2" && last.location !== "apt2" && !planned) return { ev, problem: "apartment 2 is Boaz's flat; Ishai only goes in on poker nights (planned)" };
-    if (ev.location === "arena" && last.location !== "arena" && !planned) return { ev, problem: "the Pump House hall is only open on its event nights (Ishai can be on the plaza outside)" };
-    if (ev.location === "campus" && last.location !== "campus" && last.location !== "classroom" && !planned && (shut(8, 20) || wd === "Fri")) return { ev, problem: "the university is closed now (Sunday to Thursday, 08:00-20:00)" };
-    if (ev.location === "classroom" && !planned) return { ev, problem: "the lecture room is only used during a lecture; he stays in the courtyard" };
-    if (ev.location === "market" && last.location !== "market" && shut(7, 19)) return { ev, problem: "Shuk Shalom market is closed now (07:00-19:00, Friday until 14:00, closed on Shabbat)" };
-    if (ev.location === "store" && last.location !== "store" && shut(9, 21)) return { ev, problem: "Everything Else is closed now (09:00-21:00, Friday until 14:00, closed on Shabbat)" }; }
+  // opening hours and event-only places: story/places.json (placeOpen()); someone already inside may stay
+  { const ms = Date.now() + DELAY_MIN * 60000, inside = ev.location === last.location || (ev.location === "campus" && last.location === "classroom");
+    if (LOCATIONS[ev.location] && !inside && !planned && PR[ev.location] && !placeOpen(ev.location, ms)) return { ev, problem: closedWhy(ev.location) }; }
   if (!LOCATIONS[ev.location]) return { ev, problem: `"${ev.location}" is not a known location` };
   if ((ev.action === "improv" || ev.action === "lecture") && !planned) ev.action = "talking";     // the class layouts come from the plan only
   if (!LOCATIONS[ev.location].includes(ev.action)) {
@@ -2402,11 +2396,83 @@ const POLL_BANK = [
 const pollHash = str => { let h = 2166136261; for (const ch of String(str)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
 const weekday = ms => new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(new Date(ms));
 const pollHM = ms => new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(ms));
-// is this place open at that time (the same hours validate() enforces)
+// ---------- places: opening hours and outing rates (story/places.json) ----------
+// One table for validate(), the polls (pollStart()), the story prompt (placesNote()) and the random outings (outingTick()).
+const PLACE_RULES = __PLACES__, PR = PLACE_RULES.places || {};
+const dayKind = wd => wd === "Fri" ? "fri" : wd === "Sat" ? "sat" : "week";
+const hoursOn = (loc, wd) => { const r = PR[loc]; return !r || r.event ? null : !r.open ? [0, 24] : r.open[dayKind(wd)] || null; };
+// is this place open at that time? Hours past midnight (26 = 02:00) belong to the night before. Rides and offscreen are not places to go.
 function placeOpen(loc, ms) {
-  const h = storyClock(ms).hour, wd = weekday(ms), shut = (o, c) => wd === "Sat" || h < o || h >= (wd === "Fri" ? 14 : c);
-  if (!LOCATIONS[loc] || ["classroom", "arena", "apt2", "bus", "taxi", "offscreen"].includes(loc)) return false;
-  return loc === "bar" ? !(h >= 2 && h < 17) : loc === "gym" ? !(h >= 23 || h < 6) : loc === "market" ? !shut(7, 19) : loc === "store" ? !shut(9, 21) : loc === "campus" ? !(shut(8, 20) || wd === "Fri") : true;
+  if (!LOCATIONS[loc] || ["bus", "taxi", "offscreen"].includes(loc)) return false;
+  const r = PR[loc]; if (!r) return true; if (r.event) return false;
+  const h = storyClock(ms).hour, today = hoursOn(loc, weekday(ms)), yest = hoursOn(loc, weekday(ms - 86400000));
+  return !!(today && h >= today[0] && h < today[1]) || !!(yest && yest[1] > 24 && h + 24 < yest[1]);
+}
+const hh = h => String(h % 24).padStart(2, "0") + ":00";
+function hoursText(loc) {
+  const r = PR[loc]; if (!r || !r.open) return "always open";
+  return [["week", "Sunday-Thursday"], ["fri", "Friday"], ["sat", "Saturday"]].map(([k, n]) => `${n} ${r.open[k] ? hh(r.open[k][0]) + "-" + hh(r.open[k][1]) : "closed"}`).join(", ");
+}
+const placeName = loc => ({ ...PLACE_NAME, campus: "the university", classroom: "the lecture room", arena: "the Pump House hall", plaza: "the Pump House plaza", apt2: "Boaz's flat (apartment 2)", bar: "The Black Candle", gym: "Herzl Gym", cafe: "Café Nahat", market: "Shuk Shalom market", store: "Everything Else" })[loc] || loc;
+function closedWhy(loc) {
+  const r = PR[loc] || {};
+  return r.event ? `${placeName(loc)} is only for ${r.event}, planned ahead; he cannot go there now` : `${placeName(loc)} is closed now (${hoursText(loc)}); he cannot go in`;
+}
+// for the story prompt: what is closed right now, and the places only planned events use
+function placesNote(ms) {
+  const opens = k => { for (let i = 1; i <= 60; i++) if (placeOpen(k, ms + i * 3600000)) return storyClock(ms + i * 3600000).label.slice(i > 20 ? 0 : -5).replace(/^(\w{3})\w* /, "$1 ").replace(/:\d\d$/, ":00"); return "later"; };
+  const closed = Object.keys(PR).filter(k => !PR[k].event && !placeOpen(k, ms)).map(k => `${placeName(k)} (opens ${opens(k)})`);
+  const ev = Object.keys(PR).filter(k => PR[k].event).map(k => placeName(k));
+  return `\nPLACES: ${closed.length ? "closed now: " + closed.join(", ") + ". " : ""}Only for planned events, never on his own: ${ev.join(", ")}.`;
+}
+// the % chance, in this hour, of a random outing to this place (0 when it is closed now or within the hour)
+function outingRate(s, loc, ms) {
+  const r = PR[loc]; if (!r || r.event || !r.rate || !placeOpen(loc, ms) || !placeOpen(loc, ms + 60 * 60000)) return 0;
+  const sh = s.world && s.world.shabbat, inSh = !!sh && ms >= sh.start && ms <= (sh.end || sh.start + 26 * 3600000);
+  const wd = weekday(ms), h = storyClock(ms).hour, kind = inSh ? "sat" : dayKind(wd);
+  const rows = (r.byDay && r.byDay[wd.toLowerCase()]) || r.rate[kind] || [];
+  const row = rows.find(x => h >= x[0] && h < x[1]); if (!row) return 0;
+  const w = (s.world && s.world.weather) || {}, m = r.weather || {};
+  let pct = row[2];
+  if (w.rain) pct *= m.rain ?? 1; else if (w.temp >= 30) pct *= m.hot ?? 1; else if (w.temp != null && w.temp <= 12) pct *= m.cold ?? 1;
+  return Math.round(pct * 10) / 10;
+}
+const OUTING_AT_WORK = ["dana", "avi", "hagit"];   // met at their work, never 'coming along'
+const OUTING_ACT = { street: "walking", shops: "walking", cafe: "drinking", park: "walking", plaza: "idle", gym: "exercising", bar: "drinking", market: "walking", store: "idle" };
+const OUTING_WHY = { street: "a stroll down Herzl Street (the kiosk, the makolet, a look in the shop windows)", shops: "an errand on Herzl Street east (the hardware shop, the ATM, the flower shop)",
+  cafe: "a coffee at Café Nahat", park: "some air in the park", plaza: "a look at what's on at the Pump House (the poster board, the ticket window)", gym: "a workout at Herzl Gym",
+  bar: "a beer at The Black Candle", market: "shopping at Shuk Shalom (bus from the Herzl Street stop)", store: "something he needs from Everything Else (bus to the market, then walk in)" };
+// No AI: in each hour he is at home, awake and free, one roll against the places' rates may send him out (a goal like a visit).
+// A friend may come along ('with') or he may meet someone there ('meet'). An outing the story never gets to just lapses.
+function outingTick(s, now, last) {
+  const story = now + DELAY_MIN * 60000, h = storyClock(story).hour, day = dayOfTZ(story), slot = day + " " + h;
+  const o = s.outings && s.outings.date === day ? s.outings : (s.outings = { date: day, n: 0, last: (s.outings || {}).last || 0, log: [], slot: null });
+  if (o.slot === slot) return; o.slot = slot;                                          // one roll an hour
+  const why = last.action === "sleeping" || h < 7 || h >= 23 ? "asleep or late" : last.location !== "apartment" ? "not at home" : last.with ? "has company"
+    : o.n >= (PLACE_RULES.maxPerDay || 4) ? "enough outings today" : now - o.last < (PLACE_RULES.gapMin || 120) * 60000 ? "went out not long ago"
+    : !pollFree(s, now, now + 90 * 60000) ? "something is planned" : null;
+  let home = 0; for (let i = s.events.length - 1; i >= 0 && s.events[i].location === "apartment"; i--) home = (now - (s.events[i].created || s.events[i].t)) / 60000;
+  const rates = Object.fromEntries(Object.keys(PR).map(k => [k, outingRate(s, k, story)]).filter(x => x[1] > 0));
+  o.lastRoll = { at: now, rates, why: why || (home < (PLACE_RULES.homeMin || 30) ? "just got home" : null) };
+  if (o.lastRoll.why) return;
+  let roll = Math.random() * 100, where = null;
+  for (const [k, p] of Object.entries(rates)) { roll -= p; if (roll < 0) { where = k; break; } }
+  o.lastRoll.picked = where; if (!where) return;
+  const r = PR[where], seen = new Set(s.events.filter(e => e.with && now - (e.created || e.t) < 4 * 3600000).map(e => e.with));
+  const free = Object.entries(r.people || {}).filter(([id]) => s.cast[id] && !s.cast[id].phoneOnly && !POLL_NOT.includes(id) && !seen.has(id));
+  const pickW = list => { let x = Math.random() * list.reduce((n, [, w]) => n + w, 0); for (const [id, w] of list) { x -= w; if (x < 0) return id; } return list.length ? list[list.length - 1][0] : null; };
+  const regular = id => !!SEED_CAST.find(c => c.id === id && c.regular);
+  let mode = null, who = null;
+  if (Math.random() * 100 < (r.with || 0)) { who = pickW(free.filter(([id]) => !regular(id) && !OUTING_AT_WORK.includes(id))); if (who) mode = "with"; }
+  if (!mode && Math.random() * 100 < (r.meet || 0)) { who = pickW(free); if (who) mode = "meet"; }
+  const c = who && s.cast[who], place = placeName(where), start = now + 3 * 60000;
+  const goal = mode === "with" ? `${c.name} and Ishai go out together for ${OUTING_WHY[where]}: ${c.name} calls or knocks and suggests it, they head out (step by step: corridor, street${where === "street" ? "" : ", on to " + place}) and spend some time there, true to who ${c.name} is and what they both remember. Then they go their ways.`
+    : mode === "meet" ? `Ishai goes out for ${OUTING_WHY[where]} (step by step: corridor, street${where === "street" ? "" : ", on to " + place}). At ${place} he runs into ${c.name}, and they talk a while, true to who ${c.name} is and what they both remember.`
+    : `Ishai feels like ${OUTING_WHY[where]} and goes (step by step: corridor, street${where === "street" ? "" : ", on to " + place}). He spends a while there on his own, noticing things, maybe a short chat with someone working there, then heads on or home.`;
+  const g = newGoal({ id: `outing-${day.slice(5)}-${h}`, startAt: new Date(start).toISOString(), deadlineAt: new Date(start + 70 * 60000).toISOString(), location: where,
+    with: c ? c.name : null, forceWith: mode === "with" ? who : null, forceAction: OUTING_ACT[where], goal, forceText: "" }, now);
+  g.outing = { where, mode, who }; s.director.push(g);
+  o.n++; o.last = now; o.log = [...o.log, { at: now, where, pct: rates[where], mode, who }].slice(-8);
 }
 const pollShabbat = (s, ms) => { const sh = s.world && s.world.shabbat; return !!sh && ms >= sh.start - 30 * 60000 && ms <= (sh.end || sh.start + 26 * 3600000); };
 const pollAwake = ms => { const h = storyClock(ms).hour; return h >= POLL_AWAKE[0] && h < POLL_AWAKE[1]; };
@@ -3315,7 +3381,7 @@ const ceil15 = ms => Math.ceil(ms / 900000) * 900000;
 function comingUp(s, now, hours = 6) {
   const nm = id => (s.cast[id] && s.cast[id].name) || null;
   const planTeaser = id => { const b = ((PLAN && PLAN.beats) || []).find(x => x.id === id); return b && b.teaser ? String(b.teaser).replace(/\s+/g, " ").trim().slice(0, 120) : null; };
-  return (s.director || []).filter(g => g.status === "waiting" && !g.poll && !/^(walk|visit|poll)-/.test(g.id))
+  return (s.director || []).filter(g => g.status === "waiting" && !g.poll && !/^(walk|visit|poll|outing)-/.test(g.id))
     .map(g => {
       const at = ceil15(g.sceneAt ? g.sceneAt : g.startAfter);
       let what = g.teaser || planTeaser(g.id);
@@ -3347,7 +3413,7 @@ function guideDay(s, day, keyOnly) {
     const pk = s.poker && nextPokerAt(s, atLocal(day, 0)); if (pk && dayOfTZ(pk) === day) items.push({ at: pk, what: "Poker night at Boaz's" });
   }
   if (!keyOnly) for (const g of s.director || []) {
-    if (g.poll || g.course || g.fixed || /^(walk|visit|poll|lecture)-/.test(g.id) || g.how === "cancelled") continue;
+    if (g.poll || g.course || g.fixed || /^(walk|visit|poll|lecture|outing)-/.test(g.id) || g.how === "cancelled") continue;
     const at = ceil15(g.sceneAt || g.startAfter); if (dayOfTZ(at) !== day) continue;
     const c = comingUp(s, at - 11 * 60000, 1).find(x => x.at === at); if (c) items.push({ at, what: c.what.slice(0, 70) });
   }
