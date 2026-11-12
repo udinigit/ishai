@@ -1038,7 +1038,7 @@
       if (pose==='sleep'){ const ph = (t/2400)%1; alpha(1-ph, () => zee(Math.round(x)+8+Math.floor(ph*4), y-2-Math.floor(ph*6), '#cfe8ff')); }
     });
   }
-  const dog = { x:0, loc:null, last:0, lastBark:0 };
+  const dog = { x:0, loc:null, last:0, lastBark:0, bikeBarks:new Set() }, LEASH = 16;   // LEASH: px from Ishai's x the dog can be outside
   function liveLayer(t, scene){ if (DREAMING) return; zAdd(scene.walkY + 22.1, () => { compUpdate(t, scene); dogUpdate(t, scene); courierUpdate(t); }); }
   // ---- ateBite: the (fake) food delivery app. Orange, a round logo with a bite taken out of it ----
   const ATE = {o:'#ff6a2a', d:'#c94e18', w:'#fff4ea'};
@@ -1060,8 +1060,38 @@
       if (e > 8 && e < 30) R(x - 2, y + 12, 4, 4, '#e8dcc0'); });
   }
   // now and then an ateBite courier rides past on the road (same clock for everyone)
-  function ateRideBy(t, y){ const P = 75000, e = NOW() % P; if (e > 9000) return; const dir = Math.floor(NOW() / P) % 2 ? 1 : -1;
-    const x = dir > 0 ? -24 + e / 9000 * (W + 48) : W + 24 - e / 9000 * (W + 48); ateScooter(Math.round(x), y, t, dir); } // drawn under the scene's night lighting
+  const ATE_PLACES = new Set(['street','west1','west2','west3','shops','market']);   // where couriers ride past (and Falafel can see them)
+  function ateAt(now){ const P = 75000, e = now % P; if (e > 9000) return null; const k = Math.floor(now / P), dir = k % 2 ? 1 : -1;
+    return {x: dir > 0 ? -24 + e / 9000 * (W + 48) : W + 24 - e / 9000 * (W + 48), dir, id: 9e9 + k}; }
+  function ateRideBy(t, y){ const a = ateAt(NOW()); if (a) ateScooter(Math.round(a.x), y, t, a.dir); } // drawn under the scene's night lighting
+  // ---- cyclists on Herzl St. (the street, the three west blocks, the shops block), all from the clock: same for every viewer ----
+  const BIKE_SEED = {street:0, west1:1, west2:2, west3:3, shops:4}, BIKE_EVERY = 31000, BIKE_RIDE = 5200;
+  function bikeAt(now, seed){   // {x (left edge), dir, id, k} of the cyclist crossing now, or null
+    const tt = now + seed * 7919, k = Math.floor(tt / BIKE_EVERY), e = tt % BIKE_EVERY;
+    if (e > BIKE_RIDE || hash(k * 13 + seed * 101 + 7) < .3) return null;   // some slots nobody rides by
+    const dir = hash(k * 5 + seed + 1) < .5 ? 1 : -1, span = W + 44, p = e / BIKE_RIDE;
+    return {x: dir > 0 ? -22 + p * span : W + 22 - p * span, dir, id: seed * 1e9 + k, k};
+  }
+  const BIKE_LOOK = [['#3b7bc2','#e0b04a'],['#c23b3b','#f2f2f2'],['#2f8a5a','#2a2a2a'],['#e0b04a','#c23b3b'],['#8a5ab4','#f2f2f2'],['#dcdcdc','#3b7bc2']];
+  function bikeRideBy(y, night){   // y = road level (wheels' bottom)
+    const s = BIKE_SEED[actor.loc]; if (s == null || DREAMING) return;
+    const b = bikeAt(NOW(), s); if (!b) return;
+    const x = Math.round(b.x), f = b.dir < 0, [shirt, helmet] = BIKE_LOOK[b.k % BIKE_LOOK.length];
+    const X = dx => f ? x + 17 - dx : x + dx, px = (dx,dy,w,h,c) => R(f ? x + 18 - dx - w : x + dx, y + dy, w, h, c);
+    const L = (a,b2,c,d,col) => line(X(a), y + b2, X(c), y + d, col);
+    // wheels
+    [0, 12].forEach(wx => { px(wx+1,-6,4,1,'#1a1a1a'); px(wx+1,-1,4,1,'#1a1a1a'); px(wx,-5,1,4,'#1a1a1a'); px(wx+5,-5,1,4,'#1a1a1a'); px(wx+2,-4,2,2,'#8a8a8a'); });
+    // frame, seat, handlebar
+    L(3,-3,8,-3,'#c23b3b'); L(8,-3,6,-8,'#c23b3b'); L(6,-8,13,-9,'#c23b3b'); L(13,-9,15,-3,'#c23b3b'); L(3,-3,6,-8,'#c23b3b');
+    px(5,-9,3,1,'#222'); px(13,-11,1,2,'#555'); px(13,-11,2,1,'#222');
+    // rider: legs pedalling, body leaning on the bars, helmet
+    const ph = Math.floor(NOW() / 160) % 2;
+    L(6,-10, ph ? 9 : 7, -6,'#2a2a3a'); L(ph ? 9 : 7,-6, ph ? 9 : 7, -3,'#2a2a3a');
+    L(7,-10, ph ? 7 : 10, -7,'#3a3a4a'); L(ph ? 7 : 10,-7, ph ? 6 : 10, -4,'#3a3a4a');
+    px(5,-15,5,5,shirt); L(9,-14,13,-11,'#c18657');
+    px(9,-19,4,4,'#c18657'); px(9,-20,5,2,helmet); px(12,-17,1,1,'#161616');
+    if (night){ px(16,-9,1,1,'#fff3b0'); alpha(.25, () => px(17,-10,6,3,'#fff3b0')); px(0,-8,1,1,'#ff3b3b'); }
+  }
   function dogUpdate(t, scene){
     if (!UNLOCKED.has('dog') || actor.loc==='offscreen' || actor.switching){ dog.loc = null; return; }
     if (actor.ride && actor.hidden) return; // on the bus with Ishai
@@ -1089,18 +1119,39 @@
       }
     }
     else if (actor.loc==='park' && (a==='idle' || a==='exercising' || a==='talking' || a==='reading' || a==='eating')){
-      target = 80 + Math.sin(t/2600)*45; pose = 'walk';                                      // running around
+      target = actor.x + Math.sin(t/2600)*LEASH; pose = 'walk';                              // sniffing around him, on the leash
     }
     else if (actor.loc==='cafe' && settled && ['eating','drinking','working','reading','talking'].includes(a)) target = 96; // under the table
     else if ((actor.loc==='gym' || actor.loc==='bar' || actor.loc==='store') && settled) target = 22;                // lies by the door
+    // outside he is on a short leash: never more than LEASH px from Ishai, so he walks beside him and leaves the picture with him
+    const leashed = OUTSIDE.has(actor.loc) && !actor.hidden;
+    // a bike or scooter passing on the road: he pulls toward it as far as the leash lets him, and barks
+    // (cyclists on Herzl St., and the ateBite couriers on their scooters: whichever is closer)
+    const riders = leashed && pose !== 'sleep' ? [BIKE_SEED[actor.loc] != null && bikeAt(NOW(), BIKE_SEED[actor.loc]), ATE_PLACES.has(actor.loc) && ateAt(NOW())].filter(Boolean) : [];
+    const bike = riders.sort((p, q) => Math.abs(p.x + 9 - dog.x) - Math.abs(q.x + 9 - dog.x))[0] || null;
+    const bdx = bike ? bike.x + 9 - (dog.x + 5) : 0, alert = bike && Math.abs(bdx) < 56;
+    if (alert){ target = actor.x + Math.sign(bdx) * LEASH; pose = 'walk'; }   // up on his feet, dancing at the end of the leash
     const n = NOW(), dts = Math.min(.1, (n - (dog.last||n))/1000); dog.last = n;
-    const d = target - dog.x, step = (moving ? 26 : 45) * dts;
+    const d = target - dog.x, step = (alert ? 60 : moving ? 40 : 45) * dts;
     dog.x += Math.abs(d) <= step ? d : Math.sign(d)*step;
-    const arrived = Math.abs(target - dog.x) < 1;
-    const ddir = arrived ? (pose==='walk' ? Math.sign(Math.cos(t/2200))||1 : (actor.x >= dog.x ? 1 : -1)) : Math.sign(d)||1;
-    drawDog(dog.x, arrived ? fy : floor, t, arrived ? pose : 'walk', ddir);
+    if (leashed) dog.x = Math.max(actor.x - LEASH, Math.min(actor.x + LEASH, dog.x));
+    const arrived = Math.abs(target - dog.x) < 1 || (leashed && alert);
+    const ddir = alert ? (Math.sign(bdx)||1) : arrived ? (pose==='walk' ? Math.sign(Math.cos(t/2200))||1 : (actor.x >= dog.x ? 1 : -1)) : Math.sign(d)||1;
+    const barking = alert && Math.abs(bdx) < 44 && Math.floor(NOW()/260) % 3 !== 2;
+    drawDog(dog.x, (arrived ? fy : floor) - (barking && Math.floor(NOW()/130) % 2 ? 1 : 0), t, arrived ? pose : 'walk', ddir);
+    if (barking){   // little bark marks from his mouth
+      const mx = Math.round(dog.x) + (ddir > 0 ? 11 : -2), my = (arrived ? fy : floor) - 6, s = ddir;
+      R(mx, my - 2, 1, 1, '#f2f2f2'); R(mx + s, my - 3, 1, 1, '#f2f2f2'); R(mx + s, my, 2, 1, '#f2f2f2'); R(mx, my + 2, 1, 1, '#f2f2f2'); R(mx + s, my + 3, 1, 1, '#f2f2f2');
+    }
+    // the bark itself: as the bike comes close and again as it passes (once each per bike; never in a replay)
+    if (bike && !SIM){
+      const near = Math.abs(bdx) < 44, past = Math.sign(bdx) === Math.sign(bike.dir) && Math.abs(bdx) < 30;
+      const key = near && !past ? bike.id * 2 : past ? bike.id * 2 + 1 : 0;
+      if (key && !dog.bikeBarks.has(key)){ dog.bikeBarks.add(key); if (dog.bikeBarks.size > 20) dog.bikeBarks.delete(dog.bikeBarks.values().next().value);
+        if (!SPEAKING && !Sound.busy()) Sound.bark(); }
+    }
     // on the leash outside
-    if (OUTSIDE.has(actor.loc) && !actor.hidden){
+    if (leashed){
       const hx = actor.x + (dog.x > actor.x ? 9 : 1), hy = scene.walkY + 13, cx = Math.round(dog.x) + (ddir > 0 ? 8 : 2), cy = floor - 4;
       const sag = Math.min(4, Math.abs(cx - hx) / 6), mx = (hx + cx) / 2, my = Math.max(hy, cy) + sag;
       line(hx, hy, Math.round(mx), Math.round(my), '#c23b3b'); line(Math.round(mx), Math.round(my), cx, cy, '#c23b3b');
@@ -1696,6 +1747,7 @@
       crowdWalk(t, 6, 57000, 31000, 67, -1, .85);
       drawFloor(t,a,settled,actor,this);
       zAdd(200, () => {
+      bikeRideBy(99, night);
       ateRideBy(t, 99);
       // car
       const cx = ((t/12) % 520) - 60;
@@ -1752,7 +1804,7 @@
         scene.props(t, night);
         crowdWalk(t, scene.seed, 31000, scene.seed*3000, 61, 1, .7); crowdWalk(t, scene.seed+2, 39000, scene.seed*5000, 63, -1, .7); crowdWalk(t, scene.seed+4, 47000, scene.seed*7000, 67, 1, .85);
         drawFloor(t,a,settled,actor,this);
-        zAdd(200, () => { ateRideBy(t + scene.seed*20000, 99);
+        zAdd(200, () => { bikeRideBy(99, night); ateRideBy(t + scene.seed*20000, 99);
           const off = scene.seed*2100, cx = (((t+off)/12) % 520) - 60, lap = Math.floor((t+off)/6240);
           if (lap % 3 === 2 && cx < W+10) drawBus(cx, night, false);
           else if (cx < W+10){ const col = ['#c23b3b','#3b7bc2','#e0b04a','#dcdcdc'][lap%4];
@@ -1874,7 +1926,7 @@
       if (Math.floor(t/75000) % 3 === 1) crowdVisit(t, 75000, 2, 91, 66, -14, 66, {face:0});
       drawFloor(t,a,settled,actor,this);
       // traffic: cars stop in a queue before the crossing while pedestrians have green, and all drive on when it turns red for them
-      zAdd(200, () => { shopsTraffic(NOW(), night); ateRideBy(t + 30000, 99); });
+      zAdd(200, () => { bikeRideBy(99, night); shopsTraffic(NOW(), night); ateRideBy(t + 30000, 99); });
       liveLayer(t, this); zFlush();
       if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
       if (night){ alpha(.22,()=>{ R(5,49,36,17,'#ffe8a0'); R(114,50,24,14,'#ffe8a0'); R(162,49,26,15,'#ffd890'); }); }

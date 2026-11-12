@@ -85,6 +85,9 @@ Wherever the scene draws Ishai in a seat (café and bar tables, the lecture room
 ## Falafel and the hosts
 The hosts mention Falafel only when he is in the picture: the worker marks a moment "Falafel the dog is here" (`dogInMoment()`: the moment names him or his leash, or Ishai is home after the adoption), tells the hosts' call to mention him nowhere else, and drops any host line naming him (`DOG_WORDS`) in other moments; the page's silence fill skips a line naming him unless the dog is drawn there.
 
+## Falafel on the leash, and what he barks at
+Outside (`OUTSIDE`, not on a ride) Falafel is on a short leash: `dogUpdate()` clamps him to `LEASH` (16 px) either side of Ishai, so he walks beside him, sniffs around him in the park (no more running across the lawn) and leaves the picture with him; the leash can never stretch across the screen. Cyclists ride along Herzl St. (street, west1-3, shops) from the clock (`bikeAt()`, `BIKE_SEED` per place, a slot every `BIKE_EVERY` 31 s, some empty; drawn by `bikeRideBy()` before the cars), and the ateBite couriers ride past as before (`ateAt()`, `ATE_PLACES`, also the market). When either comes within ~56 px he pulls to the end of the leash facing it, bounces, and shows bark marks; he barks (`Sound.bark()`) once as it comes close and once as it passes (`dog.bikeBarks`, never during a replay `SIM`, not over speech).
+
 ## The hosts' booth
 The last 10 host lines (`hostLine()`). It scrolls: a viewer can scroll up inside it, and it follows new lines only while they are at the bottom (`boothFollow`). While the studio recap plays (`studioOn`, `showOn`) the booth goes on in text only, with no voices or blips.
 
