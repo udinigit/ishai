@@ -78,26 +78,35 @@ Build order: phases 1 and 2 first (the world file and the block kit), because ab
 - Three pass-through blocks (`prom1`-`prom3`): the sea, sand, the railing, palms, benches, a lifeguard tower, joggers, dog walkers, a kiosk cart. The sea moves on the clock; sunset over the water by the real Tel Aviv time.
 - The mall's doors stand on `prom3` (3d).
 - Its own bus stop on `prom1`, so a trip home doesn't have to be a long walk back through the park.
-- One `story` place, `promenade` (the story says "the promenade"; the page walks him to a spot in one of the three blocks), with `places.json` settings: never closes; visits most on Friday and Saturday, and in the heat; few in the rain or cold.
+- One `story` place, `promenade` (the story says "the promenade"; the page walks him to a spot in one of the three blocks).
+- `places.json` (decided 2026-11-12: any hour, every day, so no `open`; the rest filled by Claude):
+  `"promenade": { "stay": [20, 120], "rate": { "week": [[7, 9, 3], [17, 21, 6]], "fri": [[8, 18, 8]], "sat": [[8, 20, 10]] }, "weather": { "rain": 0.1, "hot": 1.2, "cold": 0.5 }, "with": 35, "meet": 25, "people": { "noa": 3, "tomer": 2, "dana": 1 } }`.
+  Open at night like the park, but the outing rate is 0 then, so he only goes when the story or a goal takes him.
 
 **3b. Three more Herzl screens (`east1`-`east3`), past the café.** The shops block's right edge leads on to `east1` (it leads to the café today). The café is entered by its corner door on the shops block instead, so the café keeps its place.
 - Built with the kit, each with one thing that is only there:
-  - `east1`: a **statue** on a small square (a fictional founder on a stone plinth, pigeons on its head, flowers at its feet on Fridays);
+  - `east1`: a **statue** on a small square (decided): a figure built of bricks with a cube for a head, on a stone plinth, and a plaque that reads **"Stanley Cubrick"** (spelled exactly so). Pigeons sit on the cube. The hosts can have fun with it; Ishai has opinions about it.
   - `east2`: a **mural** on a blank side wall (subject to choose), and the **kiosk** (3c);
   - `east3`: a small **fountain** with a ring of benches, the water switched off at night.
 - Pass-through, like the west blocks: no prompt cost. Each needs a `FILL` and an `OVERHEARD` entry.
 
 **3c. The kiosk on Herzl east (`kiosk`, a story place).** A Tel Aviv street kiosk with its own camera: a counter open to the sidewalk, fridges of drinks, sweets and newspapers, sunflower seeds in bins, a lottery stand, two plastic chairs and a table outside, a radio on the counter.
-- A new regular runs it (name, look and voice to choose; `INK`, `MUTTER`, `POST`), so whereabouts and the cover worker already work for him.
-- Actions: `idle`, `eating`, `drinking`, `talking`, `phoning`; he sits on the plastic chair with a drink.
-- `places.json`: open early to late, every day but Shabbat afternoon (to choose, or ask Claude), visits short (stay 5-30), the late-night snack run, people who meet him there.
+- **Open 24/7** (decided), Shabbat too: no `open` in `places.json`.
+- **The owner, Shmulik** (new character, by Claude): late fifties, once a cook on cargo ships, now behind the counter from 06:00 to 18:00 every day. Gruff, says little, knows everything about everyone on the street. Keeps a notebook of tabs for regulars, is sure this week's lottery ticket is the one, plays backgammon with anyone who sits down, has the football on the radio, and slips Falafel a biscuit while pretending he doesn't like dogs. A regular (`SEED_CAST` with `regular: "kiosk"`, `POST`, `MUTTER`, a new `INK` colour no one uses). Look: grey buzz cut, a thick moustache, glasses, a faded polo, an apron.
+- **Nights:** a nameless night clerk (muted, like the cover barista) from 18:00 to 06:00, so the 24/7 kiosk is never staffed by a man who never sleeps. Whereabouts already send a cover when Shmulik is elsewhere.
+- Actions: `idle`, `eating`, `drinking`, `talking`, `phoning`; he sits on the plastic chair with a drink, or plays backgammon with Shmulik (a new seated pose, `backgammon`, kiosk only).
+- `places.json` (filled by Claude): `"kiosk": { "stay": [5, 30], "rate": { "week": [[7, 10, 4], [20, 23, 4]], "fri": [[8, 14, 5]], "sat": [[9, 22, 4]] }, "weather": { "rain": 0.7, "hot": 1.3 }, "with": 10, "meet": 50, "people": { "boaz": 2, "moti": 2, "avi": 1, "levi": 1 } }`. A late-night snack run after 23:00 comes from the story, not the outing roll (outings stop at 23:00).
 
-**3d. The mall on the promenade (its name to choose: a fictional brand).** Three floors, eight screens:
+**3d. The Big S, the mall on the promenade.** Three floors, eight screens:
 - Floor 1 (`mall1a`-`mall1c`) and floor 2 (`mall2a`-`mall2c`): three screens each. Floor 3 (`mall3a`, `mall3b`): two screens, the **food court** under a **glass ceiling** (the real sky through it, day, night and rain on the glass).
 - **Built from one kit:** the same floor, columns, railings, tiles and lights on every screen. The stores change: most only by the sign and the window, some by their whole front (a store with an open front, a big two-storey shop, a store under renovation behind boards). Shops use the show's fictional brands (Everything Else, PicSell, Yalla Yoga, FluffNap, Kfar Kofi, Herzl Hardware...) and new ones.
 - **Escalators on every floor,** on the middle screen (`mall1b`, `mall2b`, `mall3a`): up and down side by side. Going up a floor he walks to the foot of the escalator and rides it out of the top of the picture; the next floor's screen finds him stepping off it. This is a camera switch at a door like any other (`MAP`), so companions and whereabouts work unchanged. The steps move on the clock.
 - **Story places:** two, to keep the prompt short: `mall` (floors 1 and 2: browsing, buying, meeting someone) and `foodcourt` (floor 3: eating, drinking, sitting at a table). The page picks the screen within the floor from the text (the store named, or by the clock like the errands), so the AI never has to choose between eight screens.
-- `places.json`: mall hours (default Sun-Thu 10:00-22:00, Fri 9:30-15:00, closed on Shabbat until Saturday evening 19:00-23:00; to confirm), visits more in heat and rain, stay 20-120 for the mall, 20-75 for the food court.
+- **Hours (decided):** stores and the food court 09:00-22:00 Sunday to Thursday, Friday until 16:00, closed on Saturday (all shops closed on Shabbat). The building's doors follow the same hours for now.
+- `places.json` (the rest filled by Claude):
+  `"mall": { "stay": [30, 120], "open": { "week": [9, 22], "fri": [9, 16] }, "rate": { "week": [[10, 13, 3], [17, 21, 4]], "fri": [[9, 14, 5]] }, "weather": { "rain": 1.5, "hot": 1.4 }, "with": 35, "meet": 15, "people": { "noa": 3, "tomer": 2, "dana": 1 } }`
+  `"foodcourt": { "stay": [20, 60], "open": { "week": [9, 22], "fri": [9, 16] }, "rate": { "week": [[12, 14, 3], [19, 21, 3]], "fri": [[11, 14, 3]] }, "weather": { "rain": 1.4, "hot": 1.3 }, "with": 40, "meet": 15, "people": { "tomer": 3, "noa": 2, "boaz": 1 } }`
+- **Saturday later:** the director is thinking of a cinema open on Saturday, and maybe arcades and bowling. When one is built, The Big S's doors open on Saturday for it alone, with its own hours, while every store stays shuttered (shutters drawn on the store fronts, lights low). The kit's `boarded` front gets a `shuttered` brother for this. See "Later".
 - The mall's entrance on `prom3` is a door (like the café's); a mall bus stop is not needed while the promenade has one.
 
 ## Phase 4: the map editor
@@ -151,16 +160,15 @@ Optional and cheap: long filler stretches (a bike path, the promenade) can be ma
 - **Story places cost prompt space.** If many are added, send full descriptions only for the current place and its neighbours, and names for the rest.
 
 ## Open questions for the director
-1. The statue: who is it (a fictional founder, a poet, an animal)? And the mural: what does it show?
-2. The kiosk's owner: name and character, or ask Claude.
-3. The mall's name, and is it open on Shabbat?
-4. Hours and visit settings for the promenade, the kiosk and the mall: by hand, same as another place, or ask Claude (the defaults above are Claude's).
+1. The mural on Herzl east 2: what does it show?
 
 Decided:
 - 2026-11-11: the map editor saves drafts in the browser and sends them to KV only with Send to Claude (see phase 4).
 - 2026-11-12: no bike for now. Order: phases 1-2, then the promenade, Herzl east 1-3 with a landmark each, the kiosk, the mall. The map editor (phase 4) and the generator (phase 5) come after these.
+- 2026-11-12: the statue is Stanley Cubrick (bricks, a cube head); Claude creates the kiosk owner (Shmulik); the mall is The Big S, shops 09:00-22:00, Friday until 16:00, closed on Saturday; the kiosk is open 24/7; the promenade at any hour. Claude fills the other place settings (above). Together the new places raise the hourly outing chance by a few points at their busiest hours; Claude checks the totals when building.
 
 ## Later
+- **Saturday at The Big S:** a cinema (open on Saturday), maybe arcades and bowling. Likely on floor 3 next to the food court, or a floor of their own. Each becomes a story place with its own `places.json` hours.
 - **The bike** (dropped for now): a fictional bike-share or his own bike from the bicycle shop in `west3`; poses `cycling`, walking the bike, docking; `mode: bike` on links for routes of 4+ blocks, never in rain, at night, on Shabbat, with a friend on foot or with Falafel; about 3 times walking speed. The v215 cyclists stay as background.
 - **Falafel's walks** (`WALKS`) on longer loops: the promenade is a good one.
 
