@@ -82,6 +82,9 @@ The bubble's CSS is on `#say` only: the director's transcript uses the class `sa
 ## Sitting
 Wherever the scene draws Ishai in a seat (café and bar tables, the lecture room, the bus, the park bench), he faces front: the pose gets `seated:true`, and `fid()` never returns the look back (`turn`), a foot shift or a stretch for a seated pose, for him or anyone else. `SEATED_AT` keeps the errands (which stand him up) away from those seats.
 
+## On the phone
+While he is `phoning`, `with` is the person on the other end, never someone in the picture: `companionLook()` returns null, `compUpdate()` neither starts a follower from `with` or `pending.w` when the plan's action is `phoning` (`goer`, `rider`) nor keeps a companion `together`, and `rideMate()` puts nobody beside him on the bus or in the taxi. `with` still tells `placeSay()` whose voice comes from the phone.
+
 ## Falafel and the hosts
 The hosts mention Falafel only when he is in the picture: the worker marks a moment "Falafel the dog is here" (`dogInMoment()`: the moment names him or his leash, or Ishai is home after the adoption), tells the hosts' call to mention him nowhere else, and drops any host line naming him (`DOG_WORDS`) in other moments; the page's silence fill skips a line naming him unless the dog is drawn there.
 

@@ -1224,7 +1224,7 @@
     let w = compWant; compWant = null;
     if (w && posted(w.id)) w = null;
     // he has just got on the bus or taxi: a friend going with him follows him to the door and gets on too (never walks off down the street)
-    const rider = actor.ride && actor.ride.mode === 'depart' && actor.hidden && actor.pending ? actor.pending.w || actor.with : null;
+    const rider = actor.ride && actor.ride.mode === 'depart' && actor.hidden && actor.pending && actor.pending.a !== 'phoning' ? actor.pending.w || actor.with : null;
     if (rider && comp.id === rider){
       if (comp.boarded) return;
       const door = actor.x, d = door - comp.x, step = 30 * dts;
@@ -1234,7 +1234,7 @@
     }
     comp.boarded = false;
     // a friend going somewhere WITH Ishai walks behind him, through the same doors, place after place
-    const goer = actor.pending && actor.pending.w ? actor.pending.w : (actor.travelling ? actor.with : null);
+    const goer = actor.pending ? (actor.pending.a !== 'phoning' ? actor.pending.w : null) : (actor.travelling && actor.action !== 'phoning' ? actor.with : null);   // on the phone, `with` is the caller: never draw them
     if (!w && goer && !posted(goer) && lookOf(goer) && !actor.hidden && (actor.pending || actor.travelling)){
       const dir = Math.sign(actor.targetX - actor.x) || 1;
       w = {id: goer, look: lookOf(goer), x: actor.x - 12*dir, kind:'follow'};
@@ -1249,7 +1249,7 @@
         Object.assign(comp, {id:w.id, look:w.look, mode: already ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: startX, tx: w.x, fromDoor: !already}); }
     }
     // the story still has them together (Ishai is just walking to the counter, the fridge...): they stay, standing
-    const together = !w && comp.id && comp.mode !== 'out' && (actor.with === comp.id || actor.guestWaits === comp.id);
+    const together = !w && comp.id && comp.mode !== 'out' && ((actor.with === comp.id && actor.action !== 'phoning') || actor.guestWaits === comp.id);
     if (!w && comp.id && comp.mode !== 'out' && !together) comp.mode = 'out';
     if (w && comp.id === w.id && comp.mode === 'out') comp.mode = 'in';               // changed their mind: come back, don't re-enter
     if (w) comp.tx = w.x;
@@ -3142,7 +3142,8 @@
     if (lower) sitLegs(x, y);
   }
   const seatedPose = a => ['talking','phoning','reading'].includes(a) ? a : 'idle';
-  const rideMate = actor => { const id = actor.with || (actor.pending && actor.pending.w); return id ? {id, look: lookOf(id)} : null; };
+  // on the phone, `with` is the caller, who is not on board
+  const rideMate = actor => { const id = (actor.action !== 'phoning' && actor.with) || (actor.pending && actor.pending.a !== 'phoning' && actor.pending.w); return id ? {id, look: lookOf(id)} : null; };
   SCENES.bus = {
     cam:'CAM-12', place:'LINE 88 // ON THE BUS', walkY:78, entry:108, exit:108, stand:{idle:108,talking:108,phoning:108,reading:108},
     draw(t,hf,a,settled,actor){
