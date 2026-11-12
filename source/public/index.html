@@ -1219,8 +1219,10 @@
       if (comp.id && comp.loc === 'apartment' && comp.mode !== 'out') comp.parked = {id: comp.id, look: comp.look, x: comp.x, until: NOW() + 20 * 60000}; // waits while he is in the bathroom
       if (actor.loc !== 'bathroom' && actor.loc !== 'apartment' && !actor.switching) comp.parked = null;
       comp.id = null; comp.mode = null; comp.loc = actor.loc; comp.boarded = false; }
-    const posted = id => !!id && POST[actor.loc] === id;
-    if (posted(comp.id)){ comp.id = null; comp.mode = null; }
+    // someone at their post (Dana behind the counter) is drawn by the scene, unless they walk in or out with him (the controller draws them then)
+    const leavingWith = id => actor.pending && actor.pending.a !== 'phoning' && actor.pending.w === id;
+    const posted = id => !!id && POST[actor.loc] === id && !leavingWith(id) && !(comp.id === id && comp.loc === actor.loc) && !awayFrom(id, actor.loc);
+    if (comp.id && POST[actor.loc] === comp.id && ARRIVED[comp.id] && ARRIVED[comp.id].loc === actor.loc && ARRIVED[comp.id].at > (comp.since || 0)){ comp.id = null; comp.mode = null; }
     let w = compWant; compWant = null;
     if (w && posted(w.id)) w = null;
     // he has just got on the bus or taxi: a friend going with him follows him to the door and gets on too (never walks off down the street)
@@ -1235,7 +1237,7 @@
     comp.boarded = false;
     // a friend going somewhere WITH Ishai walks behind him, through the same doors, place after place
     const goer = actor.pending ? (actor.pending.a !== 'phoning' ? actor.pending.w : null) : (actor.travelling && actor.action !== 'phoning' ? actor.with : null);   // on the phone, `with` is the caller: never draw them
-    if (!w && goer && !posted(goer) && lookOf(goer) && !actor.hidden && (actor.pending || actor.travelling)){
+    if (!w && goer && !(POST[actor.loc] === goer && !leavingWith(goer) && !awayFrom(goer, actor.loc)) && lookOf(goer) && !actor.hidden && (actor.pending || actor.travelling)){
       const dir = Math.sign(actor.targetX - actor.x) || 1;
       w = {id: goer, look: lookOf(goer), x: actor.x - 12*dir, kind:'follow'};
     }
@@ -1245,8 +1247,9 @@
         const already = pk || NOW() < (comp.settleUntil || 0);   // tuned in mid-scene (or the page just updated): they are already here
         // came in together with Ishai: through the same door he just used, right behind him
         const withHim = actor.fromLoc && NOW() - (actor.arrivedAt || 0) < 8000 && (w.id === actor.with || (actor.pending && actor.pending.w === w.id)) ? (MAP[actor.loc] || {})[actor.fromLoc] : null;
-        const startX = pk ? pk.x : already ? w.x : withHim && withHim.entry !== undefined ? withHim.entry : exitX(actor.loc, w.id, w.x);
-        Object.assign(comp, {id:w.id, look:w.look, mode: already ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: startX, tx: w.x, fromDoor: !already}); }
+        const fromPost = POST[actor.loc] === w.id && POST_X[actor.loc] !== undefined && !awayFrom(w.id, actor.loc);   // Dana comes round the counter to go with him
+        const startX = pk ? pk.x : fromPost ? POST_X[actor.loc] : already ? w.x : withHim && withHim.entry !== undefined ? withHim.entry : exitX(actor.loc, w.id, w.x);
+        Object.assign(comp, {id:w.id, look:w.look, mode: already && !fromPost ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: startX, tx: w.x, fromDoor: !already && !fromPost, since: NOW()}); }
     }
     // the story still has them together (Ishai is just walking to the counter, the fridge...): they stay, standing
     const together = !w && comp.id && comp.mode !== 'out' && ((actor.with === comp.id && actor.action !== 'phoning') || actor.guestWaits === comp.id);
@@ -1254,7 +1257,10 @@
     if (w && comp.id === w.id && comp.mode === 'out') comp.mode = 'in';               // changed their mind: come back, don't re-enter
     if (w) comp.tx = w.x;
     if (!comp.id) return;
-    const target = comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x + (w.kind==='floor' && actor.action!=='walking' && !actor.travelling ? wander(comp.id) : 0) : (comp.tx ?? comp.x));
+    // walked in with him to where they work: once he is in, they go back to their post (and the scene draws them there)
+    const toPost = !w && comp.mode !== 'out' && POST[actor.loc] === comp.id && POST_X[actor.loc] !== undefined && !actor.pending && !actor.travelling;
+    if (toPost && comp.mode === 'here' && Math.abs(POST_X[actor.loc] - comp.x) > .5) comp.mode = 'in';
+    const target = toPost ? POST_X[actor.loc] : comp.mode==='out' ? exitX(actor.loc, comp.id, comp.x) : (w ? w.x + (w.kind==='floor' && actor.action!=='walking' && !actor.travelling ? wander(comp.id) : 0) : (comp.tx ?? comp.x));
     if (comp.mode==='here' && Math.abs(target - comp.x) > 6 && !(actor.action==='walking' && Math.abs(target - comp.x) < 20)) comp.mode = 'in';     // a real move (table -> counter): walk there
     else if (comp.mode==='here' && Math.abs(target - comp.x) > .5){ const st = 40 * dts; comp.x += Math.abs(target - comp.x) <= st ? target - comp.x : Math.sign(target - comp.x) * st; }     // their spot moved (table -> counter): walk there
     if (comp.mode==='here'){
@@ -1263,7 +1269,8 @@
     const d = target - comp.x, step = 30 * dts;
     comp.x += Math.abs(d) <= step ? d : Math.sign(d)*step;
     if (Math.abs(target - comp.x) < .5){
-      if (comp.mode==='in'){ comp.mode = 'here'; comp.fromDoor = false; } else { comp.id = null; comp.mode = null; }
+      if (toPost){ ARRIVED[comp.id] = {loc: actor.loc, at: NOW()}; comp.id = null; comp.mode = null; }
+      else if (comp.mode==='in'){ comp.mode = 'here'; comp.fromDoor = false; } else { comp.id = null; comp.mode = null; }
       return;
     }
     markHead(comp.id, comp.x, scene.walkY);
@@ -1321,6 +1328,45 @@
   }
   // people who are always at their post in a scene
   const POST = { cafe:'dana', street:'avi' };
+  const POST_X = { cafe:150, street:163 };   // where they stand at work
+  // ---- whereabouts: everyone in the cast is somewhere ----
+  // The last moment someone spent with Ishai says where they were. Until they could have got anywhere else (HOP_MS a place on the map,
+  // at least AWAY_MS), nobody draws them at their post or their regular spot in another place: a cover barista stands in for Dana.
+  // Someone who came WITH him (Dana from the street into her café) walks in behind him and then goes to their post (compUpdate, ARRIVED).
+  const HOP_MS = 4 * 60000, AWAY_MS = 8 * 60000, CAME_MS = 3 * 60000;
+  const ARRIVED = {};   // id -> {loc, at}: walked in with him and reached their post
+  let seenMemo = {k: '', v: {}};
+  function seenWith(id){
+    const now = NOW(), k = Math.floor(now / 1000) + ':' + TL.size;
+    if (seenMemo.k !== k) seenMemo = {k, v: {}};
+    if (id in seenMemo.v) return seenMemo.v[id];
+    let L = null, parted = null, came = null, prev = null, prevInv = false;
+    for (const e of TL.values()){
+      if (e.dead) continue; if (e.start > now) break;
+      const ev = e.ev, loc = ev.location || 'apartment', inv = ev.with === id && ev.action !== 'phoning';
+      if (inv){
+        if (!prevInv) came = null;                                                 // met here
+        else if (prev && (prev.ev.location || 'apartment') !== loc) came = e.start; // came here together
+        L = e; parted = null;
+      } else if (L && parted === null) parted = e.start;
+      prev = e; prevInv = inv;
+    }
+    return seenMemo.v[id] = L ? {loc: L.ev.location || 'apartment', parted, came} : null;
+  }
+  // true when this person can't be at their own spot in `loc` right now
+  function awayFrom(id, loc){
+    if (!CAST[id]) return false;
+    if (comp.id === id && comp.loc === loc) return true;               // walking in or out with him: the companion controller draws them
+    const w = seenWith(id); if (!w) return false;
+    if (w.parted === null){
+      if (w.loc !== loc) return true;                                  // with him somewhere else
+      if (w.came === null) return false;
+      const a = ARRIVED[id], settledHere = actor.loc === loc && !actor.travelling && !actor.pending && NOW() - (actor.arrivedAt || 0) > 20000;   // nobody walked them in (tuned in late): they are at their post
+      return !(a && a.loc === loc && a.at >= w.came) && NOW() - w.came < CAME_MS && !settledHere;
+    }
+    if (w.loc === loc) return false;
+    return NOW() - w.parted < Math.max(AWAY_MS, route(w.loc, loc).filter(x => !VEH.has(x)).length * HOP_MS);
+  }
   // regulars: not main characters, but likely to be seen in one place at their hours (windows run past 24 for after midnight)
   const REG = {
     michal: {place:'gym', x:30, hours:[7,11,17,21], look:{hair:'long',hairColor:'blonde',skin:'tan',shirt:'pink',pants:'black',extras:[]}},
@@ -1332,6 +1378,7 @@
   };
   function regHere(id){
     const r = REG[id]; if (!r) return false; const h0 = hourNow(), h = h0 < 6 ? h0 + 24 : h0;
+    if (comp.id !== id && actor.with !== id && awayFrom(id, r.place)) return false;   // just seen with Ishai somewhere else: not back yet
     if (hash(Math.floor((NOW() + 7200000) / 86400000) * 7 + strHash(id)) > .85) return false;    // everyone misses a day now and then
     for (let i = 0; i < r.hours.length; i += 2) if (h >= r.hours[i] && h < r.hours[i+1]) return true;
     return false;
@@ -1724,7 +1771,8 @@
       // kiosk (falafel)
       R(150,48,36,24,'#d8d0c0'); for (let i=0;i<9;i++) R(148+i*4.5,44,4,5, i%2?'#e0605a':'#f4f4f4');
       R(154,52,28,12,'#2a2a2a');
-      markHead('avi', 163, 51); person(postLook('street',EXTRA.kiosk),163,51,t,{legs:false,face:-1,talkPhase: settled && a==='talking' && withIsPost()});
+      if (awayFrom('avi', 'street')) person(EXTRA.kiosk,163,51,t,{legs:false,face:-1});     // Avi is away from the kiosk: his cousin minds it
+      else { markHead('avi', 163, 51); person(postLook('street',EXTRA.kiosk),163,51,t,{legs:false,face:-1,talkPhase: settled && a==='talking' && withIsPost()}); }
       R(150,62,36,2,'#bdb6a8'); R(150,64,36,8,'#d8d0c0'); cooolaSign(153,64,30,8,false); cooolaCan(182,59); R(155,60,6,2,'#d98c4a'); R(170,60,6,2,'#7fbf6a'); R(177,60,4,2,'#e0c060');
       // sidewalk, curb, road
       R(0,72,W,20,'#8d8d8d'); for (let x=0;x<W;x+=16) R(x,72,1,20,'#7a7a7a'); R(0,82,W,1,'#7a7a7a');
@@ -2673,7 +2721,8 @@
       R(128,10,46,22,'#1e1e1e'); R(127,9,48,1,'#5e4027');
       for (let i=0;i<4;i++){ R(132,14+i*4,20+((i*7)%10),1,'#e8e8e8'); R(164,14+i*4,6,1,'#f0d070'); }
       // counter + barista + machine
-      markHead('dana', 150, 50); person(postLook('cafe',EXTRA.barista),150,50,t,{legs:false,face:-1,talkPhase: settled && a==='talking' && withIsPost()});
+      if (awayFrom('dana', 'cafe')) person(EXTRA.barista,150,50,t,{legs:false,face:-1});   // Dana is out (with Ishai, or on her way back): the other barista covers
+      else { markHead('dana', 150, 50); person(postLook('cafe',EXTRA.barista),150,50,t,{legs:false,face:-1,talkPhase: settled && a==='talking' && withIsPost()}); }
       R(120,66,72,4,'#d6d0c4'); R(120,70,72,16,'#5e4027'); R(124,74,64,1,'#4a3220');
       R(170,56,14,10,'#aab2bc'); R(172,58,10,3,'#2a2a2a'); R(176,64,2,2,'#e8e4d8');
       for (let i=0;i<3;i++){ const ph=(t/700+i*.33)%1; alpha(1-ph,()=>R(176+i,54-Math.floor(ph*8),1,1,'#f2f2f2')); }
@@ -4442,7 +4491,7 @@
     const v = new Set();
     if (actor.switching || actor.loc==='offscreen' || actor.loc==='bathroom') return v;
     if (actor.with && !actor.travelling && actor.action!=='phoning') v.add(actor.with);
-    if (POST[actor.loc] && CAST[POST[actor.loc]]) v.add(POST[actor.loc]); // Avi at his kiosk, Dana behind the counter
+    if (POST[actor.loc] && CAST[POST[actor.loc]] && !awayFrom(POST[actor.loc], actor.loc)) v.add(POST[actor.loc]); // Avi at his kiosk, Dana behind the counter
     Object.keys(HEADS).forEach(id => { if (CAST[id]) v.add(id); });     // anyone else drawn in the picture: a regular at their table, a friend in the room
     return v;
   }
@@ -5555,7 +5604,7 @@
   // The worker writes one poll an hour (opens hh:20 for 10 minutes). Times are the server's (NOW()), so the card opens and closes for everyone together.
   // Anyone can vote once per browser; the result shows percentages with the winner highlighted, and the story plays it out an hour or more later.
   let POLL = null, pollSig = '', pollFetch = 0, pollTries = 0, pollPinged = '', pollMsg = '';
-  const POLL_SOON = 20 * 60000, POLL_KEEP = 10 * 60000;
+  const POLL_SOON = 5 * 60000, POLL_KEEP = 10 * 60000;   // the banner counts down the last 5 minutes, then 10 minutes of voting
   // push notifications, shared by the header bell (which fills these in once it knows the browser can do it) and the vote card's reminder bell
   const PUSH = {ok: false, sub: async () => null, ensure: async () => null, picks: () => false};
   const REMINDS = (() => { try { return JSON.parse(localStorage.getItem('ishaiReminds')) || {}; } catch(e){ return {}; } })();

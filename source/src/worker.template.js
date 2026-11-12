@@ -1116,7 +1116,7 @@ newCharacter format: {"name":"...","role":"...","personality":"...","speech":"..
 He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
 Plot notes: ${s.notes || "none"}${storySoFar(s)}${cityNote(now, s.world && s.world.shabbat)}${courseNote(s, now, cw)}${eventNote(s, now, cw)}
 ${body}
-${real}${media}${placesNote(now + DELAY_MIN * 60000)}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${backupPush(s, now, clock, last)}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
+${real}${media}${placesNote(now + DELAY_MIN * 60000)}${stayNote(s, now + DELAY_MIN * 60000, goal)}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${backupPush(s, now, clock, last)}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
 ${recent}${gap}${goneNote}${s.recoverUntil && now < s.recoverUntil ? "\nNOTE: Earlier Ishai felt unwell and rested at home. He feels better now, still a little slow; let that show naturally (and he may mention it to someone)." : ""}${convo}${sceneBrief}
 ${cue ? "\n" + liveText(cue, s, last) : ""}
@@ -1428,6 +1428,24 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
     return { ev, problem: `he does not own ${ITEMS[NEEDS[ev.action]]} yet, so he cannot be ${ev.action}` };
   if (ev.location !== last.location && !NEXT[last.location].includes(ev.location) && !nextPath(last.location, ev.location))
     return { ev, problem: `he cannot go directly from ${last.location} to ${ev.location}; next place must be one of ${NEXT[last.location].join(", ")}` };
+  // how long he stays (story/places.json "stay"): not one minute at the gym, not three hours
+  { const ms = Date.now() + DELAY_MIN * 60000, r = stayRule(last.location), n = stayMins(s, last.location, ms);
+    if (r && !planned && !(goal && (goal.course || goal.fixed)) && !stayFree(s, goal, last.location, ms)) {
+      if (ev.location !== last.location && n < r[0]) {
+        if (!allowNoHosts) return { ev, problem: `he got to ${placeName(last.location)} only ${n} minutes ago and a visit there lasts at least ${r[0]} minutes: he stays ("location": "${last.location}") and does something there` };
+        if (!ev.with || ev.with === last.with) { ev.location = last.location; ev.action = LOCATIONS[last.location].includes(last.action) ? last.action : LOCATIONS[last.location].includes("idle") ? "idle" : LOCATIONS[last.location][0]; ev.with = ev.with || null; }
+      } else if (ev.location === last.location && n >= r[1] && !allowNoHosts)
+        return { ev, problem: `he has been at ${placeName(last.location)} for ${n} minutes, longer than a visit there lasts (at most ${r[1]}): he wraps up and leaves in this moment (a new "location")` };
+    } }
+  // whereabouts: someone who just parted from him somewhere else can't be here yet
+  if (ev.with && !planned && ev.action !== "phoning" && last.with !== ev.with && s.cast[ev.with] && !s.cast[ev.with].phoneOnly) {
+    const p = lastWith(s, ev.with), ms = Date.now() + DELAY_MIN * 60000;
+    if (p && p.parted && p.loc !== ev.location) { const need = awayMins(p.loc, ev.location), ago = Math.round((ms - p.parted) / 60000);
+      if (ago < need) {
+        const nm = s.cast[ev.with].name;
+        if (!allowNoHosts) return { ev, problem: `${nm} parted from Ishai at ${placeName(p.loc)} only ${ago} minutes ago and could not be at ${placeName(ev.location)} yet (about ${need} minutes away): nobody is in two places. Pick someone else, or nobody` };
+        ev.with = null; ev.lines = ev.lines.filter(l => l.who === "ishai").slice(0, 1); ev.update = null; if (ev.action === "talking") ev.action = "idle";
+      } } }
   { const h = storyClock(Date.now() + DELAY_MIN * 60000).hour, LATE_OK = ["sleeping", "bathroom", "drinking"];
     if (h >= 1 && h < 6 && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts)
       return { ev, problem: `it is after 01:00 and he is home: he goes to bed now ("sleeping"), or at most a quick bathroom or water break` };
@@ -2417,6 +2435,43 @@ const placeName = loc => ({ ...PLACE_NAME, campus: "the university", classroom: 
 function closedWhy(loc) {
   const r = PR[loc] || {};
   return r.event ? `${placeName(loc)} is only for ${r.event}, planned ahead; he cannot go there now` : `${placeName(loc)} is closed now (${hoursText(loc)}); he cannot go in`;
+}
+// ---------- how long he stays: story/places.json "stay": [min, max] minutes (never one minute at the gym, nor three hours) ----------
+const stayRule = loc => { const r = PR[loc] && PR[loc].stay; return Array.isArray(r) && r.length === 2 ? r : null; };
+// minutes since the first moment of his current run at this place
+function stayMins(s, loc, ms) {
+  let t = null; for (let i = s.events.length - 1; i >= 0; i--) { const e = s.events[i]; if (e.location !== loc) break; t = e.t; }
+  return t === null ? 0 : Math.max(0, Math.round((ms - t) / 60000));
+}
+// a good reason to leave before the minimum (or to stay past the maximum is never one): a goal elsewhere, closing time, rain outdoors, a director note
+function stayFree(s, goal, loc, ms) {
+  if (goal && goal.where && goal.where !== loc) return "a goal elsewhere";
+  if (PR[loc] && PR[loc].open && !placeOpen(loc, ms + 20 * 60000)) return "closing";
+  if (["park", "plaza", "market"].includes(loc) && s.world && s.world.weather && s.world.weather.rain) return "rain";
+  if (s.fixNote && ms - DELAY_MIN * 60000 < s.fixNote.until) return "director note";
+  if (s.stuck) return "stuck";
+  return null;
+}
+// ---------- whereabouts: everyone in the cast is somewhere ----------
+// Where someone was last with Ishai, and when they parted (null while they are still together). Someone who parted from him
+// at one place can't turn up at another before they could have walked there (WALK_HOP_MIN a place on the map, at least AWAY_MIN).
+const WALK_HOP_MIN = 4, AWAY_MIN = 8;
+function lastWith(s, id) {
+  const E = s.events;
+  for (let i = E.length - 1; i >= 0; i--) { const e = E[i]; if (e.with === id && e.action !== "phoning") return { loc: e.location, t: e.t, parted: i < E.length - 1 ? E[i + 1].t : null }; }
+  return null;
+}
+function awayMins(from, to) { if (from === to) return 0; const p = nextPath(from, to); return Math.max(AWAY_MIN, (p ? p.filter(x => x !== "bus" && x !== "taxi").length - 1 : 5) * WALK_HOP_MIN); }
+// for the story prompt: how long he has been here, and who has just left him somewhere and can't be elsewhere yet
+function stayNote(s, ms, goal) {
+  const last = s.events[s.events.length - 1]; if (!last) return "";
+  const r = stayRule(last.location), n = stayMins(s, last.location, ms), out = [];
+  if (r && !stayFree(s, goal, last.location, ms)) out.push(n < r[0] ? `He got to ${placeName(last.location)} ${n} minutes ago; a visit there lasts ${r[0]}-${r[1]} minutes, so he stays at least ${r[0] - n} more minutes (keep "location": "${last.location}").`
+    : n >= r[1] - 10 ? `He has been at ${placeName(last.location)} ${n} minutes; a visit there lasts at most ${r[1]}, so he wraps up and leaves${n >= r[1] ? " NOW" : " soon"}.` : `He has been at ${placeName(last.location)} ${n} minutes (a visit there lasts ${r[0]}-${r[1]}).`);
+  const away = Object.values(s.cast || {}).filter(c => !c.phoneOnly && c.id !== last.with).map(c => ({ c, w: lastWith(s, c.id) }))
+    .filter(x => x.w && x.w.parted && ms - x.w.parted < 20 * 60000).map(x => `${x.c.name} left him at ${placeName(x.w.loc)} ${Math.round((ms - x.w.parted) / 60000)} minutes ago`);
+  if (away.length) out.push(`WHEREABOUTS (nobody is in two places; walking takes time): ${away.join("; ")}. They can only be somewhere else once they could have walked there.`);
+  return out.length ? "\nSTAYING: " + out.join(" ") : "";
 }
 // for the story prompt: what is closed right now, and the places only planned events use
 function placesNote(ms) {
