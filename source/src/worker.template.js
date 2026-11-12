@@ -324,7 +324,7 @@ export default {
     }
     // compact health summary for the scheduled health check (no secrets, no narration of the future)
     if (url.pathname === "/api/health") {
-      const s = await loadState(env), now = Date.now(), d = s.diag || [];
+      const s = await loadState(env), now = Date.now(), d = (s.diag || []).filter(x => now - (x.at || 0) < 3 * 3600000);   // recent AI calls only
       const moments = d.filter(x => x.attempt === 0).length, retried = d.filter(x => x.attempt === 0 && x.problem).length;
       const nm = id => id ? (s.cast[id]?.name || id) : null;
       return json({ now, build: BUILD, planVersion: PLAN.version || null,
@@ -1229,7 +1229,7 @@ const neuronsOf = u => u ? Math.round((u.inTok || 0) * 4625 / 1e6 + (u.outTok ||
 function talkLevel(s, env, now) {
   const why = !env.GEMINI_API_KEY ? "no Gemini key"
     : now < geminiOutUntil ? "Gemini paused"
-    : (s.geminiErrs || []).some(f => f.role === "story" && now - f.at < 30 * 60000) ? "Gemini failed in the last 30 min"
+    : (s.geminiErrs || []).some(f => f.role === "story" && now - f.at < 30 * 60000 && !GEMINI_WHERE.test(f.msg || "")) ? "Gemini failed in the last 30 min"
     : neuronsOf(s.usage) + neuronsOf({ inTok: USE.inTok, outTok: USE.outTok }) > 6000 ? "Cloudflare over 60% of the day" : null;
   s.talkBrake = why;
   return why ? TALK_SAFE : TALK_FULL;
@@ -1239,6 +1239,8 @@ const USE_G = { calls: 0, inTok: 0, outTok: 0 };
 let geminiModel = null, geminiOutUntil = 0, GEMINI_SEEN = null;
 // failures of this run: memory is per isolate and /api/health may be another one, so tick() saves these in the state (s.geminiErrs, s.geminiOutUntil)
 const GEMINI_FAILS = [];
+// "User location is not supported": that tick's cron ran in a data center Google blocks; the next one usually runs elsewhere
+const GEMINI_WHERE = /location is not supported/i;
 const noteGemini = (e, role) => { const msg = String(e && e.message || e).slice(0, 500), m = msg.match(/^gemini (\d{3})/); GEMINI_FAILS.push({ at: Date.now(), role, status: m ? +m[1] : null, msg }); };
 async function pickGemini(env) {
   if (env.GEMINI_MODEL) return env.GEMINI_MODEL;
@@ -1323,7 +1325,9 @@ function fixRideLocation(ev, last) {
   else if (off && /\b(herzl|home|his building|his street)\b/i.test(ev.text)) { ev.location = "street"; ev.action = "walking"; }
   else if (!off && /\b(bus|taxi|cab|ride|driver)\b/i.test(ev.text)) { ev.location = /\b(taxi|cab|driver)\b/i.test(ev.text) ? "taxi" : "bus"; ev.action = "idle"; }
 }
-function validate(raw, s, last, allowNew, goal, allowNoHosts) {
+// allowNoHosts: lenient (a planned moment, or the AI's second try). planned: a planned moment played as written (scriptEvent) — only it may
+// use the event-only places and actions, Hagit's and the students' lines, art/piece, and skips the repeat checks (a concert's moments look alike on purpose).
+function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   const o = parseAI(raw); if (!o) return { problem: "the reply was not valid JSON" };
   const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
   // "walking with noa" put in the action: the action is "walking", and Noa goes in "with" if she is a known person
@@ -1359,13 +1363,13 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   if (ev.with && s.cast[ev.with]?.phoneOnly) { if (LOCATIONS[ev.location]?.includes("phoning")) ev.action = "phoning"; else ev.with = null; }
   // dialogue
   const who = x => { const k = str(x, 40).toLowerCase(); if (k === "ishai") return "ishai";
-    if (allowNoHosts && ev.action === "lecture" && STUDENT.test(k)) return k;  // the class speaks up, nameless, from their seats
-    if (allowNoHosts && k === "hagit" && (ev.location === "arena" || ev.location === "plaza")) return k;   // Hagit hosts the Pump House's events
+    if (planned && ev.action === "lecture" && STUDENT.test(k)) return k;  // the class speaks up, nameless, from their seats
+    if (planned && k === "hagit" && (ev.location === "arena" || ev.location === "plaza")) return k;   // Hagit hosts the Pump House's events
     const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || "").toLowerCase() === k); return c ? ev.with : null; };
   ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => { const x = { who: who(l?.who), say: str(l?.say, 200).replace(/^["']|["']$/g, "") };
-      if (allowNoHosts && Number.isInteger(l?.piece) && l.piece >= 0 && l.piece < 30) x.piece = l.piece; return x; })   // which picture a line is about (Pump House)
+      if (planned && Number.isInteger(l?.piece) && l.piece >= 0 && l.piece < 30) x.piece = l.piece; return x; })   // which picture a line is about (Pump House)
     .filter(l => l.who && l.say).slice(0, 14);
-  if (allowNoHosts && o.art && typeof o.art === "object") ev.art = { ev: str(o.art.ev, 30), set: Number.isInteger(o.art.set) ? o.art.set : undefined, curtain: o.art.curtain === true || undefined, queue: o.art.queue === true || undefined, after: o.art.after === true || undefined };
+  if (planned && o.art && typeof o.art === "object") ev.art = { ev: str(o.art.ev, 30), set: Number.isInteger(o.art.set) ? o.art.set : undefined, curtain: o.art.curtain === true || undefined, queue: o.art.queue === true || undefined, after: o.art.after === true || undefined };
   // a text or an email: read out first, then he reacts in "lines"
   if (o.message && typeof o.message === "object") { const id = str(o.message.from, 20).toLowerCase(), say = str(o.message.say, 160), via = str(o.message.kind, 10).toLowerCase() === "email" ? "email" : "text";
     if (s.cast[id] && say) ev.lines.unshift({ who: id, say, via }); }
@@ -1408,14 +1412,14 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     if (ev.location === "gym" && last.location !== "gym" && (h >= 23 || h < 6)) return { ev, problem: "Herzl Gym is closed now (open 06:00-23:00)" };
     const wd = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(new Date(Date.now() + DELAY_MIN * 60000));
     const shut = (open, close) => wd === "Sat" || h < open || h >= (wd === "Fri" ? 14 : close);
-    if (ev.location === "apt2" && last.location !== "apt2" && !allowNoHosts) return { ev, problem: "apartment 2 is Boaz's flat; Ishai only goes in on poker nights (planned)" };
-    if (ev.location === "arena" && last.location !== "arena" && !allowNoHosts) return { ev, problem: "the Pump House hall is only open on its event nights (Ishai can be on the plaza outside)" };
-    if (ev.location === "campus" && last.location !== "campus" && last.location !== "classroom" && !allowNoHosts && (shut(8, 20) || wd === "Fri")) return { ev, problem: "the university is closed now (Sunday to Thursday, 08:00-20:00)" };
-    if (ev.location === "classroom" && !allowNoHosts) return { ev, problem: "the lecture room is only used during a lecture; he stays in the courtyard" };
+    if (ev.location === "apt2" && last.location !== "apt2" && !planned) return { ev, problem: "apartment 2 is Boaz's flat; Ishai only goes in on poker nights (planned)" };
+    if (ev.location === "arena" && last.location !== "arena" && !planned) return { ev, problem: "the Pump House hall is only open on its event nights (Ishai can be on the plaza outside)" };
+    if (ev.location === "campus" && last.location !== "campus" && last.location !== "classroom" && !planned && (shut(8, 20) || wd === "Fri")) return { ev, problem: "the university is closed now (Sunday to Thursday, 08:00-20:00)" };
+    if (ev.location === "classroom" && !planned) return { ev, problem: "the lecture room is only used during a lecture; he stays in the courtyard" };
     if (ev.location === "market" && last.location !== "market" && shut(7, 19)) return { ev, problem: "Shuk Shalom market is closed now (07:00-19:00, Friday until 14:00, closed on Shabbat)" };
     if (ev.location === "store" && last.location !== "store" && shut(9, 21)) return { ev, problem: "Everything Else is closed now (09:00-21:00, Friday until 14:00, closed on Shabbat)" }; }
   if (!LOCATIONS[ev.location]) return { ev, problem: `"${ev.location}" is not a known location` };
-  if ((ev.action === "improv" || ev.action === "lecture") && !allowNoHosts) ev.action = "talking";     // the class layouts come from the plan only
+  if ((ev.action === "improv" || ev.action === "lecture") && !planned) ev.action = "talking";     // the class layouts come from the plan only
   if (!LOCATIONS[ev.location].includes(ev.action)) {
     const A = { waiting: "idle", sitting: "idle", standing: "idle", relaxing: "idle", resting: "idle", thinking: "idle", cleaning: "idle", tidying: "idle", washing: "idle", shopping: "idle", browsing: "idle", looking: "idle", lounging: "idle", stretching: "idle",
       typing: "working", coding: "working", designing: "working", emailing: "working", texting: "phoning", calling: "phoning", chatting: "talking", speaking: "talking", greeting: "talking",
@@ -1462,7 +1466,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
     ev.action = /shower/i.test(ev.text) ? "showering" : "bathroom"; ev.with = null;
   }
   // the story must move: a moment that retells one of the last few is sent back
-  if (!inClass && !(ev.action === "sleeping" && last.action === "sleeping")) { const prevTexts = s.events.slice(-4).map(e => e.text);
+  if (!inClass && !planned && !(ev.action === "sleeping" && last.action === "sleeping")) { const prevTexts = s.events.slice(-4).map(e => e.text);
     const rep = prevTexts.find(p => similar(ev.text, p) >= 0.6);
     if (rep) { if (!allowNoHosts) return { ev, problem: `the narration repeats an earlier moment ("${rep.slice(0, 80)}"). Write what happens NEXT: a new action, a new topic, someone moves or leaves, time passes` };
       return { ev: null, problem: "repeat" }; } }   // still the same after a retry: drop it; the engine writes a different backup moment instead
@@ -1473,7 +1477,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts) {
   { const norm = t => String(t).toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
     const same = (x, y) => norm(x) === norm(y) || similar(x, y) >= 0.75;
     const seen = []; ev.lines = ev.lines.filter(l => { if (seen.some(x => same(x, l.say))) return false; seen.push(l.say); return true; });
-    const said = inClass ? [] : (s.talk || []).filter(m => !m.host).slice(-24).map(m => m.say);
+    const said = inClass || planned ? [] : (s.talk || []).filter(m => !m.host).slice(-24).map(m => m.say);
     const reused = ev.lines.filter(l => said.some(p => same(p, l.say)));
     if (reused.length >= 2 && !allowNoHosts) return { ev, problem: `the dialogue repeats lines already said ("${reused[0].say.slice(0, 60)}"). Write NEW lines that move the conversation on, or let it end` };
     ev.lines = ev.lines.filter(l => !said.some(p => same(p, l.say)));
@@ -1528,8 +1532,10 @@ function cleanCard(c, s, loc) {
 }
 
 // last resort: keep the text but force legal values
-function repair(ev, s, last) {
+const EVENT_ONLY = ["arena", "apt2", "classroom"];   // only planned moments go in (the hall, Boaz's flat, the lecture room)
+function repair(ev, s, last, planned = false) {
   let loc = LOCATIONS[ev.location] ? ev.location : last.location;
+  if (!planned && EVENT_ONLY.includes(loc) && loc !== last.location) loc = last.location;
   if (loc !== last.location && !NEXT[last.location].includes(loc) && !nextPath(last.location, loc)) loc = last.location;
   const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : ev.action === "concert" && loc === "arena" ? ["concert"] : ev.action === "poker" && loc === "apt2" ? ["poker"] : allowed(loc, s.unlocked);
   const act = legal.includes(ev.action) ? ev.action : (legal.includes("idle") ? "idle" : legal[0]);
@@ -1797,10 +1803,10 @@ function scriptEvent(s, last, g, now) {
   if (i === 0 && g.sceneAt && now + DELAY_MIN * 60000 < g.sceneAt) { g.held = (g.held || 0) + 1;
     return { location: last.location, action: LOCATIONS[last.location].includes("idle") ? "idle" : last.action, text: g.held % 2 ? "Ishai checks the time; he has a few minutes yet." : "Ishai looks at his phone and waits a little longer.", with: null, lines: [], commentary: [], src: "on the way to the planned scene, waiting (no AI)" }; }
   const end = i === sc.length - 1;
-  const r = validate(JSON.stringify({ ...m, location: to, scene: null, newCharacter: null, missing: null, complete: end ? g.id : null }), s, last, false, g, true);
+  const r = validate(JSON.stringify({ ...m, location: to, scene: null, newCharacter: null, missing: null, complete: end ? g.id : null }), s, last, false, g, true, true);
   g.step = i + 1;
   if (!r.ev) { if (end) { finishGoal(s, g, "script", now); g.scriptDone = true; } return null; }
-  const ev = repair(r.ev, s, last);
+  const ev = repair(r.ev, s, last, true);
   if (ev.with && ev.with !== last.with) {
     const total = sc.reduce((n, x) => n + (x.lines || []).length, 0);
     ev.scene = { type: "plot", why: g.goal.slice(0, 200), ishaiWants: "what the daily plan says", theyWant: "what the daily plan says", beats: "as planned, then it winds down naturally", ending: "a natural goodbye", target: total + 4 };
