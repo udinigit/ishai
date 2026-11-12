@@ -1,6 +1,6 @@
 # A bigger world: plan
 
-Draft, 2026-11-11, updated 2026-11-12 for the places table (v214-v217). Not approved, nothing built yet. Read `CLAUDE.md` and `docs/SCENE_GUIDELINES.md` first.
+Draft, 2026-11-11, updated 2026-11-12: the places table (v214-v217) and the director's build order. Nothing built yet. Read `CLAUDE.md` and `docs/SCENE_GUIDELINES.md` first.
 
 ## The idea
 More of the show should be Ishai going somewhere: walking, riding a bike, the city going past. Today most screens are places where he stands still.
@@ -52,11 +52,13 @@ The map is written twice today: `MAP` in the page and `NEXT` (plus `PLACES`) in 
 ## Phase 2: the block kit
 `westBlock()` becomes a general `block(spec)` that draws a pass-through scene from a description. The description has these parts:
 
-- **`ground`:** `sidewalk+road` (like Herzl St.), `promenade` (sand, sea, railing), `path` (park), `bikepath`.
+- **`ground`:** `sidewalk+road` (like Herzl St.), `promenade` (sand, sea, railing), `path` (park), and indoors `mallFloor` (tiles, columns, the railing over the floor below).
+- **`ceiling`:** for indoor scenes: `lit` (mall floors 1-2) or `glass` (the food court: the real sky, night and rain drawn through the panes).
 - **`buildings`:** for each building, x, width, height, colour and roof.
 - **`fronts`:** each takes a front type from a library (`shop`, `cafe`, `entrance`, `kiosk`, `billboard`, `wall`, `hedge`, `trees`) with its sign text, palette and window goods.
-- **`props`:** each takes a prop type from a library (`lamp`, `ficus`, `bin`, `bench`, `bikeRack`, `crates`, `scooter`, `palm`, `lifeguardTower`).
-- **`traffic`:** `road`, `bikes` or `none`.
+- **`props`:** each takes a prop type from a library (`lamp`, `ficus`, `bin`, `bench`, `bikeRack`, `crates`, `scooter`, `palm`, `lifeguardTower`, `escalator`, `foodTable`, `planter`).
+- **`fronts`** also take mall types: `store` (sign and window only), `openStore`, `bigStore` (two storeys), `boarded` (under renovation) and `foodStall` (food court counter and menu board).
+- **`traffic`:** `road`, `bikes` (the v215 cyclists) or `none`.
 - **`crowd`:** how busy it is.
 - **`seed`:** fixes everything random, so every viewer sees the same picture. Never `Math.random()`.
 - **`custom`:** an optional hook for hand-drawn landmarks, so the special places don't all look alike.
@@ -67,28 +69,36 @@ Rules:
 - `west1`-`west3` are rewritten as specs and must look the same, pixel for pixel, as a test of the kit.
 - Every kit scene draws correctly with `DREAMING = true` and in the builder (`window.__builder`).
 
-## Phase 3: movement
-**Walking further.**
-- **Falafel's walks** (`WALKS`) take longer loops through the pass-through blocks.
-- **Longer outings:** the story can send him to places that are a real walk away, and the hosts fill the walk (`quietHosts()`, `FILL`).
+## Phase 3: new ground (decided 2026-11-12)
+No bike for now: he walks, and far trips stay by bus or taxi. The bike notes are kept at the end ("Later") for when it comes back.
 
-**The bike.**
-- **Bike-share:** a fictional bike-share. The name and colours are the director's pick (never Tel-O-Fun's green). Docks stand by the bus stop on the street, at the park and at the Pump House plaza, which already has a bike rack.
-- **His own bike:** optional. It could be an unlock, bought at the bicycle shop in `west3`.
-- **New poses:** `cycling` (pedalling, two frames), walking the bike, and docking or undocking.
-- **Route choice:** `mode: bike` on links. `route()` takes the bike for long walking routes, about 4+ blocks. Exceptions:
-  - in rain, at night and on Shabbat he walks or takes a taxi;
-  - with a friend on foot, both walk;
-  - with Falafel, he walks (Falafel is on the short leash since v215).
-- **Speed:** about 3 times walking. A block takes about 3 s.
-- **Story side:** the worker does not need to know. The story still says street > park, and the page picks the bike. One prompt line can say that he sometimes cycles, so he can mention it.
-- **In the picture:** done in v215 for Herzl St. (`bikeAt()`, `bikeRideBy()`, `BIKE_SEED` per place). Kit scenes with `traffic: bikes` reuse it, and Falafel's barking at them comes for free.
-- **Outings:** a far outing (`outingTick()`) with a route of 4+ blocks is a natural bike ride. The stay rules start counting when he arrives, not when he sets off.
+Build order: phases 1 and 2 first (the world file and the block kit), because about 17 new screens follow and the mall floors are almost the same picture. Then, in this order:
 
-**New ground to cover (ideas, the director picks).**
-- **The promenade:** a stretch of the seafront west of the Pump House. It is a few pass-through blocks with the sea, sand, a lifeguard tower, joggers and bikes. It could end at one story place, such as a beach kiosk.
-- **More of Herzl St. east,** past the café.
-- **A long bike-path stretch along a park.** It can be generated from a seed, since it is mostly trees and benches.
+**3a. The promenade.** West of the Pump House: the plaza's left edge (free today) leads to it.
+- Three pass-through blocks (`prom1`-`prom3`): the sea, sand, the railing, palms, benches, a lifeguard tower, joggers, dog walkers, a kiosk cart. The sea moves on the clock; sunset over the water by the real Tel Aviv time.
+- The mall's doors stand on `prom3` (3d).
+- Its own bus stop on `prom1`, so a trip home doesn't have to be a long walk back through the park.
+- One `story` place, `promenade` (the story says "the promenade"; the page walks him to a spot in one of the three blocks), with `places.json` settings: never closes; visits most on Friday and Saturday, and in the heat; few in the rain or cold.
+
+**3b. Three more Herzl screens (`east1`-`east3`), past the café.** The shops block's right edge leads on to `east1` (it leads to the café today). The café is entered by its corner door on the shops block instead, so the café keeps its place.
+- Built with the kit, each with one thing that is only there:
+  - `east1`: a **statue** on a small square (a fictional founder on a stone plinth, pigeons on its head, flowers at its feet on Fridays);
+  - `east2`: a **mural** on a blank side wall (subject to choose), and the **kiosk** (3c);
+  - `east3`: a small **fountain** with a ring of benches, the water switched off at night.
+- Pass-through, like the west blocks: no prompt cost. Each needs a `FILL` and an `OVERHEARD` entry.
+
+**3c. The kiosk on Herzl east (`kiosk`, a story place).** A Tel Aviv street kiosk with its own camera: a counter open to the sidewalk, fridges of drinks, sweets and newspapers, sunflower seeds in bins, a lottery stand, two plastic chairs and a table outside, a radio on the counter.
+- A new regular runs it (name, look and voice to choose; `INK`, `MUTTER`, `POST`), so whereabouts and the cover worker already work for him.
+- Actions: `idle`, `eating`, `drinking`, `talking`, `phoning`; he sits on the plastic chair with a drink.
+- `places.json`: open early to late, every day but Shabbat afternoon (to choose, or ask Claude), visits short (stay 5-30), the late-night snack run, people who meet him there.
+
+**3d. The mall on the promenade (its name to choose: a fictional brand).** Three floors, eight screens:
+- Floor 1 (`mall1a`-`mall1c`) and floor 2 (`mall2a`-`mall2c`): three screens each. Floor 3 (`mall3a`, `mall3b`): two screens, the **food court** under a **glass ceiling** (the real sky through it, day, night and rain on the glass).
+- **Built from one kit:** the same floor, columns, railings, tiles and lights on every screen. The stores change: most only by the sign and the window, some by their whole front (a store with an open front, a big two-storey shop, a store under renovation behind boards). Shops use the show's fictional brands (Everything Else, PicSell, Yalla Yoga, FluffNap, Kfar Kofi, Herzl Hardware...) and new ones.
+- **Escalators on every floor,** on the middle screen (`mall1b`, `mall2b`, `mall3a`): up and down side by side. Going up a floor he walks to the foot of the escalator and rides it out of the top of the picture; the next floor's screen finds him stepping off it. This is a camera switch at a door like any other (`MAP`), so companions and whereabouts work unchanged. The steps move on the clock.
+- **Story places:** two, to keep the prompt short: `mall` (floors 1 and 2: browsing, buying, meeting someone) and `foodcourt` (floor 3: eating, drinking, sitting at a table). The page picks the screen within the floor from the text (the store named, or by the clock like the errands), so the AI never has to choose between eight screens.
+- `places.json`: mall hours (default Sun-Thu 10:00-22:00, Fri 9:30-15:00, closed on Shabbat until Saturday evening 19:00-23:00; to confirm), visits more in heat and rain, stay 20-120 for the mall, 20-75 for the food court.
+- The mall's entrance on `prom3` is a door (like the café's); a mall bus stop is not needed while the promenade has one.
 
 ## Phase 4: the map editor
 A new tab on the director page (dev only, like `/builder`):
@@ -133,7 +143,7 @@ Why not generate scenes with the live AI:
 Optional and cheap: long filler stretches (a bike path, the promenade) can be made from a seed by the kit, with no AI at all.
 
 ## Risks and costs
-- **Walking time.** Realism means far places take long on foot. The bike, rides and the hosts' fill lines carry it.
+- **Walking time.** Realism means far places take long on foot: home to the mall is about 10 blocks. The promenade's bus stop, the taxi and the hosts' fill lines carry it.
 - **Sameness.** Generated blocks can look alike. Keep hand-made landmarks every few blocks.
 - **Sync.** Anything generated must come from its seed and the clock. Never per-browser randomness.
 - **Page size.** `index.html` is about 5,900 lines in one file. Splitting scenes into files that `build.mjs` joins would help. The worker bundle is about 4 MB, and Cloudflare now allows 64 MB on every plan (the old 3 MB compressed limit was dropped in September 2026).
@@ -141,11 +151,18 @@ Optional and cheap: long filler stretches (a bike path, the promenade) can be ma
 - **Story places cost prompt space.** If many are added, send full descriptions only for the current place and its neighbours, and names for the rest.
 
 ## Open questions for the director
-1. **Bike:** a bike-share (name and colours?), his own bike, or both?
-2. **First new ground:** the promenade, more of Herzl St. east, or something else?
-3. **Order:** build phases 1-2 first (no visible change), or start with the bike on today's map?
+1. The statue: who is it (a fictional founder, a poet, an animal)? And the mural: what does it show?
+2. The kiosk's owner: name and character, or ask Claude.
+3. The mall's name, and is it open on Shabbat?
+4. Hours and visit settings for the promenade, the kiosk and the mall: by hand, same as another place, or ask Claude (the defaults above are Claude's).
 
-Decided: the map editor saves drafts in the browser and sends them to KV only with Send to Claude (see phase 4).
+Decided:
+- 2026-11-11: the map editor saves drafts in the browser and sends them to KV only with Send to Claude (see phase 4).
+- 2026-11-12: no bike for now. Order: phases 1-2, then the promenade, Herzl east 1-3 with a landmark each, the kiosk, the mall. The map editor (phase 4) and the generator (phase 5) come after these.
+
+## Later
+- **The bike** (dropped for now): a fictional bike-share or his own bike from the bicycle shop in `west3`; poses `cycling`, walking the bike, docking; `mode: bike` on links for routes of 4+ blocks, never in rain, at night, on Shabbat, with a friend on foot or with Falafel; about 3 times walking speed. The v215 cyclists stay as background.
+- **Falafel's walks** (`WALKS`) on longer loops: the promenade is a good one.
 
 ## Test before pushing (every phase)
 There is no test suite. Serve `source/public` and drive it with Playwright, as in `docs/BUILDER_PHASE2.md`. For each phase:
