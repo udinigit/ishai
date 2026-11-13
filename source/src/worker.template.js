@@ -193,68 +193,12 @@ const SEED_CAST = [
     hangouts: ["classroom"], look: { hair: "short", hairColor: "gray", skin: "light", shirt: "purple", pants: "black", extras: ["glasses", "scarf"] }, memory: "", relationship: 0 }
 ];
 
-// ---------- world (must match the page) ----------
-const LOCATIONS = {
-  apartment: ["sleeping","waking","idle","walking","working","gaming","eating","drinking","cooking","reading","exercising","watching","listening","bathroom","showering","talking","phoning"],
-  corridor:  ["walking","idle","talking","phoning"],
-  street:    ["walking","idle","talking","eating","drinking","phoning"],
-  shops:     ["walking","idle","talking","eating","drinking","phoning"],
-  park:      ["walking","idle","talking","reading","eating","drinking","exercising","phoning"],
-  cafe:      ["idle","eating","drinking","working","reading","talking","phoning"],
-  gym:       ["exercising","idle","talking","drinking","phoning"],
-  market:    ["walking","idle","talking","eating","drinking","phoning"],
-  store:     ["idle","talking","phoning"],
-  bar:       ["idle","drinking","eating","talking","phoning","improv"],
-  campus:    ["walking","idle","talking","eating","drinking","phoning"],
-  plaza:     ["walking","idle","talking","eating","drinking","phoning"],
-  arena:     ["idle","walking","talking","drinking","phoning","gallery","concert"],
-  apt2:      ["idle","talking","eating","drinking","phoning","poker"],
-  classroom: ["idle","talking","phoning","lecture"],
-  bus:       ["idle","talking","phoning","reading"],
-  taxi:      ["idle","talking","phoning","reading"],
-  offscreen: ["away"]
-};
-const PLACES = {
-  apartment: "his one-room flat: bed, desk with laptop and a small 49-key keyboard he plays badly, armchair, small kitchen with a sink, a broom, a closet, a bathroom door (the camera never sees inside; use bathroom/showering), window with Moshe the basil. When he is home alone with nothing on (action idle) the camera shows him doing ordinary things: sweeping, washing up, wiping the counter, folding laundry, playing the keyboard, lying on the bed or in the armchair with his phone, making a snack, coffee by the window, watering Moshe, a little dance. Say which in what happens",
-  corridor:  "the building hallway outside his door",
-  street:    "Herzl Street outside his building (west end): Avi's falafel kiosk, a bus stop bench, the doors of Herzl Gym and The Black Candle bar, traffic. Going west, three more blocks of Herzl Street lead to the park: PicSell (pictures, posters, printed shirts), a pharmacy, the Soap Opera launderette, a barber, a makolet, a bakery, a second-hand bookshop and a bicycle shop. He only walks past those on his way to the park; he never stops in them",
-  shops:     "the SIDEWALK of Herzl Street east, the next block toward the cafe (the camera only sees the sidewalk and the shop windows; he cannot be inside a shop here - shopping for electronics, clothes or home stuff happens at the Everything Else store - bus from the street to the market, then walk in): Herzl Hardware, the Tahini Tower Savings Bank with an ATM, a flower shop with buckets of flowers on the sidewalk, a pedestrian crossing with traffic lights, ficus trees; Cafe Nahat is on the corner at the end",
-  park:      "a small park at the west end of Herzl Street, a few blocks' walk from his building: a bench, a pond with one duck, a big tree. On its far (west) side stands the Pump House",
-  plaza:     "the plaza in front of the Pump House, an old red-brick water-pump hall on the far side of the park, now a small venue for concerts and art (walk through the park; no bus): its iron sign, double doors, a ticket window where Hagit sits, a poster board, rope lanes for queues, the park's trees at the edge. The board says it opens soon, with events on Wednesdays",
-  apt2:      "Boaz's flat, apartment 2 on the first floor of Ishai's building (down one flight): old patterned floor tiles, a china cabinet, a fish tank, an old TV, a long dining table. Ishai only goes in when he is invited, on poker nights",
-  arena:     "inside the Pump House hall: a stage under old pipes, a pixel screen, speaker stacks, a merch table, a concrete floor. Only open for its events; Ishai only goes in on an event night",
-  cafe:      "Cafe Nahat, a corner cafe (soft pop and soft rock on the radio, quietly)",
-  market:    "Shuk Shalom, an open-air food market a short bus ride away (bus or taxi from the stop on Herzl Street; it has its own bus stop): stalls of tomatoes, cucumbers, oranges, bananas, spices, fresh pita, olives and fresh juice, vendors calling out prices, crowds. Food only. He can eat a snack or drink a fresh juice there. Open 07:00-19:00 (Friday until 14:00, closed on Shabbat). Its vendors also deliver through ateBite",
-  store:     "Everything Else, the big store next to Shuk Shalom (walk in from the market): everything except food - a wall of TVs and electronics, phones, clothes, kitchenware, lamps, cleaning stuff; a cashier at the checkout. He browses (\"idle\") or talks to a salesperson. Open 09:00-21:00 (Friday until 14:00, closed on Shabbat)",
-  gym:       "Herzl Gym, a small neighborhood gym on Herzl Street, two doors from his building: treadmills facing two wall screens, Channel 9 with the sound on and 8bitTV, NESflicks or RGBeat next to it, a mirror wall with dumbbells, a water cooler. Here \"exercising\" means he walks or jogs on the treadmill watching the TV. Open 06:00-23:00",
-  bar:       "The Black Candle, a small dark rock bar on Herzl Street next to his building: black brick, red neon, candles on the tables, band posters, a bearded bartender, rock and alternative music on the radio all night. He sits at a candle-lit table (drinking a beer, eating bar snacks). Opens 17:00, closes 02:00",
-  bus:       "inside the city bus, line 88 (camera on board): he sits by the window with the city going past, a few other passengers around him",
-  taxi:      "the back seat of a taxi (camera on board): the driver in front, the meter running, the city going past the window",
-  campus:    "Tel Herzl University, a bus ride away from Herzl Street (bus or taxi; it has its own stop): the courtyard, a vending machine, students. Ishai only goes there for his history lectures (planned)",
-  classroom: "a lecture room at the university, only used during a lecture",
-  offscreen: "anywhere without a camera (the supermarket, a client's office, a friend's home); he gets there by bus or taxi from the bus stop on Herzl Street and comes back the same way"
-};
-// The world map (must match MAP in the page). Far places are reached by bus or taxi from the street bus stop.
-const NEXT = {
-  apartment: ["corridor"],
-  corridor:  ["apartment","street","apt2"],
-  apt2:      ["corridor","street"],
-  street:    ["corridor","park","shops","gym","bar","market","campus","bus","taxi","offscreen","apt2"],
-  market:    ["street","store","bus","taxi"],
-  campus:    ["street","classroom","bus","taxi"],
-  classroom: ["campus"],
-  store:     ["market"],
-  shops:     ["street","cafe"],
-  park:      ["street","plaza"],
-  plaza:     ["park","arena"],
-  arena:     ["plaza"],
-  cafe:      ["shops", "street"],
-  gym:       ["street"],
-  bar:       ["street"],
-  bus:       ["street","market","campus","offscreen"],
-  taxi:      ["street","market","campus","offscreen"],
-  offscreen: ["street","market","campus","bus","taxi"]
-};
+// ---------- world (story/world.json: the actions, the descriptions and the map) ----------
+const LOCATIONS = __WORLD_LOCATIONS__;
+const PLACES = __WORLD_PLACES__;
+// The world map, built from story/world.json by source/world.mjs (the same file makes the page's MAP): from each story place, the story
+// places one step away (pass-through blocks like Herzl St. west don't count). Far places are reached by bus or taxi from the street bus stop.
+const NEXT = __WORLD_NEXT__;
 // drawing menu for characters (must match the page)
 const LOOK = {
   hair: ["short","long","bald","bun","curly","buzz","side","spiky","bob","ponytail","pigtails","braids","dreads","afro","mohawk","cap"],   // "cap" as hair is the old way; use hat now
@@ -2454,14 +2398,15 @@ function stayFree(s, goal, loc, ms) {
 }
 // ---------- whereabouts: everyone in the cast is somewhere ----------
 // Where someone was last with Ishai, and when they parted (null while they are still together). Someone who parted from him
-// at one place can't turn up at another before they could have walked there (WALK_HOP_MIN a place on the map, at least AWAY_MIN).
-const WALK_HOP_MIN = 4, AWAY_MIN = 8;
+// at one place can't turn up at another before they could have walked there (WALK: minutes between story places, built from
+// story/world.json, the same table as the page's; at least AWAY_MIN).
+const WALK = __WORLD_WALK__, AWAY_MIN = 8;
 function lastWith(s, id) {
   const E = s.events;
   for (let i = E.length - 1; i >= 0; i--) { const e = E[i]; if (e.with === id && e.action !== "phoning") return { loc: e.location, t: e.t, parted: i < E.length - 1 ? E[i + 1].t : null }; }
   return null;
 }
-function awayMins(from, to) { if (from === to) return 0; const p = nextPath(from, to); return Math.max(AWAY_MIN, (p ? p.filter(x => x !== "bus" && x !== "taxi").length - 1 : 5) * WALK_HOP_MIN); }
+function awayMins(from, to) { if (from === to) return 0; return Math.max(AWAY_MIN, (WALK[from] || {})[to] ?? 20); }
 // for the story prompt: how long he has been here, and who has just left him somewhere and can't be elsewhere yet
 function stayNote(s, ms, goal) {
   const last = s.events[s.events.length - 1]; if (!last) return "";

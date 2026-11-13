@@ -1,10 +1,12 @@
 import fs from 'fs';
+import { loadWorld, withWorld } from './world.mjs';
+const WORLD = loadWorld('..');   // story/world.json: the map, checked (throws on a broken map)
 const BUILD = Date.now().toString(36); // lets open pages notice a new deploy
 // the shared voices (voices.js) go into every page that speaks, where it has the /*__VOICES_JS__*/ marker
 const VOICES_JS = fs.readFileSync('public/voices.js','utf8');
 const withVoices = (h, name) => { if (!h.includes('/*__VOICES_JS__*/')) throw new Error(name + ' has no /*__VOICES_JS__*/ marker'); return h.replace('/*__VOICES_JS__*/', () => VOICES_JS); };
-const html = withVoices(fs.readFileSync('public/index.html','utf8').replace('__BUILD__', BUILD), 'index.html');
-const tpl = fs.readFileSync('src/worker.template.js','utf8');
+const html = withWorld(withVoices(fs.readFileSync('public/index.html','utf8').replace('__BUILD__', BUILD), 'index.html'), 'index.html', WORLD, 'page');
+const tpl = withWorld(fs.readFileSync('src/worker.template.js','utf8'), 'worker.template.js', WORLD, 'worker');
 
 const dir = withVoices(fs.readFileSync('public/director.html','utf8'), 'director.html');
 const sandbox = fs.readFileSync('public/sandbox.html','utf8');

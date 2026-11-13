@@ -10,7 +10,7 @@ Inspiration: "The Truman Show". A real man's real life, watched through hidden c
 - Ishai never acknowledges the cameras. Only the hosts (Zohar, Oren) talk to the audience.
 
 ## 1b. The world map — no teleportation
-Every exit leads to a specific entry in a specific place. Current map (`MAP` in `index.html`, `NEXT` in the worker):
+Every exit leads to a specific entry in a specific place. The map lives in one file, `story/world.json`; the build (`source/world.mjs`) turns it into `MAP` and `LOCATIONS` in the page and `NEXT`, `PLACES`, `LOCATIONS` and `WALK` in the worker, and refuses to build a broken map. Current map:
 
 | From | Exit (x) | Leads to | Entry there |
 |---|---|---|---|
@@ -56,7 +56,7 @@ Every exit leads to a specific entry in a specific place. Current map (`MAP` in 
 - A friend going somewhere with Ishai walks right behind him through the same doors, place after place, and arrives through the door he used (never from a random edge).
 - If the story jumps several places at once, the page routes Ishai through every place in between (shortest path on the map).
 - Far places are reached by bus or taxi from the street bus stop: the vehicle pulls in, stops, he gets on/off, it drives away.
-- **Adding a place** (e.g. a restaurant): decide where it physically is, add its exits/entries to `MAP` (page) and `NEXT` + `PLACES` (worker) on both sides, draw its doors/edges, and say how you get there (walk from a neighbouring scene, or bus/taxi from a stop). A place without a connection must not ship.
+- **Adding a place** (e.g. a restaurant): decide where it physically is, add it to `story/world.json` (`kind`, its `links` on both sides, and for a story place `desc` and `actions`), its hours and visits to `story/places.json`, draw its doors/edges, and say how you get there (walk from a neighbouring scene, or bus/taxi from a stop). The build checks that every link has a way back, every place can be reached, and `places.json` only names places on the map. A place without a connection must not ship.
 
 ## 1. Every scene has clear exit points
 - Each camera location defines where people enter and leave, and they are visible in the art:

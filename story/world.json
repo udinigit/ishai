@@ -1,0 +1,234 @@
+{
+ "about": "The world map: every place, its doors and where they lead, what the story knows about it. The build turns it into MAP in the page and NEXT, PLACES, LOCATIONS and WALK in the worker (source/world.mjs). kind: 'story' = a place the story can name (needs desc and actions), 'pass' = page only, walked through on the way (west blocks, the landing, the bathroom; actions here are the page's only, default walking and idle), 'vehicle' = bus and taxi. links: exit/entry = x where he leaves / appears ('R' = off the right edge, W+8); ride = by bus or taxi. next: extra places the story may name as the next stop that the doors alone don't give. walkMin: minutes to walk through or into it (default story 4, pass 1). rideOnly: reached only by bus or taxi and its links don't need a way back (offscreen).",
+ "places": {
+  "apartment": {
+   "kind": "story",
+   "desc": "his one-room flat: bed, desk with laptop and a small 49-key keyboard he plays badly, armchair, small kitchen with a sink, a broom, a closet, a bathroom door (the camera never sees inside; use bathroom/showering), window with Moshe the basil. When he is home alone with nothing on (action idle) the camera shows him doing ordinary things: sweeping, washing up, wiping the counter, folding laundry, playing the keyboard, lying on the bed or in the armchair with his phone, making a snack, coffee by the window, watering Moshe, a little dance. Say which in what happens",
+   "actions": ["sleeping", "waking", "idle", "walking", "working", "gaming", "eating", "drinking", "cooking", "reading", "exercising", "watching", "listening", "bathroom", "showering", "talking", "phoning"],
+   "links": {
+    "corridor": {"exit": 135, "entry": 135},
+    "bathroom": {"exit": 48, "entry": 48}
+   },
+   "notes": ["front door, bathroom door"]
+  },
+  "bathroom": {
+   "kind": "pass",
+   "links": {
+    "apartment": {"exit": 9, "entry": 9}
+   },
+   "notes": ["bathroom door -> apartment"],
+   "actions": ["bathroom", "showering"]
+  },
+  "corridor": {
+   "kind": "story",
+   "desc": "the building hallway outside his door",
+   "actions": ["walking", "idle", "talking", "phoning"],
+   "links": {
+    "apartment": {"exit": 40, "entry": 40},
+    "street": {"exit": 178, "entry": 178},
+    "hall1": {"exit": 178, "entry": 178}
+   },
+   "notes": ["apt 4 door, stairs (down to the street, or to the first floor)"]
+  },
+  "hall1": {
+   "kind": "pass",
+   "links": {
+    "corridor": {"exit": 178, "entry": 178},
+    "street": {"exit": 8, "entry": 8},
+    "apt2": {"exit": 92, "entry": 92}
+   },
+   "notes": ["first-floor landing (page only): stairs up, stairs down, apt 2's door"]
+  },
+  "apt2": {
+   "kind": "story",
+   "desc": "Boaz's flat, apartment 2 on the first floor of Ishai's building (down one flight): old patterned floor tiles, a china cabinet, a fish tank, an old TV, a long dining table. Ishai only goes in when he is invited, on poker nights",
+   "actions": ["idle", "talking", "eating", "drinking", "phoning", "poker"],
+   "links": {
+    "hall1": {"exit": 4, "entry": 4}
+   },
+   "notes": ["Boaz's front door"]
+  },
+  "street": {
+   "kind": "story",
+   "desc": "Herzl Street outside his building (west end): Avi's falafel kiosk, a bus stop bench, the doors of Herzl Gym and The Black Candle bar, traffic. Going west, three more blocks of Herzl Street lead to the park: PicSell (pictures, posters, printed shirts), a pharmacy, the Soap Opera launderette, a barber, a makolet, a bakery, a second-hand bookshop and a bicycle shop. He only walks past those on his way to the park; he never stops in them",
+   "actions": ["walking", "idle", "talking", "eating", "drinking", "phoning"],
+   "links": {
+    "corridor": {"exit": 26, "entry": 26},
+    "hall1": {"exit": 26, "entry": 26},
+    "west1": {"exit": -14, "entry": -14},
+    "shops": {"exit": "R", "entry": "R"},
+    "gym": {"exit": 64, "entry": 64},
+    "bar": {"exit": 101, "entry": 101},
+    "market": {"exit": 128, "entry": 128, "ride": true},
+    "campus": {"exit": 128, "entry": 128, "ride": true},
+    "offscreen": {"exit": 128, "entry": 128, "ride": true}
+   },
+   "notes": ["building entrance (up to his floor, or to the first floor)"]
+  },
+  "park": {
+   "kind": "story",
+   "desc": "a small park at the west end of Herzl Street, a few blocks' walk from his building: a bench, a pond with one duck, a big tree. On its far (west) side stands the Pump House",
+   "actions": ["walking", "idle", "talking", "reading", "eating", "drinking", "exercising", "phoning"],
+   "links": {
+    "west3": {"exit": "R", "entry": "R"},
+    "plaza": {"exit": -14, "entry": -14}
+   },
+   "notes": ["right edge -> the park end of Herzl St.; left edge -> the Pump House"]
+  },
+  "plaza": {
+   "kind": "story",
+   "desc": "the plaza in front of the Pump House, an old red-brick water-pump hall on the far side of the park, now a small venue for concerts and art (walk through the park; no bus): its iron sign, double doors, a ticket window where Hagit sits, a poster board, rope lanes for queues, the park's trees at the edge. The board says it opens soon, with events on Wednesdays",
+   "actions": ["walking", "idle", "talking", "eating", "drinking", "phoning"],
+   "links": {
+    "park": {"exit": "R", "entry": "R"},
+    "arena": {"exit": 60, "entry": 60}
+   },
+   "notes": ["the park path on the right; the Pump House doors"]
+  },
+  "arena": {
+   "kind": "story",
+   "desc": "inside the Pump House hall: a stage under old pipes, a pixel screen, speaker stacks, a merch table, a concrete floor. Only open for its events; Ishai only goes in on an event night",
+   "actions": ["idle", "walking", "talking", "drinking", "phoning", "gallery", "concert"],
+   "links": {
+    "plaza": {"exit": "R", "entry": "R"}
+   },
+   "notes": ["the hall's door, on the right"]
+  },
+  "west3": {
+   "kind": "pass",
+   "links": {
+    "park": {"exit": -14, "entry": -14},
+    "west2": {"exit": "R", "entry": "R"}
+   },
+   "notes": ["three blocks you walk through, on the way between the park and his building"]
+  },
+  "west2": {
+   "kind": "pass",
+   "links": {
+    "west3": {"exit": -14, "entry": -14},
+    "west1": {"exit": "R", "entry": "R"}
+   }
+  },
+  "west1": {
+   "kind": "pass",
+   "links": {
+    "west2": {"exit": -14, "entry": -14},
+    "street": {"exit": "R", "entry": "R"}
+   },
+   "notes": ["left edge -> Herzl St. west, on the way to the park"]
+  },
+  "shops": {
+   "kind": "story",
+   "desc": "the SIDEWALK of Herzl Street east, the next block toward the cafe (the camera only sees the sidewalk and the shop windows; he cannot be inside a shop here - shopping for electronics, clothes or home stuff happens at the Everything Else store - bus from the street to the market, then walk in): Herzl Hardware, the Tahini Tower Savings Bank with an ATM, a flower shop with buckets of flowers on the sidewalk, a pedestrian crossing with traffic lights, ficus trees; Cafe Nahat is on the corner at the end",
+   "actions": ["walking", "idle", "talking", "eating", "drinking", "phoning"],
+   "links": {
+    "street": {"exit": -14, "entry": -14},
+    "cafe": {"exit": "R", "entry": "R"}
+   },
+   "notes": ["right edge -> Herzl St. east (the shops)", "left edge -> street, right edge (the café corner) -> café"]
+  },
+  "cafe": {
+   "kind": "story",
+   "desc": "Cafe Nahat, a corner cafe (soft pop and soft rock on the radio, quietly)",
+   "actions": ["idle", "eating", "drinking", "working", "reading", "talking", "phoning"],
+   "links": {
+    "shops": {"exit": 4, "entry": 4}
+   },
+   "notes": ["entrance door -> Herzl St. east", "next: the story may send him from the café straight to the street (he walks back through the shops block)"],
+   "next": ["street"]
+  },
+  "gym": {
+   "kind": "story",
+   "desc": "Herzl Gym, a small neighborhood gym on Herzl Street, two doors from his building: treadmills facing two wall screens, Channel 9 with the sound on and 8bitTV, NESflicks or RGBeat next to it, a mirror wall with dumbbells, a water cooler. Here \"exercising\" means he walks or jogs on the treadmill watching the TV. Open 06:00-23:00",
+   "actions": ["exercising", "idle", "talking", "drinking", "phoning"],
+   "links": {
+    "street": {"exit": 4, "entry": 4}
+   },
+   "notes": ["Herzl Gym door (blue building)", "gym door -> street"]
+  },
+  "bar": {
+   "kind": "story",
+   "desc": "The Black Candle, a small dark rock bar on Herzl Street next to his building: black brick, red neon, candles on the tables, band posters, a bearded bartender, rock and alternative music on the radio all night. He sits at a candle-lit table (drinking a beer, eating bar snacks). Opens 17:00, closes 02:00",
+   "actions": ["idle", "drinking", "eating", "talking", "phoning", "improv"],
+   "links": {
+    "street": {"exit": 4, "entry": 4}
+   },
+   "notes": ["The Black Candle door (next to the bench)", "bar door -> street"]
+  },
+  "market": {
+   "kind": "story",
+   "desc": "Shuk Shalom, an open-air food market a short bus ride away (bus or taxi from the stop on Herzl Street; it has its own bus stop): stalls of tomatoes, cucumbers, oranges, bananas, spices, fresh pita, olives and fresh juice, vendors calling out prices, crowds. Food only. He can eat a snack or drink a fresh juice there. Open 07:00-19:00 (Friday until 14:00, closed on Shabbat). Its vendors also deliver through ateBite",
+   "actions": ["walking", "idle", "talking", "eating", "drinking", "phoning"],
+   "links": {
+    "street": {"exit": 128, "entry": 128, "ride": true},
+    "store": {"exit": 4, "entry": 4}
+   },
+   "notes": ["bus stop: the bus (or a taxi) to Shuk Shalom", "the market's own bus stop; the store door on the left"]
+  },
+  "store": {
+   "kind": "story",
+   "desc": "Everything Else, the big store next to Shuk Shalom (walk in from the market): everything except food - a wall of TVs and electronics, phones, clothes, kitchenware, lamps, cleaning stuff; a cashier at the checkout. He browses (\"idle\") or talks to a salesperson. Open 09:00-21:00 (Friday until 14:00, closed on Shabbat)",
+   "actions": ["idle", "talking", "phoning"],
+   "links": {
+    "market": {"exit": 4, "entry": 4}
+   },
+   "notes": ["store door -> market"]
+  },
+  "campus": {
+   "kind": "story",
+   "desc": "Tel Herzl University, a bus ride away from Herzl Street (bus or taxi; it has its own stop): the courtyard, a vending machine, students. Ishai only goes there for his history lectures (planned)",
+   "actions": ["walking", "idle", "talking", "eating", "drinking", "phoning"],
+   "links": {
+    "street": {"exit": 128, "entry": 128, "ride": true},
+    "classroom": {"exit": 60, "entry": "R"}
+   },
+   "notes": ["the same stop: the bus (or a taxi) to the university", "the university's own bus stop; the lecture building's doors"]
+  },
+  "classroom": {
+   "kind": "story",
+   "desc": "a lecture room at the university, only used during a lecture",
+   "actions": ["idle", "talking", "phoning", "lecture"],
+   "links": {
+    "campus": {"exit": "R", "entry": 60}
+   },
+   "notes": ["the lecture room's door, on the right"]
+  },
+  "bus": {
+   "kind": "vehicle",
+   "desc": "inside the city bus, line 88 (camera on board): he sits by the window with the city going past, a few other passengers around him",
+   "actions": ["idle", "talking", "phoning", "reading"],
+   "links": {
+    "street": {"ride": true},
+    "market": {"ride": true},
+    "campus": {"ride": true},
+    "offscreen": {"ride": true}
+   },
+   "notes": ["on board: he gets off at a stop"]
+  },
+  "taxi": {
+   "kind": "vehicle",
+   "desc": "the back seat of a taxi (camera on board): the driver in front, the meter running, the city going past the window",
+   "actions": ["idle", "talking", "phoning", "reading"],
+   "links": {
+    "street": {"ride": true},
+    "market": {"ride": true},
+    "campus": {"ride": true},
+    "offscreen": {"ride": true}
+   }
+  },
+  "offscreen": {
+   "kind": "story",
+   "rideOnly": true,
+   "desc": "anywhere without a camera (the supermarket, a client's office, a friend's home); he gets there by bus or taxi from the bus stop on Herzl Street and comes back the same way",
+   "actions": ["away"],
+   "links": {
+    "street": {"ride": true},
+    "market": {"ride": true},
+    "campus": {"ride": true},
+    "bus": {"ride": true},
+    "taxi": {"ride": true}
+   },
+   "notes": ["bus stop: bus or taxi"]
+  }
+ }
+}

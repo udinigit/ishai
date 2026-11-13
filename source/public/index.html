@@ -406,29 +406,8 @@
   const W = 192, H = 108;
 
   // Must match the Worker
-  const LOCATIONS = {
-    apartment: ['sleeping','waking','idle','walking','working','gaming','eating','drinking','cooking','reading','exercising','watching','listening','bathroom','showering','talking','phoning'],
-    corridor:  ['walking','idle','talking','phoning'],
-    street:    ['walking','idle','talking','eating','drinking','phoning'],
-    shops:     ['walking','idle','talking','eating','drinking','phoning'],
-    west1:     ['walking','idle'], west2: ['walking','idle'], west3: ['walking','idle'],   // walk-through blocks, page only: the story never stops here
-    park:      ['walking','idle','talking','reading','eating','drinking','exercising','phoning'],
-    plaza:     ['walking','idle','talking','eating','drinking','phoning'],
-    arena:     ['idle','walking','talking','drinking','phoning','gallery','concert'],
-    apt2:      ['idle','talking','eating','drinking','phoning','poker'],
-    hall1:     ['walking','idle'],   // the first-floor landing, page only: on the way to and from apartment 2
-    cafe:      ['idle','eating','drinking','working','reading','talking','phoning'],
-    gym:       ['exercising','idle','talking','drinking','phoning'],
-    market:    ['walking','idle','talking','eating','drinking','phoning'],
-    store:     ['idle','talking','phoning'],
-    bar:       ['idle','drinking','eating','talking','phoning','improv'],
-    campus:    ['walking','idle','talking','eating','drinking','phoning'],
-    classroom: ['idle','talking','phoning','lecture'],
-    bus:       ['idle','talking','phoning','reading'],
-    taxi:      ['idle','talking','phoning','reading'],
-    offscreen: ['away'],
-    bathroom:  ['bathroom','showering'] // page-only room: the story says apartment/bathroom|showering
-  };
+  const LOCATIONS = /*__WORLD_ACTIONS__*/{};   // built from story/world.json: the actions per place (page-only places too)
+
   let TUNING = false;   // the live feed hasn't answered yet
   let CUR_MEDIA = null; // 'ch9', '8bittv', 'nesflicks', 'rgbeat', 'herzl' or 'boolify' when the story's moment says which
   let NEXT_RIDE = null; // 'bus' or 'taxi' when the story's moment says which
@@ -1330,10 +1309,11 @@
   const POST = { cafe:'dana', street:'avi' };
   const POST_X = { cafe:150, street:163 };   // where they stand at work
   // ---- whereabouts: everyone in the cast is somewhere ----
-  // The last moment someone spent with Ishai says where they were. Until they could have got anywhere else (HOP_MS a place on the map,
-  // at least AWAY_MS), nobody draws them at their post or their regular spot in another place: a cover barista stands in for Dana.
+  // The last moment someone spent with Ishai says where they were. Until they could have got anywhere else (WALK: minutes between two
+  // story places, built from story/world.json, the same table as the worker's; at least AWAY_MS), nobody draws them at their post or
+  // their regular spot in another place: a cover barista stands in for Dana.
   // Someone who came WITH him (Dana from the street into her café) walks in behind him and then goes to their post (compUpdate, ARRIVED).
-  const HOP_MS = 4 * 60000, AWAY_MS = 8 * 60000, CAME_MS = 3 * 60000;
+  const WALK = /*__WORLD_WALK__*/{}, HOP_MS = 4 * 60000, AWAY_MS = 8 * 60000, CAME_MS = 3 * 60000;   // HOP_MS: only for places WALK doesn't list
   const ARRIVED = {};   // id -> {loc, at}: walked in with him and reached their post
   let seenMemo = {k: '', v: {}};
   function seenWith(id){
@@ -1365,7 +1345,8 @@
       return !(a && a.loc === loc && a.at >= w.came) && NOW() - w.came < CAME_MS && !settledHere;
     }
     if (w.loc === loc) return false;
-    return NOW() - w.parted < Math.max(AWAY_MS, route(w.loc, loc).filter(x => !VEH.has(x)).length * HOP_MS);
+    const mins = (WALK[w.loc] || {})[loc];
+    return NOW() - w.parted < Math.max(AWAY_MS, mins != null ? mins * 60000 : route(w.loc, loc).filter(x => !VEH.has(x)).length * HOP_MS);
   }
   // regulars: not main characters, but likely to be seen in one place at their hours (windows run past 24 for after midnight)
   const REG = {
@@ -3458,38 +3439,9 @@
   }
   // ---- the world map: every exit leads to a specific entry in the next place (no teleporting) ----
   // MAP[here][there] = { exit: x where Ishai leaves "here" towards "there", entry: x where he appears in "here" coming from "there" }
-  const MAP = {
-    apartment: { corridor: {exit:135, entry:135}, bathroom: {exit:48, entry:48} },   // front door, bathroom door
-    bathroom:  { apartment: {exit:9, entry:9} },                                      // bathroom door -> apartment
-    corridor:  { apartment: {exit:40, entry:40}, street: {exit:178, entry:178}, hall1: {exit:178, entry:178} },     // apt 4 door, stairs (down to the street, or to the first floor)
-    hall1:     { corridor: {exit:178, entry:178}, street: {exit:8, entry:8}, apt2: {exit:92, entry:92} },  // first-floor landing (page only): stairs up, stairs down, apt 2's door
-    apt2:      { hall1: {exit:4, entry:4} },                                         // Boaz's front door
-    street:    { corridor: {exit:26, entry:26}, hall1: {exit:26, entry:26},          // building entrance (up to his floor, or to the first floor)
-                 west1: {exit:-14, entry:-14},                                        // left edge -> Herzl St. west, on the way to the park
-                 shops: {exit:W+8, entry:W+8},                                        // right edge -> Herzl St. east (the shops)
-                 gym: {exit:64, entry:64},                                            // Herzl Gym door (blue building)
-                 bar: {exit:101, entry:101},                                          // The Black Candle door (next to the bench)
-                 market: {exit:128, entry:128, ride:true},                            // bus stop: the bus (or a taxi) to Shuk Shalom
-                 campus: {exit:128, entry:128, ride:true},                            // the same stop: the bus (or a taxi) to the university
-                 offscreen: {exit:128, entry:128, ride:true} },                       // bus stop: bus or taxi
-    park:      { west3: {exit:W+8, entry:W+8}, plaza: {exit:-14, entry:-14} },        // right edge -> the park end of Herzl St.; left edge -> the Pump House
-    plaza:     { park: {exit:W+8, entry:W+8}, arena: {exit:60, entry:60} },           // the park path on the right; the Pump House doors
-    arena:     { plaza: {exit:W+8, entry:W+8} },                                      // the hall's door, on the right
-    west3:     { park: {exit:-14, entry:-14}, west2: {exit:W+8, entry:W+8} },         // three blocks you walk through, on the way between the park and his building
-    west2:     { west3: {exit:-14, entry:-14}, west1: {exit:W+8, entry:W+8} },
-    west1:     { west2: {exit:-14, entry:-14}, street: {exit:W+8, entry:W+8} },
-    shops:     { street: {exit:-14, entry:-14}, cafe: {exit:W+8, entry:W+8} },        // left edge -> street, right edge (the café corner) -> café
-    cafe:      { shops: {exit:4, entry:4} },                                          // entrance door -> Herzl St. east
-    gym:       { street: {exit:4, entry:4} },                                         // gym door -> street
-    bar:       { street: {exit:4, entry:4} },                                         // bar door -> street
-    market:    { street: {exit:128, entry:128, ride:true}, store: {exit:4, entry:4} },  // the market's own bus stop; the store door on the left
-    store:     { market: {exit:4, entry:4} },                                         // store door -> market
-    campus:    { street: {exit:128, entry:128, ride:true}, classroom: {exit:60, entry:W+8} },  // the university's own bus stop; the lecture building's doors
-    classroom: { campus: {exit:W+8, entry:60} },                                      // the lecture room's door, on the right
-    bus:       { street: {ride:true}, market: {ride:true}, campus: {ride:true}, offscreen: {ride:true} },  // on board: he gets off at a stop
-    taxi:      { street: {ride:true}, market: {ride:true}, campus: {ride:true}, offscreen: {ride:true} },
-    offscreen: { street: {ride:true}, market: {ride:true}, campus: {ride:true}, bus: {ride:true}, taxi: {ride:true} }
-  };
+  // built from story/world.json by source/world.mjs (edit the map there, never here)
+  const MAP = /*__WORLD_MAP__*/{};
+
   ['street','market','campus'].forEach(p => { MAP[p].bus = {exit:128, entry:128, ride:true}; MAP[p].taxi = {exit:128, entry:128, ride:true}; });
   function route(from, to){ // shortest path through the map, e.g. cafe -> street -> corridor -> apartment
     if (from === to) return [];
