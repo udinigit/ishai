@@ -1,6 +1,13 @@
 # A bigger world: plan
 
-Draft, 2026-11-11, updated 2026-11-12: the places table (v214-v217) and the director's build order. Nothing built yet. Read `CLAUDE.md` and `docs/SCENE_GUIDELINES.md` first.
+Draft 2026-11-11, updated 2026-11-12 (the places table, the build order).
+
+**Status 2026-11-13: phases 1, 2 and 3 are built** (v218-v221). Phases 4 (map editor) and 5 (scenery by request) are next. What was built differently from the plan below:
+- **Phase 2:** `block(spec)` is in, but West 1-3 kept their own drawing code as the spec's `fronts`/`props` (pixel-identical, checked) instead of being rewritten into front and prop types. The libraries grew with the new places instead: the promenade (`seaBand`, `sandBand`, `waveWalk`, `railing`, `palm`, `lifeguardTower`, `umbrella`), Herzl east (`cubrick`, `earthCube`, `fountain`, `kioskFront`) and The Big S (`mallStore`, `escalatorUp`, `escalatorArrive`, `balustrade`, `glassRoof`, `mallFloor`).
+- **3a:** the bus stop is on the story place `promenade` (CAM-24), not on `prom1`: a stop on a page-only block would have made the plaza "one bus ride" from the street. `route()` in the page now weighs a ride as 5 hops on foot.
+- **3c:** backgammon is a board on the counter between Ishai and Shmulik (when he stands there with him), not a new seated pose.
+- **3d:** the mall is two story places made of screens (`screens` / `of` in `story/world.json`); the page picks the screen per moment (`screenFor()`). Riding the escalator is a camera cut at its foot, with him stepping off at the top on the next floor; the ride itself isn't animated yet.
+- Walking times are one shared table (`WALK`) for the page and the worker. Read `CLAUDE.md` and `docs/SCENE_GUIDELINES.md` first.
 
 ## The idea
 More of the show should be Ishai going somewhere: walking, riding a bike, the city going past. Today most screens are places where he stands still.
