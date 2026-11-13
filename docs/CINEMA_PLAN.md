@@ -56,7 +56,7 @@ The writing is done the way the history course does it: a few Gemini calls a mon
 - **Sync:** `filmNight()` lays out every scene's and line's start from the date alone, like `concertNight()`. Everything is drawn from the clock and the night's seed, never `Math.random()`. A late joiner lands mid-scene.
 
 ## The story around it
-- The night is a goal with `fixed: true`, like a gallery night (`scheduleFilm()`), with the friend chosen from the date, as on a gallery night.
+- The night is a goal with `fixed: true` (`scheduleFilm()`), and the friend is chosen from the date, as on a gallery night.
 - Moments: the queue on the plaza, taking seats, the film (one moment per few scenes with action `film`, no host lines, as in `lecture`), the intermission (Ishai and the friend talk about it, from `FILM_TALK` with the act's recap), the second half, the walk out (the friend's memory `update`).
 - `eventNote()` lets Ishai look forward to it and, in the days after, quote a line or bring the film up with someone.
 - The live story can't put him in the hall (`validate()` as today), and the night is never in two places.
