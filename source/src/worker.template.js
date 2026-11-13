@@ -3186,9 +3186,13 @@ async function gutenbergText(f) {
   const died = Math.max(...(book.authors || []).map(a => a.death_year || 0));
   if (died && died > new Date().getUTCFullYear() - 71) throw new Error(`"${f.title}": its author died in ${died}, not yet public domain in Israel`);
   f.gid = book.id;
-  const fm = book.formats, key = Object.keys(fm).find(k => k.startsWith("text/plain; charset=utf-8")) || Object.keys(fm).find(k => k.startsWith("text/plain"));
-  const r = await fetch(fm[key], ua); if (!r.ok) throw new Error(`Gutenberg ${r.status} for ${f.title}`);
-  let t = (await r.text()).replace(/\r/g, "");
+  // the listed file first, then Gutenberg's standard paths and its mirrors (an old listed path can be gone, and one host can refuse a data centre)
+  const fm = book.formats, key = Object.keys(fm).find(k => k.startsWith("text/plain; charset=utf-8")) || Object.keys(fm).find(k => k.startsWith("text/plain")), id = book.id;
+  const urls = [fm[key], `https://www.gutenberg.org/cache/epub/${id}/pg${id}.txt`, `https://www.gutenberg.org/ebooks/${id}.txt.utf-8`, `https://gutenberg.pglaf.org/cache/epub/${id}/pg${id}.txt`, `https://aleph.gutenberg.org/cache/epub/${id}/pg${id}.txt`].filter(Boolean);
+  let t = null, why = [];
+  for (const u of urls) { try { const r = await fetch(u, ua); if (r.ok) { t = await r.text(); if (t.length > 8000) break; t = null; } else why.push(r.status); } catch (e) { why.push("error"); } }
+  if (!t) throw new Error(`Gutenberg ${why.join("/")} for ${f.title}`);
+  t = t.replace(/\r/g, "");
   const a = t.search(/\*\*\* ?START OF (THE|THIS) PROJECT GUTENBERG[^\n]*\n/i), b = t.search(/\*\*\* ?END OF (THE|THIS) PROJECT GUTENBERG/i);
   if (a >= 0) t = t.slice(t.indexOf("\n", a) + 1); if (b > 0) t = t.slice(0, t.search(/\*\*\* ?END OF (THE|THIS) PROJECT GUTENBERG/i));
   t = t.replace(/^[^\n]*(project gutenberg|gutenberg\.org|ebook)[^\n]*\n/gim, "");   // never a word about Gutenberg in the film
