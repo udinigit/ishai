@@ -362,7 +362,20 @@
   $('pollSkip').onclick = async () => { if (!confirm('Skip the coming poll? This hour will have none.')) return; render(await api({action:'pollSkip'})); };
   $('pollBank').onclick = async () => render(await api({action:'pollBank'}));
   $('cinPick').onclick = () => cinemaDo({action:'cinemaPick', title:$('cinTitle').value}, 'Choosing...');
-  $('cinWrite').onclick = () => cinemaDo({action:'cinemaWrite'}, 'Writing the whole film (a minute or two)...');
+  // one part per request (each is one AI call, up to a minute or so); the page asks again until every part is written
+  $('cinWrite').onclick = async () => {
+    const msg = $('cinMsg'), btn = $('cinWrite'); msg.className = ''; btn.disabled = true;
+    try {
+      for (let i = 0; i < 8; i++) {
+        msg.textContent = i ? msg.textContent + ' Writing the next part...' : 'Writing part 1 (about a minute)...';
+        const j = await api({action:'cinemaWrite'}); render(j);
+        const fl = ((j.cinema && j.cinema.films) || []).filter(f => !f.skip && !f.repeat).sort((a, b) => a.date < b.date ? -1 : 1).pop();
+        if (!fl || (fl.of && fl.done >= fl.of)) { msg.textContent = 'Done: the whole film is written.'; return; }
+        msg.textContent = `Part ${fl.done} of ${fl.of} written.`;
+      }
+    } catch(e){ msg.className = 'err'; msg.textContent = e.message + ' (the parts written so far are kept; press again to go on)'; }
+    finally { btn.disabled = false; }
+  };
   $('cinRewrite').onclick = () => cinemaDo({action:'cinemaRewrite'}, 'Starting over...');
   $('cinRepeat').onclick = () => cinemaDo({action:'cinemaRepeat'}, 'Finding an older film...');
   $('cinSkip').onclick = () => cinemaDo({action:'cinemaSkip'}, 'Changing...');

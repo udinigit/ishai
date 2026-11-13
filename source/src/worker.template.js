@@ -3356,8 +3356,12 @@ async function cinemaAction(env, s, b, now) {
   if (live && b.action !== "cinemaOff") return "that film night has already started";
   if (b.action === "cinemaPick") { if (fl) delete c.films[date]; const t = String(b.title || "").trim().toLowerCase(); if (t) { const f = allFilms().find(x => x.title.toLowerCase() === t); if (!f) return "no such title in story/films.json"; c.queue = [f, ...c.queue.filter(q => q.id !== f.id)]; } s.director = s.director.filter(d => d.id !== "film-" + date || d.status === "active"); await filmTick(env, s, now); return null; }
   if (b.action === "cinemaWrite") { if (!fl) return "no film this week yet"; if (fl.repeat) return "this week is a repeat";
-    try { while (fl.done < (fl.of || 1) || !fl.of) { await generateFilmPart(env, s, fl); if (fl.done >= fl.of) break; } } catch (e) { c.err = { at: now, msg: String(e && e.message || e).slice(0, 240) }; return "the film could not be written: " + c.err.msg; }
-    await filmTick(env, s, now); return null; }
+    // ONE part per request (the director page calls again until the film is done): writing every part in one request took minutes,
+    // the connection dropped ("Failed to fetch") and nothing was saved, since the state is saved only when the request ends
+    if (!(fl.of && fl.done >= fl.of)) {
+      try { await generateFilmPart(env, s, fl); c.err = null; fl.tries = 0; }
+      catch (e) { c.err = { at: now, msg: String(e && e.message || e).slice(0, 240) }; await saveState(env, s); return "the film could not be written: " + c.err.msg; } }
+    if (fl.of && fl.done >= fl.of) await filmTick(env, s, now); return null; }
   if (b.action === "cinemaRewrite") { if (!fl) return "no film this week yet"; Object.assign(fl, { done: 0, of: 0, cast: [], recaps: [], lastAt: 0, retryAt: 0, repeat: null }); s.director = s.director.filter(d => d.id !== "film-" + date || d.status === "active"); fl.goalId = null; return null; }
   if (b.action === "cinemaRepeat") { const old = (c.history || []).filter(h => h.of && h.date !== date).slice(-1)[0]; if (!old || !fl) return "no older film to show";
     Object.assign(fl, { repeat: old.date, title: old.title, author: old.author, genre: old.genre, of: old.of, done: old.of, cast: old.cast, recaps: old.recaps }); s.director = s.director.filter(d => d.id !== "film-" + date || d.status === "active"); fl.goalId = null; return null; }
