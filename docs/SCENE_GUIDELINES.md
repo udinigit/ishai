@@ -60,6 +60,12 @@ Every exit leads to a specific entry in a specific place. The map lives in one f
 | Promenade east | left edge | The promenade (CAM-24) | right edge |
 | The promenade | left edge | Promenade west (CAM-25, page only; The Big S) | right edge |
 | The promenade | bus stop (128) | Street | bus stop (128) — by bus (day) or taxi (night / rain) |
+| Promenade west | The Big S's glass doors (52) | The Big S, floor 1 west (CAM-30) | the glass doors (20) |
+| The Big S floor 1 | edges (CAM-30 ↔ 31 ↔ 32) | the next screen of the floor | the facing edge |
+| The Big S floor 1 middle (CAM-31) | the escalator's foot (166) | Floor 2 middle (CAM-34) | the escalator's top (40) |
+| The Big S floor 2 | edges (CAM-33 ↔ 34 ↔ 35) | the next screen of the floor | the facing edge |
+| The Big S floor 2 middle (CAM-34) | the escalator's foot (166) | Food court west (CAM-36) | the escalator's top (40) |
+| The Big S food court | edges (CAM-36 ↔ 37) | the other food court screen | the facing edge |
 | Street | bus stop (128) | The promenade | its own bus stop (128) |
 
 - Every link is the same door both ways: leaving X by door A into Y always arrives at Y's door B, and leaving Y by door B always arrives back at X's door A (`MAP[x][y].exit === MAP[x][y].entry`).
@@ -80,6 +86,7 @@ Every exit leads to a specific entry in a specific place. The map lives in one f
   - Pump House plaza (CAM-19): the park path (right edge), the hall's double doors (60). Ticket window, poster board, rope lanes for queues.
   - Pump House hall (CAM-20): its door on the right. Stage, pixel screen, merch table. Open only for events.
   - Herzl east 1-3 (block kit, page only): `east1` (CAM-26) the little square with Stanley Cubrick, a brick man with a cube head on a plinth (spelled with a C on purpose; pigeons on the cube, flowers on Fridays); `east2` (CAM-27) the mural of the Earth as a cube, and Shmulik's kiosk with its plastic table (the counter at 140 leads in); `east3` (CAM-28) a fountain with benches (water 06:00-23:00) and Falafel Two. Only the left edge of east 3 is a way out.
+  - The Big S (CAM-30 to 37, block kit `ground: 'indoor'`, `mallScene()` / `mallStore()`): the story names `mall` (floors 1-2) or `foodcourt` (floor 3) and the page picks the screen (`screenFor()`: the store the moment names, else its 20-minute slot) and walks him there. The same floor on every screen; stores differ by sign and window (`store`), or by their front (`open`, `big`, `boarded`, food `food` counters); shutters on Shabbat. Escalators: up at 166 (CAM-31, CAM-34), arriving from below at 40 (CAM-34, CAM-36). Floors 2-3 show the glass balustrade; the food court has a glass roof (`glass`) with the real sky and rain, tables, and he sits at one to eat.
   - Shmulik's kiosk (CAM-29): close on the counter: shelves, the drinks fridge, seeds, the radio, the MAZAL lottery stand, the newspaper rack; the plastic table on the sidewalk (he sits there to eat, drink or read). Shmulik behind the counter 06:00-18:00 (POST), a nameless night clerk otherwise. A backgammon board on the counter when Ishai stands there with Shmulik.
   - The promenade (block kit, `ground: 'promenade'`): `prom1` (CAM-23) right edge to the plaza, left edge on; `promenade` (CAM-24) both edges and its bus stop (128); `prom3` (CAM-25) right edge only (The Big S closes the west end). Sea, sand, a white railing, the wave-tiled walk, the red bike lane, the seafront road.
   - Shops (CAM-09, Herzl St. east): left edge (back to Ishai's block), Cafe Nahat's door (186, on the corner), right edge (on to Herzl east 1). Herzl Hardware, Tahini Tower Savings Bank + ATM, a flower shop, a pedestrian crossing with lights, Kfar Kofi billboard.

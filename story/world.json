@@ -1,5 +1,5 @@
 {
- "about": "The world map: every place, its doors and where they lead, what the story knows about it. The build turns it into MAP in the page and NEXT, PLACES, LOCATIONS and WALK in the worker (source/world.mjs). kind: 'story' = a place the story can name (needs desc and actions), 'pass' = page only, walked through on the way (west blocks, the landing, the bathroom; actions here are the page's only, default walking and idle), 'vehicle' = bus and taxi. links: exit/entry = x where he leaves / appears ('R' = off the right edge, W+8); ride = by bus or taxi. next: extra places the story may name as the next stop that the doors alone don't give. walkMin: minutes to walk through or into it (default story 4, pass 1). rideOnly: reached only by bus or taxi and its links don't need a way back (offscreen).",
+ "about": "The world map: every place, its doors and where they lead, what the story knows about it. The build turns it into MAP in the page and NEXT, PLACES, LOCATIONS and WALK in the worker (source/world.mjs). kind: 'story' = a place the story can name (needs desc and actions), 'pass' = page only, walked through on the way (west blocks, the landing, the bathroom; actions here are the page's only, default walking and idle), 'vehicle' = bus and taxi. links: exit/entry = x where he leaves / appears ('R' = off the right edge, W+8); ride = by bus or taxi. next: extra places the story may name as the next stop that the doors alone don't give. walkMin: minutes to walk through or into it (default story 4, pass 1). rideOnly: reached only by bus or taxi and its links don't need a way back (offscreen). screens / of: a story place made of several page screens (The Big S: 'mall' is mall1a-2c); the place has no links, its screens do, each with of: the place; the page picks the screen and walks him there.",
  "places": {
   "apartment": {
    "kind": "story",
@@ -118,9 +118,95 @@
   "prom3": {
    "kind": "pass",
    "links": {
-    "promenade": {"exit": "R", "entry": "R"}
+    "promenade": {"exit": "R", "entry": "R"},
+    "mall1a": {"exit": 52, "entry": 52}
    },
-   "notes": ["the promenade west (CAM-25, page only): right edge -> the promenade; The Big S at its west end (its doors come with the mall)"]
+   "notes": ["the promenade west (CAM-25, page only): right edge -> the promenade; The Big S's glass doors (52) -> its ground floor (mall1a)"]
+  },
+  "mall": {
+   "kind": "story",
+   "screens": ["mall1a", "mall1b", "mall1c", "mall2a", "mall2b", "mall2c"],
+   "desc": "The Big S, the big mall at the west end of the promenade (walk along the promenade, or the bus or taxi to the promenade's stop): floors 1 and 2, shops along tiled walkways, escalators in the middle, air conditioning. Shops: Yalla Yoga (sportswear), PicSell (posters and prints), Everything Else Express, FluffNap (bedding), Kfar Kofi (coffee), 8bit Games, Threadbare (clothes), Sole Mates (shoes), Toy Box, Pixel Phones, an optician, BRRR! (ice cream), Page Turner (books), a Tahini Tower Savings Bank branch. He browses ('idle'), buys, meets someone. Open 09:00-22:00, Friday until 16:00, closed on Saturday. The food court is upstairs (foodcourt)",
+   "actions": ["walking", "idle", "talking", "drinking", "eating", "phoning"],
+   "notes": ["The Big S, floors 1-2 (story place made of six screens; the page picks the screen he goes to and walks him there)"]
+  },
+  "foodcourt": {
+   "kind": "story",
+   "screens": ["mall3a", "mall3b"],
+   "desc": "the food court on the top floor of The Big S, under a glass roof (up the escalators from the mall): counters of HummusPrime, Wok This Way, Pizza Pi, Salad Days, Schnitzel Schtick and Kfar Kofi around tables and chairs; he eats or drinks sitting at a table. Open 09:00-22:00, Friday until 16:00, closed on Saturday",
+   "actions": ["idle", "talking", "eating", "drinking", "phoning", "reading"],
+   "notes": ["The Big S, floor 3 (story place made of two screens)"]
+  },
+  "mall1a": {
+   "kind": "pass",
+   "of": "mall",
+   "links": {
+    "prom3": {"exit": 20, "entry": 20},
+    "mall1b": {"exit": "R", "entry": "R"}
+   },
+   "notes": ["floor 1 west (CAM-30): the glass doors to the promenade (20), right edge -> mall1b"]
+  },
+  "mall1b": {
+   "kind": "pass",
+   "of": "mall",
+   "links": {
+    "mall1a": {"exit": -14, "entry": -14},
+    "mall1c": {"exit": "R", "entry": "R"},
+    "mall2b": {"exit": 166, "entry": 166}
+   },
+   "notes": ["floor 1 middle (CAM-31): the escalator up (its foot at 166) -> floor 2"]
+  },
+  "mall1c": {
+   "kind": "pass",
+   "of": "mall",
+   "links": {
+    "mall1b": {"exit": -14, "entry": -14}
+   },
+   "notes": ["floor 1 east (CAM-32)"]
+  },
+  "mall2a": {
+   "kind": "pass",
+   "of": "mall",
+   "links": {
+    "mall2b": {"exit": "R", "entry": "R"}
+   },
+   "notes": ["floor 2 west (CAM-33)"]
+  },
+  "mall2b": {
+   "kind": "pass",
+   "of": "mall",
+   "links": {
+    "mall2a": {"exit": -14, "entry": -14},
+    "mall2c": {"exit": "R", "entry": "R"},
+    "mall1b": {"exit": 40, "entry": 40},
+    "mall3a": {"exit": 166, "entry": 166}
+   },
+   "notes": ["floor 2 middle (CAM-34): the escalator from floor 1 arrives at 40 (and goes back down there), the escalator up to the food court at 166"]
+  },
+  "mall2c": {
+   "kind": "pass",
+   "of": "mall",
+   "links": {
+    "mall2b": {"exit": -14, "entry": -14}
+   },
+   "notes": ["floor 2 east (CAM-35)"]
+  },
+  "mall3a": {
+   "kind": "pass",
+   "of": "foodcourt",
+   "links": {
+    "mall2b": {"exit": 40, "entry": 40},
+    "mall3b": {"exit": "R", "entry": "R"}
+   },
+   "notes": ["floor 3, the food court west (CAM-36): the escalator from floor 2 arrives at 40; right edge -> mall3b"]
+  },
+  "mall3b": {
+   "kind": "pass",
+   "of": "foodcourt",
+   "links": {
+    "mall3a": {"exit": -14, "entry": -14}
+   },
+   "notes": ["floor 3, the food court east (CAM-37)"]
   },
   "west3": {
    "kind": "pass",

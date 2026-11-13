@@ -407,6 +407,20 @@
 
   // Must match the Worker
   const LOCATIONS = /*__WORLD_ACTIONS__*/{};   // built from story/world.json: the actions per place (page-only places too)
+  // a story place made of several screens (The Big S: 'mall' is six screens, 'foodcourt' two): the page picks the screen for each moment,
+  // the same for every viewer (from the store the text names, else the moment's 20-minute slot), and route() walks him there
+  const PLACE_SCREENS = /*__WORLD_SCREENS__*/{}, SCREEN_OF = {};
+  for (const [k, v] of Object.entries(PLACE_SCREENS)) v.forEach(x => { SCREEN_OF[x] = k; });
+  const storyLoc = loc => SCREEN_OF[loc] || loc;
+  const STORE_AT = [[/yalla yoga|sportswear/i,'mall1a'],[/picsell|poster|print/i,'mall1a'],[/everything else/i,'mall1b'],[/kfar kofi|coffee|8 ?bit games|video game|fluffnap|pillow|bedding|duvet/i,'mall1c'],
+    [/threadbare|sole mates|shoes|clothes|jeans|shirt/i,'mall2a'],[/pixel phones|phone case|charger|glasses|optician/i,'mall2b'],[/brrr|ice.?cream|page turner|book/i,'mall2c'],
+    [/hummus|wok|noodle|pizza/i,'mall3a'],[/salad|schnitzel|kfar kofi/i,'mall3b']];
+  function screenFor(ev){
+    const loc = (ev && ev.location) || 'apartment', list = PLACE_SCREENS[loc]; if (!list) return loc;
+    const named = STORE_AT.find(([re, sc]) => list.includes(sc) && re.test((ev.text || '') + ' ' + (ev.lines || []).map(l => l.say).join(' ')));
+    if (named) return named[1];
+    return list[Math.floor(hash(Math.floor((ev.t || 0) / 1200000) * 7 + list.length) * list.length)];
+  }
 
   let TUNING = false;   // the live feed hasn't answered yet
   let CUR_MEDIA = null; // 'ch9', '8bittv', 'nesflicks', 'rgbeat', 'herzl' or 'boolify' when the story's moment says which
@@ -1292,6 +1306,7 @@
     neighbor:{hair:'curly',hairColor:'gray',skin:'tan',shirt:'green',pants:'brown',extras:[]},
     barista:{hair:'short',hairColor:'black',skin:'light',shirt:'black',pants:'black',extras:['apron']},
     kiosk:{hair:'bald',hairColor:'black',skin:'brown',shirt:'white',pants:'navy',extras:['mustache','apron']},
+    cook:{hair:'short',hairColor:'black',skin:'tan',shirt:'white',pants:'black',hat:'cap',hatColor:'white',extras:['apron']},
     nightclerk:{hair:'curly',hairColor:'black',skin:'fair',shirt:'gray',pants:'black',top:'hoodie',extras:['headphones']},   // Shmulik's nephew-ish night clerk, nameless
     bartender:{hair:'long',hairColor:'black',skin:'tan',shirt:'black',pants:'black',extras:['beard','earring']},
     courier:{hair:'short',hairColor:'black',skin:'tan',shirt:'orange',pants:'black',extras:[]},
@@ -1441,7 +1456,8 @@
   }
   const DREAM_AD = params.has('dreamAd') ? +params.get('dreamAd') : null;
   function drawDream(t){
-    const list = DREAM.filter(d => SCENES[d.loc] && d.loc !== 'apartment' || d.w);
+    const sceneOf = l => SCENES[l] || SCENES[(PLACE_SCREENS[l] || [])[0]];
+    const list = DREAM.filter(d => sceneOf(d.loc) && d.loc !== 'apartment' || d.w);
     const now = NOW(), k = Math.floor(now / DREAM_EACH), ph = (now % DREAM_EACH) / DREAM_EACH, cyc = k % 14;
     // every ~100 s: a 14 s break of counting sheep; two random pictures; the rest is the day's highlights
     let kind = cyc < 2 ? 'sheep' : (cyc === 5 || cyc === 10) ? 'image' : 'scene';
@@ -1452,7 +1468,7 @@
     const im = kind === 'image' ? dreamImg(k) : null;
     if (kind === 'image' && !(im && im.ok)) kind = list.length ? 'scene' : 'sheep';
     if (kind === 'scene'){
-      const d = list[k % list.length], sc = SCENES[d.loc]; if (!sc) return;
+      const d = list[k % list.length], sc = sceneOf(d.loc); if (!sc) return;
       const prev = g; g = dctx; DREAMING = true;
       try {
         const fake = { loc:d.loc, action:'idle', x:0, targetX:0, travelling:false, hidden:true, pending:null, with:null };
@@ -1827,7 +1843,7 @@
   //   bld: [[x, y, w, colour]] buildings behind (street ground); fronts(t, night) and props(t, night): the spec's own art (props inside zOn)
   //   seed: everything random comes from it (never Math.random); crowd: [[idx, period, y, dir]] passers-by (default: three on the walk)
   //   traffic: 'road' (cars, the bus, bikes, ateBite), 'none'; stop: true = his bus or taxi pulls in here (a bus stop at 128)
-  //   amb: the sound bed ('street', 'sea', 'mall'); exitX(id, nearX): where a companion leaves; name: PLACE_NAME; fill / overheard: host lines
+  //   amb: the sound bed ('street', 'sea', 'mall'); exitX(nearX, id): where a companion leaves; sits(a, settled, actor): true = the scene draws him seated
   // It also enters the place in OUTSIDE (not indoors), BIKE_SEED and ATE_PLACES (road traffic), and the tables kitRegister() fills later.
   const KIT = new Set(), WEST = new Set(['west1','west2','west3']);
   function block(scene, cam, place){
@@ -1860,7 +1876,7 @@
         scene.props && scene.props(t, night, hf);
         (scene.crowd || [[scene.seed, 31000, 61, 1], [scene.seed+2, 39000, 63, -1], [scene.seed+4, 47000, 67, 1]])
           .forEach(([idx, per, y, dir], k) => crowdWalk(t, idx, per, scene.seed*(3000 + k*2000), y, dir, .75 + (y > 65 ? .1 : 0)));
-        drawFloor(t,a,settled,actor,this);
+        if (!(scene.sits && scene.sits(a, settled, actor))) drawFloor(t,a,settled,actor,this);
         if (traffic === 'road') zAdd(200, () => { bikeRideBy(ground === 'promenade' ? 91 : 99, night); if (!actor.ride || !scene.stop) ateRideBy(t + scene.seed*20000, 99);
           const off = scene.seed*2100, cx = (((t+off)/12) % 520) - 60, lap = Math.floor((t+off)/6240);
           if (scene.stop && actor.ride && !DREAMING){ const vx = rideX(actor.ride, NOW());   // his bus or taxi at the stop
@@ -2021,7 +2037,7 @@
     fronts(t, night){
       railing(64, night);
       R(0,6,104,66,'#e8e4dc'); R(0,6,104,3,'#c8c2b6'); for (let x=4;x<100;x+=12) R(x,14,8,38, night ? '#2a3448' : '#8fb7d0'); for (let x=4;x<100;x+=12) R(x,14,8,1,'#ffffff');   // glass and white stone
-      R(18,0,68,14,'#2a2a3a'); R(19,1,66,12,'#1a1a2a'); bigS(22,2, night); word('THE BIG S', 46, 5, '#ffd23f');
+      R(18,0,68,14,'#2a2a3a'); R(19,1,66,12,'#1a1a2a'); bigS(22,2); word('THE BIG S', 46, 5, '#ffd23f');
       R(36,52,32,20,'#3a4a5a'); R(38,54,13,18, night ? '#ffe9a8' : '#bfd8e8'); R(53,54,13,18, night ? '#ffe9a8' : '#bfd8e8'); R(51,54,2,18,'#2a3440');   // the glass doors
       R(0,52,34,20,'#d8d2c6'); R(70,52,34,20,'#d8d2c6');
       [6,76].forEach(x => { R(x,55,22,13, night ? '#ffe9a8' : '#cfe3ee'); R(x,55,22,1,'#9a9a9a'); });
@@ -2030,8 +2046,6 @@
     props(t, night){ promLamp(116, night); palm(124, 70, 36, night); palm(178, 70, 40, night); promBench(140, night); },
     exitX: nearX => nearX > W/2 ? W+8 : 52
   }, 'CAM-25', 'PROMENADE // THE BIG S');
-  // The Big S's logo: a fat pixel S in a circle
-  function bigS(x, y, night){ R(x+2,y,7,1,'#ffd23f'); R(x+1,y+1,9,9,'#ffd23f'); R(x+3,y+2,5,1,'#1a1a2a'); R(x+3,y+3,1,2,'#1a1a2a'); R(x+3,y+5,5,1,'#1a1a2a'); R(x+7,y+6,1,2,'#1a1a2a'); R(x+3,y+8,5,1,'#1a1a2a'); R(x+2,y+10,7,1,'#ffd23f'); }
   // ---------- Herzl St. east: the shops between his block and the café (the café's door at 186; the right edge goes on to Herzl east 1-3) ----------
   SCENES.shops = {
     cam:'CAM-09', place:'HERZL ST. // SHOPS', walkY:66, entry:-14, exit:W+8,
@@ -2204,6 +2218,119 @@
       if (night) alpha(.2,()=>R(0,0,W,H,'#050a1e'));
     }
   };
+
+  // ---------- The Big S (CAM-30 to 37): three floors from one kit; stores differ by sign and window, some by their whole front ----------
+  // Floors 1-2 are the story place 'mall', floor 3 'foodcourt' (screenFor() picks the screen). Escalators: up at 166 on mall1b and mall2b,
+  // arriving from below at 40 on mall2b and mall3a. Floors 2 and 3 show the glass balustrade over the atrium at the front.
+  const SHUT = () => !!(WORLD && WORLD.shabbat && NOW() >= WORLD.shabbat.start && NOW() <= WORLD.shabbat.end);   // Shabbat: every store shuttered
+  function mallStore(x, w, o, t){   // o: {name, band, sign, wall, type: 'store' | 'open' | 'big' | 'boarded' | 'food', goods: [colours], menu}
+    const top = o.type === 'big' ? 12 : 18, n = (o.name || '').length * 4 - 1, tx = x + Math.max(1, Math.floor((w - n) / 2));
+    R(x,top,w,72-top,o.wall || '#d8d4cc');
+    if (o.type === 'boarded'){ R(x+2,24,w-4,48,'#c9a46a'); for (let i=0;i<w-4;i+=6) R(x+2+i,24,1,48,'#a8854f'); R(x+2,36,w-4,1,'#a8854f'); R(x+2,56,w-4,1,'#a8854f');
+      R(x+4,42,w-8,9,'#f4f4f4'); word('SOON', x + Math.floor((w-15)/2), 44, '#c23b3b'); return; }
+    if (SHUT() && o.type !== 'food'){ R(x+1,top,w-2,72-top,'#8a9098'); for (let y=top+2;y<72;y+=3) R(x+1,y,w-2,1,'#727880'); R(x+1,top,w-2,8,o.band); word(o.name.slice(0, Math.floor((w-2)/4)), tx, top+2, o.sign); return; }
+    R(x,top,w,9,o.band); word(o.name, tx, top+2, o.sign);
+    if (o.type === 'food'){   // a food court counter: menu board, the cook behind, a counter with trays
+      R(x+2,top+11,w-4,12,'#1a1a22'); for (let i=0;i<4;i++) R(x+5,top+13+i*2+1,Math.floor((w-14)/2),1,'#e8e8e8'); R(x+w-12,top+13,8,8,(o.goods||['#e0b04a'])[0]);
+      R(x+2,top+24,w-4,22,'#3a3a44'); R(x+2,46,w-4,10,'#c8c4bc'); R(x+2,46,w-4,1,'#e8e4dc'); for (let i=0;i<3;i++) R(x+6+i*((w-12)/3|0),43,7,3,(o.goods||['#e0b04a'])[i % (o.goods||[1]).length]);
+      person(EXTRA.cook, x + Math.floor(w/2) - 5, top+22, t, {legs:false, face:0, muted:true}); R(x+2,56,w-4,16,o.wall || '#d8d4cc'); return; }
+    if (o.type === 'open'){ R(x+2,top+10,w-4,72-top-10,'#4a3a2c'); for (let r=0;r<3;r++){ R(x+4,top+16+r*10,w-8,1,'#8a7a5a'); for (let i=0;i<(w-8)/5;i++) R(x+5+i*5,top+12+r*10,3,4,(o.goods||['#e0605a'])[(i+r)%(o.goods||[1]).length]); } return; }
+    const wy = top + 11, wh = 72 - wy - 6;   // a shop window with goods, and a glass door at its side
+    R(x+2,wy,w-14,wh,'#cfe3ee'); R(x+2,wy,w-14,1,'#ffffff');
+    const g = o.goods || ['#e0605a','#3b7bc2']; for (let i=0;i<Math.floor((w-18)/6);i++){ const gx = x+4+i*6, gh = 6 + (i*7 % 9); R(gx, wy+wh-gh, 4, gh, g[i % g.length]); R(gx+1, wy+wh-gh-2, 2, 2, g[(i+1) % g.length]); }
+    R(x+w-11,wy-1,10,72-wy+1,'#9aa4ae'); R(x+w-10,wy,8,72-wy,'#dfeef6'); R(x+w-4,wy+12,1,4,'#6a7480');
+    R(x,66,w,6,'#bfb8ac');
+  }
+  function mallWall(t, floor){
+    R(0,0,W,72,'#e9e6df'); R(0,0,W,10, floor === 3 ? '#5a6470' : '#f4f2ee'); if (floor !== 3) for (let x=10;x<W;x+=30){ R(x,4,10,2,'#fff9e0'); }   // the ceiling and its lights
+    R(0,10,W,2,'#c8c2b6');
+  }
+  const mallCols = xs => xs.forEach(x => { R(x,10,4,62,'#d2cdc2'); R(x,10,1,62,'#e8e4dc'); });
+  // an escalator going up from its foot (fx, on the floor) to the ceiling, the steps moving on the clock
+  function escalatorUp(fx, t){
+    for (let i=0;i<62;i++){ const x = fx - i, y = 72 - i; R(x-3,y-8,14,8,'#b8c4cc'); }   // the glass side
+    for (let i=0;i<62;i++){ const x = fx - i, y = 72 - i; R(x,y,8,2, (Math.floor(i/3) + Math.floor(t/180)) % 2 ? '#7a8088' : '#8e949c'); R(x-3,y-9,1,1,'#2a2a2a'); R(x+10,y-9,1,1,'#2a2a2a'); }
+    R(fx-2,70,12,3,'#5a6068'); R(fx-62,8,12,4,'#5a6068');
+    word('UP', fx + 12, 58, '#3a7a3a');
+  }
+  // the top of the escalator coming up from the floor below: an opening with a glass rail
+  function escalatorArrive(cx, t){
+    R(cx-22,74,44,14,'#9aa4ae'); R(cx-20,76,40,12,'#5a6068');
+    for (let i=0;i<10;i++) R(cx-8,76+i,16,1,(Math.floor(i/2) + Math.floor(t/180)) % 2 ? '#7a8088' : '#8e949c');
+    R(cx-22,72,44,2,'#dfeef6'); R(cx-22,72,1,16,'#c8d4dc'); R(cx+21,72,1,16,'#c8d4dc');
+  }
+  // floors 2 and 3: the glass balustrade along the front, the atrium and the floor below through it
+  function balustrade(){ R(0,98,W,10,'#a8a49c'); for (let x=0;x<W;x+=16) R(x+4,100,8,8,'#bdb8ae'); alpha(.45, () => R(0,92,W,16,'#dfeef6')); R(0,91,W,2,'#c8cdd2'); for (let x=8;x<W;x+=24) R(x,92,1,16,'#c8cdd2'); }
+  function bigS(x, y){ R(x+2,y,7,1,'#ffd23f'); R(x+1,y+1,9,9,'#ffd23f'); R(x+3,y+2,5,1,'#1a1a2a'); R(x+3,y+3,1,2,'#1a1a2a'); R(x+3,y+5,5,1,'#1a1a2a'); R(x+7,y+6,1,2,'#1a1a2a'); R(x+3,y+8,5,1,'#1a1a2a'); R(x+2,y+10,7,1,'#ffd23f'); }
+  const MALL_CROWD = seed => [[seed, 26000, 61, 1], [seed+3, 33000, 63, -1], [seed+5, 41000, 67, 1]];
+  const mallScene = (id, cam, place, floor, seed, fronts, o = {}) => block(Object.assign({id, ground:'indoor', seed, amb:'mall', crowd: MALL_CROWD(seed),
+    room(t){ mallWall(t, floor); fronts(t); },
+    floor(y0, y1, sd){ mallFloor(y0, y1, sd); if (floor > 1) balustrade(); },
+    exitX: nearX => nearX > W/2 ? W+8 : -18}, o), cam, place);
+  SCENES.mall1a = mallScene('mall1a', 'CAM-30', 'THE BIG S // FLOOR 1', 1, 21, t => {
+    R(0,10,40,62,'#3a4a5a'); R(4,24,13,48,'#bfd8e8'); R(19,24,13,48,'#bfd8e8'); R(17,24,2,48,'#2a3440'); R(2,14,34,8,'#1a1a2a'); bigS(4,13); word('EXIT',16,16,'#ffd23f');   // the glass doors to the promenade
+    if (doorBusy(20)){ R(4,24,13,48,'#e8f4fa'); R(19,24,13,48,'#e8f4fa'); }
+    mallCols([40,104]); mallStore(44,60,{name:'YALLA YOGA',band:'#7a3fa0',sign:'#ffffff',goods:['#9a5fd0','#3bb0d0','#f4f4f4']},t); mallStore(108,84,{name:'PICSELL',band:'#ffd23f',sign:'#1a1a1a',goods:['#ff5a7a','#3b7bff','#3bdc6a','#ffe27a']},t);
+  }, {exitX: nearX => nearX > W/2 ? W+8 : 20});
+  SCENES.mall1b = mallScene('mall1b', 'CAM-31', 'THE BIG S // FLOOR 1', 1, 22, t => {
+    mallStore(0,96,{name:'EVERYTHING ELSE',band:'#2f6fb5',sign:'#ffffff',type:'big',goods:['#3a3a3a','#c8c8c8','#e0605a','#9fd3f0']},t); mallCols([96]);
+    R(152,16,36,9,'#1a1a2a'); word('FLOOR 2',155,18,'#ffd23f');
+    escalatorUp(166, t);
+  }, {exitX: nearX => nearX > 150 ? W+8 : -18});
+  SCENES.mall1c = mallScene('mall1c', 'CAM-32', 'THE BIG S // FLOOR 1', 1, 23, t => {
+    mallStore(0,64,{name:'KFAR KOFI',band:'#6b3f22',sign:'#ffd9a0',type:'open',goods:['#c98a3a','#e8e4d8','#6b3f22']},t); mallCols([64,128]);
+    mallStore(68,60,{name:'8BIT GAMES',band:'#1b1464',sign:'#ffd23f',goods:['#3bceac','#ff4f79','#ffd23f']},t);
+    mallStore(132,60,{name:'FLUFFNAP',band:'#9fc3e6',sign:'#2a3a5a',goods:['#f4f4f4','#9fc3e6','#f0d0e0']},t);
+  });
+  SCENES.mall2a = mallScene('mall2a', 'CAM-33', 'THE BIG S // FLOOR 2', 2, 24, t => {
+    mallStore(0,72,{name:'THREADBARE',band:'#2a2a2a',sign:'#f2e6c0',goods:['#c23b3b','#2c3a66','#e0b04a','#f4f4f4']},t); mallCols([72,132]);
+    mallStore(76,56,{name:'SOLE MATES',band:'#c27a3b',sign:'#ffffff',goods:['#3a3a3a','#c23b3b','#f4f4f4']},t);
+    mallStore(136,56,{name:'TOY BOX',band:'#e0605a',sign:'#ffffff',type:'open',goods:['#ffd23f','#3bb0d0','#7fbf6a','#e0605a']},t);
+  });
+  SCENES.mall2b = mallScene('mall2b', 'CAM-34', 'THE BIG S // FLOOR 2', 2, 25, t => {
+    mallStore(0,60,{name:'PIXEL PHONES',band:'#1f3d5a',sign:'#9fd3f0',goods:['#2a2a2a','#c8c8c8','#3b7bc2']},t); mallCols([60]);
+    mallStore(64,36,{name:'GLASSES',band:'#7a2a6a',sign:'#ffffff',goods:['#2a2a2a','#c8a050','#9fd3f0']},t); mallCols([100]);
+    R(146,16,42,9,'#1a1a2a'); word('FOOD',148,18,'#ffd23f'); word('3',168,18,'#ffd23f');
+    escalatorUp(166, t);
+  }, {exitX: nearX => nearX > 150 ? W+8 : nearX < 60 ? 40 : -18, props(t){ zAdd(80, () => escalatorArrive(40, t)); }});
+  SCENES.mall2c = mallScene('mall2c', 'CAM-35', 'THE BIG S // FLOOR 2', 2, 26, t => {
+    mallStore(0,56,{name:'BRRR',band:'#3bb0d0',sign:'#ffffff',type:'open',goods:['#ff8ab0','#fff0c0','#8a5a3a','#9fe0a0']},t); mallCols([56,124]);
+    mallStore(60,64,{name:'PAGE TURNER',band:'#4a5a3a',sign:'#f2e6c0',goods:['#c23b3b','#2c3a66','#d8b43a','#4f9a3f']},t);
+    mallStore(128,64,{name:'TAHINI BANK',band:'#1f3d5a',sign:'#e8d9a8',goods:['#4a4a4a','#5ab0ff']},t);
+  });
+  // floor 3: the food court under the glass roof (the real sky, rain on the glass); tables in front, he sits at one to eat
+  const FOOD_ACTS = ['eating','drinking','reading','talking'];
+  function foodTables(t, a, settled, actor, scene, seats){
+    seats.forEach(([x, people], k) => zAdd(84, () => {
+      R(x,78,24,2,'#f4f4f4'); R(x+11,80,2,10,'#c8c8c8'); R(x-6,74,5,9,'#e0605a'); R(x+25,74,5,9,'#e0605a');
+      people.forEach(([dx, idx]) => person(CROWD[idx % CROWD.length], x + dx, 66, t + idx * 977, {legs:false, face: dx < 12 ? 1 : -1, muted:true}));
+      if (k === 0 && people.length === 0) { R(x+4,74,6,4,'#e0b04a'); R(x+14,74,4,4,'#d9a03a'); }
+    }));
+  }
+  const foodScene = (id, cam, seed, fronts, seats, o = {}) => mallScene(id, cam, 'THE BIG S // FOOD COURT', 3, seed, fronts, Object.assign({}, o, {glass:10,
+    stand:{idle:96, walking:96, talking:72, phoning:96, eating:72, drinking:72, reading:72},
+    sits: (a, settled, actor) => settled && FOOD_ACTS.includes(a) && !actor.err,   // at the table: the scene draws him (block() skips drawFloor)
+    props(t, night){
+      o.props && o.props(t, night);
+      foodTables(t, null, null, null, null, seats);
+      const a = actor.action, atTable = this.sits(a, !actor.travelling && !actor.hidden && !actor.pending, actor);
+      const cl = atTable && companionLook(a), seated = cl && wantComp({id: actor.with || 'stranger', look: cl, x: 92, kind:'seat'});
+      zAdd(86, () => { R(66,78,34,2,'#f4f4f4'); R(82,80,2,10,'#c8c8c8');
+        if (atTable) drawIshai(a === 'talking' ? 'talking' : a, 70, 64, t, {food: a === 'drinking' ? '#d9a03a' : '#e0c060', seated:true, face: seated ? 1 : 0});
+        if (seated){ markHead(actor.with, 92, 64); person(cl, 92, 64, t, {legs:false, face:-1, talkPhase:true}); } });
+    }}));
+  SCENES.mall3a = foodScene('mall3a', 'CAM-36', 27, t => {
+    mallStore(64,42,{name:'HUMMUS',band:'#e0b04a',sign:'#3a2a10',type:'food',goods:['#e0c070','#7fbf6a','#c98a3a']},t); mallCols([106,148]);
+    mallStore(110,38,{name:'WOK',band:'#c23b3b',sign:'#ffd23f',type:'food',goods:['#e0b04a','#7fbf6a','#c23b3b']},t);
+    mallStore(152,40,{name:'PIZZA PI',band:'#2f7d3a',sign:'#ffffff',type:'food',goods:['#e0605a','#ffd36a','#f4f4f4']},t);
+    R(0,12,60,60,'#e9e6df'); R(4,16,52,10,'#1a1a2a'); bigS(6,15); word('FOOD',20,18,'#ffd23f');
+  }, [[134, [[2,4],[20,8]]], [8, []]], {exitX: nearX => nearX > 150 ? W+8 : nearX < 60 ? 40 : -18, props(t){ zAdd(80, () => escalatorArrive(40, t)); }});
+  SCENES.mall3b = foodScene('mall3b', 'CAM-37', 28, t => {
+    mallStore(0,48,{name:'SALAD DAYS',band:'#7fbf6a',sign:'#1a3a1a',type:'food',goods:['#7fbf6a','#e0605a','#ffd36a']},t); mallCols([48,100]);
+    mallStore(52,48,{name:'SCHNITZEL',band:'#c27a3b',sign:'#ffffff',type:'food',goods:['#e0b04a','#f4f4f4']},t);
+    mallStore(104,40,{name:'KFAR KOFI',band:'#6b3f22',sign:'#ffd9a0',type:'food',goods:['#c98a3a','#e8e4d8']},t); mallCols([144]);
+    mallStore(148,44,{name:'',band:'#c8c2b6',sign:'#000',type:'boarded'},t);
+  }, [[14, [[2,2],[20,6]]], [130, [[2,9]]], [164, []]]);
 
   function drawBus(cx, night, doorOpen){
     R(cx-10,88,56,14,'#e8e4d8'); R(cx-10,88,56,2,'#cfc8b6'); for (let i=0;i<5;i++) R(cx-6+i*10,90,7,4, night?'#ffd36a':'#9fd3f0');
@@ -3700,6 +3827,7 @@
     const out = []; let a = from; path.forEach(n => { if (!VEH.has(a) && !VEH.has(n) && (MAP[a]||{})[n]?.ride) out.push(rideKind()); out.push(n); a = n; }); return out;
   }
   function setState(loc, a, instant, w=null){
+    if (PLACE_SCREENS[loc]) loc = PLACE_SCREENS[loc][0];
     if (!SCENES[loc]) loc = 'offscreen';
     actor.viaFinal = null; actor.viaUntil = 0; actor.err = null;           // any running detour or errand ends
     if (loc==='apartment' && BATH.has(a)){ loc = 'bathroom'; if (actor.with) actor.guestWaits = actor.with; }
@@ -3926,7 +4054,7 @@
   // Long quiet stretches are skipped: a ride, or a settled scene apart from its last seconds.
   function joinMoment(e, real){
     if (!e) return;
-    const t0 = performance['now'](), list = [...TL.values()], p = list[list.indexOf(e) - 1], where = x => [x.ev.location || 'apartment', x.ev.action];
+    const t0 = performance['now'](), list = [...TL.values()], p = list[list.indexOf(e) - 1], where = x => [screenFor(x.ev), x.ev.action];
     let sim = Math.min(stepTo(real), Math.ceil(e.start / STEP) * STEP), n = 0; const begin = sim; SIM = sim;
     // the moment before, settled: a few seconds of it put him where he really was (pacing, on an errand)
     if (p){ sim -= 12000; SIM = sim; NEXT_RIDE = p.ev.ride || null; setState(...where(p), true, p.ev.with || null); render(wall());
@@ -4128,6 +4256,10 @@
       } else if (loc === 'corridor'){ bed(brown,'lowpass',300,.07); hum(100,.008); }
       else if (loc === 'bus'){ bed(brown,'lowpass',170,.16); hum(62,.014); }                   // the engine, and the road under the floor
       else if (loc === 'taxi'){ bed(brown,'lowpass',210,.1); hum(84,.006); }
+      else if (SCENES[loc] && SCENES[loc].amb === 'mall'){                                        // The Big S: air conditioning, a crowd, soft music from somewhere
+        bed(brown,'bandpass',520,.08); hum(110,.006);
+        loop(4200, 2500, () => { const f = [392, 440, 494, 523, 587][Math.floor(Math.random()*5)]; tone(f, .5, 'sine', .012, 0, dest, 1.2); });
+      }
       else if (SCENES[loc] && SCENES[loc].amb === 'sea'){                                        // the promenade: the surf, gulls, a road behind
         bed(brown,'lowpass',360,.10);
         loop(6500, 4000, () => noise(3.4,{vol:.13,type:'lowpass',freq:420,sweep:[1100,300],buf:brown,dest}));   // a wave comes in and pulls back
@@ -4405,13 +4537,13 @@
     if (typing) return; typing = true;
     while (queue.length){
       const ev = queue.shift(); if (ev.unlocks) UNLOCKED.add(ev.unlocks);
-      if (showOn && SHOW_AUTO && SHOW_STOP && ((ev.lines||[]).length || ev.with || ev.location !== actor.loc)) SHOW_STOP();   // something happens: back to live
+      if (showOn && SHOW_AUTO && SHOW_STOP && ((ev.lines||[]).length || ev.with || ev.location !== storyLoc(actor.loc))) SHOW_STOP();   // something happens: back to live
       // several moments became due at once (phone woke up, tab came back): skip the silent ones in between, so he doesn't hop in and out of bed
       if (queue.length && !(ev.lines || []).length){ shown.add(ev.id); if (DEV) addLine(ev, false); continue; }
       const entry = TL.get(ev.id), start = startOf(ev); ev._late = Math.max(0, NOW() - start);
       // already over with more waiting (tab came back): no walking through old moments; well into this one: be where he is by now
       NEXT_RIDE = ev.ride || null; CUR_MEDIA = ev.media || null;
-      if (!forceLoc && !ev._joined && !(queue.length && entry && NOW() >= entry.end)) setState(ev.location||'apartment', ev.action, ev._late > 20000, ev.with||null);
+      if (!forceLoc && !ev._joined && !(queue.length && entry && NOW() >= entry.end)) setState(screenFor(ev), ev.action, ev._late > 20000, ev.with||null);
       actor.hint = homeHint(ev.text); actor.hintUntil = entry ? entry.end : NOW() + 360000;
       actor.delivery = ev.delivery && ev._late < 35000 ? {at: start} : null;   // an ateBite courier at the door
       enterScene(ev.location, ev.with);
@@ -4468,7 +4600,7 @@
     if (!t || !t.action || e.thenDone) return;
     const due = e.start + THEN_MS, now = NOW(); if (now < due) return;
     e.thenDone = true;
-    const loc = ev.location || 'apartment';
+    const loc = screenFor(ev);
     if (actor.loc !== loc || actor.travelling || actor.pending || actor.ride || actor.switching || actor.hidden) return;   // not settled where the moment is: skip it
     setState(loc, t.action, now - due > 20000, ev.with || null);   // a viewer who joins late just finds him there
   }
@@ -4506,7 +4638,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', prom1:'THE PROMENADE', promenade:'THE PROMENADE', prom3:'THE PROMENADE', east1:'HERZL ST. EAST', east2:'HERZL ST. EAST', east3:'HERZL ST. EAST', kiosk:'SHMULIK\'S KIOSK', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', hall1:'1ST FLOOR HALL', apt2:'APARTMENT 2', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', prom1:'THE PROMENADE', promenade:'THE PROMENADE', prom3:'THE PROMENADE', east1:'HERZL ST. EAST', east2:'HERZL ST. EAST', east3:'HERZL ST. EAST', kiosk:'SHMULIK\'S KIOSK', mall1a:'THE BIG S', mall1b:'THE BIG S', mall1c:'THE BIG S', mall2a:'THE BIG S', mall2b:'THE BIG S', mall2c:'THE BIG S', mall3a:'THE BIG S FOOD COURT', mall3b:'THE BIG S FOOD COURT', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', hall1:'1ST FLOOR HALL', apt2:'APARTMENT 2', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
@@ -5369,7 +5501,7 @@
       arena(a){ ARENA = a || null; arenaPreload(); },
       promos(list){ PROMOS = list || []; renderPromos(); },
       poker(d, minAgo){ POKER = d ? {...d, at: NOW() - (minAgo || 0) * 60000} : null; },
-      go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(e.location, e.action, true, e.with); },
+      go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(screenFor(e), e.action, true, e.with); },
       busy: () => !!actor.pending || actor.travelling || !!actor.ride || !!actor.switching || !!actor.rideUntil || held.size > 0 || queue.length > 0 || (!!tlLast && NOW() < tlLast.end),
       state: () => ({comp: comp.id ? {id: comp.id, x: Math.round(comp.x), mode: comp.mode, boarded: !!comp.boarded} : null, voice: Sound.voiceInfo(), regulars: Object.keys(REG).filter(regHere), say: SAY.who, loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
       world(o){ forceHour = o.hour; const code = {clear: 0, cloudy: 3, rain: 61, storm: 95}[o.weather]; const t = NOW();
@@ -5549,6 +5681,14 @@
     east2: ['The mural: the whole Earth, squared. Somebody finally fixed the corners.', 'Shmulik\'s kiosk. Twenty-four hours, seven days, one man and a nephew.', 'Plastic chairs outside the kiosk. The most important furniture in this city.'],
     east3: ['The fountain at the end of Herzl Street. It runs until eleven, then it sleeps too.', 'Falafel Two, across from the fountain. We do not say that name near Avi.', 'A ring of benches round the fountain. Everyone faces the water.'],
     kiosk: ['Shmulik\'s kiosk. Seeds, sodas, the paper and an opinion, all for nine shekels.', 'That notebook behind the counter is everyone\'s tab on Herzl Street.', 'This week\'s ticket is the one, says Shmulik. He has said it for eleven years.', 'Open all night. At three in the morning this is the town square.'],
+    mall1a: ['The Big S. Three floors, one escalator that works, and air conditioning like a promise.', 'Yalla Yoga on the left, PicSell on the right, and the sea just behind those doors.'],
+    mall1b: ['Everything Else Express. Everything else, but faster.', 'The escalator. Up to floor two, then up again for food. Every mall is a pilgrimage.'],
+    mall1c: ['Kfar Kofi has a branch in here too. They follow him everywhere.', '8bit Games. The window has been playing the same demo since the mall opened.', 'FluffNap. Pillows so soft they have a returns policy for dreams.'],
+    mall2a: ['Floor two. Clothes, shoes, and a toy shop for the grown-ups who walk in by mistake.', 'Threadbare. The jeans come pre-torn. You pay extra for the holes.'],
+    mall2b: ['Pixel Phones. A wall of screens all showing the same sunset.', 'The optician on floor two. Look closer, they say. Everyone does.', 'Up again for the food court. The glass roof is up there.'],
+    mall2c: ['BRRR! has a shop in here as well as the cart on the promenade.', 'Page Turner, the bookshop. Ishai always slows down at a bookshop.'],
+    mall3a: ['The food court, under the glass roof. Hummus, wok, pizza, and everyone eating with one eye on their phone.', 'Floor three. The sky through the roof, and the smell of everything at once.'],
+    mall3b: ['Salad Days, Schnitzel Schtick and a Kfar Kofi. The whole menu of a life.', 'A table for one at the food court. The most honest seat in the city.', 'Coming soon, says the boarded counter. It has said that for a year.'],
     prom1: ['Past the Pump House and out to the sea. The city just stops and the blue begins.', 'BRRR, the ice-cream cart. Every promenade has one man who believes in sorbet.', 'The promenade. Joggers on the left, cyclists on the right, and Ishai somewhere in the middle.'],
     promenade: ['The promenade. Wave-patterned paving, so even the floor is at the beach.', 'There is the lifeguard tower. Check the flag: white is calm, red means stay out.', 'A bench facing the walk, back to the sea. Tel Aviv has never decided which way to look.', 'Sea on one side, the whole city on the other. He picked the right side.'],
     prom3: ['The west end of the promenade, and there she is: The Big S. Three floors of air conditioning.', 'The Big S, built right on the shore. You can hear the sea from the doors.', 'Palm trees, a bench, and a mall that looks like a cruise ship ran aground.'],
@@ -5666,6 +5806,12 @@
     east2: ['...is Australia on the bottom face? Then where is it?', '...two Cooola and the evening paper. And put it on the tab.', '...Shmulik, open at four in the morning? He is always open.'],
     east3: ['...throw a coin, make a wish, the city keeps the coin.', '...the falafel here is good. Do not tell Avi I said that.', '...it switches off at eleven, like my father.'],
     kiosk: ['...one bag of seeds, the black ones. And the paper.', '...what did I owe you? Write it, I will pay Sunday.', '...six-five, again! Who taught you, my mother?'],
+    mall1a: ['...we came in for one thing. One. Thing.', '...meet me by the doors, not the other doors, these doors.'],
+    mall1b: ['...is it up on the left or up on the right?', '...the escalator is broken? It is stairs now. Walk.'],
+    mall2a: ['...do these come in my size, or only in the window?', '...it is a jacket for the air conditioning, not for winter.'],
+    mall2c: ['...two scoops, pistachio and something brave.', '...I am only looking. I am always only looking.'],
+    mall3a: ['...hummus, again? We had hummus yesterday. And?', '...grab a table, I will get the trays.'],
+    mall3b: ['...the schnitzel is the size of my head.', '...one salad, no onion, no tomato, no salad, I am joking.'],
     prom1: ['...one scoop, two spoons, we are not animals.', '...ten kilometres? I said ten minutes.', '...the Pump House is doing concerts now, did you see the board?'],
     promenade: ['...the flag is red, so the sea is closed. Closed! Like a shop.', '...I swam here every morning for forty years and I am still cold.', '...look at the sunset. No, without your phone. Look.', '...on the bench, the one by the tower, at six.'],
     prom3: ['...we are only going in for the air conditioning.', '...the food court is on the top floor, under the glass.', '...The Big S. S for what? Nobody knows.'],

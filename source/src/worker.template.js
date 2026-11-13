@@ -1615,7 +1615,7 @@ function sickEvent(s, last, hour) {
     { who: "zohar", say: "Rest up, Ishai. The whole country is whispering." },
     { who: "oren", say: "This is the most relaxing episode we have ever aired." }
   ];
-  const step = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", promenade: "street", apt2: "corridor", cafe: "shops", kiosk: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
+  const step = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", promenade: "street", mall: "promenade", foodcourt: "mall", apt2: "corridor", cafe: "shops", kiosk: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   let ev;
   if (step) {
     const T = {
@@ -1666,9 +1666,9 @@ function sickEvent(s, last, hour) {
 }
 function fallback(last, hour, s) {
   const night = hour < 7 || hour >= 23;
-  const home = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", promenade: "street", apt2: "corridor", cafe: "shops", kiosk: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
+  const home = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", promenade: "street", mall: "promenade", foodcourt: "mall", apt2: "corridor", cafe: "shops", kiosk: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   if (night && home) {
-    const T = { kiosk: "He walks back from the kiosk along the dark, quiet street.", park: "He walks back through the dark park toward Herzl Street.", plaza: "He walks out of the Pump House into the night air.", promenade: "He walks along the dark promenade to the bus stop, the sea loud in the dark.", campus: "He walks out into the dark courtyard.", market: "He walks out of the store into the dark, empty market.", street: "Ishai heads back along Herzl Street toward home.", shops: "He walks back past the dark shop windows toward his building.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
+    const T = { mall: "He leaves The Big S as the shutters come down.", promenade: "He walks along the dark promenade to the bus stop, the sea loud in the dark.", kiosk: "He walks back from the kiosk along the dark, quiet street.", park: "He walks back through the dark park toward Herzl Street.", plaza: "He walks out of the Pump House into the night air.", promenade: "He walks along the dark promenade to the bus stop, the sea loud in the dark.", campus: "He walks out into the dark courtyard.", market: "He walks out of the store into the dark, empty market.", street: "Ishai heads back along Herzl Street toward home.", shops: "He walks back past the dark shop windows toward his building.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
     return { location: home, action: home === "apartment" ? "idle" : "walking", text: T[home], with: null, lines: [] };
   }
   const P = {
@@ -1680,6 +1680,8 @@ function fallback(last, hour, s) {
     classroom: [["campus", "walking", "He walks out of the lecture room into the courtyard."]],
     plaza: [["plaza", "idle", "Ishai reads the Pump House poster board."], ["plaza", "walking", "He walks slowly past the old pump hall, looking up at the chimney."], ["park", "walking", "He walks back into the park."]],
     arena: [["plaza", "walking", "He walks out of the hall onto the plaza."]],
+    mall: [["mall", "idle", "Ishai browses the shop windows on the second floor of The Big S."], ["mall", "walking", "He wanders the ground floor of The Big S, past Everything Else Express."], ["foodcourt", "eating", "He rides up to the food court and eats at a table under the glass roof."], ["promenade", "walking", "He walks out of The Big S onto the promenade."]],
+    foodcourt: [["foodcourt", "eating", "Ishai eats a plate of hummus at a table in the food court."], ["foodcourt", "drinking", "He sits with a coffee under the glass roof of the food court."], ["mall", "walking", "He takes the escalator back down into the mall."]],
     kiosk: [["kiosk", "drinking", "Ishai sits on the plastic chair outside Shmulik's kiosk with a cold Cooola."], ["kiosk", "idle", "He leans on the kiosk counter and reads the headlines upside down."], ["kiosk", "eating", "He buys a bag of sunflower seeds and cracks them one by one."], ["shops", "walking", "He walks back along Herzl Street toward the café."]],
     promenade: [["promenade", "walking", "Ishai walks along the promenade, the sea on his left, joggers passing."], ["promenade", "idle", "He leans on the railing and watches the waves come in."], ["promenade", "reading", "He sits on a bench by the lifeguard tower with a book."], ["street", "walking", "He takes the bus back from the promenade to Herzl Street."]],
     apt2: [["corridor", "walking", "He says goodnight at Boaz's door and climbs the stairs home."]],
@@ -1747,7 +1749,8 @@ function travelEvent(s, last, hop, dest) {
     "street>gym": `He pushes open the glass door of Herzl Gym${dog ? ", Falafel trotting behind" : ""}.`, "gym>street": `He leaves the gym, towel round his neck, and steps out onto Herzl Street${umb}.`,
     "street>bar": "He pushes open the heavy door of The Black Candle; red light and a guitar riff spill out.", "bar>street": `He steps out of The Black Candle onto Herzl Street${umb}.`,
     "street>market": `He takes the bus to Shuk Shalom market${umb}.`, "street>promenade": `He takes the bus to the promenade${umb}.`, "promenade>street": "He takes the bus back from the promenade to Herzl Street, sand in his shoes.",
-    "plaza>promenade": `He walks past the Pump House and out onto the promenade${umb}; the sea opens up in front of him.`, "promenade>plaza": "He walks back along the promenade to the Pump House plaza.",
+    "promenade>mall": `He walks to the west end of the promenade${umb} and in through the glass doors of The Big S.`, "mall>promenade": "He walks out of The Big S onto the promenade; the sea air hits him.",
+    "mall>foodcourt": "He rides the escalators up to the food court under the glass roof.", "foodcourt>mall": "He rides the escalator back down from the food court.", "plaza>promenade": `He walks past the Pump House and out onto the promenade${umb}; the sea opens up in front of him.`, "promenade>plaza": "He walks back along the promenade to the Pump House plaza.",
     "bus>promenade": "The bus drops him at the promenade.", "taxi>promenade": "The taxi drops him at the promenade.", "offscreen>promenade": "He gets off the bus at the promenade.", "market>street": "He takes the bus back to Herzl Street, shopping bags on his knees.",
     "market>store": "He walks into Everything Else, the big store next to the market.", "store>market": "He walks out of Everything Else back into the market.",
     "street>offscreen": "He gets on the bus at the stop.", "offscreen>street": "He gets off the bus on Herzl Street.",
