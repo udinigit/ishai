@@ -1222,8 +1222,18 @@ async function pickGemini(env) {
   return geminiModel;
 }
 const nextPacificMidnight = now => { const d = new Date(now); const t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 8, 5); return t > now ? t : t + 86400000; };
-async function runGemini(env, messages, maxTokens) {
-  const model = await pickGemini(env);
+// stable Flash and Flash-Lite models, newest first (a busy model's backups for the film writer; each model has its own free quota)
+let geminiAltList = null;
+async function geminiAlts(env) {
+  if (geminiAltList) return geminiAltList;
+  try { const r = await fetch(GEMINI_URL + "/models", { headers: { authorization: "Bearer " + env.GEMINI_API_KEY } }); if (!r.ok) return [];
+    const ver = id => parseFloat((id.match(/gemini-([\d.]+)/) || [0, 0])[1]);
+    geminiAltList = ((await r.json()).data || []).map(m => String(m.id || "").replace(/^models\//, "")).filter(id => /^gemini-[\d.]+-flash(-lite)?$/.test(id)).sort((a, b) => ver(b) - ver(a) || (/lite/.test(a) ? 1 : -1));
+  } catch (e) { return []; }
+  return geminiAltList;
+}
+async function runGemini(env, messages, maxTokens, useModel) {
+  const model = useModel || await pickGemini(env);
   const body = { model, messages, max_tokens: maxTokens, temperature: 0.9, response_format: { type: "json_object" } };
   const call = () => fetch(GEMINI_URL + "/chat/completions", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + env.GEMINI_API_KEY }, body: JSON.stringify(body) });
   let r = await call();
@@ -3252,7 +3262,14 @@ async function generateFilmPart(env, s, film) {
   if (!env.GEMINI_API_KEY || Date.now() < geminiOutUntil) throw new Error("Gemini is not available (a film is written by Gemini only)");
   const text = await gutenbergText(film), parts = filmParts(text, film.of || (film.of = text.length > 160000 ? 5 : 4)), k = film.done || 0;
   const user = `CAST SO FAR: ${JSON.stringify((film.cast || []).map(c => ({ id: c.id, name: c.name, look: c.look, voice: c.voice })))}\nSTORY SO FAR: ${(film.recaps || []).join(" ") || "(the beginning)"}\n\nSOURCE, part ${k + 1} of ${film.of}:\n${parts[k]}`;
-  const raw = await runGemini(env, [{ role: "system", content: FILM_SYS(film, k + 1, film.of) }, { role: "user", content: user }], 7000);
+  // Gemini busy (503/500/429 on one model): wait a moment and try again, then the other Flash models (up to 3 tries in all)
+  const msgs = [{ role: "system", content: FILM_SYS(film, k + 1, film.of) }, { role: "user", content: user }];
+  let raw = null, last = null; const first = await pickGemini(env), tries = [first, first, ...(await geminiAlts(env)).filter(m => m !== first)].slice(0, 3);
+  for (let i = 0; i < tries.length && raw == null; i++) {
+    try { raw = await runGemini(env, msgs, 7000, tries[i]); }
+    catch (e) { last = e; if (!/gemini (500|503|429)/.test(String(e.message))) throw e; if (i === 0) await new Promise(r => setTimeout(r, 4000)); }
+  }
+  if (raw == null) throw last;
   const part = cleanFilm(parseAI(raw), film.cast || []); if (!part) throw new Error("the AI's film part could not be used");
   await env.ISHAI.put(`film:${film.date}:${k}`, JSON.stringify({ scenes: part.scenes }));
   film.cast = part.cast; film.recaps = [...(film.recaps || []), part.recap].slice(-6); film.done = k + 1; film.lastAt = Date.now();
