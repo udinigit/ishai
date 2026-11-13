@@ -2376,7 +2376,8 @@
     fetch('/api/film?date=' + c.filmDate).then(r => r.ok ? r.json() : null).then(f => { if (f && f.scenes) setFilm(Object.assign(f, {date: c.filmDate, at: c.at})); }).catch(() => {});
   }
   setInterval(filmSync, 5000);
-  function filmAt(T){ if (!FILM_L) return null; return FILM_L.items.find(x => T >= x.t0 && T < x.t1) || null; }
+  function filmAt(T){ if (!FILM_L) return null;   // in the half second between two lines the last one stays on the screen (it showed THE END there)
+    return FILM_L.items.find(x => T >= x.t0 && T < x.t1) || (T >= 0 && T < FILM_L.total ? FILM_L.items.filter(x => x.t0 <= T).slice(-1)[0] || null : null); }
   // what the auditorium shows now: the curtain, the house lights, how full it is, the picture on the screen
   function filmState(){
     if (DREAMING || !FILM) return null;

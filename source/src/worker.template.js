@@ -3221,19 +3221,19 @@ function filmParts(text, n) {
   cuts.push(text.length);
   return cuts.slice(0, -1).map((c, i) => { const p = text.slice(c, cuts[i + 1]).trim(); return p.length > FILM_PART_IN ? p.slice(0, FILM_PART_IN / 2) + "\n\n[...]\n\n" + p.slice(-FILM_PART_IN / 2) : p; });
 }
-const FILM_SYS = (f, part, of) => `You adapt "${f.title}" by ${f.author} (a ${f.kind}, ${f.genre}) into a short 8-bit film shown at a small cinema. This is part ${part} of ${of}. Reply with ONLY JSON:
+const FILM_SYS = (f, part, of) => `You adapt "${f.title}" by ${f.author} (a ${f.kind}, ${f.genre}) into an 8-bit feature film, about 45 to 60 minutes in all, shown at a small cinema. This is part ${part} of ${of}. Reply with ONLY JSON:
 {"cast":[{"id":"short-lowercase-id","name":"Name","look":{"hair":"...","hairColor":"...","skin":"...","shirt":"...","pants":"...","hat":"...","top":"...","bottom":"...","extras":["..."]},"voice":"m or f"}],
  "scenes":[{"title":"short place and time, e.g. Algernon's flat, morning","set":{"kind":"...","era":"1890s","time":"day|dusk|night","props":["..."],"palette":"..."},
    "frames":[{"who":["id1","id2"],"pose":{"id1":"stand"},"move":"still"}],
    "lines":[{"who":"id","say":"...","frame":0,"react":"laugh"}]}],
  "recap":"one sentence: what happened in this part"}
 RULES
-- 2 to 4 scenes, in the story's order, covering THIS PART of the SOURCE only. Each scene has 6 to 16 lines; each "say" at most 130 characters.
+- 4 to 6 scenes, in the story's order, covering THIS PART of the SOURCE only, with nothing important left out. Each scene has 16 to 28 lines (about 100 to 130 lines in this part); each "say" at most 130 characters.
 - Keep the plot, the characters and the best lines; condense, and modernise a little only where old wording is hard to follow. "who" is a cast id, or "narrator" for a short line that bridges a gap (at most 2 a scene).
 - "cast": everyone who speaks in this part. Reuse the ids and looks from CAST SO FAR exactly; add only new people. Look values ONLY from: hair ${LOOK.hair.filter(h => h !== "cap").join("/")}; hairColor ${LOOK.hairColor.join("/")}; skin ${LOOK.skin.join("/")}; shirt and pants ${LOOK.cloth.join("/")}; hat ${LOOK.hat.join("/")}; top ${LOOK.top.join("/")}; bottom ${LOOK.bottom.join("/")}; extras (0-3) ${LOOK.extras.join("/")}.
 - set.kind ONE of: ${FILM_SETS.join(", ")}. props (0-5) ONLY from: ${FILM_PROPS.join(", ")}. palette ONE of: ${FILM_PAL.join(", ")} (horror: cold or dark).
-- 1 or 2 frames a scene; each frame shows 1-3 cast ids with a pose from: ${FILM_POSES.join(", ")}; move one of: ${FILM_MOVES.join(", ")}. A line's "frame" is the frame shown while it is said.
-- "react" (optional) is how the audience reacts after the line: ${FILM_REACT.join(", ")}; at most 1 line in 6.
+- 1 to 3 frames a scene; each frame shows 1-3 cast ids with a pose from: ${FILM_POSES.join(", ")}; move one of: ${FILM_MOVES.join(", ")}. A line's "frame" is the frame shown while it is said.
+- "react" (optional) is how the audience reacts after the line: ${FILM_REACT.join(", ")}; at most 1 line in 8.
 - Deaths and horrors may happen, but nothing graphic: a fall, a fade, a scream. No sex scenes.
 - Plain speech only: no markdown, no stage directions inside "say", nothing about cameras, being filmed, Project Gutenberg or this cinema.`;
 function cleanFilm(o, castSoFar) {
@@ -3242,15 +3242,15 @@ function cleanFilm(o, castSoFar) {
   for (const c of (Array.isArray(o?.cast) ? o.cast : []).slice(0, 14)) { const id = str(c?.id, 20).toLowerCase().replace(/[^a-z0-9-]/g, ""); if (!id || ids.has(id) || id === "narrator") continue;
     ids.add(id); cast.push({ id, name: str(c.name, 30) || id, look: cleanLook(c.look || {}), voice: c.voice === "f" ? "f" : "m" }); }
   let reacts = 0;
-  const scenes = (Array.isArray(o?.scenes) ? o.scenes : []).slice(0, 4).map(sc => {
-    const set = sc?.set || {}, frames = (Array.isArray(sc?.frames) ? sc.frames : []).slice(0, 2).map(fr => {
+  const scenes = (Array.isArray(o?.scenes) ? o.scenes : []).slice(0, 7).map(sc => {
+    const set = sc?.set || {}, frames = (Array.isArray(sc?.frames) ? sc.frames : []).slice(0, 3).map(fr => {
       const who = (Array.isArray(fr?.who) ? fr.who : []).map(w => str(w, 20).toLowerCase()).filter(w => ids.has(w)).slice(0, 3);
       const pose = {}; who.forEach(w => { const p = str((fr.pose || {})[w], 10).toLowerCase(); pose[w] = FILM_POSES.includes(p) ? p : "stand"; });
       return { who, pose, move: FILM_MOVES.includes(fr?.move) ? fr.move : "still" }; }).filter(fr => fr.who.length);
-    const lines = (Array.isArray(sc?.lines) ? sc.lines : []).slice(0, 16).map(l => {
+    const lines = (Array.isArray(sc?.lines) ? sc.lines : []).slice(0, 32).map(l => {
       const who = str(l?.who, 20).toLowerCase(), say = str(l?.say, 140); if (!say || !(ids.has(who) || who === "narrator")) return null;
-      const out = { who, say, frame: frames.length > 1 && +l.frame === 1 ? 1 : 0 };
-      if (FILM_REACT.includes(l.react) && reacts < 3) { out.react = l.react; reacts++; }
+      const out = { who, say, frame: Math.max(0, Math.min(frames.length - 1, Math.floor(+l.frame) || 0)) };
+      if (FILM_REACT.includes(l.react) && reacts < 16) { out.react = l.react; reacts++; }
       return out; }).filter(Boolean);
     return { title: str(sc?.title, 60) || "Later", set: { kind: FILM_SETS.includes(set.kind) ? set.kind : "room", era: str(set.era, 20), time: ["day", "dusk", "night"].includes(set.time) ? set.time : "day",
       props: (Array.isArray(set.props) ? set.props : []).filter(x => FILM_PROPS.includes(x)).slice(0, 5), palette: FILM_PAL.includes(set.palette) ? set.palette : "warm" },
@@ -3266,7 +3266,7 @@ async function generateFilmPart(env, s, film) {
   const msgs = [{ role: "system", content: FILM_SYS(film, k + 1, film.of) }, { role: "user", content: user }];
   let raw = null, last = null; const first = await pickGemini(env), tries = [first, first, ...(await geminiAlts(env)).filter(m => m !== first)].slice(0, 3);
   for (let i = 0; i < tries.length && raw == null; i++) {
-    try { raw = await runGemini(env, msgs, 7000, tries[i]); }
+    try { raw = await runGemini(env, msgs, 16000, tries[i]); }
     catch (e) { last = e; if (!/gemini (500|503|429)/.test(String(e.message))) throw e; if (i === 0) await new Promise(r => setTimeout(r, 4000)); }
   }
   if (raw == null) throw last;

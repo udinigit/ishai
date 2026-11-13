@@ -263,7 +263,10 @@ Back to the cameras.</textarea>
   }
   // a film at the PixelPlex: the sample film (a short Wilde), starting with the last minute of the ad reel
   async function film(){
-    let d = null; try { d = await (await fetch('/api/film?sample=1', {cache:'no-store'})).json(); } catch(e){}
+    let d = null;   // this week's real film once it is written, else the short sample
+    try { const c = (await (await fetch('/api/state', {cache:'no-store'})).json()).cinema;
+      if (c && c.ready) d = await (await fetch('/api/film?date=' + c.filmDate, {cache:'no-store'})).json(); } catch(e){ d = null; }
+    if (!d || !d.scenes) try { d = await (await fetch('/api/film?sample=1', {cache:'no-store'})).json(); } catch(e){}
     if (!d || !d.scenes) return alert('Could not load the sample film (/api/film?sample=1).');
     ++running; api.go({location:'cinema', action:'film', with:'noa'}); api.film(d, -40);
   }
