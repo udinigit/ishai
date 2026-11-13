@@ -86,7 +86,7 @@ Build order: phases 1 and 2 first (the world file and the block kit), because ab
 **3b. Three more Herzl screens (`east1`-`east3`), past the café.** The shops block's right edge leads on to `east1` (it leads to the café today). The café is entered by its corner door on the shops block instead, so the café keeps its place.
 - Built with the kit, each with one thing that is only there:
   - `east1`: a **statue** on a small square (decided): a figure built of bricks with a cube for a head, on a stone plinth, and a plaque that reads **"Stanley Cubrick"** (spelled exactly so). Pigeons sit on the cube. The hosts can have fun with it; Ishai has opinions about it.
-  - `east2`: a **mural** on a blank side wall (subject to choose), and the **kiosk** (3c);
+  - `east2`: a **mural** on a blank side wall (decided): **the Earth, squared**. Our globe painted as a cube seen corner-on, three faces showing oceans and continents bent around the edges, in the same brick-and-cube spirit as Stanley Cubrick a block away. And the **kiosk** (3c);
   - `east3`: a small **fountain** with a ring of benches, the water switched off at night.
 - Pass-through, like the west blocks: no prompt cost. Each needs a `FILL` and an `OVERHEARD` entry.
 
@@ -160,12 +160,12 @@ Optional and cheap: long filler stretches (a bike path, the promenade) can be ma
 - **Story places cost prompt space.** If many are added, send full descriptions only for the current place and its neighbours, and names for the rest.
 
 ## Open questions for the director
-1. The mural on Herzl east 2: what does it show?
+None open.
 
 Decided:
 - 2026-11-11: the map editor saves drafts in the browser and sends them to KV only with Send to Claude (see phase 4).
 - 2026-11-12: no bike for now. Order: phases 1-2, then the promenade, Herzl east 1-3 with a landmark each, the kiosk, the mall. The map editor (phase 4) and the generator (phase 5) come after these.
-- 2026-11-12: the statue is Stanley Cubrick (bricks, a cube head); Claude creates the kiosk owner (Shmulik); the mall is The Big S, shops 09:00-22:00, Friday until 16:00, closed on Saturday; the kiosk is open 24/7; the promenade at any hour. Claude fills the other place settings (above). Together the new places raise the hourly outing chance by a few points at their busiest hours; Claude checks the totals when building.
+- 2026-11-12: the statue is Stanley Cubrick (bricks, a cube head); Claude creates the kiosk owner (Shmulik); the mall is The Big S, shops 09:00-22:00, Friday until 16:00, closed on Saturday; the kiosk is open 24/7; the promenade at any hour. Claude fills the other place settings (above). 2026-11-13: the mural is the Earth as a cube. Together the new places raise the hourly outing chance by a few points at their busiest hours; Claude checks the totals when building.
 
 ## Later
 - **Saturday at The Big S:** a cinema (open on Saturday), maybe arcades and bowling. Likely on floor 3 next to the food court, or a floor of their own. Each becomes a story place with its own `places.json` hours.
