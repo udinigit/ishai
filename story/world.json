@@ -1,5 +1,5 @@
 {
- "about": "The world map: every place, its doors and where they lead, what the story knows about it. The build turns it into MAP in the page and NEXT, PLACES, LOCATIONS and WALK in the worker (source/world.mjs). kind: 'story' = a place the story can name (needs desc and actions), 'pass' = page only, walked through on the way (west blocks, the landing, the bathroom; actions here are the page's only, default walking and idle), 'vehicle' = bus and taxi. links: exit/entry = x where he leaves / appears ('R' = off the right edge, W+8); ride = by bus or taxi. next: extra places the story may name as the next stop that the doors alone don't give. walkMin: minutes to walk through or into it (default story 4, pass 1). rideOnly: reached only by bus or taxi and its links don't need a way back (offscreen). screens / of: a story place made of several page screens (The Big S: 'mall' is mall1a-2c); the place has no links, its screens do, each with of: the place; the page picks the screen and walks him there.",
+ "about": "The world map: every place, its doors and where they lead, what the story knows about it. The build turns it into MAP in the page and NEXT, PLACES, LOCATIONS and WALK in the worker (source/world.mjs). kind: 'story' = a place the story can name (needs desc and actions), 'pass' = page only, walked through on the way (west blocks, the landing, the bathroom; actions here are the page's only, default walking and idle), 'vehicle' = bus and taxi. links: exit/entry = x where he leaves / appears ('R' = off the right edge, W+8); ride = by bus or taxi. next: extra places the story may name as the next stop that the doors alone don't give. walkMin: minutes to walk through or into it (default story 4, pass 1). rideOnly: reached only by bus or taxi and its links don't need a way back (offscreen). map: [column, row] on the director's map page (/map): row 0 is the street-level line from the promenade to Herzl east, floors of The Big S above, doors into buildings below. screens / of: a story place made of several page screens (The Big S: 'mall' is mall1a-2c); the place has no links, its screens do, each with of: the place; the page picks the screen and walks him there.",
  "places": {
   "apartment": {
    "kind": "story",
@@ -9,7 +9,8 @@
     "corridor": {"exit": 135, "entry": 135},
     "bathroom": {"exit": 48, "entry": 48}
    },
-   "notes": ["front door, bathroom door"]
+   "notes": ["front door, bathroom door"],
+   "map": [7, 2]
   },
   "bathroom": {
    "kind": "pass",
@@ -17,7 +18,8 @@
     "apartment": {"exit": 9, "entry": 9}
    },
    "notes": ["bathroom door -> apartment"],
-   "actions": ["bathroom", "showering"]
+   "actions": ["bathroom", "showering"],
+   "map": [7, 3]
   },
   "corridor": {
    "kind": "story",
@@ -28,7 +30,8 @@
     "street": {"exit": 178, "entry": 178},
     "hall1": {"exit": 178, "entry": 178}
    },
-   "notes": ["apt 4 door, stairs (down to the street, or to the first floor)"]
+   "notes": ["apt 4 door, stairs (down to the street, or to the first floor)"],
+   "map": [7, 1]
   },
   "hall1": {
    "kind": "pass",
@@ -37,7 +40,8 @@
     "street": {"exit": 8, "entry": 8},
     "apt2": {"exit": 92, "entry": 92}
    },
-   "notes": ["first-floor landing (page only): stairs up, stairs down, apt 2's door"]
+   "notes": ["first-floor landing (page only): stairs up, stairs down, apt 2's door"],
+   "map": [6, 1]
   },
   "apt2": {
    "kind": "story",
@@ -46,7 +50,8 @@
    "links": {
     "hall1": {"exit": 4, "entry": 4}
    },
-   "notes": ["Boaz's front door"]
+   "notes": ["Boaz's front door"],
+   "map": [6, 2]
   },
   "street": {
    "kind": "story",
@@ -64,7 +69,8 @@
     "offscreen": {"exit": 128, "entry": 128, "ride": true},
     "promenade": {"exit": 128, "entry": 128, "ride": true}
    },
-   "notes": ["building entrance (up to his floor, or to the first floor)", "the same stop: the bus (or a taxi) to the promenade"]
+   "notes": ["building entrance (up to his floor, or to the first floor)", "the same stop: the bus (or a taxi) to the promenade"],
+   "map": [8, 0]
   },
   "park": {
    "kind": "story",
@@ -74,7 +80,8 @@
     "west3": {"exit": "R", "entry": "R"},
     "plaza": {"exit": -14, "entry": -14}
    },
-   "notes": ["right edge -> the park end of Herzl St.; left edge -> the Pump House"]
+   "notes": ["right edge -> the park end of Herzl St.; left edge -> the Pump House"],
+   "map": [4, 0]
   },
   "plaza": {
    "kind": "story",
@@ -85,7 +92,8 @@
     "arena": {"exit": 60, "entry": 60},
     "prom1": {"exit": -14, "entry": -14}
    },
-   "notes": ["the park path on the right; the Pump House doors", "left edge -> the promenade (prom1)"]
+   "notes": ["the park path on the right; the Pump House doors", "left edge -> the promenade (prom1)"],
+   "map": [3, 0]
   },
   "arena": {
    "kind": "story",
@@ -94,7 +102,8 @@
    "links": {
     "plaza": {"exit": "R", "entry": "R"}
    },
-   "notes": ["the hall's door, on the right"]
+   "notes": ["the hall's door, on the right"],
+   "map": [3, 1]
   },
   "prom1": {
    "kind": "pass",
@@ -102,7 +111,8 @@
     "plaza": {"exit": "R", "entry": "R"},
     "promenade": {"exit": -14, "entry": -14}
    },
-   "notes": ["the promenade east (CAM-23, page only): right edge -> the Pump House plaza, left edge -> the promenade"]
+   "notes": ["the promenade east (CAM-23, page only): right edge -> the Pump House plaza, left edge -> the promenade"],
+   "map": [2, 0]
   },
   "promenade": {
    "kind": "story",
@@ -113,7 +123,8 @@
     "prom3": {"exit": -14, "entry": -14},
     "street": {"exit": 128, "entry": 128, "ride": true}
    },
-   "notes": ["the promenade (CAM-24, story place): right edge -> prom1 (the plaza), left edge -> prom3 (The Big S), its own bus stop (128) -> Herzl St. by bus or taxi"]
+   "notes": ["the promenade (CAM-24, story place): right edge -> prom1 (the plaza), left edge -> prom3 (The Big S), its own bus stop (128) -> Herzl St. by bus or taxi"],
+   "map": [1, 0]
   },
   "prom3": {
    "kind": "pass",
@@ -121,7 +132,8 @@
     "promenade": {"exit": "R", "entry": "R"},
     "mall1a": {"exit": 52, "entry": 52}
    },
-   "notes": ["the promenade west (CAM-25, page only): right edge -> the promenade; The Big S's glass doors (52) -> its ground floor (mall1a)"]
+   "notes": ["the promenade west (CAM-25, page only): right edge -> the promenade; The Big S's glass doors (52) -> its ground floor (mall1a)"],
+   "map": [0, 0]
   },
   "mall": {
    "kind": "story",
@@ -144,7 +156,8 @@
     "prom3": {"exit": 20, "entry": 20},
     "mall1b": {"exit": "R", "entry": "R"}
    },
-   "notes": ["floor 1 west (CAM-30): the glass doors to the promenade (20), right edge -> mall1b"]
+   "notes": ["floor 1 west (CAM-30): the glass doors to the promenade (20), right edge -> mall1b"],
+   "map": [0, -1]
   },
   "mall1b": {
    "kind": "pass",
@@ -154,7 +167,8 @@
     "mall1c": {"exit": "R", "entry": "R"},
     "mall2b": {"exit": 166, "entry": 166}
    },
-   "notes": ["floor 1 middle (CAM-31): the escalator up (its foot at 166) -> floor 2"]
+   "notes": ["floor 1 middle (CAM-31): the escalator up (its foot at 166) -> floor 2"],
+   "map": [1, -1]
   },
   "mall1c": {
    "kind": "pass",
@@ -162,7 +176,8 @@
    "links": {
     "mall1b": {"exit": -14, "entry": -14}
    },
-   "notes": ["floor 1 east (CAM-32)"]
+   "notes": ["floor 1 east (CAM-32)"],
+   "map": [2, -1]
   },
   "mall2a": {
    "kind": "pass",
@@ -170,7 +185,8 @@
    "links": {
     "mall2b": {"exit": "R", "entry": "R"}
    },
-   "notes": ["floor 2 west (CAM-33)"]
+   "notes": ["floor 2 west (CAM-33)"],
+   "map": [0, -2]
   },
   "mall2b": {
    "kind": "pass",
@@ -181,7 +197,8 @@
     "mall1b": {"exit": 40, "entry": 40},
     "mall3a": {"exit": 166, "entry": 166}
    },
-   "notes": ["floor 2 middle (CAM-34): the escalator from floor 1 arrives at 40 (and goes back down there), the escalator up to the food court at 166"]
+   "notes": ["floor 2 middle (CAM-34): the escalator from floor 1 arrives at 40 (and goes back down there), the escalator up to the food court at 166"],
+   "map": [1, -2]
   },
   "mall2c": {
    "kind": "pass",
@@ -189,7 +206,8 @@
    "links": {
     "mall2b": {"exit": -14, "entry": -14}
    },
-   "notes": ["floor 2 east (CAM-35)"]
+   "notes": ["floor 2 east (CAM-35)"],
+   "map": [2, -2]
   },
   "mall3a": {
    "kind": "pass",
@@ -198,7 +216,8 @@
     "mall2b": {"exit": 40, "entry": 40},
     "mall3b": {"exit": "R", "entry": "R"}
    },
-   "notes": ["floor 3, the food court west (CAM-36): the escalator from floor 2 arrives at 40; right edge -> mall3b"]
+   "notes": ["floor 3, the food court west (CAM-36): the escalator from floor 2 arrives at 40; right edge -> mall3b"],
+   "map": [1, -3]
   },
   "mall3b": {
    "kind": "pass",
@@ -206,7 +225,8 @@
    "links": {
     "mall3a": {"exit": -14, "entry": -14}
    },
-   "notes": ["floor 3, the food court east (CAM-37)"]
+   "notes": ["floor 3, the food court east (CAM-37)"],
+   "map": [2, -3]
   },
   "west3": {
    "kind": "pass",
@@ -214,14 +234,16 @@
     "park": {"exit": -14, "entry": -14},
     "west2": {"exit": "R", "entry": "R"}
    },
-   "notes": ["three blocks you walk through, on the way between the park and his building"]
+   "notes": ["three blocks you walk through, on the way between the park and his building"],
+   "map": [5, 0]
   },
   "west2": {
    "kind": "pass",
    "links": {
     "west3": {"exit": -14, "entry": -14},
     "west1": {"exit": "R", "entry": "R"}
-   }
+   },
+   "map": [6, 0]
   },
   "west1": {
    "kind": "pass",
@@ -229,7 +251,8 @@
     "west2": {"exit": -14, "entry": -14},
     "street": {"exit": "R", "entry": "R"}
    },
-   "notes": ["left edge -> Herzl St. west, on the way to the park"]
+   "notes": ["left edge -> Herzl St. west, on the way to the park"],
+   "map": [7, 0]
   },
   "shops": {
    "kind": "story",
@@ -240,7 +263,8 @@
     "cafe": {"exit": 186, "entry": 186},
     "east1": {"exit": "R", "entry": "R"}
    },
-   "notes": ["left edge -> street; the café door (186) -> Cafe Nahat; right edge -> Herzl east 1 (past the café)"]
+   "notes": ["left edge -> street; the café door (186) -> Cafe Nahat; right edge -> Herzl east 1 (past the café)"],
+   "map": [9, 0]
   },
   "cafe": {
    "kind": "story",
@@ -250,7 +274,8 @@
     "shops": {"exit": 4, "entry": 4}
    },
    "notes": ["entrance door -> Herzl St. east", "next: the story may send him from the café straight to the street (he walks back through the shops block)"],
-   "next": ["street"]
+   "next": ["street"],
+   "map": [9, 1]
   },
   "east1": {
    "kind": "pass",
@@ -258,7 +283,8 @@
     "shops": {"exit": -14, "entry": -14},
     "east2": {"exit": "R", "entry": "R"}
    },
-   "notes": ["Herzl east 1 (CAM-26, page only): the square with Stanley Cubrick; left edge -> shops, right edge -> east2"]
+   "notes": ["Herzl east 1 (CAM-26, page only): the square with Stanley Cubrick; left edge -> shops, right edge -> east2"],
+   "map": [10, 0]
   },
   "east2": {
    "kind": "pass",
@@ -267,14 +293,16 @@
     "east3": {"exit": "R", "entry": "R"},
     "kiosk": {"exit": 140, "entry": 140}
    },
-   "notes": ["Herzl east 2 (CAM-27, page only): the mural (the Earth, squared) and Shmulik's kiosk (its counter at 140)"]
+   "notes": ["Herzl east 2 (CAM-27, page only): the mural (the Earth, squared) and Shmulik's kiosk (its counter at 140)"],
+   "map": [11, 0]
   },
   "east3": {
    "kind": "pass",
    "links": {
     "east2": {"exit": -14, "entry": -14}
    },
-   "notes": ["Herzl east 3 (CAM-28, page only): the fountain; left edge -> east2 (the street goes on, off camera)"]
+   "notes": ["Herzl east 3 (CAM-28, page only): the fountain; left edge -> east2 (the street goes on, off camera)"],
+   "map": [12, 0]
   },
   "kiosk": {
    "kind": "story",
@@ -284,7 +312,8 @@
     "east2": {"exit": -14, "entry": -14}
    },
    "next": ["street"],
-   "notes": ["Shmulik's kiosk (CAM-29, story place): he walks in from the left (the sidewalk) and leaves the same way"]
+   "notes": ["Shmulik's kiosk (CAM-29, story place): he walks in from the left (the sidewalk) and leaves the same way"],
+   "map": [11, 1]
   },
   "gym": {
    "kind": "story",
@@ -293,7 +322,8 @@
    "links": {
     "street": {"exit": 4, "entry": 4}
    },
-   "notes": ["Herzl Gym door (blue building)", "gym door -> street"]
+   "notes": ["Herzl Gym door (blue building)", "gym door -> street"],
+   "map": [8, 1]
   },
   "bar": {
    "kind": "story",
@@ -302,7 +332,8 @@
    "links": {
     "street": {"exit": 4, "entry": 4}
    },
-   "notes": ["The Black Candle door (next to the bench)", "bar door -> street"]
+   "notes": ["The Black Candle door (next to the bench)", "bar door -> street"],
+   "map": [8, 2]
   },
   "market": {
    "kind": "story",
@@ -312,7 +343,8 @@
     "street": {"exit": 128, "entry": 128, "ride": true},
     "store": {"exit": 4, "entry": 4}
    },
-   "notes": ["bus stop: the bus (or a taxi) to Shuk Shalom", "the market's own bus stop; the store door on the left"]
+   "notes": ["bus stop: the bus (or a taxi) to Shuk Shalom", "the market's own bus stop; the store door on the left"],
+   "map": [14, 0]
   },
   "store": {
    "kind": "story",
@@ -321,7 +353,8 @@
    "links": {
     "market": {"exit": 4, "entry": 4}
    },
-   "notes": ["store door -> market"]
+   "notes": ["store door -> market"],
+   "map": [14, 1]
   },
   "campus": {
    "kind": "story",
@@ -331,7 +364,8 @@
     "street": {"exit": 128, "entry": 128, "ride": true},
     "classroom": {"exit": 60, "entry": "R"}
    },
-   "notes": ["the same stop: the bus (or a taxi) to the university", "the university's own bus stop; the lecture building's doors"]
+   "notes": ["the same stop: the bus (or a taxi) to the university", "the university's own bus stop; the lecture building's doors"],
+   "map": [15, 0]
   },
   "classroom": {
    "kind": "story",
@@ -340,7 +374,8 @@
    "links": {
     "campus": {"exit": "R", "entry": 60}
    },
-   "notes": ["the lecture room's door, on the right"]
+   "notes": ["the lecture room's door, on the right"],
+   "map": [15, 1]
   },
   "bus": {
    "kind": "vehicle",

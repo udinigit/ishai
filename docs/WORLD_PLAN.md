@@ -2,7 +2,7 @@
 
 Draft 2026-11-11, updated 2026-11-12 (the places table, the build order).
 
-**Status 2026-11-13: phases 1, 2 and 3 are built** (v218-v221). Phases 4 (map editor) and 5 (scenery by request) are next. What was built differently from the plan below:
+**Status 2026-11-13: phases 1, 2 and 3 are built** (v218-v221). For now the director asked for a map to look at instead of the editor (phase 4): `/map` (v222) shows every screen, its ways out and where they lead. The editor and phase 5 wait. What was built differently from the plan below:
 - **Phase 2:** `block(spec)` is in, but West 1-3 kept their own drawing code as the spec's `fronts`/`props` (pixel-identical, checked) instead of being rewritten into front and prop types. The libraries grew with the new places instead: the promenade (`seaBand`, `sandBand`, `waveWalk`, `railing`, `palm`, `lifeguardTower`, `umbrella`), Herzl east (`cubrick`, `earthCube`, `fountain`, `kioskFront`) and The Big S (`mallStore`, `escalatorUp`, `escalatorArrive`, `balustrade`, `glassRoof`, `mallFloor`).
 - **3a:** the bus stop is on the story place `promenade` (CAM-24), not on `prom1`: a stop on a page-only block would have made the plaza "one bus ride" from the street. `route()` in the page now weighs a ride as 5 hops on foot.
 - **3c:** backgammon is a board on the counter between Ishai and Shmulik (when he stands there with him), not a new seated pose.

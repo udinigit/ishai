@@ -225,6 +225,7 @@ const SANDBOX_HTML = __SANDBOX_HTML__;
 const INTRO_HTML = __INTRO_HTML__;   // the trailer: /intro, public; first-time visitors land here once
 const BUILDER_HTML = __BUILDER_HTML__;
 const EVENTS_HTML = __EVENTS_HTML__;
+const MAP_HTML = __MAP_HTML__;   // the director's map of every screen (source/public/map.html + story/world.json)
 const SW_JS = __SW_JS__;
 const ICONS = __ICONS__;   // /favicon.ico, /favicon.svg, /apple-touch-icon.png, /icon-192.png, /icon-512.png, /og.png (source/public/icons)
 const iconBytes = {};
@@ -354,6 +355,10 @@ export default {
       const dev = JSON.stringify({ ep, from: num(b.from, 0, 23, 8), to: num(b.to, 0, 24, 23), max: num(b.max, 1, ALERTS_A_DAY, ALERTS_A_DAY), alerts: b.alerts !== false, picks: b.picks !== false });
       if (req.method === "DELETE") await env.ISHAI.delete(key); else if ((await env.ISHAI.get(key)) !== dev) await env.ISHAI.put(key, dev);
       return json({ ok: true }, { "cache-control": "no-store" });
+    }
+    if (url.pathname === "/map") {   // the director's map: every screen, its ways out and where they lead
+      if (!await isDev(req, env)) return Response.redirect(url.origin + "/director", 302);
+      return new Response(MAP_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
     }
     if (url.pathname === "/events") {   // the director's bands, concerts and promotions
       if (!await isDev(req, env)) return Response.redirect(url.origin + "/director", 302);

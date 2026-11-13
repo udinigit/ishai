@@ -13,6 +13,8 @@ const sandbox = fs.readFileSync('public/sandbox.html','utf8');
 const builder = fs.readFileSync('public/builder.html','utf8');
 const intro = withVoices(fs.readFileSync('public/intro.html','utf8'), 'intro.html');
 const events = fs.readFileSync('public/events.html','utf8');
+// the director's map (/map): story/world.json as it is in this build
+const mapPage = (() => { const src = fs.readFileSync('public/map.html','utf8'), m = '/*__WORLD_JSON__*/{}'; if (src.split(m).length !== 2) throw new Error('map.html needs ' + m + ' exactly once'); return src.replace(m, () => fs.readFileSync('../story/world.json','utf8').trim()); })();
 const sw = fs.readFileSync('public/sw.js','utf8');
 // favicons and the link-preview picture (WhatsApp etc.), served by the worker from memory
 const ICON_TYPES = { '.ico':'image/x-icon', '.svg':'image/svg+xml', '.png':'image/png' };
@@ -22,5 +24,5 @@ JSON.parse(plan); // fail the build early if the plan is not valid JSON
 const course = fs.readFileSync('../story/course.json','utf8');
 const places = JSON.stringify(JSON.parse(fs.readFileSync('../story/places.json','utf8')));
 JSON.parse(course);
-fs.writeFileSync('../src/index.js', tpl.replace('__BUILD__', BUILD).replace('__HTML__', () => JSON.stringify(html)).replace('__DIRECTOR_HTML__', () => JSON.stringify(dir)).replace('__SANDBOX_HTML__', () => JSON.stringify(sandbox)).replace('__BUILDER_HTML__', () => JSON.stringify(builder)).replace('__INTRO_HTML__', () => JSON.stringify(intro)).replace('__EVENTS_HTML__', () => JSON.stringify(events)).replace('__SW_JS__', () => JSON.stringify(sw)).replace('__ICONS__', () => JSON.stringify(icons)).replace('__PLAN__', () => plan).replace('__COURSE__', () => course).replace('__PLACES__', () => places));
+fs.writeFileSync('../src/index.js', tpl.replace('__BUILD__', BUILD).replace('__HTML__', () => JSON.stringify(html)).replace('__DIRECTOR_HTML__', () => JSON.stringify(dir)).replace('__SANDBOX_HTML__', () => JSON.stringify(sandbox)).replace('__BUILDER_HTML__', () => JSON.stringify(builder)).replace('__INTRO_HTML__', () => JSON.stringify(intro)).replace('__EVENTS_HTML__', () => JSON.stringify(events)).replace('__MAP_HTML__', () => JSON.stringify(mapPage)).replace('__SW_JS__', () => JSON.stringify(sw)).replace('__ICONS__', () => JSON.stringify(icons)).replace('__PLAN__', () => plan).replace('__COURSE__', () => course).replace('__PLACES__', () => places));
 console.log('built', fs.statSync('../src/index.js').size, 'bytes');

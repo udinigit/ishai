@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Ishai Map</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#050705;--phos:#4dff7a;--dim:#2a9a4c;--faint:#123d20;--amber:#ffb84d;--red:#ff6b6b;--blue:#6bc4ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--phos);font-family:'VT323',ui-monospace,monospace;font-size:20px;padding:16px}
+  .wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+  h1{font-size:30px;margin:0;font-weight:normal} h2{font-size:24px;margin:0 0 6px;font-weight:normal}
+  a{color:var(--phos)} .muted{color:var(--dim)} .small{font-size:16px}
+  .box{border:2px solid var(--faint);border-radius:10px;padding:12px 14px;background:#020502}
+  /* the overview: every screen on its square */
+  #over{overflow:auto;padding-bottom:6px}
+  #grid{position:relative}
+  .tile{position:absolute;width:100px;cursor:pointer;text-align:center;font-size:14px;line-height:1.05;color:var(--dim)}
+  .tile canvas{width:96px;height:54px;image-rendering:pixelated;border:2px solid var(--faint);border-radius:4px;display:block;margin:0 auto;background:#0b140b}
+  .tile.story canvas{border-color:var(--dim)} .tile:hover canvas{border-color:var(--amber)} .tile.hit canvas{border-color:var(--amber);box-shadow:0 0 0 2px var(--amber)}
+  .tile b{color:var(--phos);font-weight:normal} .tile div{background:#020502;border-radius:3px;margin:1px 4px 0}
+  #lines{position:absolute;left:0;top:0;pointer-events:none}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:16px;color:var(--dim)} .legend i{font-style:normal}
+  /* one card per screen */
+  .card{border:2px solid var(--faint);border-radius:10px;padding:10px 12px;background:#020502;scroll-margin-top:12px}
+  .card.flash{border-color:var(--amber)}
+  .card .head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+  .badge{font-size:15px;border:1px solid var(--dim);border-radius:5px;padding:0 6px;color:var(--dim)} .badge.story{color:var(--bg);background:var(--dim)}
+  .shot{position:relative;width:100%;max-width:576px;margin:8px 0}
+  .shot canvas{width:100%;display:block;image-rendering:pixelated;border-radius:6px;background:#0b140b}
+  .shot canvas.marks{position:absolute;left:0;top:0;height:100%;background:transparent}
+  ul.links{list-style:none;margin:4px 0 0;padding:0} ul.links li{padding:2px 0;border-top:1px dashed var(--faint)} ul.links li:first-child{border-top:none}
+  .num{display:inline-block;min-width:22px;text-align:center;border-radius:4px;color:#000;margin-right:6px}
+  .go{color:var(--amber);cursor:pointer;text-decoration:underline}
+  .desc{font-size:16px;color:var(--dim);margin-top:6px}
+  .notes{font-size:15px;color:var(--dim);margin-top:4px}
+  #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>&gt; MAP // THE WORLD</h1>
+  <div class="muted small"><a href="/director">← Director page</a> · Every screen of the show, where its ways out are and where each one leads. Read from <code>story/world.json</code> as of this build; nothing here changes the show. Tap a screen to see it, tap a way out to go where it leads.</div>
+  <div class="box">
+    <h2>The whole world</h2>
+    <div class="legend"><i>━ walk (edge or door)</i><i style="color:var(--amber)">┅ bus or taxi</i><i>bright frame: a place the story can name · dim: walked through</i><i>above the street: The Big S's floors · below: doors into buildings</i></div>
+    <div id="over"><div id="grid"><canvas id="lines"></canvas></div></div>
+  </div>
+  <div id="cards"></div>
+  <div class="box"><h2>Rides</h2><div id="rides" class="small"></div></div>
+</div>
+<iframe id="art" src="/?builder" title="art" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;border:0"></iframe>
+<script>
+(() => {
+  const WORLD = /*__WORLD_JSON__*/{};
+  const P = WORLD.places || {}, $ = id => document.getElementById(id), W = 192, H = 108;
+  const COL = ['#4dff7a','#ffb84d','#6bc4ff','#ff8ab0','#c9a0ff','#ffd23f','#7fe0d0','#ff6b6b','#b0e070','#f0a070'];
+  const CELL_W = 112, CELL_H = 86;
+  const name = id => (SC[id] && SC[id].name) || id, cam = id => (SC[id] && SC[id].cam) || '';
+  let SC = {};   // from the builder: {id: {name, cam, walkY}}
+
+  // where a way out is, in words
+  const where = (x, ride) => ride ? 'bus stop (' + x + ')' : x === 'R' ? 'right edge' : x == null ? '' : x < 0 ? 'left edge' : 'door at ' + x;
+  const px = x => x === 'R' ? W - 3 : x < 0 ? 2 : x;
+  const storyOf = id => P[id].of || (P[id].kind === 'pass' ? null : id);
+
+  // ---- the overview ----
+  function overview(){
+    const ids = Object.keys(P).filter(id => P[id].map), cols = ids.map(id => P[id].map[0]), rows = ids.map(id => P[id].map[1]);
+    const c0 = Math.min(...cols), r0 = Math.min(...rows), wpx = (Math.max(...cols) - c0 + 1) * CELL_W, hpx = (Math.max(...rows) - r0 + 1) * CELL_H;
+    const grid = $('grid'); grid.style.width = wpx + 'px'; grid.style.height = hpx + 'px';
+    const lc = $('lines'); lc.width = wpx; lc.height = hpx; const g = lc.getContext('2d');
+    const centre = id => [(P[id].map[0] - c0) * CELL_W + CELL_W/2, (P[id].map[1] - r0) * CELL_H + 30];
+    const done = new Set();
+    for (const id of ids) for (const [to, l] of Object.entries(P[id].links || {})){
+      if (!P[to] || !P[to].map || done.has(to + '|' + id)) continue; done.add(id + '|' + to);
+      const [x1, y1] = centre(id), [x2, y2] = centre(to);
+      g.strokeStyle = l.ride ? '#ffb84d' : '#2a9a4c'; g.lineWidth = 3; g.setLineDash(l.ride ? [6, 6] : []);
+      g.beginPath(); if (l.ride){ const my = Math.max(y1, y2) + CELL_H * .9; g.moveTo(x1, y1); g.bezierCurveTo(x1, my, x2, my, x2, y2); } else { g.moveTo(x1, y1); g.lineTo(x2, y2); } g.stroke();
+    }
+    g.setLineDash([]);
+    for (const id of ids){
+      const t = document.createElement('div'); t.className = 'tile' + (P[id].kind === 'story' || P[id].of ? ' story' : ''); t.id = 'tile-' + id;
+      t.style.left = ((P[id].map[0] - c0) * CELL_W + (CELL_W - 100) / 2) + 'px'; t.style.top = ((P[id].map[1] - r0) * CELL_H + 2) + 'px';
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.dataset.loc = id; t.appendChild(cv);
+      const lab = document.createElement('div'); lab.innerHTML = '<b>' + esc(cam(id)) + '</b><br>' + esc(short(id)); t.appendChild(lab);
+      t.onclick = () => show(id); grid.appendChild(t);
+    }
+    if (P.street && P.street.map){ const o = $('over'); o.scrollLeft = centre('street')[0] - o.clientWidth / 2; o.scrollTop = 0; }   // open on his street
+  }
+  const short = id => { const n = name(id).replace(/^THE BIG S \/\/ /, '').replace(/ \/\/ .*$/, ''); return P[id].of ? id.replace('mall', 'floor ').replace(/(\d)([abc])/, '$1$2') : n.length > 18 ? id : n; };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  // ---- one card per screen ----
+  function cards(){
+    const box = $('cards'), order = Object.keys(P).filter(id => P[id].links && Object.keys(P[id].links).length && P[id].kind !== 'vehicle' && !P[id].rideOnly)
+      .sort((a, b) => ((P[a].map || [99, 99])[1] - (P[b].map || [99, 99])[1]) || ((P[a].map || [99, 99])[0] - (P[b].map || [99, 99])[0]));
+    for (const id of order){
+      const p = P[id], el = document.createElement('div'); el.className = 'card'; el.id = 'card-' + id;
+      const kind = p.of ? 'part of ' + p.of : p.kind === 'story' ? 'story place' : 'walked through';
+      el.innerHTML = '<div class="head"><div>' + esc(cam(id)) + ' · ' + esc(name(id)) + ' <span class="muted small">(' + id + ')</span></div><span class="badge' + (p.kind === 'story' || p.of ? ' story' : '') + '">' + esc(kind) + '</span></div>' +
+        '<div class="shot"><canvas width="' + W + '" height="' + H + '" data-loc="' + id + '"></canvas><canvas class="marks" width="' + W*3 + '" height="' + H*3 + '"></canvas></div><ul class="links"></ul>' +
+        (p.desc ? '<div class="desc">' + esc(p.desc) + '</div>' : (p.of && P[p.of].desc ? '<div class="desc">' + esc(p.of) + ': ' + esc(P[p.of].desc) + '</div>' : '')) +
+        (p.notes ? '<div class="notes">' + p.notes.map(esc).join('<br>') + '</div>' : '');
+      const ul = el.querySelector('ul.links'), links = Object.entries(p.links);
+      links.forEach(([to, l], i) => {
+        const li = document.createElement('li'), back = (P[to] && P[to].links || {})[id] || {};
+        li.innerHTML = '<span class="num" style="background:' + COL[i % COL.length] + '">' + (i + 1) + '</span>' + esc(where(l.exit, l.ride)) + ' → <span class="go">' + esc(cam(to) ? cam(to) + ' ' : '') + esc(name(to)) + '</span>' +
+          (l.ride ? ' <span class="muted">by bus or taxi</span>' : '') + (l.entry != null && !l.ride ? ' <span class="muted">· arrives at its ' + esc(where(l.entry)) + '</span>' : '') +
+          (back.exit == null && !l.ride && P[to] && P[to].kind !== 'vehicle' ? ' <span style="color:var(--red)">(no way back)</span>' : '');
+        li.querySelector('.go').onclick = () => show(to, id);
+        ul.appendChild(li);
+      });
+      // also the ways in that are not a way out (the bus and taxi drop him off here)
+      const ins = Object.keys(P).filter(o => P[o].kind === 'vehicle' && (P[o].links || {})[id]);
+      if (ins.length){ const li = document.createElement('li'); li.className = 'muted'; li.textContent = 'The ' + ins.join(' and the ') + ' drop him here.'; ul.appendChild(li); }
+      box.appendChild(el);
+      el._links = links;
+    }
+  }
+  // the markers on a card's picture: a numbered post at each way out, the floor line, an arrow at the edges
+  function marks(id, hiFrom){
+    const el = $('card-' + id); if (!el) return;
+    const cv = el.querySelector('canvas.marks'), g = cv.getContext('2d'), k = 3, fy = ((SC[id] && SC[id].walkY) || 66) + 22;
+    g.clearRect(0, 0, cv.width, cv.height);
+    g.strokeStyle = 'rgba(77,255,122,.35)'; g.setLineDash([6, 6]); g.beginPath(); g.moveTo(0, fy*k); g.lineTo(cv.width, fy*k); g.stroke(); g.setLineDash([]);
+    const stack = {};   // ways out at the same spot (the bus stop, a shared door) get one post and badges on top of each other
+    el._links.forEach(([to, l], i) => {
+      if (l.exit == null) return;
+      const x = px(l.exit) * k, c = COL[i % COL.length], hi = hiFrom === to, n = stack[l.exit] = (stack[l.exit] || 0) + 1;
+      if (n === 1){ g.fillStyle = c; g.globalAlpha = .6; g.fillRect(x - 2, (fy - 34) * k, 4, 34 * k); g.globalAlpha = 1;
+        if (l.exit === 'R' || l.exit < 0){ const d = l.exit === 'R' ? 1 : -1, ax = l.exit === 'R' ? cv.width - 6 : 6; g.beginPath(); g.moveTo(ax, (fy - 12) * k); g.lineTo(ax - d*18, (fy - 18) * k); g.lineTo(ax - d*18, (fy - 6) * k); g.fill(); } }
+      const bx = Math.min(cv.width - 34, Math.max(2, x - 16)), by = (fy - 34) * k - 36 * n;
+      g.fillStyle = hi ? '#ffffff' : c; g.fillRect(bx, by, 32, 32); g.fillStyle = '#000'; g.font = '28px VT323, monospace'; g.textAlign = 'center'; g.fillText(String(i + 1), bx + 16, by + 25);
+      if (hi){ g.strokeStyle = '#ffffff'; g.lineWidth = 4; g.strokeRect(bx - 3, by - 3, 38, 38); }
+    });
+  }
+  // jump to a screen; coming from another one lights the way back
+  function show(id, from){
+    let tgt = id; if (P[id] && P[id].screens) tgt = P[id].screens[0];
+    const el = $('card-' + tgt); if (!el){ $('rides').scrollIntoView({behavior:'smooth'}); return; }
+    document.querySelectorAll('.card.flash').forEach(c => c.classList.remove('flash')); document.querySelectorAll('.tile.hit').forEach(c => c.classList.remove('hit'));
+    el.classList.add('flash'); const t = $('tile-' + tgt); if (t) t.classList.add('hit');
+    marks(tgt, from); el.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+  function rides(){
+    const v = Object.keys(P).filter(id => P[id].kind === 'vehicle' || P[id].rideOnly);
+    $('rides').innerHTML = v.map(id => '<div><b>' + esc(id) + '</b> → ' + Object.keys(P[id].links || {}).map(to => '<span class="go" data-to="' + to + '">' + esc(name(to)) + '</span>').join(', ') + '</div>').join('') +
+      '<div class="muted">The bus or a taxi leaves from the stop at 128 on Herzl St., the market, the campus and the promenade. Off camera ("offscreen") is anywhere else he goes by bus or taxi.</div>';
+    $('rides').querySelectorAll('.go').forEach(a => a.onclick = () => show(a.dataset.to));
+  }
+  // ---- the pictures, drawn by the show's own code (the hidden builder page) ----
+  function paint(B){
+    const hour = 12;
+    document.querySelectorAll('canvas[data-loc]').forEach(cv => {
+      try { const pic = B.scene({loc: cv.dataset.loc, hour, weather: 'clear', frame: 0, crowd: false}); if (pic) cv.getContext('2d').drawImage(pic, 0, 0); } catch(e){}
+    });
+  }
+  const start = () => {
+    let B = null; const f = $('art');
+    const wait = () => { try { if (f.contentWindow.__builder){ B = f.contentWindow.__builder; } } catch(e){}
+      if (!B) return setTimeout(wait, 300);
+      for (const s of B.menus().scenes) SC[s.id] = s;
+      overview(); cards(); rides(); Object.keys(P).forEach(id => marks(id)); paint(B);
+      if (location.hash.length > 1) show(location.hash.slice(1));
+    };
+    wait();
+  };
+  start();
+})();
+</script>
+</body>
+</html>

@@ -5615,7 +5615,7 @@
     window.__builder = {
       FRAMES: 60, STAGE: 108, W, H,
       menus: () => ({
-        scenes: Object.keys(SCENES).filter(k => k !== 'offscreen').map(id => ({id, name: SCENES[id].place.replace('ISHAI // ', '')})),
+        scenes: Object.keys(SCENES).filter(k => k !== 'offscreen').map(id => ({id, name: SCENES[id].place.replace('ISHAI // ', ''), cam: SCENES[id].cam, walkY: SCENES[id].walkY || 66})),
         ishai: ISHAI, outfits: Object.keys(OUTFIT), person: Object.keys(PERSON), faces: Object.keys(FACE), dog: ['sit','walk','sleep'],
         people: [...DEMO_CAST.filter(c => c.id !== 'ishai').map(c => ({id: c.id, name: c.name, look: c.look})), ...Object.keys(REG).map(id => ({id, name: id[0].toUpperCase() + id.slice(1), look: REG[id].look}))],
         props: Object.entries(PROPS).map(([id, p]) => ({id, name: p.name, group: p.group, poses: p.poses})),

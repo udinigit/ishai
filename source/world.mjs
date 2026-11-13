@@ -40,6 +40,10 @@ export function loadWorld(root = '..'){
       for (const sc of p.screens) if (!P[sc] || P[sc].kind !== 'pass' || P[sc].of !== id) err(`${id}: screen ${sc} must be a pass place with of: "${id}"`); }
     if (p.of && !(P[p.of] && (P[p.of].screens || []).includes(id))) err(`${id}: of ${p.of}, but ${p.of} doesn't list it in screens`);
   }
+  { const at = {};   // the director's map: one place per square
+    for (const id of ids){ const m = P[id].map; if (!m) continue;
+      if (!Array.isArray(m) || m.length !== 2 || !m.every(Number.isInteger)) err(`${id}: map must be [column, row]`);
+      else { const k = m.join(','); if (at[k]) err(`${id}: map ${k} is taken by ${at[k]}`); at[k] = id; } } }
   for (const id of Object.keys(rules)){
     if (!P[id]) err(`places.json: ${id} is not on the map`);
     else if (P[id].kind === 'pass') err(`places.json: ${id} is a pass-through place (it never closes, is never an outing and has no stay)`);
