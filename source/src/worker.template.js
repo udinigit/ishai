@@ -3169,18 +3169,18 @@ function pickFilm(c) {
   return pool[0] || null;
 }
 // ---- the text: Gutendex finds the book, Gutenberg's plain text without its header and footer ----
-const norm = t => String(t).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const norm = t => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();   // Molière = moliere
 async function gutenbergText(f) {
   const ua = { headers: { "user-agent": "WatchingIshai/1.0 (story website; one book a week)" } };
   let book = null;
   if (f.gid) { const r = await fetch("https://gutendex.com/books/" + f.gid, ua); if (r.ok) book = await r.json(); }
   if (!book) {
-    const last = f.author.split(" ").pop(), r = await fetch("https://gutendex.com/books/?languages=en&search=" + encodeURIComponent(f.title + " " + last), ua);
-    if (!r.ok) throw new Error(`Gutendex ${r.status} for ${f.title}`);
-    const want = norm(f.title), list = ((await r.json()).results || []).filter(b => b.formats && Object.keys(b.formats).some(k => k.startsWith("text/plain")));
-    book = list.find(b => norm(b.title) === want && (b.authors || []).some(a => norm(a.name).includes(norm(last))))
-      || list.find(b => norm(b.title).startsWith(want) && (b.authors || []).some(a => norm(a.name).includes(norm(last))))
-      || list.find(b => norm(b.title).includes(want) && (b.authors || []).some(a => norm(a.name).includes(norm(last))));
+    const last = f.author.split(" ").pop(), list = [];   // by title and author first, then by the title alone (Gutendex's search is accent-sensitive: Molière)
+    for (const q of [f.title + " " + last, f.title]) { if (list.length) break;
+      const r = await fetch("https://gutendex.com/books/?languages=en&search=" + encodeURIComponent(q), ua); if (!r.ok) throw new Error(`Gutendex ${r.status} for ${f.title}`);
+      list.push(...((await r.json()).results || []).filter(b => b.formats && Object.keys(b.formats).some(k => k.startsWith("text/plain")) && (b.authors || []).some(a => norm(a.name).includes(norm(last))))); }
+    const want = norm(f.title);
+    book = list.find(b => norm(b.title) === want) || list.find(b => norm(b.title).startsWith(want)) || list.find(b => norm(b.title).includes(want));
     if (!book) throw new Error(`Gutenberg has no plain text of "${f.title}" by ${f.author}`);
   }
   const died = Math.max(...(book.authors || []).map(a => a.death_year || 0));
