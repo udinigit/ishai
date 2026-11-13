@@ -217,7 +217,7 @@ const LOOK = {
   extras: ["glasses","sunglasses","beard","stubble","mustache","freckles","earring","headphones","necklace","tie","scarf","apron","watch","bag","backpack"]
 };   // must match LOOK_OPTS in the page
 
-const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && a !== "lecture" && a !== "gallery" && a !== "concert" && a !== "poker" && a !== "film" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" and "lecture" are only for planned classes
+const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && a !== "lecture" && a !== "gallery" && a !== "concert" && a !== "poker" && a !== "film" && a !== "trivia" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" and "lecture" are only for planned classes
 
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
@@ -290,7 +290,7 @@ export default {
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
-        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), cinema: cinemaHealth(s), life: (s.life || []).slice(-6),
+        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
         polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3), pushes: (s.pollPushes || []).map(j => ({ kind: j.kind, poll: j.poll, at: j.at, sent: j.sent, done: j.done })) },
@@ -403,6 +403,14 @@ export default {
       const fl = c && Object.values(c.films || {}).find(x => x.date === date || x.repeat === date) || null, src = fl && (fl.repeat ? { ...fl, date: fl.repeat } : fl);
       const f = src && await filmFull(env, src); if (!f) return json({ error: "no film for that date yet" }, {}, 404);
       return json({ ...f, at: fl.at, title: fl.title }, { "cache-control": "public, max-age=600" });
+    }
+    if (url.pathname === "/api/trivia") {   // a trivia night as the page plays it; ?sample=1 (director) a short one starting now, for the sandbox
+      if (url.searchParams.get("sample")) {
+        if (!await isDev(req, env)) return json({ error: "director only" }, {}, 403);
+        return json(triviaNight("sample-" + (url.searchParams.get("seed") || "1"), Date.now(), TRIVIA_SAMPLE, { rounds: 2, per: 3, half: 60000 }));
+      }
+      const date = String(url.searchParams.get("date") || "").replace(/[^0-9-]/g, "").slice(0, 10), v = date && await env.ISHAI.get("trivia:" + date);
+      return v ? new Response(v, { headers: { "content-type": "application/json", "cache-control": "public, max-age=600" } }) : json({ error: "no trivia night on that date" }, {}, 404);
     }
     if (url.pathname === "/api/poker") {   // a poker night as the page plays it; ?sample=1 (director) simulates a short one for the sandbox
       if (url.searchParams.get("sample")) {
@@ -518,7 +526,7 @@ function publicState(s, dev) {
     studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
-    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()), cinema: cinemaPublic(s, Date.now()), promos: promosPublic(s, Date.now()), guide: guideToday(s, Date.now()), voices: s.voiceCfg || {},
+    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()), trivia: triviaPublic(s, Date.now()), cinema: cinemaPublic(s, Date.now()), promos: promosPublic(s, Date.now()), guide: guideToday(s, Date.now()), voices: s.voiceCfg || {},
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [], barStations: s.world.barStations || [], cafeStations: s.world.cafeStations || [] } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
@@ -618,6 +626,7 @@ async function tick(env, force) {
   if (!force) try { await pokerTick(env, s, now); } catch (e) { pokerOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   if (!force) try { arenaTick(s, now); } catch (e) { arenaOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   if (!force) try { await filmTick(env, s, now); } catch (e) { cinemaOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
+  if (!force) try { await triviaTick(env, s, now); } catch (e) { triviaOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   geminiOutUntil = Math.max(geminiOutUntil, s.geminiOutUntil || 0);   // a pause set by another isolate still counts
   TALK = talkLevel(s, env, now);
   // director: activate the next goal, or force it if its deadline passed
@@ -669,7 +678,7 @@ async function tick(env, force) {
   if (goal && goal.status !== "done" && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
 
   if (ev.newCard) { s.cast[ev.newCard.id] = ev.newCard; s.lastNewAt = now; }
-  if (ev.action === "lecture" || ev.action === "film") ev.commentary = [];   // the hosts stay quiet while Dr. Sasson teaches, and in the cinema
+  if (ev.action === "lecture" || ev.action === "film" || ev.action === "trivia") ev.commentary = [];   // the hosts stay quiet while Dr. Sasson teaches, and in the cinema
   if ((ev.commentary || []).some(c => SPONSORS.some(sp => c.say.toLowerCase().includes(sp.name.toLowerCase())))) s.lastAd = now;
   const did = { eating: ["eat"], cooking: [], drinking: ["drink"], bathroom: ["bathroom"], showering: ["shower", "bathroom"] }[ev.action] || [];
   if (ev.action === "eating" && (ev.location === "cafe" || ev.location === "bar")) did.push("drink");
@@ -812,7 +821,7 @@ function autoFixNote(s, now, storyMs, last) {
 function autoFix(s, ev, goal, now, storyMs) {
   if (ev.action === "sleeping" || /^night/.test(ev.src || "")) return null;                       // sleep moments may look alike
   if (goal && goal.script && goal.step > 0) return null;                                          // a planned scene is playing as written
-  if (["lecture", "poker", "concert", "improv", "film"].includes(ev.action)) return null;
+  if (["lecture", "poker", "concert", "improv", "film", "trivia"].includes(ev.action)) return null;
   const why = loopSignal(s, now); if (!why) return null;
   if ((s.fixLog || []).some(f => now - f.at < AUTOFIX_GAP_MIN * 60000)) return null;            // cooldown
   const last = s.events[s.events.length - 1];
@@ -1387,7 +1396,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   { const ms = Date.now() + DELAY_MIN * 60000, inside = ev.location === last.location || (ev.location === "campus" && last.location === "classroom");
     if (LOCATIONS[ev.location] && !inside && !planned && PR[ev.location] && !placeOpen(ev.location, ms)) return { ev, problem: closedWhy(ev.location) }; }
   if (!LOCATIONS[ev.location]) return { ev, problem: `"${ev.location}" is not a known location` };
-  if ((ev.action === "improv" || ev.action === "lecture" || ev.action === "film") && !planned) ev.action = "talking";     // the class layouts come from the plan only
+  if ((ev.action === "improv" || ev.action === "lecture" || ev.action === "film" || ev.action === "trivia") && !planned) ev.action = "talking";     // the class layouts come from the plan only
   if (!LOCATIONS[ev.location].includes(ev.action)) {
     const A = { waiting: "idle", sitting: "idle", standing: "idle", relaxing: "idle", resting: "idle", thinking: "idle", cleaning: "idle", tidying: "idle", washing: "idle", shopping: "idle", browsing: "idle", looking: "idle", lounging: "idle", stretching: "idle",
       typing: "working", coding: "working", designing: "working", emailing: "working", texting: "phoning", calling: "phoning", chatting: "talking", speaking: "talking", greeting: "talking",
@@ -1523,7 +1532,7 @@ function repair(ev, s, last, planned = false) {
   let loc = LOCATIONS[ev.location] ? ev.location : last.location;
   if (!planned && EVENT_ONLY.includes(loc) && loc !== last.location) loc = last.location;
   if (loc !== last.location && !NEXT[last.location].includes(loc) && !nextPath(last.location, loc)) loc = last.location;
-  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : ev.action === "concert" && loc === "arena" ? ["concert"] : ev.action === "poker" && loc === "apt2" ? ["poker"] : ev.action === "film" && loc === "cinema" ? ["film"] : allowed(loc, s.unlocked);
+  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : ev.action === "concert" && loc === "arena" ? ["concert"] : ev.action === "poker" && loc === "apt2" ? ["poker"] : ev.action === "film" && loc === "cinema" ? ["film"] : ev.action === "trivia" && loc === "cafe" ? ["trivia"] : allowed(loc, s.unlocked);
   const act = legal.includes(ev.action) ? ev.action : (legal.includes("idle") ? "idle" : legal[0]);
   const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with) && act !== "sleeping";
   return { ...ev, location: loc, action: act, with: ok ? ev.with : null,
@@ -2703,7 +2712,7 @@ async function pollTick(env, s, ev, now, last) {
     const say = !r.total ? "Nobody voted this hour, so life goes on exactly as planned. Your loss." : o.kind === "none" ? `The votes are in: ${pct}% said "${o.label}". So, nothing. Democracy!`
       : at ? `The votes are in: ${pct}% chose "${o.label}"${r.tie ? " (a tie, settled by the studio coin)" : ""}. Keep watching, it happens later today.` : `The votes are in: "${o.label}" won, but life got too busy for it today.`;
     const pc = { who: pollHash(p.id) % 2 ? "zohar" : "oren", say };
-    if (ev.action === "lecture" || ev.action === "film") s.surveySay = [...(s.surveySay || []), { ...pc, at: now }];   // no hosts in class or at the film: it airs after
+    if (ev.action === "lecture" || ev.action === "film" || ev.action === "trivia") s.surveySay = [...(s.surveySay || []), { ...pc, at: now }];   // no hosts in class or at the film: it airs after
     else ev.commentary = [...(ev.commentary || []), pc];
     s.pollLog = [...(s.pollLog || []), { id: p.id, question: p.question, bank: p.bank || null, winner: o ? o.label : null, kind: o ? o.kind : null, pct, total: r.total, goal: goalId, at: at }].slice(-20);
   }
@@ -2902,7 +2911,7 @@ function surveyHosts(s, ev, now) {
       : `Remember the survey? ${svPct(r, r.winner)}% of you wanted ${surveyName(s, sv.about)} to take Ishai to ${o.label}. Here we go.` }];
   }
   s.surveySay = (s.surveySay || []).filter(x => now - x.at < 18 * 3600000);
-  if (s.surveySay.length && ev.action !== "sleeping" && ev.action !== "lecture" && ev.action !== "film" && (ev.commentary || []).length < 2) { const x = s.surveySay.shift(); ev.commentary = [...(ev.commentary || []), { who: x.who, say: x.say }]; }
+  if (s.surveySay.length && ev.action !== "sleeping" && ev.action !== "lecture" && ev.action !== "film" && ev.action !== "trivia" && (ev.commentary || []).length < 2) { const x = s.surveySay.shift(); ev.commentary = [...(ev.commentary || []), { who: x.who, say: x.say }]; }
 }
 // live results for everyone, counted at most once a minute per isolate
 let surveyLive = { at: 0, by: {} };
@@ -3717,6 +3726,7 @@ function guideDay(s, day, keyOnly) {
     if (d === ARENA_DAY) { const ev = s.arena && s.arena.events && s.arena.events[day];
       if (!(ev && ev.skip) && !(s.arena && s.arena.off)) items.push({ at: atLocal(day, ARENA_H), what: ev ? (ev.kind === "concert" ? `${ev.artist} LIVE at the Pump House` : `Gallery night: ${ev.title}`) : "Pump House night" }); }
     const pk = s.poker && nextPokerAt(s, atLocal(day, 0)); if (pk && dayOfTZ(pk) === day) items.push({ at: pk, what: "Poker night at Boaz's" });
+    if (d === TRIVIA_DAY && !(s.trivia && s.trivia.off)) items.push({ at: atLocal(day, TRIVIA_H, TRIVIA_M), what: "Trivia night at Café Nahat" });
     const fm = s.cinema && !s.cinema.off && nextFilmAt(s, atLocal(day, 0)); if (fm && dayOfTZ(fm) === day) { const fl = s.cinema.films[day]; if (!fl || !fl.skip) items.push({ at: fm, what: fl && fl.title ? `PixelPlex: "${fl.title}"` : "Saturday night at the PixelPlex" }); }
   }
   if (!keyOnly) for (const g of s.director || []) {
@@ -3740,6 +3750,7 @@ function eventNote(s, now, company) {
   const a = arenaNext(s, now);
   if (a && !a.skip && a.at > now && a.at - now < 4 * 86400000) out += ` Coming up: ${day(a.at)} at 20:00 at the Pump House, ${a.kind === "gallery" ? `a gallery night, "${a.title}" by ${a.artist}` : `"${a.title}"`}${a.companion && s.cast[a.companion] ? `, and ${s.cast[a.companion].name} is coming too` : ""}. He's looking forward to it.`;
   const pk = s.poker && nextPokerAt(s, now); if (pk && pk > now && pk - now < 4 * 86400000) out += ` Coming up: poker night at Boaz's (apartment 2) on ${day(pk)} at 20:00.`;
+  const tv = !(s.trivia && s.trivia.off) && nextTriviaAt(s, now); if (tv && tv > now && tv - now < 3 * 86400000) out += ` Coming up: trivia night at Café Nahat on ${day(tv)} at 19:30, on a team with Noa and Tomer (HERZL HEADS). Dana asks the questions.`;
   const fl = s.cinema && filmNext(s, now); if (fl && !fl.skip && fl.at > now && fl.at - now < 4 * 86400000) out += ` Coming up: Saturday night at 21:00, the movies at the PixelPlex in The Big S: "${fl.title}" (${fl.author}, a ${fl.genre})${fl.companion && s.cast[fl.companion] ? `, with ${s.cast[fl.companion].name}` : ""}. He goes every Saturday night.`;
   const recent = lifeOf(s).filter(m => now - m.at < 10 * 86400000 && (m.offered || 0) < 3);
   if (recent.length && Math.random() < (company ? .3 : .15)) { const m = recent[recent.length - 1 - Math.floor(Math.random() * Math.min(2, recent.length))]; m.offered = (m.offered || 0) + 1;
@@ -3825,6 +3836,169 @@ function pokerPublic(s, now) {
 }
 const pokerHealth = s => { const P = s.poker; if (!P) return null; return { nights: P.nights, building: P.build ? { date: P.build.date, hands: P.build.hands.length } : null,
   ready: Object.values(P.ready).map(R => ({ id: R.id, results: R.results, goal: R.goalId || null, remembered: !!R.remembered })), err: P.err }; };
+// ---------- Trivia night at Café Nahat (no AI) ----------
+// Every Tuesday at 19:30 (holidays skip) Dana runs a pub quiz at Café Nahat: Ishai plays with Noa and Tomer as HERZL HEADS against two other tables.
+// The questions come from the Open Trivia Database (opentdb.com: free, no key, CC BY-SA 4.0, credited on the page's card), fetched up to 4 days
+// ahead and filtered (no anime; no American sports except the NBA; short enough for the card), never one asked in the last few months (T.seen).
+// The night is played out from the date alone (who answers, right or wrong, the table talk) and saved once as trivia:<date>, served by /api/trivia.
+const TRIVIA_DAY = 2, TRIVIA_H = 19, TRIVIA_M = 30, TRIVIA_ROUNDS = 5, TRIVIA_PER = 6, TRIVIA_THINK = 28000;
+const TRIVIA_TEAM = ["ishai", "noa", "tomer"], TRIVIA_US = "HERZL HEADS", TRIVIA_RIVALS = [{ name: "THE OWLS", p: .58 }, { name: "BAGEL BUNCH", p: .5 }];
+const TRIVIA_URL = "https://opentdb.com/api.php?amount=50&type=multiple&encode=url3986";
+const TRIVIA_NO_CAT = /anime|manga/i;
+const TRIVIA_US_SPORT = /\b(NFL|Super Bowl|MLB|baseball|World Series|NHL|Stanley Cup|hockey|American football|quarterback|touchdowns?|NCAA|college football|home runs?|pitchers?|Major League|NASCAR|Indy(car| ?500)|Heisman|Yankees|Red Sox|Dodgers|Patriots|Packers|Steelers|Broncos|Seahawks|Raiders|Dallas Cowboys)\b/i;
+const TRIVIA_NBA = /\b(NBA|basketball)\b/i;
+// who on the team is good at what (Open Trivia DB category names); anything else falls back to `any`
+const TRIVIA_STR = {
+  ishai: { any: .45, "History": .85, "Science & Nature": .8, "Science: Mathematics": .85, "Science: Computers": .7, "Mythology": .75, "Entertainment: Books": .7, "Geography": .6, "General Knowledge": .6, "Politics": .55, "Sports": .15, "Celebrities": .2 },
+  noa: { any: .45, "Art": .85, "Entertainment: Music": .85, "Entertainment: Film": .75, "Entertainment: Television": .75, "Celebrities": .8, "Entertainment: Musicals & Theatres": .8, "Animals": .7, "Entertainment: Books": .6, "Entertainment: Cartoon & Animations": .65 },
+  tomer: { any: .42, "Sports": .8, "Entertainment: Video Games": .9, "Vehicles": .85, "Science: Gadgets": .8, "Science: Computers": .65, "Geography": .7, "Entertainment: Comics": .7, "Entertainment: Board Games": .65 } };
+const TRIVIA_DIFF = { easy: 1.15, medium: .85, hard: .55 };
+const TRIVIA_SAY = {
+  sure: ["It's {a}. I'm sure.", "Oh, I know this one. {a}.", "{a}. Easy.", "{a}. Write it down."],
+  think: ["I think it's {a}.", "Pretty sure it's {a}.", "{a}? I'd go {a}."],
+  guess: ["No idea. {a}?", "Sounds like {a} to me.", "Let's just say {a}."],
+  doubt: ["Not {b}?", "I was going to say {b}.", "Hmm. Maybe {b}."],
+  agree: ["Go with it.", "Okay, {a}.", "Fine by me.", "Trust you."],
+  ishaiSure: ["Sorry, I think it's {a}. Actually I know it's {a}.", "It's {a}. Sorry. I read about this."],
+  yes: ["Yes!", "Told you.", "Easy points.", "That's us!"],
+  no: ["I knew it was {c}...", "Ugh. {c}.", "Should've listened.", "Next one."],
+  ishaiNo: ["Sorry. That was me.", "Sorry, my fault."],
+  dana: { open: "Good evening and welcome to trivia night at Café Nahat! Three teams, five rounds, six questions a round. Phones face down, please.",
+    round: ["Round {n}! Pencils ready.", "Round {n}. Here we go.", "Round {n}, everyone. Settle down at the back."],
+    q: "Question {k}. {cat}. {q}", reveal: ["The answer is {c}.", "It's {c}.", "Correct answer: {c}."],
+    scores: "After round {n}: {s}.", half: "Ten-minute break! Refills at the counter, and no googling, Tomer.", back: "Okay, back to your tables. Second half!",
+    end: "And the winners tonight are... {w}! A round of Cooola on the house. Thank you, everyone, same time next Tuesday!" },
+  half: [["noa", "Okay, how are we doing? Honestly."], ["tomer", "We're fine. The sports round is coming."], ["ishai", "There's no sports round, Tomer."], ["tomer", "There's always a sports round."],
+    ["noa", "The Owls have a retired teacher. That's cheating."], ["ishai", "I'll get us more coffee. Sorry, does anyone want cake?"]] };
+const TRIVIA_CAT = c => String(c || "").replace(/^Entertainment: /, "").replace(/^Science: /, "").replace(/ & /g, " and ");
+const triviaKey = q => { let h = 7; for (const ch of String(q)) h = (h * 31 + ch.charCodeAt(0)) | 0; return (h >>> 0).toString(36); };
+function triviaOf(s) { return s.trivia || (s.trivia = { nights: 0, pool: [], ready: {}, seen: [], err: null }); }
+function nextTriviaAt(s, now) {   // the next Tuesday 19:30 Israel time that is not a holiday (and has not ended yet)
+  for (let k = 0; k < 14; k++) {
+    const day = dayOfTZ(now + k * 86400000), [y, m, d] = day.split("-").map(Number);
+    if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() !== TRIVIA_DAY || (s.world?.holidays || []).some(h => h.date === day)) continue;
+    const t = atLocal(day, TRIVIA_H, TRIVIA_M); if (t + 90 * 60000 > now) return t;
+  }
+  return null;
+}
+// a question from Open Trivia DB, decoded and checked: null when it doesn't suit the show
+function triviaClean(x) {
+  const dec = v => { try { return decodeURIComponent(String(v || "")).replace(/\s+/g, " ").trim(); } catch { return ""; } };
+  const q = dec(x.question), c = dec(x.correct_answer), w = (x.incorrect_answers || []).map(dec), cat = dec(x.category), all = [q, c, ...w].join(" ");
+  if (!q || !c || w.length !== 3 || TRIVIA_NO_CAT.test(cat) || q.length > 150 || [c, ...w].some(a => !a || a.length > 42)) return null;
+  if (TRIVIA_US_SPORT.test(all) && !TRIVIA_NBA.test(all)) return null;   // no American sports, except the NBA
+  return { q, c, w, cat, diff: ["easy", "medium", "hard"].includes(x.difficulty) ? x.difficulty : "medium" };
+}
+// the whole night from its questions and its date: the timeline, the team's answers and talk, the rivals, the scores
+function triviaNight(date, at, qs, opts = {}) {
+  const r = seedRng("trivia-" + date), rounds = opts.rounds || TRIVIA_ROUNDS, per = opts.per || TRIVIA_PER, think = opts.think || TRIVIA_THINK, halfMs = opts.half || 10 * 60000;
+  const talk = [], out = [], fill = (s, o) => s.replace(/\{(\w+)\}/g, (_, k) => o[k] ?? ""), say = (t, who, s) => talk.push({ t: Math.round(t), who, say: s });
+  const score = { us: 0, r0: 0, r1: 0 }; let t = 0, k = 0;
+  say(t, "dana", TRIVIA_SAY.dana.open); t += 11000;
+  let breakAt = null, breakEnd = null;
+  for (let n = 1; n <= rounds; n++) {
+    if (n === Math.ceil(rounds / 2) + 1) { breakAt = t; say(t, "dana", TRIVIA_SAY.dana.half); { const gap = Math.max(8000, (halfMs - 60000) / 6); TRIVIA_SAY.half.forEach(([w, s2], i) => { if (20000 + i * gap < halfMs - 10000) say(t + 20000 + i * gap, w, s2); }); }
+      t += halfMs; breakEnd = t; say(t, "dana", TRIVIA_SAY.dana.back); t += 6000; }
+    say(t, "dana", fill(pickR(r, TRIVIA_SAY.dana.round), { n })); t += 6000;
+    for (let j = 0; j < per && k < qs.length; j++, k++) {
+      const x = qs[k], opts4 = [x.c, ...x.w].map((a, i) => ({ a, i, o: r() })).sort((p, q2) => p.o - q2.o), c = opts4.findIndex(o => o.i === 0);
+      const st = TRIVIA_TEAM.map(p => ({ p, v: (TRIVIA_STR[p][x.cat] ?? TRIVIA_STR[p].any) + r() * .08 })).sort((a, b) => b.v - a.v), who = st[0].p, other = st[1 + Math.floor(r() * 2)].p;
+      const pk = clamp(st[0].v * (TRIVIA_DIFF[x.diff] || .85), .08, .95), right = r() < pk;
+      const pick = right ? c : [0, 1, 2, 3].filter(i => i !== c)[Math.floor(r() * 3)], alt = [0, 1, 2, 3].filter(i => i !== pick)[Math.floor(r() * 3)];
+      const L = "ABCD", A = { a: `${L[pick]}, ${opts4[pick].a}`, b: `${L[alt]}, ${opts4[alt].a}`, c: opts4[c].a };
+      const line = say.bind(null);
+      const qText = fill(TRIVIA_SAY.dana.q, { k: k + 1, cat: TRIVIA_CAT(x.cat), q: x.q }), readMs = 2500 + qText.length * 62;
+      const q0 = t; say(t, "dana", qText); const tRead = t + readMs, tLock = tRead + think, tReveal = tLock + 2500, tNext = tReveal + 9000;
+      const conf = pk > .7 ? "sure" : pk > .42 ? "think" : "guess", T1 = tRead + 4000 + r() * 3000;
+      if (conf === "sure") { line(T1, who, fill(pickR(r, who === "ishai" && r() < .5 ? TRIVIA_SAY.ishaiSure : TRIVIA_SAY.sure), A)); line(T1 + 6000, other, fill(pickR(r, TRIVIA_SAY.agree), A)); }
+      else if (conf === "think") { line(T1, who, fill(pickR(r, TRIVIA_SAY.think), A)); line(T1 + 6000, other, fill(pickR(r, TRIVIA_SAY.doubt), A)); line(T1 + 12000, who, fill(pickR(r, TRIVIA_SAY.agree.concat(["No, {a}. Pretty sure."])), A)); }
+      else { line(T1, other, fill(pickR(r, TRIVIA_SAY.guess), { a: A.b })); line(T1 + 6000, who, fill(pickR(r, TRIVIA_SAY.guess), A)); line(T1 + 12000, "ishai", fill(pickR(r, ["Let's say {a}.", "Okay. {a}. Sorry if it's wrong."]), A)); }
+      say(tReveal, "dana", fill(pickR(r, TRIVIA_SAY.dana.reveal), { c: `${L[c]}, ${opts4[c].a}` }));
+      if (right) { score.us++; if (r() < .6) line(tReveal + 3500, pickR(r, TRIVIA_TEAM), pickR(r, TRIVIA_SAY.yes)); }
+      else line(tReveal + 3500, who === "ishai" ? "ishai" : pickR(r, TRIVIA_TEAM.filter(p => p !== who)), fill(pickR(r, who === "ishai" ? TRIVIA_SAY.ishaiNo : TRIVIA_SAY.no), A));
+      const riv = TRIVIA_RIVALS.map(R => r() < clamp(R.p * (TRIVIA_DIFF[x.diff] || .85), .1, .9)); riv.forEach((ok, i) => { if (ok) score["r" + i]++; });
+      out.push({ k, n, cat: TRIVIA_CAT(x.cat), diff: x.diff, q: x.q, opts: opts4.map(o => o.a), c, pick, who, right, riv, t: q0, tRead, tLock, tReveal, tNext, score: { ...score } });
+      t = tNext;
+    }
+    const board = [[TRIVIA_US, score.us], ...TRIVIA_RIVALS.map((R, i) => [R.name, score["r" + i]])].sort((a, b) => b[1] - a[1]);
+    say(t, "dana", fill(TRIVIA_SAY.dana.scores, { n, s: board.map(([nm, v]) => `${nm.toLowerCase().replace(/\b\w/g, m => m.toUpperCase())} ${v}`).join(", ") })); t += 9000;
+  }
+  const final = [[TRIVIA_US, score.us, "us"], ...TRIVIA_RIVALS.map((R, i) => [R.name, score["r" + i], "r" + i])].sort((a, b) => b[1] - a[1] || (a[2] === "us" ? -1 : 1));
+  const top = final.filter(f => f[1] === final[0][1]).map(f => f[0].toLowerCase().replace(/\b\w/g, m => m.toUpperCase()));
+  say(t, "dana", fill(TRIVIA_SAY.dana.end, { w: top.join(" and ") })); const endT = t + 12000;
+  const place = final.findIndex(f => f[2] === "us") + 1;
+  return { id: "trivia-" + date, date, at, team: { name: TRIVIA_US, members: TRIVIA_TEAM }, rivals: TRIVIA_RIVALS.map(R => R.name), qs: out, talk: talk.sort((a, b) => a.t - b.t),
+    breakAt, breakEnd, endT, score, place, of: final.length, credit: "Questions: Open Trivia DB (opentdb.com), CC BY-SA 4.0" };
+}
+// the planned beat: the evening at the café (the page plays the quiz from /api/trivia), then the walk out. The hosts stay quiet while Dana asks.
+function triviaMoments(N) {
+  const n = Math.ceil((N.endT + 6 * 60000) / (INTERVAL_MIN * 60000)) + 1, out = [], tm = { trivia: N.id };
+  for (let i = 0; i < n; i++) {
+    const from = (i - 1) * INTERVAL_MIN * 60000, to = i * INTERVAL_MIN * 60000, qs = N.qs.filter(q => q.t >= from && q.t < to);
+    const text = i === 0 ? "Trivia night at Café Nahat. Ishai joins Noa and Tomer at the corner table as HERZL HEADS; Dana runs the quiz from behind the counter."
+      : N.breakAt != null && N.breakAt < to && N.breakEnd > from && !qs.length ? "Half-time at trivia night: refills, cake, and Tomer insisting there will be a sports round."
+      : qs.length ? `Trivia at Café Nahat, questions ${qs[0].k + 1}-${qs[qs.length - 1].k + 1}: ${qs.map(q => `${q.cat} (${q.right ? "right" : "wrong"})`).join(", ")}. HERZL HEADS have ${qs[qs.length - 1].score.us}.`.slice(0, 250)
+      : "Trivia night at Café Nahat: Dana reads out the scores.";
+    out.push({ location: "cafe", action: "trivia", with: null, text, lines: [], commentary: [], art: tm });
+  }
+  const pl = ["first", "second", "third"][N.place - 1] || "last";
+  out.push({ location: "shops", action: "walking", with: null, text: `Trivia night is over: HERZL HEADS came ${pl} with ${N.score.us} out of ${N.qs.length}. Noa and Tomer head home; Ishai walks back along Herzl St.`,
+    lines: [], commentary: [{ who: "zohar", say: N.place === 1 ? `Herzl Heads win trivia night! ${N.score.us} out of ${N.qs.length}, and a round of Cooola on the house.` : `Herzl Heads finish ${pl} with ${N.score.us} out of ${N.qs.length}. Tomer still wants a sports round.` }] });
+  return out;
+}
+// a short sample for the sandbox: 2 rounds of 3, a one-minute break
+const TRIVIA_SAMPLE = [
+  { q: "Which planet is known as the Red Planet?", c: "Mars", w: ["Venus", "Jupiter", "Mercury"], cat: "Science & Nature", diff: "easy" },
+  { q: "Who painted the Mona Lisa?", c: "Leonardo da Vinci", w: ["Michelangelo", "Raphael", "Donatello"], cat: "Art", diff: "easy" },
+  { q: "Which team did Michael Jordan win six NBA championships with?", c: "Chicago Bulls", w: ["Los Angeles Lakers", "Boston Celtics", "Detroit Pistons"], cat: "Sports", diff: "easy" },
+  { q: "In which year did the Berlin Wall fall?", c: "1989", w: ["1991", "1987", "1985"], cat: "History", diff: "medium" },
+  { q: "What is the capital of Australia?", c: "Canberra", w: ["Sydney", "Melbourne", "Perth"], cat: "Geography", diff: "medium" },
+  { q: "Which video game series features a plumber named Mario?", c: "Super Mario", w: ["Sonic", "Zelda", "Metroid"], cat: "Entertainment: Video Games", diff: "easy" }];
+async function triviaTick(env, s, now) {
+  const T = triviaOf(s); if (T.off) return;
+  const t = nextTriviaAt(s, now); if (!t) return; const date = dayOfTZ(t);
+  for (const d of Object.keys(T.ready)) {   // after the night: Ishai, Noa and Tomer remember it
+    const R = T.ready[d], g = R.goalId && s.director.find(x => x.id === R.goalId);
+    if (g && g.status === "done" && !R.remembered) { R.remembered = true; T.nights++;
+      const pl = ["first", "second", "third"][R.place - 1] || "last";
+      addLife(s, now, "trivia", `Trivia night at Café Nahat with Noa and Tomer (team HERZL HEADS): they came ${pl}, ${R.score} out of ${R.of}.${R.best ? " " + R.best : ""}`);
+      const mem = { noa: `Plays Tuesday trivia at Café Nahat with Ishai and Tomer (HERZL HEADS). Last time they came ${pl}. Ishai apologises for every wrong answer.`,
+        tomer: `Plays Tuesday trivia at Café Nahat with Ishai and Noa. Last time they came ${pl}. Still waiting for a sports round.` };
+      Object.entries(mem).forEach(([id, m]) => { const c = s.cast[id]; if (c) { c.memory = m.slice(0, 180); c.relationship = clamp((c.relationship || 0) + 1, -5, 5); } }); }
+    if (Date.parse(d) < now - 15 * 86400000) delete T.ready[d];
+  }
+  const R = T.ready[date];
+  if (R) {   // ready: book the evening a day ahead
+    if (!R.goalId && t - now < 30 * 3600000 && t - 40 * 60000 > now) {
+      const g = newGoal({ id: R.id, goal: "Ishai goes to trivia night at Café Nahat with Noa and Tomer.", startAt: new Date(t - 30 * 60000).toISOString(), sceneAt: new Date(t - 6 * 60000).toISOString(), deadlineAt: new Date(t + 10 * 60000).toISOString(), location: "cafe" }, now);
+      g.id = R.id; g.fixed = true; g.script = cleanScript(R.moments, 40); s.director = s.director.filter(x => x.id !== R.id || x.status !== "done"); s.director.push(g); R.goalId = R.id;
+    }
+    return;
+  }
+  if (t - now > 4 * 86400000) return;
+  // collect questions: one call per tick until there are enough (Open Trivia DB allows one call per 5 seconds)
+  const need = TRIVIA_ROUNDS * TRIVIA_PER;
+  if (T.pool.length < need) {
+    const res = await fetch(TRIVIA_URL, { headers: { "user-agent": "WatchingIshai/1.0" } }); if (!res.ok) throw new Error("opentdb " + res.status);
+    const j = await res.json(); if (j.response_code !== 0) throw new Error("opentdb code " + j.response_code);
+    const have = new Set([...T.seen, ...T.pool.map(x => triviaKey(x.q))]);
+    for (const x of j.results || []) { const c = triviaClean(x); if (c && !have.has(triviaKey(c.q))) { have.add(triviaKey(c.q)); T.pool.push(c); } }
+    if (T.pool.length < need) return;
+  }
+  const r = seedRng("trivia-pick-" + date), qs = T.pool.map(x => ({ x, o: r() })).sort((a, b) => a.o - b.o).map(o => o.x).slice(0, need);
+  const N = triviaNight(date, t, qs);
+  await env.ISHAI.put("trivia:" + date, JSON.stringify(N));
+  T.seen = [...T.seen, ...qs.map(x => triviaKey(x.q))].slice(-600); T.pool = [];
+  const best = N.qs.find(q => q.right && q.diff === "hard"), whoName = { ishai: "Ishai", noa: "Noa", tomer: "Tomer" };
+  T.ready[date] = { id: N.id, date, at: t, endT: N.endT, place: N.place, score: N.score.us, of: N.qs.length, moments: triviaMoments(N),
+    best: best ? `${whoName[best.who]} got the hard one about ${best.cat.toLowerCase()}.` : "" };
+}
+function triviaPublic(s, now) {
+  const T = s.trivia, t = T && nextTriviaAt(s, now); if (!t) return null; const R = T.ready[dayOfTZ(t)];
+  return R ? { id: R.id, date: R.date, at: R.at, end: R.at + R.endT, live: now >= R.at - 20 * 60000 && now < R.at + R.endT + 15 * 60000 } : null;
+}
+const triviaHealth = s => { const T = s.trivia; if (!T) return null; return { nights: T.nights, pool: T.pool.length, seen: T.seen.length, off: !!T.off,
+  ready: Object.values(T.ready).map(R => ({ id: R.id, place: R.place, score: R.score, of: R.of, goal: R.goalId || null, remembered: !!R.remembered })), err: T.err }; };
 // ---------- the director's bands, concerts and promotions (/events) ----------
 // Bands live in s.bands, the director's nights in s.arena.custom[date] (they take the place of that week's gallery night), promotions in s.promos.
 // Uploaded files (songs, logos, posters) are KV values "asset:<id>" served from /asset/<id>; each song's beat map is "beats:<id>".

@@ -68,6 +68,7 @@
         <button id="qGallery">Gallery night</button>
         <button id="qPoker">Poker night</button>
         <button id="qFilm">Film night</button>
+        <button id="qTrivia">Trivia night</button>
         <button id="qConcert">Concert</button>
         <a href="/?preview" target="_blank" rel="noopener">Today's plan</a>
       </div>
@@ -272,6 +273,12 @@ Back to the cameras.</textarea>
     if (!d || !d.scenes) return alert('Could not load the sample film (/api/film?sample=1).');
     ++running; api.go({location:'cinema', action:'film', with:'noa'}); api.film(d, -160);   // from the trailer for next Saturday (it starts 150 s before the film)
   }
+  // trivia night at Café Nahat: a short sample (2 rounds of 3 questions, a one-minute break), Ishai at the corner table with Noa and Tomer
+  async function trivia(){
+    let d = null; try { d = await (await fetch('/api/trivia?sample=1', {cache:'no-store'})).json(); } catch(e){}
+    if (!d || !d.qs) return alert('Could not load the sample trivia night (/api/trivia?sample=1).');
+    ++running; api.go({location:'cafe', action:'trivia'}); api.trivia(d, 5);   // from 5 seconds before Dana's welcome
+  }
   // a concert by one of the director's bands (from /events): every song, starting in a minute
   async function concert(){
     let bands = []; try { bands = (await (await fetch('/api/events', {cache:'no-store'})).json()).bands || []; } catch(e){}
@@ -309,7 +316,7 @@ Back to the cameras.</textarea>
 
     $('loc').onchange = actions;
     $('addLine').onclick = () => { lines.push({who: lines.length ? lines[lines.length - 1].who : 'ishai', say:''}); drawLines(); };
-    $('qBar').onclick = () => { running++; api.go({location:'bar', action:'idle'}); };
+    $('qFilm').onclick = film; $('qTrivia').onclick = trivia;
     $('qImprov').onclick = lesson;
     $('qCampus').onclick = () => { running++; api.go({location:'campus', action:'idle'}); };
     $('qLecture').onclick = lecture;

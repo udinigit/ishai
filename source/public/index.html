@@ -118,6 +118,17 @@
   .promoCard{border:1px solid #6a2a5a;border-radius:8px;padding:8px;margin:6px 0;background:#0e050c;color:#ffe6f6}
   .promoCard img{display:block;max-width:100%;max-height:260px;margin:6px 0;border-radius:6px;image-rendering:auto}
   .promoH{color:#ff7ad9;letter-spacing:1px} .promoW{color:#ffb84d;margin-top:4px} .promoL{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px} .promoL a{color:#7ad0ff}
+  .triv{margin-top:8px;border:2px solid #ffb84d;border-radius:10px;background:#140b22;color:#fff3e0;font-size:clamp(14px,3.6vw,18px);line-height:1.2;overflow:hidden}
+  .triv .tag{display:block;background:#ffb84d;color:#1a0f2a;padding:2px 8px;letter-spacing:.5px}
+  .triv .tq{padding:6px 8px 4px} .triv .tq small{display:block;opacity:.65;font-size:.8em;text-transform:uppercase}
+  .triv .topts{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:2px 8px 6px}
+  .triv .topts button{font:inherit;text-align:left;background:#2a1d40;color:#fff3e0;border:1px solid #6a4f8a;border-radius:6px;padding:5px 7px;cursor:pointer;min-height:2.3em}
+  .triv .topts button:disabled{cursor:default;opacity:.85} .triv .topts button.mine{border-color:#ffd36a;background:#4a3a10}
+  .triv .topts button.ok{background:#1f5a2f;border-color:#7dff8a;opacity:1} .triv .topts button.bad{background:#5a1f24;border-color:#ff7a7a;opacity:1}
+  .triv .topts .tm{display:block;font-style:normal;font-size:.75em;color:#7fe0d4}
+  .triv .tbar{display:block;height:4px;background:#ffb84d;margin:0 8px 4px;width:0;transition:width .25s linear}
+  .triv .tfoot{display:flex;justify-content:space-between;gap:8px;padding:2px 8px 4px;font-size:.85em} .triv .tfoot b{color:#ffd36a;font-weight:normal;white-space:nowrap}
+  .triv .cr{padding:0 8px 5px;font-size:.7em;opacity:.55} .triv .cr a{color:inherit}
   .pollC{border:2px solid var(--amber);border-radius:10px;background:#0d0a03;padding:8px 10px 9px;color:#ffe2ad;font-size:clamp(15px,3.9vw,20px);line-height:1.15}
   .pollH{display:flex;justify-content:space-between;gap:8px;color:var(--amber);letter-spacing:1px;font-size:.85em}
   .pollH b{font-weight:normal;color:#fff3d6}
@@ -337,6 +348,7 @@
   </div>
 
   <div class="promoC" id="promoC" hidden><span>📣 COMING UP</span><b id="promoT"></b><button id="promoMore" type="button">SEE ▸</button></div>
+  <div class="triv" id="triv" hidden><span class="tag" id="trivTag"></span><div class="tq" id="trivQ"></div><div class="topts" id="trivO"></div><i class="tbar" id="trivBar"></i><div class="tfoot" id="trivF"></div><div class="cr">Questions: <a href="https://opentdb.com" target="_blank" rel="noopener noreferrer nofollow">Open Trivia DB</a> · CC BY-SA 4.0</div></div>
   <div class="pollC" id="pollC" hidden><div class="pollH"><span>🗳 VIEWERS' VOTE</span><button id="pollR" class="pollR" type="button" hidden></button><b id="pollT"></b><button id="pollX" class="pollX" type="button" aria-label="Hide this vote" title="Hide this vote">✕</button></div><div class="pollQ" id="pollQ"></div><div class="pollO" id="pollO"></div><div class="pollF" id="pollF" aria-live="polite"></div><div class="pollG" id="pollG" hidden></div></div>
 
   <div class="status">
@@ -443,7 +455,7 @@
   let SPEAKING = null; // who is talking right now (drives the speech bubbles on camera)
   let LAST_TALK = NOW();
   function setSpeaking(w){ SPEAKING = w; if (w) LAST_TALK = NOW(); }
-  const LABEL = {phoning:'ON THE PHONE',drinking:'DRINKING',bathroom:'BATHROOM',showering:'SHOWER',watching:'WATCHING TV',listening:'RADIO ON',sleeping:'SLEEPING',waking:'WAKING UP',idle:'IDLE',walking:'WALKING',working:'WORKING',gaming:'GAMING',
+  const LABEL = {trivia:'TRIVIA NIGHT',phoning:'ON THE PHONE',drinking:'DRINKING',bathroom:'BATHROOM',showering:'SHOWER',watching:'WATCHING TV',listening:'RADIO ON',sleeping:'SLEEPING',waking:'WAKING UP',idle:'IDLE',walking:'WALKING',working:'WORKING',gaming:'GAMING',
     eating:'EATING',cooking:'COOKING',reading:'READING',exercising:'EXERCISING',talking:'TALKING',improv:'IMPROV CLASS',lecture:'IN CLASS',film:'AT THE MOVIES',away:'UNKNOWN'};
 
   const params = new URLSearchParams(location.search);
@@ -3206,6 +3218,85 @@
     h.streets.forEach((s, i) => { if (s <= T && T - s < 1500) fire('s' + i, () => Sound.sfx('card')); });
     if (POKER.pizzaAt && T - POKER.pizzaAt > 0 && T - POKER.pizzaAt < 2500) fire('pizza', () => Sound.sfx('chime'));   // Boaz's doorbell
   }, 300);
+  // ---------- trivia night at Café Nahat (Tuesdays 19:30): the quiz from /api/trivia, played by the clock; viewers play along under the picture ----------
+  let TRIVIA = null, triviaWant = null;
+  function triviaSync(p){   // the state says a trivia night is near: fetch it once
+    if (!p || !p.date || (TRIVIA && TRIVIA.id === p.id) || triviaWant === p.id) return;
+    if (!p.live && actor.loc !== 'cafe') return;
+    triviaWant = p.id; fetch('/api/trivia?date=' + p.date).then(r => r.ok ? r.json() : null).then(d => { if (d && d.qs) TRIVIA = d; }).catch(() => {}).finally(() => { triviaWant = null; });
+  }
+  // where the quiz is right now (all from the clock): the question on, its phase, the scores so far
+  function triviaView(){
+    if (!TRIVIA || DREAMING || BUILDER) return null;
+    const T = NOW() - TRIVIA.at; if (T < -15 * 60000 || T > TRIVIA.endT + 10 * 60000) return null;
+    let q = null, done = null; for (const x of TRIVIA.qs){ if (x.t <= T) q = x; if (x.tReveal <= T) done = x; }
+    const cur = q && T < q.tNext ? q : null;
+    return {T, q: cur, last: done, score: done ? done.score : {us: 0, r0: 0, r1: 0}, half: TRIVIA.breakAt != null && T >= TRIVIA.breakAt && T < TRIVIA.breakEnd,
+      over: T >= TRIVIA.endT - 12000, phase: cur ? (T < cur.tRead ? 'read' : T < cur.tLock ? 'think' : T < cur.tReveal ? 'lock' : 'reveal') : null};
+  }
+  const TRIV_SEATX = {tomer: 52, noa: 90}, TRIV_FACE = {tomer: 1, noa: -1}, TRIV_ARRIVE = {noa: -9 * 60000, tomer: -4 * 60000}, TRIV_LEAVE = {noa: 50000, tomer: 75000};
+  function triviaSeat(id, T){   // Noa and Tomer: walking in from the door, seated at the corner table, walking out after the final score
+    const x = TRIV_SEATX[id], arr = TRIV_ARRIVE[id], lv = TRIVIA.endT + TRIV_LEAVE[id], d = Math.abs(x - 4) / 24 * 1000;
+    if (T < arr) return null;
+    if (T < arr + d) return {x: 4 + (x - 4) * (T - arr) / d, walk: true, dir: 1};
+    if (T < lv) return {x, seated: true};
+    if (T < lv + d) return {x: x + (4 - x) * (T - lv) / d, walk: true, dir: -1};
+    return null;
+  }
+  const trivName = id => id === 'us' ? (TRIVIA && TRIVIA.team.name) || 'HERZL HEADS' : (TRIVIA && TRIVIA.rivals[+id.slice(1)]) || '';
+  function triviaStand(sc){ return [['us', sc.us], ['r0', sc.r0], ['r1', sc.r1]].sort((a, b) => b[1] - a[1] || (a[0] === 'us' ? -1 : 1)); }
+  // the chalk scoreboard where the menu board hangs
+  function triviaBoard(v){
+    R(122,11,68,29,'#5e4027'); R(123,12,66,27,'#1c2a22'); word('TRIVIA NIGHT',132,14,'#ffd36a');
+    triviaStand(v.score).forEach(([id, n], i) => { const y = 21 + i * 6, ink = id === 'us' ? (INK.ishai || '#24998a') : '#e8e8e8';
+      word(trivName(id).slice(0, 11), 126, y, ink); const s = String(n); word(s, 186 - s.length * 4, y, ink); });
+  }
+  // the quiz card under the picture: the question, A-D to tap (yours stays in this browser only), the team's pick, the answer, the scores
+  let trivKey = '', trivMine = {};
+  function trivMineLoad(){ try { trivMine = JSON.parse(localStorage.getItem('ishaiTrivia:' + TRIVIA.id) || '{}') || {}; } catch(e){ trivMine = {}; } }
+  function trivMineSave(){ try { localStorage.setItem('ishaiTrivia:' + TRIVIA.id, JSON.stringify(trivMine)); } catch(e){} }
+  function trivTick(){
+    const el = $('triv'), v = actor.loc === 'cafe' && !actor.hidden && !actor.switching ? triviaView() : null;
+    const show = v && (v.q || v.half || (v.over && v.T < TRIVIA.endT + 5 * 60000) || (v.T >= -6 * 60000 && v.T < (TRIVIA.qs[0] ? TRIVIA.qs[0].t : 0)));
+    if (!show){ if (!el.hidden){ el.hidden = true; trivKey = ''; } return; }
+    if (trivMine._id !== TRIVIA.id){ trivMineLoad(); trivMine._id = TRIVIA.id; }
+    const q = v.q, ph = v.phase, revealed = TRIVIA.qs.filter(x => x.tReveal <= v.T), mineOk = revealed.filter(x => trivMine[x.k] === x.c).length;
+    const key = [TRIVIA.id, q ? q.k : (v.half ? 'half' : v.over ? 'over' : 'pre'), ph, trivMine[q ? q.k : -1], revealed.length].join('|');
+    $('trivBar').style.width = q && (ph === 'read' || ph === 'think') ? Math.max(0, (q.tLock - v.T) / (q.tLock - q.t) * 100) + '%' : '0';
+    if (key === trivKey) return; trivKey = key; el.hidden = false;
+    const sc = v.score, total = TRIVIA.qs.length, st = triviaStand(sc).map(([id, n]) => `${trivName(id)} ${n}`).join(' · ');
+    $('trivF').textContent = ''; const you = document.createElement('b'); you.textContent = `YOU ${mineOk}/${revealed.length}`; const sp = document.createElement('span'); sp.textContent = st; $('trivF').append(you, sp);
+    const O = $('trivO'); O.textContent = '';
+    if (!q){
+      $('trivTag').textContent = v.half ? '🎯 TRIVIA NIGHT · HALF-TIME' : v.over ? '🎯 TRIVIA NIGHT · FINAL SCORE' : '🎯 TRIVIA NIGHT · STARTING SOON';
+      $('trivQ').textContent = v.half ? 'Ten-minute break. Your answers so far: ' + mineOk + ' right.' : v.over ? `You got ${mineOk} of ${total}. ${(() => { const S = triviaStand(sc), tie = S[0][1] === S[1][1]; return S[0][0] === 'us' ? (tie ? 'A tie at the top: HERZL HEADS share the win!' : 'HERZL HEADS win!') : 'HERZL HEADS: ' + sc.us + '.'; })()}` : `${total} questions with Dana at Café Nahat. Play along: tap an answer before time runs out.`;
+      return;
+    }
+    $('trivTag').textContent = `🎯 TRIVIA NIGHT · ROUND ${q.n} · Q ${q.k + 1}/${total}`;
+    $('trivQ').textContent = ''; const c = document.createElement('small'); c.textContent = q.cat + ' · ' + q.diff; $('trivQ').append(c, document.createTextNode(q.q));
+    const open = ph === 'read' || ph === 'think', shown = ph === 'reveal';
+    q.opts.forEach((a, i) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = 'ABCD'[i] + '  ' + a;
+      if (trivMine[q.k] === i) b.classList.add('mine'); if (shown && i === q.c) b.classList.add('ok'); if (shown && trivMine[q.k] === i && i !== q.c) b.classList.add('bad');
+      if (!open) b.disabled = true;
+      if ((ph === 'lock' || shown) && i === q.pick){ const m = document.createElement('i'); m.className = 'tm'; m.textContent = '◆ ' + trivName('us'); b.appendChild(m); }
+      b.onclick = () => { if (!open) return; trivMine[q.k] = i; trivMineSave(); trivKey = ''; trivTick(); };
+      O.appendChild(b); });
+  }
+  setInterval(trivTick, 250);
+  // the table's talk and the quiz's sounds, on the clock (nothing replayed: a late joiner just hears what comes next)
+  let trTalkI = 0, trLastT = 0; const trFired = new Set();
+  setInterval(() => {
+    if (!TRIVIA || actor.loc !== 'cafe' || actor.hidden || forceLoc) return;
+    const T = NOW() - TRIVIA.at; if (T < trLastT - 5000) trTalkI = 0; trLastT = T;
+    const talk = TRIVIA.talk || [];
+    while (trTalkI < talk.length && talk[trTalkI].t <= T){ const c = talk[trTalkI++]; if (T - c.t > 4000) continue;
+      if (c.who === 'ishai' && actor.action !== 'trivia') continue;
+      showSay(c.who, c.say); holdSay(2400 + c.say.length * 55); Sound.say(c.who, c.say); }
+    const fire = (k, fn) => { k = TRIVIA.id + ':' + k; if (trFired.has(k)) return; trFired.add(k); fn(); };
+    TRIVIA.qs.forEach(q => { if (T >= q.t && T - q.t < 1500) fire('q' + q.k, () => Sound.sfx('quiz'));
+      if (T >= q.tReveal && T - q.tReveal < 1500) fire('r' + q.k, () => Sound.sfx(q.right ? 'right' : 'wrong')); });
+    if (T >= TRIVIA.endT - 9000 && T - TRIVIA.endT < 0) fire('end', () => Sound.sfx('applause'));
+  }, 300);
   // ---------- concerts at the Pump House: the director's band on stage, their songs in sync, the stage moving to each song's beat map ----------
   const BEATS = {}, EXTRA_SPK = {}; let CONFETTI_ON = -1;
   function beatsOf(id){ if (BEATS[id]) return BEATS[id]; BEATS[id] = {loading: true};
@@ -3435,7 +3526,7 @@
   // ---------- cafe ----------
   SCENES.cafe = {
     cam:'CAM-05', place:'CAFE NAHAT // CORNER TABLE', walkY:74, entry:4, exit:4,
-    stand:{idle:112, walking:60, talking:72, eating:72, drinking:72, working:72, reading:72}, postSpot:112,
+    stand:{idle:112, walking:60, talking:72, eating:72, drinking:72, working:72, reading:72, trivia:72}, postSpot:112,
     draw(t,hf,a,settled,actor){
       R(0,0,W,80,'#7a4a32'); for (let y=0,i=0;y<78;y+=5,i++) { R(0,y,W,1,'#6a3e2a'); for (let x=(i%2)*6;x<W;x+=12) R(x,y,1,5,'#6a3e2a'); }
       R(0,78,W,30,'#3a2a20'); for (let x=0;x<W;x+=10) R(x,78,1,30,'#33251c');
@@ -3447,12 +3538,14 @@
       R(35,16,1,14,'#3a3a3a'); R(56,16,1,14,'#3a3a3a');
       const fl = (t % 9000) < 260 ? ((Math.floor(t/60)%2) ? .55 : .85) : 1;
       alpha(fl, () => cooolaSign(31,30,30,9,true));
-      // menu board
-      R(128,10,46,22,'#1e1e1e'); R(127,9,48,1,'#5e4027');
-      for (let i=0;i<4;i++){ R(132,14+i*4,20+((i*7)%10),1,'#e8e8e8'); R(164,14+i*4,6,1,'#f0d070'); }
+      // menu board (the trivia scoreboard on trivia night)
+      const tv = triviaView(), tvT = tv ? tv.T : 0;
+      if (tv) triviaBoard(tv);
+      else { R(128,10,46,22,'#1e1e1e'); R(127,9,48,1,'#5e4027');
+      for (let i=0;i<4;i++){ R(132,14+i*4,20+((i*7)%10),1,'#e8e8e8'); R(164,14+i*4,6,1,'#f0d070'); } }
       // counter + barista + machine
       if (awayFrom('dana', 'cafe')) person(EXTRA.barista,150,50,t,{legs:false,face:-1});   // Dana is out (with Ishai, or on her way back): the other barista covers
-      else { markHead('dana', 150, 50); person(postLook('cafe',EXTRA.barista),150,50,t,{legs:false,face:-1,talkPhase: settled && a==='talking' && withIsPost()}); }
+      else { markHead('dana', 150, 50); person(postLook('cafe',EXTRA.barista),150,50,t,{legs:false,face:-1,talkPhase: (settled && a==='talking' && withIsPost()) || (!!tv && SAY.who === 'dana')}); }
       R(120,66,72,4,'#d6d0c4'); R(120,70,72,16,'#5e4027'); R(124,74,64,1,'#4a3220');
       R(170,56,14,10,'#aab2bc'); R(172,58,10,3,'#2a2a2a'); R(176,64,2,2,'#e8e4d8');
       for (let i=0;i<3;i++){ const ph=(t/700+i*.33)%1; alpha(1-ph,()=>R(176+i,54-Math.floor(ph*8),1,1,'#f2f2f2')); }
@@ -3467,18 +3560,25 @@
       // plant & lamp
       R(100,8,1,14,'#222'); R(96,22,9,4,'#e0b04a'); alpha(.12,()=>R(86,26,30,50,'#ffe8a0'));
       // table (Ishai sits behind it)
-      const atTable = settled && ['eating','drinking','working','reading','talking'].includes(a) && !withIsPost();
+      const atTable = settled && ['eating','drinking','working','reading','talking','trivia'].includes(a) && !withIsPost();
+      // trivia night: Noa and Tomer at the corner table with him (walking in from the door, out after the final score)
+      const mates = tv ? Object.keys(TRIV_SEATX).map(id => [id, triviaSeat(id, tvT), lookOf(id)]).filter(([, s, L]) => s && L) : [];
+      mates.filter(([, s]) => s.walk).forEach(([id, s, L]) => zAdd(72, () => { const X = Math.round(s.x); markHead(id, X, this.walkY); person(L, X, this.walkY, t, {walk: true, face: s.dir}); }));
       const cl = atTable && companionLook(a), seated = cl && wantComp({id: actor.with || 'stranger', look: cl, x: 90, kind:'seat'});
       zAdd(102, () => {
       R(66,60,22,14,'#3a3a46'); // chair back
+      mates.filter(([, s]) => s.seated).forEach(([id, s, L]) => { const X = s.x; if (id === 'tomer') R(48,60,14,14,'#3a3a46');
+        markHead(id, X, 68); person(L, X, 68, t + strHash(id) % 900, {legs: false, face: TRIV_FACE[id], talkPhase: SAY.who === id}); });
       if (seated){ markHead(actor.with, 90, 68); person(cl,90,68,t,{legs:false,face:-1,talkPhase:true}); }
       if (atTable){
-        if (a==='talking') drawIshai('talking',72,68,t,{face:1, seated:true});
+        if (a==='trivia') drawIshai(SAY.who === 'ishai' ? 'talking' : 'idle',72,68,t,{seated:true});
+        else if (a==='talking') drawIshai('talking',72,68,t,{face:1, seated:true});
         else drawIshai(a,72,68,t,{food:'#e0b04a', seated:true});
       }
       R(58,82,44,2,'#9a7048'); R(78,84,4,18,'#5e4027'); R(70,102,20,2,'#5e4027');
       R(66,78,4,4,'#e8e4d8'); R(70,79,1,2,'#e8e4d8'); // cup
       if (settled && a==='working'){ R(74,76,8,6,C.metal); R(73,81,10,1,C.metalDark); }
+      if (tv && mates.length){ R(80,79,9,3,'#f4f2ea'); R(81,80,6,1,'#7a7a7a'); R(90,80,5,1,'#e0b04a'); }   // the answer sheet and a pencil
       });
       if (!atTable) drawFloor(t,a,settled,actor,this);
       liveLayer(t, this); zFlush();
@@ -4083,7 +4183,7 @@
               phone:   {alone:3, company:1, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} }
   };
   // which actions can be interrupted, and how often (share of 45 s blocks that get a routine), alone / with company
-  const SEATED_AT = { cinema:['film','idle','talking','eating','drinking','phoning'], cafe:['eating','drinking','working','reading','talking'], bar:['eating','drinking','talking'], park:['eating','reading'], apt2:['poker'], classroom:['lecture','idle','talking'] };
+  const SEATED_AT = { cinema:['film','idle','talking','eating','drinking','phoning'], cafe:['eating','drinking','working','reading','talking','trivia'], bar:['eating','drinking','talking'], park:['eating','reading'], apt2:['poker'], classroom:['lecture','idle','talking'] };
   const ERR_CHANCE = { idle:[.45,.3], talking:[0,.2], eating:[0,.12], drinking:[0,.12] };   // seated activities fidget in the seat instead (seatFid)
   const hash = n => { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4); n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; };
   function errandNow(){
@@ -4767,7 +4867,7 @@
     // the sounds the page can play; the sandbox lists them (`Sound.kinds`)
     const KINDS = ['knock','knockhard','knocklevi','buzzer','chime','bikebell','bikeby','carby','busby','scooter','brake','busstop','busgo','cardoor','taxigo',
       'whoosh','riser','hit','sting-adventure','sting-comedy','sting-drama','sting-horror','popcorn','fizz','cash',
-      'waves','birds','wind','owl','drip','bubbles','hooves','tavern','clock','bark','woof','yip'];
+      'waves','birds','wind','owl','drip','bubbles','hooves','tavern','clock','quiz','right','wrong','bark','woof','yip'];
     function sfx(kind, o={}){
       if (!on() || !ac) return;
       const r = Math.random, d = o.dir || 1;
@@ -4862,6 +4962,10 @@
         case 'hooves': for (let i = 0; i < 8; i++) noise(.03,{vol:.04,type:'bandpass',freq:i % 2 ? 1500 : 1100,q:4,when:i*.2 + (i % 2)*.06}); break;
         case 'tavern': noise(2.6,{vol:.022,type:'bandpass',freq:420,q:.8,buf:brown}); tone(2700,.22,'sine',.014,.8); break;
         case 'clock': for (let i = 0; i < 6; i++) noise(.01,{vol:.03,type:'highpass',freq: i % 2 ? 2600 : 3400,when:i*.5}); break;
+        // ---- trivia night ----
+        case 'quiz': tone(988,.14,'square',.02); tone(1319,.3,'square',.02,.14); break;                                   // a new question: ba-ding
+        case 'right': [784,988,1319].forEach((f,i) => tone(f,.18,'square',.022,i*.1)); break;                            // the team got it
+        case 'wrong': tone(180,.5,'sawtooth',.03); tone(174,.5,'square',.015); break;                                       // they didn't
         // ---- Falafel ----
         case 'woof': bark(2); break;
         case 'yip': bark(1); break;
@@ -5039,7 +5143,7 @@
   const WAITS = new Set();    // the sandbox can cut waits short
   const untilT = at => { const ms = at - NOW(); if (ms <= 0) return Promise.resolve(); return new Promise(r => { const f = () => { WAITS.delete(f); clearTimeout(id); r(); }, id = setTimeout(f, ms); WAITS.add(f); }); };
   function talkPlan(ev, prevLoc, prevEv){
-    const lines = ev.lines || [], hosts = ev.action === 'lecture' || ev.action === 'film' ? [] : ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines), plan = [];
+    const lines = ev.lines || [], hosts = ev.action === 'lecture' || ev.action === 'film' || ev.action === 'trivia' ? [] : ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines), plan = [];
     // arriving by bus or taxi: the talk waits until he is there
     const r = prevLoc && !PREVIEW && prevLoc !== (ev.location || 'apartment') ? route(prevLoc, ev.location || 'apartment') : [], onBoard = r.some(x => VEH.has(x)) && !VEH.has(prevLoc) && !VEH.has(ev.location);
     // a gallery night: after the break the curtain rises first (CURTAIN_MS), then a few seconds of looking before anyone speaks or a picture is shown
@@ -5208,7 +5312,7 @@
     const entry = TL.get(ev.id);
     if (!animate || !entry){    // history: everything at once
       (ev.lines||[]).forEach((l, i) => addMsg({id: ev.id + ':' + i, t: ev.t, who: l.who, say: l.say, loc: ev.location}, false));
-      if (ev.action !== 'lecture' && ev.action !== 'film') (ev.commentary||[]).forEach((c, i) => addMsg({id: ev.id + ':c' + i, t: ev.t, who: c.who, say: c.say, loc: ev.location, host: true}, false));
+      if (ev.action !== 'lecture' && ev.action !== 'film' && ev.action !== 'trivia') (ev.commentary||[]).forEach((c, i) => addMsg({id: ev.id + ':c' + i, t: ev.t, who: c.who, say: c.say, loc: ev.location, host: true}, false));
       return;
     }
     for (let k = 0; k < entry.plan.length; k++){
@@ -5518,7 +5622,7 @@
       if (at === undefined) return undefined;      // wait: the recap goes first
       if (at !== null && at + ms > from && at < c.t + 12 * 60000) from = at + ms;
     }
-    return slotAfter(from, 12 * 60000, T => { const m = momentAt(T); return m && m.ev.action !== 'sleeping' && m.ev.action !== 'lecture' && m.ev.action !== 'film' && arrivedBy(m, T) && !talkBetween(T, T + 1) && !songBetween(T, T + 120000); });
+    return slotAfter(from, 12 * 60000, T => { const m = momentAt(T); return m && m.ev.action !== 'sleeping' && m.ev.action !== 'lecture' && m.ev.action !== 'film' && m.ev.action !== 'trivia' && arrivedBy(m, T) && !talkBetween(T, T + 1) && !songBetween(T, T + 120000); });
   }
   async function playStudio(st, start, opt = {}){
     const times = STUDIO_TIMES(st.lines);
@@ -5553,7 +5657,7 @@
   // All from the server's state (GUIDE, SUMMARY, CAST) and the moments, so every viewer sees the same. No AI, no writes.
   const PIP_EVERY = 12 * 60000, PIP_AT = 80000, PIP_LEN = 45000, PIP_WAIT = 3 * 60000;
   const PIP_TURN = ['today', 'recap', 'today', 'week', 'today', 'people'];
-  const PIP_NOT = ['phoning','sleeping','talking','improv','lecture','concert','gallery','poker','film'];
+  const PIP_NOT = ['phoning','sleeping','talking','improv','lecture','concert','gallery','poker','film','trivia'];
   const pipDone = new Set(); let PIP_FORCE = null;
   const pipPick = (list, n, salt) => list.length ? list[Math.floor(hash(n * 31 + salt) * list.length)] : null;
   const pipWhat = w => String(w || '').replace(/\s+/g, ' ').trim();
@@ -5690,7 +5794,7 @@
   function adTick(){
     const now = NOW(), slot = Math.floor(now / AD_EVERY), e = now % AD_EVERY - 20000;
     const quiet = !forceLoc && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
-      && (actor.action === 'sleeping' || !['talking','phoning','improv','lecture','film'].includes(actor.action));
+      && (actor.action === 'sleeping' || !['talking','phoning','improv','lecture','film','trivia'].includes(actor.action));
     const want = e >= 0 && e < AD_SHOW && quiet ? BANNERS[Math.floor(hash(slot * 5 + 11) * BANNERS.length)] : null;
     const el = $('adb');
     if (want !== adOn){ adOn = want; el.classList.toggle('on', !!want);
@@ -5737,7 +5841,7 @@
   function guideTick(){
     const now = NOW(), slot = Math.floor(now / GUIDE_EVERY), el = $('guide'); let e = now % GUIDE_EVERY - GUIDE_AT;
     const quiet = !forceLoc && !PREVIEW && !BUILDER && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !adOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
-      && !['talking','phoning','improv','lecture','concert','gallery','poker','film'].includes(actor.action);
+      && !['talking','phoning','improv','lecture','concert','gallery','poker','film','trivia'].includes(actor.action);
     let c = e >= 0 && e < GUIDE_SHOW + 8000 && quiet ? guideCard(slot, now) : null;
     const pr = pollResCard(now, quiet); if (pr && pr.fresh && !studioOn && !showOn && !adOn){ c = pr; e = 0; }
     if (GUIDE_FORCE && now < GUIDE_FORCE.until){ const F = GUIDE_FORCE, k = F.kind, G = F.guide || GUIDE || {};
@@ -6011,6 +6115,7 @@
       arena(a){ ARENA = a || null; arenaPreload(); },
       promos(list){ PROMOS = list || []; renderPromos(); },
       poker(d, minAgo){ POKER = d ? {...d, at: NOW() - (minAgo || 0) * 60000} : null; },
+      trivia(d, inSec){ if (!d){ TRIVIA = null; return; } d.at = NOW() + (inSec || 0) * 1000; TRIVIA = d; trivKey = ''; },   // the sandbox's trivia night, starting in inSec seconds
       film(d, secAgo){ if (!d){ setFilm(null); return; } d.at = NOW() - (secAgo || 0) * 1000; d.date = 'sample'; setFilm(d); CIN_PUB = {title: d.title, author: d.author, genre: d.genre, at: d.at, filmDate: 'sample', ready: true, live: true, poster: ['#2a1a5a','#ffd23f','#ff6b9a'], next: d.next || null}; return filmLayout(d).total; },
       go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(screenFor(e), e.action, true, e.with); },
       busy: () => !!actor.pending || actor.travelling || !!actor.ride || !!actor.switching || !!actor.rideUntil || held.size > 0 || queue.length > 0 || (!!tlLast && NOW() < tlLast.end),
@@ -6304,7 +6409,7 @@
   const talkSoon = ms => { const now = NOW(); for (const e of TL.values()){ if (e.start > now && e.start < now + ms) return true; if (e.start <= now && e.plan.some(p => e.start + p.at + p.ms > now - 1500 && e.start + p.at < now + ms)) return true; } return false; };
   function hostFill(force){
     const now = NOW(), slot = Math.floor(now / FILL_SLOT), at = slot * FILL_SLOT + hash(slot * 37 + 1) * 12000;
-    if (!force && (slot === hostFill.done || now < at || now > at + 9000 || forceLoc || PREVIEW || actor.action === 'lecture' || actor.action === 'film' || (FILM && actor.loc === 'cinema'))) return false;
+    if (!force && (slot === hostFill.done || now < at || now > at + 9000 || forceLoc || PREVIEW || actor.action === 'lecture' || actor.action === 'film' || actor.action === 'trivia' || (FILM && actor.loc === 'cinema'))) return false;
     if (!force && (songBetween(now, now + 15000) || now - TALK_AT < FILL_QUIET || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || studioOn || showOn || callOn || talkSoon(7000) || (document.hidden && !POP.on))) return false;
     hostFill.done = slot;
     const say = hostFillLine(slot); if (!say) return false;
@@ -6796,7 +6901,7 @@
       if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;
       if (s.course) COURSE = s.course;
-      ARENA = s.arena || null; CIN_PUB = s.cinema || null; GUIDE = s.guide || null; if (s.voices && JSON.stringify(s.voices) !== JSON.stringify(Voices.config())) Voices.setConfig(s.voices); arenaPreload(); pokerSync(s.poker); PROMOS = s.promos || []; renderPromos();
+      ARENA = s.arena || null; CIN_PUB = s.cinema || null; GUIDE = s.guide || null; if (s.voices && JSON.stringify(s.voices) !== JSON.stringify(Voices.config())) Voices.setConfig(s.voices); arenaPreload(); pokerSync(s.poker); triviaSync(s.trivia); PROMOS = s.promos || []; renderPromos();
       if ('poll' in s) setPoll(s.poll);
       if (s.summary) SUMMARY = s.summary;
       if (s.summary || s.course) renderSummary();

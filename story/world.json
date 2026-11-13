@@ -289,7 +289,7 @@
   "cafe": {
    "kind": "story",
    "desc": "Cafe Nahat, a corner cafe (soft pop and soft rock on the radio, quietly)",
-   "actions": ["idle", "eating", "drinking", "working", "reading", "talking", "phoning"],
+   "actions": ["idle", "eating", "drinking", "working", "reading", "talking", "phoning", "trivia"],
    "links": {
     "shops": {"exit": 4, "entry": 4}
    },
