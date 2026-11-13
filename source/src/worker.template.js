@@ -3842,7 +3842,7 @@ const pokerHealth = s => { const P = s.poker; if (!P) return null; return { nigh
 // ahead and filtered (no anime; no American sports except the NBA; short enough for the card), never one asked in the last few months (T.seen).
 // The night is played out from the date alone (who answers, right or wrong, the table talk) and saved once as trivia:<date>, served by /api/trivia.
 const TRIVIA_DAY = 2, TRIVIA_H = 19, TRIVIA_M = 30, TRIVIA_ROUNDS = 5, TRIVIA_PER = 6, TRIVIA_THINK = 28000;
-const TRIVIA_TEAM = ["ishai", "noa", "tomer"], TRIVIA_US = "HERZL HEADS", TRIVIA_RIVALS = [{ name: "THE OWLS", p: .58 }, { name: "BAGEL BUNCH", p: .5 }];
+const TRIVIA_TEAM = ["ishai", "noa", "tomer"], TRIVIA_US = "HERZL HEADS", TRIVIA_RIVALS = [{ name: "THE OWLS", p: .78 }, { name: "BAGEL BUNCH", p: .68 }];
 const TRIVIA_URL = "https://opentdb.com/api.php?amount=50&type=multiple&encode=url3986";
 const TRIVIA_NO_CAT = /anime|manga/i;
 const TRIVIA_US_SPORT = /\b(NFL|Super Bowl|MLB|baseball|World Series|NHL|Stanley Cup|hockey|American football|quarterback|touchdowns?|NCAA|college football|home runs?|pitchers?|Major League|NASCAR|Indy(car| ?500)|Heisman|Yankees|Red Sox|Dodgers|Patriots|Packers|Steelers|Broncos|Seahawks|Raiders|Dallas Cowboys)\b/i;
@@ -3852,7 +3852,8 @@ const TRIVIA_STR = {
   ishai: { any: .45, "History": .85, "Science & Nature": .8, "Science: Mathematics": .85, "Science: Computers": .7, "Mythology": .75, "Entertainment: Books": .7, "Geography": .6, "General Knowledge": .6, "Politics": .55, "Sports": .15, "Celebrities": .2 },
   noa: { any: .45, "Art": .85, "Entertainment: Music": .85, "Entertainment: Film": .75, "Entertainment: Television": .75, "Celebrities": .8, "Entertainment: Musicals & Theatres": .8, "Animals": .7, "Entertainment: Books": .6, "Entertainment: Cartoon & Animations": .65 },
   tomer: { any: .42, "Sports": .8, "Entertainment: Video Games": .9, "Vehicles": .85, "Science: Gadgets": .8, "Science: Computers": .65, "Geography": .7, "Entertainment: Comics": .7, "Entertainment: Board Games": .65 } };
-const TRIVIA_DIFF = { easy: 1.15, medium: .85, hard: .55 };
+const TRIVIA_DIFF = { easy: 1, medium: .75, hard: .5 };   // tuned so HERZL HEADS get about 18 of 30
+const TRIVIA_V = 2, TRIVIA_CAT_MAX = 3;   // a night built by an older version is rebuilt while there is time; at most 3 questions from one category
 const TRIVIA_SAY = {
   sure: ["It's {a}. I'm sure.", "Oh, I know this one. {a}.", "{a}. Easy.", "{a}. Write it down."],
   think: ["I think it's {a}.", "Pretty sure it's {a}.", "{a}? I'd go {a}."],
@@ -3967,6 +3968,7 @@ async function triviaTick(env, s, now) {
       Object.entries(mem).forEach(([id, m]) => { const c = s.cast[id]; if (c) { c.memory = m.slice(0, 180); c.relationship = clamp((c.relationship || 0) + 1, -5, 5); } }); }
     if (Date.parse(d) < now - 15 * 86400000) delete T.ready[d];
   }
+  if (T.ready[date] && (T.ready[date].v || 1) < TRIVIA_V && !T.ready[date].goalId && t - now > 31 * 3600000) delete T.ready[date];   // rebuild with the newer rules
   const R = T.ready[date];
   if (R) {   // ready: book the evening a day ahead
     if (!R.goalId && t - now < 30 * 3600000 && t - 40 * 60000 > now) {
@@ -3976,23 +3978,29 @@ async function triviaTick(env, s, now) {
     return;
   }
   if (t - now > 4 * 86400000) return;
-  // collect questions: one call per tick until there are enough (Open Trivia DB allows one call per 5 seconds)
-  const need = TRIVIA_ROUNDS * TRIVIA_PER;
-  if (T.pool.length < need) {
+  // collect questions until 30 can be picked with at most TRIVIA_CAT_MAX from one category and no two with the same answer
+  // (up to 3 calls a tick, 5.5 s apart: Open Trivia DB allows one call per 5 seconds); the pool keeps the last 150
+  const need = TRIVIA_ROUNDS * TRIVIA_PER, r = seedRng("trivia-pick-" + date);
+  const pickQs = () => { const per = {}, ans = new Set(), out = [], cap = T.pool.length >= 120 ? TRIVIA_CAT_MAX + 1 : TRIVIA_CAT_MAX;
+    for (const x of T.pool.map(x => ({ x, o: r() })).sort((a, b) => a.o - b.o).map(o => o.x)) { const a = x.c.toLowerCase();
+      if ((per[x.cat] || 0) >= cap || ans.has(a)) continue; per[x.cat] = (per[x.cat] || 0) + 1; ans.add(a); out.push(x); if (out.length === need) break; }
+    return out; };
+  for (let call = 0; call < 3 && pickQs().length < need; call++) {
+    if (call) await new Promise(ok => setTimeout(ok, 5500));
     // Cloudflare shares its outgoing addresses, so Open Trivia DB's one-call-per-5-seconds limit can answer 429: wait and try twice more
     let res = null; for (let i = 0; i < 3; i++) { res = await fetch(TRIVIA_URL, { headers: { "user-agent": "WatchingIshai/1.0" } }); if (res.status !== 429) break; await new Promise(ok => setTimeout(ok, 5500 + i * 2000)); }
     if (!res.ok) throw new Error("opentdb " + res.status);
     const j = await res.json(); if (j.response_code !== 0) throw new Error("opentdb code " + j.response_code);
     const have = new Set([...T.seen, ...T.pool.map(x => triviaKey(x.q))]);
     for (const x of j.results || []) { const c = triviaClean(x); if (c && !have.has(triviaKey(c.q))) { have.add(triviaKey(c.q)); T.pool.push(c); } }
-    T.err = null; if (T.pool.length < need) return;
+    T.err = null; T.pool = T.pool.slice(-150);
   }
-  const r = seedRng("trivia-pick-" + date), qs = T.pool.map(x => ({ x, o: r() })).sort((a, b) => a.o - b.o).map(o => o.x).slice(0, need);
+  const qs = pickQs(); if (qs.length < need) return;
   const N = triviaNight(date, t, qs);
   await env.ISHAI.put("trivia:" + date, JSON.stringify(N));
-  T.seen = [...T.seen, ...qs.map(x => triviaKey(x.q))].slice(-600); T.pool = [];
+  T.seen = [...T.seen, ...qs.map(x => triviaKey(x.q))].slice(-600); T.pool = T.pool.filter(x => !qs.includes(x)).slice(-100);   // the rest waits for next week
   const best = N.qs.find(q => q.right && q.diff === "hard"), whoName = { ishai: "Ishai", noa: "Noa", tomer: "Tomer" };
-  T.ready[date] = { id: N.id, date, at: t, endT: N.endT, place: N.place, score: N.score.us, of: N.qs.length, moments: triviaMoments(N),
+  T.ready[date] = { v: TRIVIA_V, id: N.id, date, at: t, endT: N.endT, place: N.place, score: N.score.us, of: N.qs.length, moments: triviaMoments(N),
     best: best ? `${whoName[best.who]} got the hard one about ${best.cat.toLowerCase()}.` : "" };
 }
 function triviaPublic(s, now) {
