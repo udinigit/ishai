@@ -1210,6 +1210,21 @@
     const now = NOW(), r = hash(Math.floor(now / 20000) * 17 + strHash(id)), e = now % 20000;
     return r < .35 && e > 1000 && e < 12000 ? (r < .175 ? -9 : 9) : 0;
   }
+  // a guest who has said goodbye leaves once the talk is over, instead of standing there until the next moment:
+  // their last line in this moment is a farewell, all the talking is done, and the next moment (already known) is without them.
+  // Worked out from the timeline alone, so every viewer sees them go at the same second.
+  const BYE_RE = /\b(good ?night|good ?bye|bye|see you|shabbat shalom|laila tov|lehitraot|take care|i'?ll (?:go|leave|let you)|i should go|i'?m off)\b/i;
+  function saidBye(id){
+    if (!id || POST[actor.loc] === id) return false;                 // at work here (Dana at the counter): back to the post, not out of the door
+    const c = tlNow(); if (!c) return false; const e = c.e, ev = e.ev;
+    if (!ev || ev.with !== id || ev.action === 'phoning') return false;
+    const talk = e.plan.filter(x => !x.host), mine = talk.filter(x => x.l.who === id);
+    if (!mine.length || !BYE_RE.test(mine[mine.length - 1].l.say)) return false;
+    if (NOW() < e.start + Math.max(...talk.map(x => x.at + x.ms)) + 2500) return false;
+    let after = false;
+    for (const x of TL.values()){ if (x.dead) continue; if (after) return x.ev.with !== id && !(x.ev.lines || []).some(l => l.who === id); if (x === e) after = true; }
+    return false;                                                     // the next moment isn't here yet: they stay, as before
+  }
   function wantComp(w){ compWant = w; return comp.mode==='here' && comp.id===w.id; } // true = draw them in place now
   function compUpdate(t, scene){
     const n = NOW(), dts = Math.min(.1, (n - (comp.last||n))/1000); comp.last = n;
@@ -1223,6 +1238,7 @@
     if (comp.id && POST[actor.loc] === comp.id && ARRIVED[comp.id] && ARRIVED[comp.id].loc === actor.loc && ARRIVED[comp.id].at > (comp.since || 0)){ comp.id = null; comp.mode = null; }
     let w = compWant; compWant = null;
     if (w && posted(w.id)) w = null;
+    if (w && saidBye(w.id)) w = null;
     // he has just got on the bus or taxi: a friend going with him follows him to the door and gets on too (never walks off down the street)
     const rider = actor.ride && actor.ride.mode === 'depart' && actor.hidden && actor.pending && actor.pending.a !== 'phoning' ? actor.pending.w || actor.with : null;
     if (rider && comp.id === rider){
@@ -1253,7 +1269,7 @@
           Sound.sfx(w.id === 'levi' ? 'knocklevi' : w.id === 'avi' ? 'knockhard' : 'knock'); }
     }
     // the story still has them together (Ishai is just walking to the counter, the fridge...): they stay, standing
-    const together = !w && comp.id && comp.mode !== 'out' && ((actor.with === comp.id && actor.action !== 'phoning') || actor.guestWaits === comp.id);
+    const together = !w && comp.id && comp.mode !== 'out' && !saidBye(comp.id) && ((actor.with === comp.id && actor.action !== 'phoning') || actor.guestWaits === comp.id);
     if (!w && comp.id && comp.mode !== 'out' && !together) comp.mode = 'out';
     if (w && comp.id === w.id && comp.mode === 'out') comp.mode = 'in';               // changed their mind: come back, don't re-enter
     if (w) comp.tx = w.x;
