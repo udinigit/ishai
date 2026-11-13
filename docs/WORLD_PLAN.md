@@ -175,7 +175,7 @@ Decided:
 - 2026-11-12: the statue is Stanley Cubrick (bricks, a cube head); Claude creates the kiosk owner (Shmulik); the mall is The Big S, shops 09:00-22:00, Friday until 16:00, closed on Saturday; the kiosk is open 24/7; the promenade at any hour. Claude fills the other place settings (above). 2026-11-13: the mural is the Earth as a cube. Together the new places raise the hourly outing chance by a few points at their busiest hours; Claude checks the totals when building.
 
 ## Later
-- **Saturday at The Big S:** a cinema (open on Saturday), maybe arcades and bowling. Likely on floor 3 next to the food court, or a floor of their own. Each becomes a story place with its own `places.json` hours.
+- **Saturday at The Big S:** a cinema (open on Saturday; planned in `docs/CINEMA_PLAN.md`, the PixelPlex off the food court), maybe arcades and bowling. Likely on floor 3 next to the food court, or a floor of their own. Each becomes a story place with its own `places.json` hours.
 - **The bike** (dropped for now): a fictional bike-share or his own bike from the bicycle shop in `west3`; poses `cycling`, walking the bike, docking; `mode: bike` on links for routes of 4+ blocks, never in rain, at night, on Shabbat, with a friend on foot or with Falafel; about 3 times walking speed. The v215 cyclists stay as background.
 - **Falafel's walks** (`WALKS`) on longer loops: the promenade is a good one.
 
