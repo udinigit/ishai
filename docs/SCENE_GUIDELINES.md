@@ -51,6 +51,11 @@ Every exit leads to a specific entry in a specific place. The map lives in one f
 | Pump House plaza | right edge | Park | left edge |
 | Pump House plaza | double doors (60) | Pump House hall (CAM-20) | door (right edge) |
 | Pump House hall | door (right edge) | Pump House plaza | double doors (60) |
+| Pump House plaza | left edge | Promenade east (CAM-23, page only) | right edge |
+| Promenade east | left edge | The promenade (CAM-24) | right edge |
+| The promenade | left edge | Promenade west (CAM-25, page only; The Big S) | right edge |
+| The promenade | bus stop (128) | Street | bus stop (128) — by bus (day) or taxi (night / rain) |
+| Street | bus stop (128) | The promenade | its own bus stop (128) |
 
 - Every link is the same door both ways: leaving X by door A into Y always arrives at Y's door B, and leaving Y by door B always arrives back at X's door A (`MAP[x][y].exit === MAP[x][y].entry`).
 - A friend going somewhere with Ishai walks right behind him through the same doors, place after place, and arrives through the door he used (never from a random edge).
@@ -69,6 +74,7 @@ Every exit leads to a specific entry in a specific place. The map lives in one f
   - Park: right edge (path to Herzl St. west), left edge (across the park to the Pump House).
   - Pump House plaza (CAM-19): the park path (right edge), the hall's double doors (60). Ticket window, poster board, rope lanes for queues.
   - Pump House hall (CAM-20): its door on the right. Stage, pixel screen, merch table. Open only for events.
+  - The promenade (block kit, `ground: 'promenade'`): `prom1` (CAM-23) right edge to the plaza, left edge on; `promenade` (CAM-24) both edges and its bus stop (128); `prom3` (CAM-25) right edge only (The Big S closes the west end). Sea, sand, a white railing, the wave-tiled walk, the red bike lane, the seafront road.
   - Shops (CAM-09, Herzl St. east): left edge (back to Ishai's block), right edge (the café corner). Herzl Hardware, Tahini Tower Savings Bank + ATM, a flower shop, a pedestrian crossing with lights, Kfar Kofi billboard.
   - Café: the entrance on the left.
   - Bus (CAM-12, line 88) and Taxi (CAM-13): no doors of their own; he boards at a stop on the street camera and the switch finds him seated. Every ride between places shows here for `RIDE_MS` (2.5 minutes, the city keeps looping past), or longer when the story puts a moment on board. Dialogue in a moment that arrives by ride waits until he is there, and a viewer who tunes in mid-ride joins him on board. Taxi at night, in the rain and on Shabbat. No `ERRANDS`: he stays in his seat. The city outside (`cityDrive()`) is currently the only route; it runs on the real clock with a red light every 52 s, and handles any hour and weather.

@@ -66,6 +66,7 @@
     "campus": { "event": "his history lectures (Sunday, Tuesday, Wednesday 11:00)" },
     "classroom": { "event": "a history lecture" },
     "arena": { "event": "a Pump House night (concert or gallery night)" },
+    "promenade": { "stay": [20, 120], "rate": { "week": [[7, 9, 3], [17, 21, 6]], "fri": [[8, 18, 8]], "sat": [[8, 20, 10]] }, "weather": { "rain": 0.1, "hot": 1.2, "cold": 0.5 }, "with": 35, "meet": 25, "people": { "noa": 3, "tomer": 2, "dana": 1 } },
     "apt2": { "event": "poker night at Boaz's" }
   }
 }

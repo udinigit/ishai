@@ -1173,12 +1173,13 @@
   let compWant = null; // what the scene wants this frame: {id, look, x, kind:'seat'|'floor'}
   function exitX(loc, id, nearX){
     if (REG[id] && REG[id].place === loc) return REG[id].x;  // a regular goes back to their own spot
+    if (SCENES[loc] && SCENES[loc].exitX) return SCENES[loc].exitX(nearX, id);   // block-kit scenes say where their ways out are
     if (loc==='apartment') return 135;                      // front door
     if (loc==='bathroom') return 9;                         // bathroom door
     if (loc==='corridor') return id==='levi' ? 106 : 180;   // Mrs. Levi's door, otherwise the stairs
     if (loc==='classroom') return W+8;                       // the classroom door, on the right
     if (loc==='campus') return 60;                          // the lecture building's doors
-    if (loc==='plaza') return nearX > 110 ? W+8 : 60;       // the park path, or the Pump House doors
+    if (loc==='plaza') return nearX > 110 ? W+8 : nearX < 30 ? -18 : 60;   // the park path, the promenade (left edge), or the Pump House doors
     if (loc==='arena') return W+8;                          // the hall's door, on the right
     if (loc==='apt2') return 4;                             // Boaz's front door
     if (loc==='hall1') return nearX > W/2 ? 178 : 8;        // stairs up or down
@@ -1817,31 +1818,90 @@
         if (night) R(cx+25,97,2,2,'#fff3b0'); if (stopped) R(cx,97,1,2,'#ff3b3b'); }   // brake lights while waiting
     }
   }
-  // ---------- Herzl St. west: three blocks between his building and the park ----------
-  // Page only: the story still goes street > park and route() walks him through them. Nobody stops here, so they have no ERRANDS or story text.
-  const WEST = new Set(['west1','west2','west3']);
-  function westBlock(scene, cam, place){
-    return Object.assign(scene, {cam, place, walkY:66, entry:W+8, exit:-14, stand:{idle:96, walking:96},
+  // ---------- the block kit: a scene from a short description (docs/WORLD_PLAN.md, phase 2) ----------
+  // block(spec, cam, place) draws a walk-through or simple place the same way everywhere: sky, buildings, the spec's own fronts and props,
+  // the ground, passers-by, traffic, Ishai and his company, depth (zAdd) and night. spec:
+  //   ground: 'street' (sidewalk + road, Herzl St.), 'promenade' (sea, sand, railing, the wave-tiled walk, the bike lane, the seafront road)
+  //           or 'indoor' (spec.room draws the walls; tiled floor; spec.glass = a glass roof showing the real sky, rain on it)
+  //   bld: [[x, y, w, colour]] buildings behind (street ground); fronts(t, night) and props(t, night): the spec's own art (props inside zOn)
+  //   seed: everything random comes from it (never Math.random); crowd: [[idx, period, y, dir]] passers-by (default: three on the walk)
+  //   traffic: 'road' (cars, the bus, bikes, ateBite), 'none'; stop: true = his bus or taxi pulls in here (a bus stop at 128)
+  //   amb: the sound bed ('street', 'sea', 'mall'); exitX(id, nearX): where a companion leaves; name: PLACE_NAME; fill / overheard: host lines
+  // It also enters the place in OUTSIDE (not indoors), BIKE_SEED and ATE_PLACES (road traffic), and the tables kitRegister() fills later.
+  const KIT = new Set(), WEST = new Set(['west1','west2','west3']);
+  function block(scene, cam, place){
+    const ground = scene.ground || 'street', id = scene.id;
+    if (id){ KIT.add(id); if (ground !== 'indoor') OUTSIDE.add(id); if ((scene.traffic || (ground === 'indoor' ? 'none' : 'road')) === 'road'){ BIKE_SEED[id] ??= scene.seed + 10; ATE_PLACES.add(id); } }
+    const traffic = scene.traffic || (ground === 'indoor' ? 'none' : 'road');
+    return Object.assign({walkY:66, entry:W+8, exit:-14, stand:{idle:96, walking:96}}, scene, {cam, place,
       draw(t,hf,a,settled,actor){
-        drawSky(0,0,W,52,hf,t); const night = isNight(hf);
-        scene.bld.forEach(([x,y,w,c],bi)=>{ R(x,y,w,72-y,c); R(x,y,w,2,'#00000033');
-          for (let wy=y+6; wy<34; wy+=9) for (let wx=x+4; wx<x+w-5; wx+=8){ const lit = night && ((wx*7+wy*3+bi)%5<3); R(wx,wy,4,5, lit ? '#ffd36a' : (night?'#1a2238':'#a9c8dc')); } });
-        scene.fronts(t, night);
-        R(0,72,W,20,'#8d8d8d'); for (let x=0;x<W;x+=16) R(x,72,1,20,'#7a7a7a'); R(0,82,W,1,'#7a7a7a');
-        R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=0;x<W;x+=20) R(x+4,101,10,1,'#e8e8a0');
+        const night = isNight(hf);
+        if (ground === 'street'){
+          drawSky(0,0,W,52,hf,t);
+          (scene.bld || []).forEach(([x,y,w,c],bi)=>{ R(x,y,w,72-y,c); R(x,y,w,2,'#00000033');
+            for (let wy=y+6; wy<34; wy+=9) for (let wx=x+4; wx<x+w-5; wx+=8){ const lit = night && ((wx*7+wy*3+bi)%5<3); R(wx,wy,4,5, lit ? '#ffd36a' : (night?'#1a2238':'#a9c8dc')); } });
+          scene.fronts && scene.fronts(t, night, hf);
+          R(0,72,W,20,'#8d8d8d'); for (let x=0;x<W;x+=16) R(x,72,1,20,'#7a7a7a'); R(0,82,W,1,'#7a7a7a');
+          R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=0;x<W;x+=20) R(x+4,101,10,1,'#e8e8a0');
+        } else if (ground === 'promenade'){
+          drawSky(0,0,W,36,hf,t); seaBand(t, hf, 36, 52, scene.seed); sandBand(t, night, 52, 72, scene.seed);
+          scene.fronts && scene.fronts(t, night, hf);
+          waveWalk(72, 88, night); R(0,88,W,4,'#9a4a3c'); for (let x=0;x<W;x+=14) R(x+3,90,6,1,'#e8d8c8');   // the walk; the red bike lane
+          R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=0;x<W;x+=20) R(x+4,101,10,1,'#e8e8a0');
+          if (scene.stop){ zAdd(92, () => { R(146,58,1,34,'#555'); R(143,54,8,7,'#2f6fb5'); R(144,55,6,1,'#f2f2f2'); R(145,57,4,2,'#f2f2f2'); }); }
+        } else {   // indoor
+          scene.room(t, night);
+          if (scene.glass) glassRoof(t, hf, scene.glass);
+          scene.fronts && scene.fronts(t, night, hf);
+          (scene.floor || mallFloor)(72, H, scene.seed);
+        }
         zOn();
-        scene.props(t, night);
-        crowdWalk(t, scene.seed, 31000, scene.seed*3000, 61, 1, .7); crowdWalk(t, scene.seed+2, 39000, scene.seed*5000, 63, -1, .7); crowdWalk(t, scene.seed+4, 47000, scene.seed*7000, 67, 1, .85);
+        scene.props && scene.props(t, night, hf);
+        (scene.crowd || [[scene.seed, 31000, 61, 1], [scene.seed+2, 39000, 63, -1], [scene.seed+4, 47000, 67, 1]])
+          .forEach(([idx, per, y, dir], k) => crowdWalk(t, idx, per, scene.seed*(3000 + k*2000), y, dir, .75 + (y > 65 ? .1 : 0)));
         drawFloor(t,a,settled,actor,this);
-        zAdd(200, () => { bikeRideBy(99, night); ateRideBy(t + scene.seed*20000, 99);
+        if (traffic === 'road') zAdd(200, () => { bikeRideBy(ground === 'promenade' ? 91 : 99, night); if (!actor.ride || !scene.stop) ateRideBy(t + scene.seed*20000, 99);
           const off = scene.seed*2100, cx = (((t+off)/12) % 520) - 60, lap = Math.floor((t+off)/6240);
-          if (lap % 3 === 2 && cx < W+10) drawBus(cx, night, false);
+          if (scene.stop && actor.ride && !DREAMING){ const vx = rideX(actor.ride, NOW());   // his bus or taxi at the stop
+            if (actor.ride.kind === 'bus') drawBus(vx+10, night, (NOW()-actor.ride.t0) > RIDE.come && (NOW()-actor.ride.t0) < RIDE.come + RIDE.stop); else drawTaxi(vx, night); }
+          else if (lap % 3 === 2 && cx < W+10) drawBus(cx, night, false);
           else if (cx < W+10){ const col = ['#c23b3b','#3b7bc2','#e0b04a','#dcdcdc'][lap%4];
             R(cx,96,26,6,col); R(cx+5,92,14,4,col); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0'); R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111'); if (night) R(cx+25,97,2,2,'#fff3b0'); } });
+        scene.front && zAdd(210, () => scene.front(t, night));   // anything nearer than the road (rare)
         liveLayer(t, this); zFlush();
-        if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
+        if (night && ground !== 'indoor') alpha(.3,()=>R(0,0,W,H,'#050a1e'));
+        if (ground === 'indoor' && scene.after) scene.after(t, night);
       }});
   }
+  const westBlock = block;   // the three Herzl St. west blocks were the first kit scenes
+  // the sea from the promenade: the horizon, swell lines drifting on the clock, foam where it reaches the sand; sunset and night from the sky's colour
+  function seaBand(t, hf, y0, y1, seed){
+    const s = skyColor(hf), night = s.night, dusk = s.dawn && !cloudy();
+    const deep = night ? '#0c1c34' : cloudy() ? '#4f6f86' : dusk ? '#4a4f86' : '#2f7fb5', mid = night ? '#12284a' : cloudy() ? '#5f8198' : dusk ? '#6a5a8a' : '#3f93c6', hi = night ? '#2a4a72' : dusk ? '#f0a070' : '#bfe6f8';
+    R(0,y0,W,y1-y0,deep); R(0,y0,W,2,mid); R(0,y0,W,1,night ? '#1f3656' : '#7fb8dc');
+    if (dusk && !rainy()){ R(60,y0,40,1,'#ffcf80'); for (let r=0;r<4;r++) R(70 - r*2 + ((t/600+r)|0)%3, y0+3+r*3, 18+r*3, 1, '#f0a070'); }   // the sun's road on the water
+    if (night && !cloudy()) for (let r=0;r<4;r++) R(132 + ((t/700+r)|0)%3, y0+3+r*3, 6+r, 1, '#c9d6ea');   // the moon on the water
+    for (let r=0; r<5; r++){ const y = y0 + 3 + r*3, sp = 260 - r*30, off = (seed*37 + r*53) % 40;
+      for (let x = -40 + ((t/sp + off) % 24); x < W; x += 24) R(x|0, y, 5 + r, 1, r % 2 ? mid : hi); }
+    const sw = Math.sin(t/1400) * 1.5;   // the waves reach the sand and pull back
+    for (let x = 0; x < W; x += 6){ const k = (x*7 + seed) % 5; R(x, y1-2 + (sw + k*.3 | 0), 4, 1, '#f4f8fa'); }
+  }
+  function sandBand(t, night, y0, y1, seed){
+    R(0,y0,W,y1-y0, night ? '#7a6e58' : '#e2cf9e'); R(0,y0,W,1, night ? '#8a7e66' : '#efe0b6');
+    for (let i=0;i<40;i++){ const x = (i*53 + seed*17) % W, y = y0 + 2 + (i*29 + seed*7) % (y1-y0-3); R(x,y,1,1, night ? '#6a5e4a' : '#c9b480'); }
+  }
+  // the promenade's walk: the wave pattern in the paving, and a white railing along the beach behind
+  function waveWalk(y0, y1, night){
+    R(0,y0,W,y1-y0,'#d8cbb0'); for (let x=0;x<W;x++){ const y = y0 + 6 + Math.round(Math.sin(x/6)*2); R(x,y,1,2,'#b9a47e'); R(x,y+7,1,1,'#c7b48e'); }
+    R(0,y0,W,1,'#c2b394');
+  }
+  function railing(y, night){ R(0,y,W,1,'#f2f2f2'); R(0,y+4,W,1,'#d8d8d8'); for (let x=2;x<W;x+=8) R(x,y,1,8,'#e8e8e8'); }
+  // inside the mall: a glass roof (the real sky, rain on the glass) and the tiled floor
+  function glassRoof(t, hf, y1){ drawSky(0,0,W,y1,hf,t); for (let x=0;x<W;x+=24) R(x,0,2,y1,'#5a6470'); R(0,y1-2,W,2,'#5a6470'); for (let y=0;y<y1;y+=8) R(0,y,W,1,'#6a7480'); }
+  function mallFloor(y0, y1, seed){ R(0,y0,W,y1-y0,'#e6e2da'); for (let x=0;x<W;x+=16) R(x,y0,1,y1-y0,'#d2cdc2'); for (let y=y0+8;y<y1;y+=10) R(0,y,W,1,'#d2cdc2');
+    for (let x=0;x<W;x+=16) for (let y=y0+8;y<y1;y+=10) if (((x>>4)+(y>>3)+seed)%3===0) R(x+1,y+1,15,9,'#ddd8ce'); }
+  // ---------- Herzl St. west: three blocks between his building and the park ----------
+  // Page only: the story still goes street > park and route() walks him through them. Nobody stops here, so they have no ERRANDS or story text.
   const lampPost = (x, night) => zAdd(87, () => { R(x,34,2,54,'#3a3a3a'); R(x-4,32,10,3,'#3a3a3a'); R(x-3,35,8,1, night ? '#fff3b0' : '#777'); });
   const ficus = (x, base) => zAdd(base, () => { R(x+3,38,3,base-40,'#5e4027'); R(x-6,26,20,14,'#2f7d3a'); R(x-3,22,14,6,'#3f9a48'); R(x-4,34,6,4,'#256b30'); R(x-1,base-4,11,5,'#7a7a7a'); });
   const roofAd = (x, y, w, h, legs) => { legs.forEach(lx => R(lx,y+h,1,5,'#444')); R(x,y,w,h,'#0a0a12'); };
@@ -1917,6 +1977,60 @@
     },
     props(t, night){ lampPost(70, night); ficus(136, 87); zAdd(85, () => { R(14,68,20,2,'#7a5534'); R(14,71,20,2,'#5e4027'); R(16,73,2,5,'#333'); R(30,73,2,5,'#333'); }); }
   }, 'CAM-16', 'HERZL ST. // PARK END');
+  // ---------- the promenade: three blocks of seafront west of the Pump House (block kit, ground 'promenade') ----------
+  // prom1 (by the plaza), promenade (the story place: the lifeguard tower, the beach, its own bus stop at 128), prom3 (The Big S at the end).
+  const palm = (x, base, h, night) => zAdd(base, () => { for (let y = base - h; y < base; y += 3) R(x + Math.round(Math.sin((base - y)/14)*2), y, 3, 3, (y/3)%2 ? '#8a6a44' : '#7a5c3a');
+    const tx = x + Math.round(Math.sin(h/14)*2), ty = base - h, f = night ? '#1f4a2a' : '#2f7d3a', f2 = night ? '#2a5a34' : '#3f9a48';
+    [[-12,2,12,2],[1,2,12,2],[-9,-1,9,2],[3,-1,9,2],[-6,-3,6,2],[2,-3,6,2]].forEach(([dx,dy,w,hh],i) => R(tx+dx, ty+dy+(i<2?1:0), w, hh, i%2 ? f2 : f));
+    R(tx-11,ty+4,2,2,f); R(tx+12,ty+4,2,2,f); R(tx,ty+3,2,2,'#7a4a2a'); });
+  const promBench = (x, night) => zAdd(79, () => { R(x,73,18,2,'#6b4a2a'); R(x,77,18,2,'#7a5534'); R(x+1,79,2,5,'#3a3a3a'); R(x+15,79,2,5,'#3a3a3a'); });   // faces the camera, back to the sea
+  const promLamp = (x, night) => zAdd(73, () => { R(x,40,2,33,'#2e3a44'); R(x-3,38,8,3,'#2e3a44'); R(x-2,41,6,1, night ? '#fff3b0' : '#8a96a0'); if (night) alpha(.22, () => { R(x-2,42,6,2,'#fff3b0'); R(x-5,72,12,2,'#fff3b0'); }); });
+  function lifeguardTower(x, y, t, night){   // on the sand; the flag tells the sea today (white calm, red wind or rain)
+    R(x+2,y,2,14,'#d8d0c0'); R(x+18,y,2,14,'#d8d0c0'); R(x+4,y+6,14,1,'#c8c0b0'); R(x,y-12,22,12,'#f2f2ec'); R(x,y-12,22,2,'#c23b3b'); R(x+3,y-8,7,4, night ? '#1a2238' : '#9fd3f0'); R(x+12,y-8,7,4, night ? '#1a2238' : '#9fd3f0');
+    R(x+10,y-5,2,4,'#c23b3b'); R(x+9,y-4,4,2,'#c23b3b'); R(x+21,y-22,1,10,'#555'); const red = rainy() || stormy(); R(x+22,y-22,6,4, red ? '#d23c3c' : '#f4f4f4'); R(x+22 + (Math.floor(t/300)%2),y-18,5,1, red ? '#a82a2a' : '#d8d8d8');
+  }
+  function umbrella(x, y, c, t){ R(x+6,y,1,12,'#ddd'); R(x,y-2,13,2,c); R(x+2,y-4,9,2,c); R(x+4,y-5,5,1,c); R(x+1,y+11,10,2,['#f4c040','#3bb0d0','#e0605a'][x%3]); }
+  const beachDay = hf => !isNight(hf) && !rainy() && !(WORLD && WORLD.weather && WORLD.weather.temp <= 12);
+  SCENES.prom1 = block({id:'prom1', ground:'promenade', seed:5, amb:'sea',
+    crowd: [[11, 19000, 61, -1], [6, 37000, 63, 1], [9, 44000, 67, -1]],   // a jogger, two strollers
+    fronts(t, night){
+      railing(64, night);
+      // the Pump House's brick corner on the right, where the park path comes out
+      R(172,20,20,52,'#9a4a34'); for (let y=22;y<72;y+=4) for (let x=172+((y/4)%2)*3;x<192;x+=6) R(x,y,5,1,'#7f3a28'); R(172,20,20,2,'#6a2a1c');
+    },
+    props(t, night, hf){ promLamp(30, night); promLamp(110, night); promBench(52, night); palm(16, 70, 34, night); palm(92, 70, 40, night);
+      // BRRR! the ice-cream cart (day only)
+      if (!isNight(hf) && !rainy()) zAdd(84, () => { R(156,72,24,10,'#f4f4f4'); R(156,72,24,2,'#3bb0d0'); word('BRRR', 160,75,'#3bb0d0'); R(158,82,3,3,'#222'); R(175,82,3,3,'#222'); R(166,58,1,14,'#888'); R(158,55,17,4,'#ff8ab0'); R(160,53,13,2,'#ffb0cc'); }); },
+    exitX: nearX => nearX > W/2 ? W+8 : -18
+  }, 'CAM-23', 'PROMENADE // EAST');
+  SCENES.promenade = block({id:'promenade', ground:'promenade', seed:6, stop:true, amb:'sea',
+    stand:{idle:84, walking:96, talking:84, eating:84, drinking:84, phoning:90, reading:62, exercising:96},
+    crowd: [[3, 21000, 61, 1], [8, 33000, 63, -1], [12, 41000, 67, 1], [5, 17000, 65, -1]],
+    fronts(t, night, hf){
+      lifeguardTower(118, 50, t, night);
+      if (beachDay(hf)){ umbrella(26, 52, '#e0605a', t); umbrella(60, 54, '#3b7bc2', t); umbrella(150, 53, '#f4c040', t); }
+      railing(64, night);
+    },
+    props(t, night){ promLamp(40, night); promLamp(140, night); promBench(54, night); promBench(98, night); palm(8, 70, 38, night); palm(176, 70, 32, night); },
+    exitX: nearX => nearX > W/2 ? W+8 : -18
+  }, 'CAM-24', 'THE PROMENADE');
+  // the west end: The Big S on the shore (its doors open in phase 3d), the sea and the beach on the right
+  SCENES.prom3 = block({id:'prom3', ground:'promenade', seed:7, amb:'sea',
+    crowd: [[4, 29000, 61, -1], [10, 36000, 63, 1], [2, 46000, 67, -1]],
+    fronts(t, night){
+      railing(64, night);
+      R(0,6,104,66,'#e8e4dc'); R(0,6,104,3,'#c8c2b6'); for (let x=4;x<100;x+=12) R(x,14,8,38, night ? '#2a3448' : '#8fb7d0'); for (let x=4;x<100;x+=12) R(x,14,8,1,'#ffffff');   // glass and white stone
+      R(18,0,68,14,'#2a2a3a'); R(19,1,66,12,'#1a1a2a'); bigS(22,2, night); word('THE BIG S', 46, 5, '#ffd23f');
+      R(36,52,32,20,'#3a4a5a'); R(38,54,13,18, night ? '#ffe9a8' : '#bfd8e8'); R(53,54,13,18, night ? '#ffe9a8' : '#bfd8e8'); R(51,54,2,18,'#2a3440');   // the glass doors
+      R(0,52,34,20,'#d8d2c6'); R(70,52,34,20,'#d8d2c6');
+      [6,76].forEach(x => { R(x,55,22,13, night ? '#ffe9a8' : '#cfe3ee'); R(x,55,22,1,'#9a9a9a'); });
+      R(104,60,2,12,'#c8c2b6');
+    },
+    props(t, night){ promLamp(116, night); palm(124, 70, 36, night); palm(178, 70, 40, night); promBench(140, night); },
+    exitX: nearX => nearX > W/2 ? W+8 : 52
+  }, 'CAM-25', 'PROMENADE // THE BIG S');
+  // The Big S's logo: a fat pixel S in a circle
+  function bigS(x, y, night){ R(x+2,y,7,1,'#ffd23f'); R(x+1,y+1,9,9,'#ffd23f'); R(x+3,y+2,5,1,'#1a1a2a'); R(x+3,y+3,1,2,'#1a1a2a'); R(x+3,y+5,5,1,'#1a1a2a'); R(x+7,y+6,1,2,'#1a1a2a'); R(x+3,y+8,5,1,'#1a1a2a'); R(x+2,y+10,7,1,'#ffd23f'); }
   // ---------- Herzl St. east: the shops between his block and the café ----------
   SCENES.shops = {
     cam:'CAM-09', place:'HERZL ST. // SHOPS', walkY:66, entry:-14, exit:W+8,
@@ -3443,10 +3557,14 @@
   const MAP = /*__WORLD_MAP__*/{};
 
   ['street','market','campus'].forEach(p => { MAP[p].bus = {exit:128, entry:128, ride:true}; MAP[p].taxi = {exit:128, entry:128, ride:true}; });
+  const RIDE_HOPS = 5;
   function route(from, to){ // shortest path through the map, e.g. cafe -> street -> corridor -> apartment
     if (from === to) return [];
-    const prev = {[from]: null}, q = [from];
-    while (q.length){ const n = q.shift(); for (const m of Object.keys(MAP[n]||{})) if (!(m in prev)){ prev[m] = n; q.push(m); } }
+    // a hop on foot costs 1, a ride RIDE_HOPS: the bus is for far places, not for a place a few blocks' walk away (the plaza, by the promenade's stop)
+    const prev = {[from]: null}, d = {[from]: 0}, done = new Set();
+    for (;;){ let n = null; for (const k in d) if (!done.has(k) && (n === null || d[k] < d[n])) n = k;
+      if (n === null || n === to) break; done.add(n);
+      for (const [m, l] of Object.entries(MAP[n]||{})){ const c = d[n] + (l.ride && !VEH.has(n) && !VEH.has(m) ? RIDE_HOPS : 1); if (!(m in d) || c < d[m]){ d[m] = c; prev[m] = n; } } }
     if (!(to in prev)) return [to];
     const path = []; for (let n = to; n !== from; n = prev[n]) path.unshift(n);
     // a ride between two places goes through the inside of the bus or taxi
@@ -3881,7 +3999,12 @@
       } else if (loc === 'corridor'){ bed(brown,'lowpass',300,.07); hum(100,.008); }
       else if (loc === 'bus'){ bed(brown,'lowpass',170,.16); hum(62,.014); }                   // the engine, and the road under the floor
       else if (loc === 'taxi'){ bed(brown,'lowpass',210,.1); hum(84,.006); }
-      else if (loc === 'street' || loc === 'shops' || WEST.has(loc)){
+      else if (SCENES[loc] && SCENES[loc].amb === 'sea'){                                        // the promenade: the surf, gulls, a road behind
+        bed(brown,'lowpass',360,.10);
+        loop(6500, 4000, () => noise(3.4,{vol:.13,type:'lowpass',freq:420,sweep:[1100,300],buf:brown,dest}));   // a wave comes in and pulls back
+        loop(9000, 9000, () => { const f = 1500 + Math.random()*400; tone(f, .12, 'sawtooth', .008, 0, dest, .7); tone(f*1.2, .1, 'sawtooth', .006, .16, dest, .7); });   // a gull
+      }
+      else if (loc === 'street' || loc === 'shops' || WEST.has(loc) || (SCENES[loc] && SCENES[loc].amb === 'street')){
         bed(brown,'lowpass',700,.14);
         if (loc === 'shops') loop(20000, 0, () => { if (Math.floor(NOW()/20000) % 2) for (let i=0;i<6;i++) tone(1800,.03,'square',.012,i*.5,dest); });   // the crossing beeps on green
         loop(5000, 6000, () => noise(2.6,{vol:.16,type:'lowpass',freq:250,sweep:[1500,250],buf:brown,dest}));
@@ -4254,7 +4377,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', hall1:'1ST FLOOR HALL', apt2:'APARTMENT 2', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', prom1:'THE PROMENADE', promenade:'THE PROMENADE', prom3:'THE PROMENADE', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', hall1:'1ST FLOOR HALL', apt2:'APARTMENT 2', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
@@ -5293,6 +5416,9 @@
   const FILL = {
     hall1: ['The first floor. Apartment 2 is Boaz, the bus driver. The doormat says so.', 'One floor down from his own. A whole other country.'],
     apt2: ['Boaz\'s flat. China cabinet, fish tank, a lamp over a green felt table. Poker night.', 'Five players, fifty shekels each, and a bowl of seeds that will not survive the night.', 'Look at Ronit watching him. She has graded a thousand faces like his.', 'Moti calls everything. It is less a strategy than a worldview.', 'Yossi\'s lucky cap. Washed, he says, which is the problem.'],
+    prom1: ['Past the Pump House and out to the sea. The city just stops and the blue begins.', 'BRRR, the ice-cream cart. Every promenade has one man who believes in sorbet.', 'The promenade. Joggers on the left, cyclists on the right, and Ishai somewhere in the middle.'],
+    promenade: ['The promenade. Wave-patterned paving, so even the floor is at the beach.', 'There is the lifeguard tower. Check the flag: white is calm, red means stay out.', 'A bench facing the walk, back to the sea. Tel Aviv has never decided which way to look.', 'Sea on one side, the whole city on the other. He picked the right side.'],
+    prom3: ['The west end of the promenade, and there she is: The Big S. Three floors of air conditioning.', 'The Big S, built right on the shore. You can hear the sea from the doors.', 'Palm trees, a bench, and a mall that looks like a cruise ship ran aground.'],
     plaza: ['The Pump House. It pumped the neighbourhood its water for ninety years; now it wants to pump out a little culture.', 'Brick, a chimney and a sign that says THE PUMP HOUSE. Opening soon, says the board.', 'That woman at the ticket window is Hagit. She runs the place, and the place runs her.', 'Rope lanes for a queue that is not here yet. Optimism, in red rope.'],
     arena: ['Inside the Pump House. A stage, a screen, and old pipes overhead that once moved half the city\'s water.', 'The hall is quiet tonight. You can hear the pipes thinking.', 'A stage that is waiting for someone. He knows the feeling.', 'Concrete floor, brick walls, and a merch table with two shirts on it. Every venue starts somewhere.'],
     apartment: ['Apartment 4. One room, one man, one basil, no secrets.', 'Look at that windowsill. Moshe is holding the whole place together.', 'That desk has seen more revisions than a constitution.', 'The sofa, the desk, the fridge. The three stops of his daily commute.', 'Somewhere under that pile is a clean shirt. Allegedly.', 'You can tell a lot about a man by his one kitchen chair.'],
@@ -5403,6 +5529,9 @@
   setInterval(hostFill, 1000);
   // ================= overheard: now and then a passer-by's words, as a small caption. Never a name, a bubble, a voice or the chat, so nobody takes them for the cast =================
   const OVERHEARD = {
+    prom1: ['...one scoop, two spoons, we are not animals.', '...ten kilometres? I said ten minutes.', '...the Pump House is doing concerts now, did you see the board?'],
+    promenade: ['...the flag is red, so the sea is closed. Closed! Like a shop.', '...I swam here every morning for forty years and I am still cold.', '...look at the sunset. No, without your phone. Look.', '...on the bench, the one by the tower, at six.'],
+    prom3: ['...we are only going in for the air conditioning.', '...the food court is on the top floor, under the glass.', '...The Big S. S for what? Nobody knows.'],
     plaza: ['...it used to pump water for the whole neighbourhood. Now it pumps culture, she says.', '...is it open tonight? The board says soon. Soon when?', '...my grandfather worked here. He hated the noise.', '...they are cleaning the windows, that is a good sign.'],
     street: ['...so I told him, that is not parking, that is a hobby.', '...my sister says the same about her landlord.', '...no, the other bus. The one that never comes.', '...second floor, third door, and bring the receipt.', '...I said ten minutes. It is a Tel Aviv ten minutes.', '...he is a good boy, he just bites.'],
     shops: ['...nine shekels for one tulip? Is it a wedding?', '...the machine ate it. The whole card.', '...wait for the green, Yonatan. Wait.', '...I only came in for a screw.', '...she never said yes, she said we will see.'],

@@ -61,9 +61,10 @@
     "bar": {"exit": 101, "entry": 101},
     "market": {"exit": 128, "entry": 128, "ride": true},
     "campus": {"exit": 128, "entry": 128, "ride": true},
-    "offscreen": {"exit": 128, "entry": 128, "ride": true}
+    "offscreen": {"exit": 128, "entry": 128, "ride": true},
+    "promenade": {"exit": 128, "entry": 128, "ride": true}
    },
-   "notes": ["building entrance (up to his floor, or to the first floor)"]
+   "notes": ["building entrance (up to his floor, or to the first floor)", "the same stop: the bus (or a taxi) to the promenade"]
   },
   "park": {
    "kind": "story",
@@ -81,9 +82,10 @@
    "actions": ["walking", "idle", "talking", "eating", "drinking", "phoning"],
    "links": {
     "park": {"exit": "R", "entry": "R"},
-    "arena": {"exit": 60, "entry": 60}
+    "arena": {"exit": 60, "entry": 60},
+    "prom1": {"exit": -14, "entry": -14}
    },
-   "notes": ["the park path on the right; the Pump House doors"]
+   "notes": ["the park path on the right; the Pump House doors", "left edge -> the promenade (prom1)"]
   },
   "arena": {
    "kind": "story",
@@ -93,6 +95,32 @@
     "plaza": {"exit": "R", "entry": "R"}
    },
    "notes": ["the hall's door, on the right"]
+  },
+  "prom1": {
+   "kind": "pass",
+   "links": {
+    "plaza": {"exit": "R", "entry": "R"},
+    "promenade": {"exit": -14, "entry": -14}
+   },
+   "notes": ["the promenade east (CAM-23, page only): right edge -> the Pump House plaza, left edge -> the promenade"]
+  },
+  "promenade": {
+   "kind": "story",
+   "desc": "the promenade by the sea, west of the Pump House (walk through the park and past the Pump House, or the bus or taxi to its own stop): the wave-patterned walk, a white railing over the beach, palm trees, benches facing the walk, a lifeguard tower on the sand, joggers and cyclists, the sea; at its west end the big mall, The Big S",
+   "actions": ["walking", "idle", "talking", "eating", "drinking", "phoning", "reading", "exercising"],
+   "links": {
+    "prom1": {"exit": "R", "entry": "R"},
+    "prom3": {"exit": -14, "entry": -14},
+    "street": {"exit": 128, "entry": 128, "ride": true}
+   },
+   "notes": ["the promenade (CAM-24, story place): right edge -> prom1 (the plaza), left edge -> prom3 (The Big S), its own bus stop (128) -> Herzl St. by bus or taxi"]
+  },
+  "prom3": {
+   "kind": "pass",
+   "links": {
+    "promenade": {"exit": "R", "entry": "R"}
+   },
+   "notes": ["the promenade west (CAM-25, page only): right edge -> the promenade; The Big S at its west end (its doors come with the mall)"]
   },
   "west3": {
    "kind": "pass",
@@ -201,7 +229,8 @@
     "street": {"ride": true},
     "market": {"ride": true},
     "campus": {"ride": true},
-    "offscreen": {"ride": true}
+    "offscreen": {"ride": true},
+    "promenade": {"ride": true}
    },
    "notes": ["on board: he gets off at a stop"]
   },
@@ -213,7 +242,8 @@
     "street": {"ride": true},
     "market": {"ride": true},
     "campus": {"ride": true},
-    "offscreen": {"ride": true}
+    "offscreen": {"ride": true},
+    "promenade": {"ride": true}
    }
   },
   "offscreen": {
@@ -226,7 +256,8 @@
     "market": {"ride": true},
     "campus": {"ride": true},
     "bus": {"ride": true},
-    "taxi": {"ride": true}
+    "taxi": {"ride": true},
+    "promenade": {"ride": true}
    },
    "notes": ["bus stop: bus or taxi"]
   }
