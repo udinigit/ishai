@@ -3151,7 +3151,7 @@ const arenaHealth = s => { const a = s.arena; if (!a) return null; return { even
 // Project Gutenberg (found through Gutendex by title and author); Gemini writes the film one part a day, Sunday to Thursday (filmTick), each part
 // stored once in KV (film:<date>:<n>). On the night nothing is written: the page plays the film by the clock (filmLayout, the same on both sides).
 const FILM_H = 21, FILM_DAY = 6, FILM_DOORS_MIN = 9, FILM_BREAK_MS = 5 * 60000, FILM_PART_IN = 60000;
-const FILM_SETS = ["room", "garden", "street", "forest", "palace", "shore", "ship", "tavern", "castle", "graveyard", "moor", "lab"];
+const FILM_SETS = ["room", "garden", "street", "forest", "palace", "shore", "ship", "tavern", "castle", "graveyard", "moor", "lab", "jungle", "desert", "cave", "underwater"];
 const FILM_PROPS = ["piano", "table", "chair", "throne", "tree", "window", "moon", "boat", "candle", "coffin", "portrait", "door", "fire", "bed", "bookcase", "lamp", "cross", "stars", "rain", "fog", "skull", "cart", "horse", "sword", "letter", "cake", "teacup", "flowers", "fountain", "gate", "statue", "desk", "bottle"];
 const FILM_POSES = ["stand", "sit", "kneel", "bow", "point", "embrace", "fall", "cower"], FILM_MOVES = ["still", "pan-left", "pan-right", "zoom-in"], FILM_PAL = ["warm", "cold", "dark", "bright", "sepia"];
 const FILM_REACT = ["laugh", "gasp", "scream"];
@@ -3231,10 +3231,11 @@ RULES
 - 4 to 6 scenes, in the story's order, covering THIS PART of the SOURCE only, with nothing important left out. Each scene has 16 to 28 lines (about 100 to 130 lines in this part); each "say" at most 130 characters.
 - Keep the plot, the characters and the best lines; condense, and modernise a little only where old wording is hard to follow. "who" is a cast id, or "narrator" for a short line that bridges a gap (at most 2 a scene).
 - "cast": everyone who speaks in this part. Reuse the ids and looks from CAST SO FAR exactly; add only new people. Look values ONLY from: hair ${LOOK.hair.filter(h => h !== "cap").join("/")}; hairColor ${LOOK.hairColor.join("/")}; skin ${LOOK.skin.join("/")}; shirt and pants ${LOOK.cloth.join("/")}; hat ${LOOK.hat.join("/")}; top ${LOOK.top.join("/")}; bottom ${LOOK.bottom.join("/")}; extras (0-3) ${LOOK.extras.join("/")}.
-- set.kind ONE of: ${FILM_SETS.join(", ")}. props (0-5) ONLY from: ${FILM_PROPS.join(", ")}. palette ONE of: ${FILM_PAL.join(", ")} (horror: cold or dark).
+- set.kind ONE of: ${FILM_SETS.join(", ")}. props (0-5) ONLY from: ${FILM_PROPS.join(", ")}. palette ONE of: ${FILM_PAL.join(", ")} (horror: cold or dark; adventure: mostly bright or warm).
 - 1 to 3 frames a scene; each frame shows 1-3 cast ids with a pose from: ${FILM_POSES.join(", ")}; move one of: ${FILM_MOVES.join(", ")}. A line's "frame" is the frame shown while it is said.
 - "react" (optional) is how the audience reacts after the line: ${FILM_REACT.join(", ")}; at most 1 line in 8.
 - Deaths and horrors may happen, but nothing graphic: a fall, a fade, a scream. No sex scenes.
+- Adapt the original text only: never anything from later film or stage versions (their character designs, songs, catchphrases or added scenes).
 - Plain speech only: no markdown, no stage directions inside "say", nothing about cameras, being filmed, Project Gutenberg or this cinema.`;
 function cleanFilm(o, castSoFar) {
   const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -3299,11 +3300,12 @@ const FILM_FRIENDS = ["noa", "tomer", "dana", "boaz"];
 const FILM_TALK = {
   before: [["ishai", "Third row from the back, in the middle. Best seats in the house."], ["ishai", "I got the big popcorn. It's for both of us. Mostly for me."], ["ishai", "Phones off. I mean it this time."]],
   friend: [["{f}", "What is it tonight? Did you even read what it's about?"], ["{f}", "If it's sad, I'm leaving at the break."], ["{f}", "Every Saturday you drag me here. Every Saturday I come. Explain that."]],
-  breakIshai: [["ishai", "I didn't see that coming. Did you see that coming?"], ["ishai", "I like the old way they talk. Nobody talks like that anymore."], ["ishai", "I think I know how it ends. I hope I'm wrong."]],
-  breakFriend: [["{f}", "Popcorn's gone. Who ate the popcorn? You ate the popcorn."], ["{f}", "The one in the hat is up to something. Trust me."], ["{f}", "Shh, it's starting again. Sit down."]],
+  breakIshai: [["ishai", "Popcorn and a Cooola. I didn't see that coming, by the way. Did you see that coming?"], ["ishai", "The combo, please. I like the old way they talk. Nobody talks like that anymore."], ["ishai", "One large popcorn. I think I know how it ends. I hope I'm wrong."]],
+  breakFriend: [["{f}", "Get the big one. You always finish mine anyway."], ["{f}", "The one in the hat is up to something. Trust me. And no butter."], ["{f}", "Hurry, the queue's moving. I want to be back before the lights go down."]],
   after: [["ishai", "That ending. I'm going to be thinking about it all week."], ["ishai", "Same time next Saturday?"], ["ishai", "It was better than I expected. Much better."]],
   afterFriend: [["{f}", "You cried. Don't say you didn't. I saw the light on your face."], ["{f}", "Next week I choose the seats."], ["{f}", "Good film. Long film. Good film."]] };
-const F_HOSTS = { comedy: ["Saturday night at the PixelPlex, and tonight it's a comedy. He laughs half a second after everyone else.", "A comedy at the movies. Watch him try to laugh quietly."],
+const F_HOSTS = { adventure: ["An adventure tonight at the PixelPlex. Swords, maps, the lot. He has the popcorn ready.", "Old-fashioned adventure on the big screen tonight. He will pretend he isn't on the edge of his seat."],
+  comedy: ["Saturday night at the PixelPlex, and tonight it's a comedy. He laughs half a second after everyone else.", "A comedy at the movies. Watch him try to laugh quietly."],
   drama: ["A drama tonight at the PixelPlex. Bring tissues, apparently.", "Something serious on the big screen tonight. He's already leaning in."],
   horror: ["A horror film tonight. He told Noa he isn't scared. We'll see.", "Lights down, something old and creepy on the screen. Our man is gripping the armrest."] };
 // the night's moments: doors and seats, the film (no hosts, like a lecture), the break in the seats, the second half, out on the food court
@@ -3314,7 +3316,7 @@ function filmMoments(s, film, f) {
     lines: sub([pickR(r, FILM_TALK.before), ...(fr ? [pickR(r, FILM_TALK.friend)] : [])]), commentary: [{ who: "zohar", say: pickR(r, F_HOSTS[film.genre] || F_HOSTS.drama) }] }];
   for (let i = 1; i < n; i++) {
     const from = i * INTERVAL_MIN * 60000 - FILM_DOORS_MIN * 60000, bm = L.breakAt != null ? L.breakAt + FILM_BREAK_MS / 2 : -1, inBreak = bm >= from && bm < from + INTERVAL_MIN * 60000;   // the moment that holds the middle of the break
-    out.push(inBreak ? { location: "cinema", action: "talking", with: fr, text: `Intermission at the PixelPlex; the lights come up and Ishai${fr ? " and " + s.cast[fr].name : ""} talk about "${film.title}" so far.`, lines: sub([pickR(r, FILM_TALK.breakIshai), ...(fr ? [pickR(r, FILM_TALK.breakFriend)] : [])]), commentary: [] }
+    out.push(inBreak ? { location: "cinema", action: "talking", with: fr, text: `Intermission at the PixelPlex; the lights come up and Ishai${fr ? " and " + s.cast[fr].name : ""} go out to the lobby's snack bar for popcorn and a Cooola, talking about "${film.title}" so far.`, lines: sub([pickR(r, FILM_TALK.breakIshai), ...(fr ? [pickR(r, FILM_TALK.breakFriend)] : [])]), commentary: [] }
       : { location: "cinema", action: "film", with: fr, text: `"${film.title}" plays at the PixelPlex; Ishai${fr ? " and " + s.cast[fr].name : ""} watch from the third row from the back.`, lines: [], commentary: [] });
   }
   out.push({ location: "foodcourt", action: "walking", with: fr, text: `The film is over. Ishai${fr ? " and " + s.cast[fr].name : ""} walk out through the dark food court, still talking about "${film.title}".`,
@@ -3359,11 +3361,13 @@ async function filmTick(env, s, now) {
   }
 }
 const filmNext = (s, now) => { const c = s.cinema, at = nextFilmAt(s, now); return c && at ? c.films[dayOfTZ(at)] || null : null; };
-const FILM_POSTER = { comedy: ["#2a1a5a", "#ffd23f", "#ff6b9a"], drama: ["#1a1a2a", "#e8d9a8", "#c23b3b"], horror: ["#0a0a12", "#9ad0ff", "#c23b3b"] };
+const FILM_POSTER = { adventure: ["#0f3a2a", "#ffd23f", "#3bb0d0"], comedy: ["#2a1a5a", "#ffd23f", "#ff6b9a"], drama: ["#1a1a2a", "#e8d9a8", "#c23b3b"], horror: ["#0a0a12", "#9ad0ff", "#c23b3b"] };
 function cinemaPublic(s, now) {
   const fl = filmNext(s, now); if (!fl || fl.skip) return null;
+  const nx = !s.cinema.off && (s.cinema.queue || [])[0];
   return { date: fl.date, filmDate: fl.repeat || fl.date, at: fl.at, title: fl.title, author: fl.author, genre: fl.genre, pitch: fl.pitch || "", poster: FILM_POSTER[fl.genre] || FILM_POSTER.drama,
-    ready: !!(fl.of && fl.done >= fl.of), repeat: !!fl.repeat, live: now >= fl.at - 12 * 60000 && now < fl.at + 70 * 60000 };
+    ready: !!(fl.of && fl.done >= fl.of), repeat: !!fl.repeat, live: now >= fl.at - 12 * 60000 && now < fl.at + 110 * 60000,
+    next: nx ? { title: nx.title, author: nx.author, genre: nx.genre, pitch: nx.pitch || "" } : null };   // the trailer before the film: next Saturday's title
 }
 const cinemaHealth = s => { const c = s.cinema; if (!c) return null; return { films: Object.values(c.films || {}).map(f => ({ date: f.date, title: f.title, genre: f.genre, done: f.done, of: f.of, companion: f.companion, goal: f.goalId || null, repeat: f.repeat || null, skip: !!f.skip, gid: f.gid || null })),
   next: (c.queue || []).map(q => q.title), off: !!c.off, err: c.err || null, history: (c.history || []).slice(-4).map(h => ({ date: h.date, title: h.title })) }; };

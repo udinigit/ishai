@@ -2332,6 +2332,39 @@
     pixelplexFront(128, t);
   }, [[14, [[2,2],[20,6]]], [104, [[2,9]]]], {exitX: nearX => nearX > 120 ? W+8 : -18});
 
+  // ---------- the PixelPlex lobby (CAM-39, page only): from the food court's right edge, the snack bar, the door into the auditorium (170) ----------
+  const LOBBY_DOOR = 170, LOBBY_COUNTER = 78, CASHIER = {hair:'ponytail', hairColor:'black', skin:'tan', shirt:'red', pants:'black', hat:'cap', hatColor:'red', top:'polo', bottom:'trousers', extras:['apron']};
+  function popcornBucket(x, y){ R(x,y+1,5,5,'#f4f4f4'); R(x+1,y+1,1,5,'#c23b3b'); R(x+3,y+1,1,5,'#c23b3b'); R(x,y,5,1,'#fff6d0'); R(x+1,y-1,3,1,'#ffe9a8'); }
+  function cooolaCup(x, y){ R(x,y,3,5,COOOLA.bg); R(x,y+2,3,1,COOOLA.fg); R(x+1,y-2,1,2,'#f4f4f4'); }
+  SCENES.pplobby = block({id:'pplobby', ground:'indoor', seed:29, amb:'mall', walkY:66, entry:-14, exit:-14, stand:{idle:40, walking:40},
+    crowd: [[29, 34000, 62, 1], [31, 43000, 67, -1]],
+    room(t, night){
+      R(0,0,W,72,'#3a1420'); for (let x=0;x<W;x+=12) R(x,8,6,64,'#421826'); R(0,0,W,8,'#24080f');
+      for (let i=0;i<24;i++) R(4+i*8,3,2,2,(i + Math.floor(t/260)) % 2 ? '#ffd23f' : '#ff9a3a');   // the bulbs along the ceiling
+      // the menu board over the counter
+      R(44,12,76,22,'#120608'); R(44,12,76,1,'#c9a24a'); R(44,33,76,1,'#c9a24a');
+      word('POPCORN',48,15,'#ffd23f'); word('18',106,15,'#f4f4f4'); word('COOOLA',48,21,COOOLA.fg); word('12',106,21,'#f4f4f4'); word('COMBO',48,27,'#ff9a3a'); word('26',106,27,'#f4f4f4');
+      // the popcorn machine (kernels popping on the clock) and the Cooola fountain, on the back counter
+      R(40,38,18,18,'#c23b3b'); R(42,40,14,10,'#fff6d0'); for (let i=0;i<6;i++){ const k = (Math.floor(t/140) + i*3) % 9; R(43 + (i*5)%12, 41 + (k%8), 1, 1, '#ffffff'); } R(40,38,18,2,'#ffd23f'); word('POP',43,51,'#fff6d0');
+      R(104,38,16,18,COOOLA.bg); R(104,38,16,2,COOOLA.fg); bolt(110,42,COOOLA.bolt); for (let i=0;i<3;i++){ R(106+i*5,50,2,3,'#c8c8c8'); }
+      // this week's poster and next Saturday's (COMING SOON)
+      const cin = CINEMA(), pc = (cin && cin.poster) || ['#1a1a3a','#ffd23f','#c23b3b'];
+      R(8,24,18,26,'#c9a24a'); R(9,25,16,24,pc[0]); R(11,28,12,8,pc[1]); R(10,40,14,2,pc[2]); R(10,44,14,1,pc[1]);
+      R(128,24,18,26,'#c9a24a'); R(129,25,16,24,'#1a1a2a'); word('SOON',130,28,'#ffd23f'); R(131,36,12,8,'#3bb0d0'); R(130,46,14,1,'#ffd23f');
+      // the door into the auditorium: SCREEN 1
+      R(LOBBY_DOOR-10,30,22,58,'#120608'); R(LOBBY_DOOR-8,34,18,54,doorBusy(LOBBY_DOOR) ? '#2a1a20' : '#5a0f1c'); R(LOBBY_DOOR-8,60,18,1,'#c9a24a');
+      R(LOBBY_DOOR-10,22,22,7,'#0a3a1a'); word('SCREEN',LOBBY_DOOR-9,23,'#3bff7a');
+    },
+    floor(y0, y1){ R(0,y0,W,y1-y0,'#6a1420'); for (let y=y0;y<y1;y+=6) for (let x=(y/6%2)*6;x<W;x+=12) R(x,y+2,3,2,'#7e1c2a'); for (let x=0;x<W;x+=24) R(x+9,y0+3,1,1,'#ffd23f'); },
+    props(t){
+      // the cashier behind the counter, then the counter in front of her (glass, sweets inside)
+      person(CASHIER, LOBBY_COUNTER + 10, 40, t, {muted:true, legs:false, face: 0});
+      R(36,56,88,18,'#2a0a12'); R(36,56,88,2,'#c9a24a'); R(40,60,80,10,'#5a3a40');
+      for (let i=0;i<10;i++) R(42+i*8,63,5,4,['#ff6b9a','#ffd23f','#7fbf6a','#9ad0ff'][i%4]);
+      lobbyTrip(t);
+    },
+    sits: () => !!tripNow(),   // during the break the trip draws him (and the friend) here
+    exitX: nearX => nearX > 120 ? LOBBY_DOOR : -18}, 'CAM-39', 'THE BIG S // PIXELPLEX LOBBY');
   // ---------- the PixelPlex: the cinema off the food court (Saturday nights, docs/CINEMA_PLAN.md) ----------
   // the front on mall3b: a lit marquee with this week's title, the box office, popcorn, the poster; the doorway on the right edge leads in
   let CIN_PUB = null; const CINEMA = () => CIN_PUB;   // {title, genre, at (the film's start), filmDate, ready, live, poster colours} from publicState.cinema
@@ -2400,6 +2433,7 @@
   }
   const wrapWords = (txt, n) => { const out = []; let cur = ''; String(txt).split(/\s+/).forEach(w => { if ((cur + ' ' + w).trim().length > n){ if (cur) out.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); }); if (cur) out.push(cur); return out; };
   function drawFilm(S, t, T, it){
+    if (T >= TR_FROM && T < TR_FROM + TR_LEN && CINEMA() && CINEMA().next){ drawTrailer(S, t, T - TR_FROM, CINEMA().next); return; }
     if (T < 0){   // the ad reel: the show's own brands, then phones off
       const ads = [['COOOLA', 'THE TASTE OF COLD', '#c23b3b', '#ffffff'], ['HUMMUSPRIME', 'FRESH EVERY MORNING', '#e0b04a', '#3a2a10'], ['ATEBITE', 'HUNGRY. TAP. DONE.', '#ff7a1a', '#ffffff'], ['BRRR!', 'ON THE PROMENADE', '#3bb0d0', '#ffffff'], ['PHONES OFF', 'ENJOY THE FILM', '#1a1a2a', '#ffd23f']];
       const k = Math.floor((T + 8 * 60000) / 15000), a = T > -30000 ? ads[ads.length - 1] : ads[((k % (ads.length - 1)) + ads.length - 1) % (ads.length - 1)];
@@ -2430,6 +2464,24 @@
     g.drawImage(FC, sx, sy, sw, sh, S.x, S.y, S.w, S.h);
     if (sc.set.palette === 'dark' || sc.set.palette === 'cold') if (hash(Math.floor(t / 90)) < .08) alpha(.12, () => R(S.x, S.y, S.w, S.h, '#000'));   // the old film flickers
   }
+  // the trailer for next Saturday's film, in the ad reel before the film (no AI: the title, the author and the pitch from films.json)
+  const TR_FROM = -150000, TR_LEN = 115000;
+  const TR_SETS = {adventure:[['ship','day'],['jungle','dusk']], comedy:[['palace','day'],['garden','day']], drama:[['room','dusk'],['street','night']], horror:[['graveyard','night'],['moor','night']]};
+  const TR_SAY = nx => [[7000, 'Next Saturday, at the PixelPlex...'], [21000, nx.pitch || 'A story they still tell, a hundred years on.'], [76000, nx.title + '. By ' + nx.author + '.'], [100000, 'Saturday at nine. Bring a friend.']];
+  function drawTrailer(S, t, k, nx){
+    if (k < 6000){ cardText(S, [['COMING', '#ffd23f'], ['NEXT SATURDAY', '#ffd23f'], ['', '#000'], ['AT THE PIXELPLEX', '#c9a24a']]); return; }
+    if (k >= 75000){ if (k < 100000) cardText(S, [...wrapWords(nx.title, 30).map(l => [l, '#f4f0e4']), ['', '#000'], ['BY ' + nx.author, '#c9a24a']]);
+      else cardText(S, [['SATURDAY 21.00', '#ffd23f'], ['', '#000'], [String(nx.genre || '').toUpperCase(), '#f4f0e4'], ['PIXELPLEX', '#c9a24a']]); return; }
+    const sets = TR_SETS[nx.genre] || TR_SETS.drama, part = k < 40000 ? 0 : 1, st = {kind: sets[part][0], time: sets[part][1], props: part ? ['fog'] : ['moon'], palette: nx.genre === 'horror' ? 'cold' : 'warm'};
+    if (nx.genre !== 'horror') st.props = part ? [] : (sets[part][1] === 'day' ? [] : ['moon']);
+    if (!FC){ FC = document.createElement('canvas'); FC.width = FW; FC.height = FH; }
+    const fx = FC.getContext('2d'); fx.imageSmoothingEnabled = false; fx.clearRect(0, 0, FW, FH);
+    const prev = g; g = fx;
+    try { filmSet(st, t); filmProps(st, t); const tint = FILM_PAL[st.palette]; if (tint) alpha(tint[1], () => R(0, 0, FW, FH, tint[0])); } finally { g = prev; }
+    const z = ((k - (part ? 40000 : 6000)) / 34000), sw = 64 - z * 10, sh = sw * FH / 64;   // a slow push in on each shot
+    g.drawImage(FC, 4 + (64 - sw) / 2, (FH - sh) / 2, sw, sh, S.x, S.y, S.w, S.h);
+    R(S.x, S.y + S.h - 9, S.w, 9, '#050505'); word('NEXT SATURDAY', S.x + Math.floor((S.w - 13 * 4) / 2), S.y + S.h - 8, '#ffd23f');
+  }
   // the sets: a few hand-drawn backgrounds the writer can only combine (floor line at 22 of FH)
   function filmSet(st, t){
     const night = st.time === 'night', dusk = st.time === 'dusk', sky = night ? '#0a1028' : dusk ? '#e08a5a' : '#8fc4e8';
@@ -2446,6 +2498,10 @@
       case 'graveyard': R(0,0,FW,22,night?'#0a0c18':'#5a6070'); R(0,16,FW,6,'#2a3a2a'); [8,22,40,58].forEach((x,i) => { R(x,10+(i%2)*2,6,8,'#8a8a92'); R(x+2,8+(i%2)*2,2,2,'#8a8a92'); }); for (let x=0;x<FW;x+=3) R(x,14,1,6,'#2a2a2a'); R(0,22,FW,6,'#1f2a1f'); break;
       case 'moor': R(0,0,FW,22,night?'#0a0c18':'#7a8088'); R(0,12,FW,10,'#5a6a4a'); for (let x=0;x<FW;x+=2) R(x,11+Math.round(Math.sin(x/9)*2),2,2,'#4a5a3a'); R(0,22,FW,6,'#4a5a3a'); break;
       case 'lab': R(0,0,FW,22,'#5a5a62'); for (let y=1;y<22;y+=4) for (let x=(y%8?0:3);x<FW;x+=7) R(x,y,6,3,'#62626a'); R(4,14,24,2,'#5e4027'); [6,12,18,24].forEach((x,i) => { R(x,10,2,4,['#7fe07f','#e07fe0','#7fe0e0','#e0e07f'][i]); }); R(0,22,FW,6,'#3a3a42'); break;
+      case 'jungle': R(0,0,FW,22,night?'#06140c':'#2f5a2a'); for (let i=0;i<10;i++){ R(i*7+1,0,2,22,'#4a3420'); R(i*7-2,(i%3)*3,8,5,'#2f7a2a'); R(i*7+2,8+(i%2)*4,1,8,'#3f9a3a'); } for (let x=0;x<FW;x+=4) R(x,18+(x%8?0:1),3,4,'#2a6a22'); R(0,22,FW,6,'#3a4a1a'); break;
+      case 'desert': out(); R(0,14,FW,8,'#e0c07a'); for (let x=0;x<FW;x+=2) R(x,13+Math.round(Math.sin(x/11)*2),2,2,'#d4b06a'); R(52,8,3,8,'#4f8a3a'); R(50,10,2,1,'#4f8a3a'); R(55,9,2,1,'#4f8a3a'); R(0,22,FW,6,'#cfa95f'); if (!night) R(8,3,5,5,'#fff0a0'); break;
+      case 'cave': R(0,0,FW,22,'#1a1610'); for (let x=0;x<FW;x+=5) R(x,0,4,2+(x*7)%5,'#2a241a'); for (let x=2;x<FW;x+=9) R(x,0,2,3+(x%4),'#3a3226'); R(26,6,20,16,'#0a0806'); R(0,22,FW,6,'#2a241a'); break;
+      case 'underwater': R(0,0,FW,FH,'#0f3a6a'); for (let y=0;y<22;y+=4) alpha(.12, () => R(0,y,FW,2,'#3a8ad0')); for (let i=0;i<6;i++) R((i*13 + Math.floor(t/400)) % FW, 20 - ((Math.floor(t/120) + i*7) % 20), 1, 1, '#bfe6f8'); for (let x=4;x<FW;x+=11) R(x,14,2,8,'#2f7a4a'); R(0,22,FW,6,'#c8b080'); break;
       default: { const wall = st.era && /1[5-7]\d\d/.test(st.era) ? '#8a6a4a' : '#b89a7a'; R(0,0,FW,22,wall); R(0,15,FW,7,'#7a5534'); R(0,15,FW,1,'#5e4027'); R(0,22,FW,6,'#6b4a2a'); for (let x=0;x<FW;x+=9) R(x,22,1,6,'#5e4027'); }
     }
     if (dusk && ['room','palace','tavern','castle','lab'].includes(st.kind)) alpha(.12, () => R(0,0,FW,FH,'#ff8a3a'));
@@ -2495,7 +2551,8 @@
     person(L, x - 5, y, t, o);
   }
   // the lines, on the clock: a subtitle at the foot of the screen, the voice, the audience's laugh, gasp or scream after
-  let filmSaid = -1, filmReacted = -1;
+  let filmSaid = -1, filmReacted = -1, filmFanfare = 0, trSaid = '';
+  const trDone = new Set();
   setInterval(() => {
     if (!FILM || actor.loc !== 'cinema' || actor.hidden || forceLoc || DREAMING) return;
     const T = NOW() - FILM.at, it = filmAt(T);
@@ -2504,7 +2561,59 @@
     const done = FILM_L.items.filter(x => x.kind === 'line' && x.t1 <= T && T - x.t1 < 1500).slice(-1)[0];
     if (done){ const k = FILM_L.items.indexOf(done), r = FILM.scenes[done.scene].lines[done.line].react; if (r && k !== filmReacted){ filmReacted = k; Sound.sfx(r); } }
     if (it && it.kind === 'end' && filmReacted !== -2 && T - it.t0 < 2000){ filmReacted = -2; Sound.sfx('applause'); }
+    if (it && it.kind === 'title' && filmFanfare !== FILM.at && T < 1500){ filmFanfare = FILM.at; Sound.sfx('fanfare'); }   // the studio's fanfare over its card
+    const nx = CINEMA() && CINEMA().next, k = T - TR_FROM;
+    if (nx && k >= 0 && k < TR_LEN){
+      if (k < 1500 && trSaid !== FILM.at + ':s'){ trSaid = FILM.at + ':s'; Sound.sfx('trailer'); }
+      TR_SAY(nx).forEach(([at, line], i) => { const key = FILM.at + ':' + i; if (k >= at && k - at < 2500 && !trDone.has(key)){ trDone.add(key);
+        const ms = Math.min(9500, Math.max(3000, 1800 + line.length * 65)); showSay('fm-narrator', line); holdSay(ms); Sound.say('fm-narrator', line); } });
+    }
   }, 300);
+  // ---- getting seated, and the break: popcorn and a Cooola from the lobby (page only, on the shared clock; the friend comes too) ----
+  // He walks in at the door (8), down the left aisle and along the 4th row to his seat (SEAT_MS from settling). At the intermission he and the
+  // friend go back out (TRIP.out), the camera switches to the lobby (CAM-39), they queue at the snack bar, buy, and come back in (TRIP.sit).
+  const SEAT_MS = 9000, TRIP = {out: 10000, sw1: 12000, buy: 46000, lobby: 80000, sw2: 82000, sit: 96000};
+  function filmBreakK(){ if (!FILM_L || !FILM) return null; const b = FILM_L.items.find(x => x.kind === 'break'); return b ? NOW() - FILM.at - b.t0 : null; }
+  function tripNow(){
+    if (DREAMING || actor.loc !== 'cinema' || actor.travelling || actor.hidden || actor.pending || forceLoc) return null;
+    const k = filmBreakK(); if (k == null || k < 0 || k >= TRIP.sit) return null;
+    return {k, phase: k < TRIP.out ? 'out' : k < TRIP.sw1 ? 'sw' : k < TRIP.lobby ? 'lobby' : k < TRIP.sw2 ? 'sw' : 'in'};
+  }
+  const hasSnacks = () => { const k = filmBreakK(); return k != null && k >= TRIP.buy && actor.loc === 'cinema'; };
+  // a point on the way between a seat in the 4th row and the door: u = 0 at the seat, 1 at the door
+  function cinWay(seatX, u){ const rowY = CIN_ROWS[3] - 14, aisle = 4, d1 = seatX - aisle, d2 = 14, all = d1 + d2, s = u * all;
+    if (s <= d1) return {x: seatX - s, y: rowY, face: -1}; const v = (s - d1) / d2; return {x: aisle + v * 4, y: rowY - v * 10, face: -1}; }
+  function cinWalk(){   // null, or where he and the friend are while walking to or from their seats
+    const tr = tripNow(), since = actor.settledAt != null ? NOW() - actor.settledAt : 1e9;
+    let u = null, out = false;
+    if (tr && tr.phase === 'out'){ u = tr.k / TRIP.out; out = true; }
+    else if (tr && tr.phase === 'in'){ u = 1 - (tr.k - TRIP.sw2) / (TRIP.sit - TRIP.sw2); }
+    else if (since < SEAT_MS && actor.loc === 'cinema'){ u = 1 - since / SEAT_MS; }
+    if (u == null) return null; u = Math.max(0, Math.min(1, u));
+    const me = CIN_SEAT_X0 + 6 * CIN_SEAT_W + 1, fr = me + CIN_SEAT_W;   // the friend sits further along: in first, out last
+    const ish = cinWay(me, out ? Math.max(0, Math.min(1, u * 1.15)) : Math.max(0, Math.min(1, u * 1.15 - .15)));
+    const frd = cinWay(fr, out ? Math.max(0, u * 1.15 - .15) : Math.min(1, u * 1.1));
+    if (!out){ ish.face = 1; frd.face = 1; }
+    return {ish, frd, carry: hasSnacks()};
+  }
+  // the friend's place while they walk with him by the clock: keep the companion controller in step, so it never walks them in from a door
+  function compAt(id, look, x){ if (comp.id === id && comp.mode !== 'out'){ comp.x = x; comp.tx = x; comp.mode = 'here'; } return wantComp({id, look, x, kind:'seat'}); }
+  // in the lobby: from the auditorium door to the counter, buying, and back (k from the switch)
+  function lobbyTrip(t){
+    const tr = tripNow(); if (!tr || tr.phase !== 'lobby') return;
+    const k = tr.k - TRIP.sw1, len = TRIP.lobby - TRIP.sw1, door = LOBBY_DOOR - 6, at = LOBBY_COUNTER - 6;
+    const walkIn = 14000, walkOut = len - 16000, carry = tr.k >= TRIP.buy;
+    let x, pose = 'walk', face = -1;
+    if (k < walkIn) x = door + (at - door) * (k / walkIn);
+    else if (k < walkOut){ x = at; pose = 'back'; }
+    else { x = at + (door - at) * Math.min(1, (k - walkOut) / 14000); face = 1; }
+    const a = actor.action, cl = actor.with && companionLook(a), fx = pose === 'back' ? x + 16 : x + (face < 0 ? 14 : -14);
+    zAdd(88, () => {
+      if (cl && compAt(actor.with, cl, fx)){ markHead(actor.with, fx, 66); person(cl, fx, 66, t + 300, pose === 'back' ? {fid: SAY.who === actor.with ? undefined : 'turn', talkPhase: SAY.who === actor.with} : {walk: true, face}); if (carry && pose !== 'back') cooolaCup(fx + (face > 0 ? 8 : -1), 78); }
+      drawIshai(pose === 'back' && SAY.who === 'ishai' ? 'talking' : pose, x, 66, t, {face}); markHead('ishai', x, 66);
+      if (carry){ popcornBucket(x + (face > 0 ? 8 : -3), 76); cooolaCup(x + (face > 0 ? -2 : 9), 78); }
+    });
+  }
   // the auditorium (CAM-38), from the back row: the screen up front, the curtain, the projector's beam, red seats and the backs of heads
   const CIN_SCREEN = {x:32, y:5, w:128, h:52};
   const CIN_ROWS = [68, 74, 80, 86, 92, 98];               // the seat backs' tops, front row first; he sits in the 4th (third from the back)
@@ -2512,7 +2621,7 @@
   function cinemaSeat(x, y, near){ R(x, y, CIN_SEAT_W - 2, 8 + near, '#8a1a24'); R(x, y, CIN_SEAT_W - 2, 2, '#b02a34'); R(x + CIN_SEAT_W - 3, y + 2, 1, 6 + near, '#5a1018'); }
   SCENES.cinema = {
     cam:'CAM-38', place:'THE BIG S // PIXELPLEX', walkY:62, entry:8, exit:8,
-    stand:{idle:96, walking:96, film:96, talking:96, eating:96, drinking:96, phoning:96},
+    stand:{idle:12, walking:12, film:12, talking:12, eating:12, drinking:12, phoning:12},   // he settles by the door; cinWalk() takes him to his seat
     draw(t, hf, a, settled, actor){
       const show = (typeof filmState === 'function') ? filmState() : null, dark = show && show.dark;
       R(0,0,W,H,'#1a1014'); R(0,0,W,4,'#120a0e');
@@ -2531,16 +2640,22 @@
       if (dark) for (let i=0;i<10;i++) R(60 + ((i*37 + Math.floor(t/90)) % 72), 20 + ((i*23 + Math.floor(t/140)) % 50), 1, 1, 'rgba(255,246,208,.5)');
       // the rows: seats, the audience's backs, Ishai and his friend in the 4th row, middle
       const me = CIN_ROWS[3], ishaiSeat = 6, fx = CIN_SEAT_X0 + ishaiSeat * CIN_SEAT_W, cl = actor.with && companionLook(a);
-      const seated = settled && a !== 'walking' && a !== 'idle' ? true : settled;
+      const walk = settled && !actor.travelling ? cinWalk() : null, seated = settled && !walk;
       CIN_ROWS.forEach((ry, r) => {
+        if (r === 4 && walk){   // between the 4th and 5th rows: past the knees of the 4th row, behind the 5th row's seat backs
+          if (cl && compAt(actor.with, cl, walk.frd.x)){ markHead(actor.with, walk.frd.x, walk.frd.y); person(cl, walk.frd.x, walk.frd.y, t + 300, {walk: true, face: walk.frd.face}); if (walk.carry) cooolaCup(walk.frd.x + (walk.frd.face > 0 ? 8 : -1), walk.frd.y + 12); }
+          drawIshai('walk', walk.ish.x, walk.ish.y, t, {face: walk.ish.face}); markHead('ishai', walk.ish.x, walk.ish.y);
+          if (walk.carry){ popcornBucket(walk.ish.x + (walk.ish.face > 0 ? 8 : -3), walk.ish.y + 10); cooolaCup(walk.ish.x + (walk.ish.face > 0 ? -2 : 9), walk.ish.y + 12); }
+        }
         for (let k=0;k<CIN_SEATS;k++){
           const sx = CIN_SEAT_X0 + k * CIN_SEAT_W;
           const taken = r === 3 && (k === ishaiSeat || (cl && k === ishaiSeat + 1));
           if (!taken && (show ? show.full : .3) > hash(r * 31 + k * 7 + 3)) { const L = CROWD[(r * 5 + k * 3) % CROWD.length];
             person(L, sx + 1, ry - 13, t + (r * 7 + k) * 391, {muted: true, fid: show && show.react && hash(r*13+k) < .5 ? 'shrug' : 'turn', legs: false}); }
           if (r === 3 && k === ishaiSeat && seated && !actor.travelling){ const talk = a === 'talking' || a === 'eating' || a === 'drinking';
-            drawIshai(talk ? (a === 'talking' ? 'talking' : a) : 'back', sx + 1, ry - 14, t, {seated:true}); markHead('ishai', sx + 6, ry - 14); }
-          if (r === 3 && cl && k === ishaiSeat + 1 && seated && wantComp({id: actor.with, look: cl, x: sx + 6, kind:'seat'})){ markHead(actor.with, sx + 6, ry - 14); person(cl, sx + 1, ry - 14, t, {legs:false, fid: a === 'talking' ? undefined : 'turn', face: -1, talkPhase: a === 'talking'}); }
+            drawIshai(talk ? (a === 'talking' ? 'talking' : a) : 'back', sx + 1, ry - 14, t, {seated:true}); markHead('ishai', sx + 6, ry - 14);
+            if (hasSnacks()){ popcornBucket(sx + 8, ry - 4); cooolaCup(sx - 1, ry - 3); } }   // back from the snack bar: the bucket on his lap, the cup in the armrest
+          if (r === 3 && cl && k === ishaiSeat + 1 && seated && compAt(actor.with, cl, sx + 6)){ markHead(actor.with, sx + 6, ry - 14); person(cl, sx + 1, ry - 14, t, {legs:false, fid: a === 'talking' ? undefined : 'turn', face: -1, talkPhase: a === 'talking'}); if (hasSnacks()) cooolaCup(sx + 11, ry - 3); }
           cinemaSeat(sx, ry, Math.floor(r / 2));
         }
       });
@@ -4019,6 +4134,14 @@
     if (w && POST[loc]===w && s.postSpot!==undefined && ['talking','idle','eating'].includes(a)) return s.postSpot;
     return (s.stand[a] ?? s.stand.idle ?? s.entry); }
   function fixAction(loc, a){ return LOCATIONS[loc]?.includes(a) ? a : LOCATIONS[loc][0]==='away' ? 'away' : (LOCATIONS[loc].includes('idle') ? 'idle' : LOCATIONS[loc][0]); }
+  let tripLab = '';
+  function tripLabels(tr){   // the corner labels follow the camera to the lobby and back
+    const want = tr && tr.phase === 'lobby' ? (tr.k < TRIP.buy ? 'q' : 'b') : tr ? 'w' : '';
+    if (want === tripLab) return; tripLab = want;
+    updateLabels(); if (!want) return;
+    if (want === 'w'){ $('hudAction').textContent = tr.k < TRIP.buy ? 'TO THE SNACK BAR' : 'BACK TO HIS SEAT'; return; }
+    $('cam').textContent = SCENES.pplobby.cam; $('place').textContent = SCENES.pplobby.place; $('hudAction').textContent = want === 'q' ? 'BUYING POPCORN' : 'BACK TO THE FILM';
+  }
   function updateLabels(){
     const sc = SCENES[actor.loc];
     $('cam').textContent = sc.cam; $('place').textContent = sc.place;
@@ -4246,9 +4369,12 @@
     }
     drawLater = null;
     const settled = !actor.travelling && !actor.hidden && !actor.err && !actor.viaUntil && actor.viaFinal == null && !actor.dressTo;
+    const trip = settled ? tripNow() : null;
+    tripLabels(trip);
+    if (trip && trip.phase === 'sw'){ drawStatic(1); $('nosig').style.display='flex'; $('nosigText').textContent = trip.k < TRIP.lobby ? '[ SWITCHING TO CAM-39 ]' : '[ SWITCHING TO CAM-38 ]'; return; }
     const outdoor = OUTSIDE.has(actor.loc);
     UMB = rainy() && outdoor;
-    SCENES[actor.loc].draw(t, hf, actor.action, settled, actor);
+    (trip && trip.phase === 'lobby' ? SCENES.pplobby : SCENES[actor.loc]).draw(t, hf, actor.action, settled, actor);
     UMB = false;
     if (drawLater) drawLater(t);
 
@@ -4589,6 +4715,9 @@
         case 'scream': tone(900, .5, 'sawtooth', .012, .05, out, 1.6); noise(.4, {vol:.03, type:'bandpass', freq:1400, q:2, when:.05}); break;
         case 'murmur': noise(3.2, {vol:.04, type:'bandpass', freq: 380 + r()*250, q: .8, buf: brown}); noise(2.5, {vol:.015, type:'bandpass', freq: 900 + r()*400, q: 3, when: .4}); break;   // a room full of people talking
         case 'sticks': for (let i = 0; i < 4; i++) tone(2600, .025, 'square', .05, i * .5); break;   // one, two, three, four
+        case 'fanfare': [[392,0,.16],[523,.18,.16],[659,.36,.16],[784,.54,.5],[659,.9,.14],[784,1.06,.9]].forEach(([f,w,d]) => { tone(f,d,'square',.026,w); tone(f/2,d,'triangle',.03,w); });   // the studio's card: a little brass in 8 bits
+          [523,659,784].forEach(f => tone(f, 1.1, 'square', .012, 1.06)); noise(.25,{vol:.05,type:'lowpass',freq:400,when:1.06,buf:brown}); break;
+        case 'trailer': tone(55, 1.8, 'sawtooth', .04, 0, out, .9); tone(82, 1.8, 'sawtooth', .02, 0, out, .9); noise(.5,{vol:.08,type:'lowpass',freq:220,buf:brown}); noise(1.4,{vol:.03,type:'bandpass',freq:900,q:.6,sweep:[300,2400],when:.2}); break;   // the deep "bwaaam" of a trailer
         case 'chair': tone(130 + r()*40,.35,'sawtooth',.018,0,out,1.5); break;
         case 'game':  [880,1175,1568].forEach((f,i) => tone(f*(r()<.5?1:.75),.06,'square',.028,i*.08)); break;
         case 'page':  noise(.18,{vol:.05,type:'highpass',freq:2500,sweep:[5000,1500]}); break;
@@ -4860,7 +4989,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', prom1:'THE PROMENADE', promenade:'THE PROMENADE', prom3:'THE PROMENADE', east1:'HERZL ST. EAST', east2:'HERZL ST. EAST', east3:'HERZL ST. EAST', kiosk:'SHMULIK\'S KIOSK', mall1a:'THE BIG S', mall1b:'THE BIG S', mall1c:'THE BIG S', mall2a:'THE BIG S', mall2b:'THE BIG S', mall2c:'THE BIG S', mall3a:'THE BIG S FOOD COURT', mall3b:'THE BIG S FOOD COURT', cinema:'THE PIXELPLEX', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', hall1:'1ST FLOOR HALL', apt2:'APARTMENT 2', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', prom1:'THE PROMENADE', promenade:'THE PROMENADE', prom3:'THE PROMENADE', east1:'HERZL ST. EAST', east2:'HERZL ST. EAST', east3:'HERZL ST. EAST', kiosk:'SHMULIK\'S KIOSK', mall1a:'THE BIG S', mall1b:'THE BIG S', mall1c:'THE BIG S', mall2a:'THE BIG S', mall2b:'THE BIG S', mall2c:'THE BIG S', mall3a:'THE BIG S FOOD COURT', mall3b:'THE BIG S FOOD COURT', cinema:'THE PIXELPLEX', pplobby:'PIXELPLEX LOBBY', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', hall1:'1ST FLOOR HALL', apt2:'APARTMENT 2', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
@@ -5723,7 +5852,7 @@
       arena(a){ ARENA = a || null; arenaPreload(); },
       promos(list){ PROMOS = list || []; renderPromos(); },
       poker(d, minAgo){ POKER = d ? {...d, at: NOW() - (minAgo || 0) * 60000} : null; },
-      film(d, secAgo){ if (!d){ setFilm(null); return; } d.at = NOW() - (secAgo || 0) * 1000; d.date = 'sample'; setFilm(d); CIN_PUB = {title: d.title, author: d.author, genre: d.genre, at: d.at, filmDate: 'sample', ready: true, live: true, poster: ['#2a1a5a','#ffd23f','#ff6b9a']}; return filmLayout(d).total; },
+      film(d, secAgo){ if (!d){ setFilm(null); return; } d.at = NOW() - (secAgo || 0) * 1000; d.date = 'sample'; setFilm(d); CIN_PUB = {title: d.title, author: d.author, genre: d.genre, at: d.at, filmDate: 'sample', ready: true, live: true, poster: ['#2a1a5a','#ffd23f','#ff6b9a'], next: d.next || null}; return filmLayout(d).total; },
       go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(screenFor(e), e.action, true, e.with); },
       busy: () => !!actor.pending || actor.travelling || !!actor.ride || !!actor.switching || !!actor.rideUntil || held.size > 0 || queue.length > 0 || (!!tlLast && NOW() < tlLast.end),
       state: () => ({comp: comp.id ? {id: comp.id, x: Math.round(comp.x), mode: comp.mode, boarded: !!comp.boarded} : null, voice: Sound.voiceInfo(), regulars: Object.keys(REG).filter(regHere), say: SAY.who, loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
@@ -5912,6 +6041,7 @@
     mall2c: ['BRRR! has a shop in here as well as the cart on the promenade.', 'Page Turner, the bookshop. Ishai always slows down at a bookshop.'],
     mall3a: ['The food court, under the glass roof. Hummus, wok, pizza, and everyone eating with one eye on their phone.', 'Floor three. The sky through the roof, and the smell of everything at once.'],
     mall3b: ['Salad Days, Schnitzel Schtick and a Kfar Kofi. The whole menu of a life.', 'A table for one at the food court. The most honest seat in the city.', 'Coming soon, says the boarded counter. It has said that for a year.'],
+    pplobby: ['The PixelPlex lobby. Popcorn eighteen, Cooola twelve, the combo is the smart move.', 'The popcorn machine has been popping since 1994. Same oil, probably.', 'A red carpet, gold trim and a queue at the snack bar. Saturday night.'],
     cinema: ['The PixelPlex. Red seats, a curtain, and a projector older than both of us.', 'Saturday night at the movies. Phones off, please. Yes, you.', 'Third row from the back, in the middle. He always takes the same seats.'],
     prom1: ['Past the Pump House and out to the sea. The city just stops and the blue begins.', 'BRRR, the ice-cream cart. Every promenade has one man who believes in sorbet.', 'The promenade. Joggers on the left, cyclists on the right, and Ishai somewhere in the middle.'],
     promenade: ['The promenade. Wave-patterned paving, so even the floor is at the beach.', 'There is the lifeguard tower. Check the flag: white is calm, red means stay out.', 'A bench facing the walk, back to the sea. Tel Aviv has never decided which way to look.', 'Sea on one side, the whole city on the other. He picked the right side.'],
@@ -6036,6 +6166,7 @@
     mall2c: ['...two scoops, pistachio and something brave.', '...I am only looking. I am always only looking.'],
     mall3a: ['...hummus, again? We had hummus yesterday. And?', '...grab a table, I will get the trays.'],
     mall3b: ['...the schnitzel is the size of my head.', '...one salad, no onion, no tomato, no salad, I am joking.'],
+    pplobby: ['...large popcorn, two straws, we are not animals.', '...is the combo cheaper or does it just feel cheaper?', '...hurry, the second half is starting.'],
     cinema: ['...it is in black and white? No, it is in pixels.', '...did you bring the popcorn or did you eat it in the lift?', '...shh, it is starting.'],
     prom1: ['...one scoop, two spoons, we are not animals.', '...ten kilometres? I said ten minutes.', '...the Pump House is doing concerts now, did you see the board?'],
     promenade: ['...the flag is red, so the sea is closed. Closed! Like a shop.', '...I swam here every morning for forty years and I am still cold.', '...look at the sunset. No, without your phone. Look.', '...on the bench, the one by the tower, at six.'],

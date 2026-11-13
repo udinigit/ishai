@@ -224,20 +224,29 @@
    "of": "foodcourt",
    "links": {
     "mall3a": {"exit": -14, "entry": -14},
-    "cinema": {"exit": "R", "entry": 8}
+    "pplobby": {"exit": "R", "entry": "R"}
    },
-   "notes": ["floor 3, the food court east (CAM-37); right edge -> the PixelPlex (its doorway)"],
+   "notes": ["floor 3, the food court east (CAM-37); right edge -> the PixelPlex lobby (its doorway)"],
    "map": [2, -3]
+  },
+  "pplobby": {
+   "kind": "pass",
+   "links": {
+    "mall3b": {"exit": -14, "entry": -14},
+    "cinema": {"exit": 170, "entry": 170}
+   },
+   "notes": ["the PixelPlex lobby (CAM-39, page only): left edge -> the food court east; the SCREEN door (170) -> the auditorium; the snack bar (popcorn, Cooola) where he goes at the intermission"],
+   "map": [3, -3]
   },
   "cinema": {
    "kind": "story",
    "desc": "the PixelPlex, the cinema off the food court on the top floor of The Big S (up the escalators): red seats, a red curtain, the big screen. Only on Saturday nights, for the weekly film (planned moments only)",
    "actions": ["film", "talking", "eating", "drinking", "idle", "walking"],
    "links": {
-    "mall3b": {"exit": 8, "entry": "R"}
+    "pplobby": {"exit": 8, "entry": 8}
    },
-   "map": [3, -3],
-   "notes": ["the PixelPlex auditorium (CAM-38, story place, event only): the door on the left (8) -> the food court's right edge"]
+   "map": [4, -3],
+   "notes": ["the PixelPlex auditorium (CAM-38, story place, event only): the door on the left (8) -> the lobby's SCREEN door (170)"]
   },
   "west3": {
    "kind": "pass",

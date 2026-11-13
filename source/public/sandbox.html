@@ -263,12 +263,13 @@ Back to the cameras.</textarea>
   }
   // a film at the PixelPlex: the sample film (a short Wilde), starting with the last minute of the ad reel
   async function film(){
-    let d = null;   // this week's real film once it is written, else the short sample
-    try { const c = (await (await fetch('/api/state', {cache:'no-store'})).json()).cinema;
+    let d = null, c = null;   // this week's real film once it is written, else the short sample; the trailer is for next Saturday's title
+    try { c = (await (await fetch('/api/state', {cache:'no-store'})).json()).cinema;
       if (c && c.ready) d = await (await fetch('/api/film?date=' + c.filmDate, {cache:'no-store'})).json(); } catch(e){ d = null; }
     if (!d || !d.scenes) try { d = await (await fetch('/api/film?sample=1', {cache:'no-store'})).json(); } catch(e){}
+    if (d) d.next = (c && c.next) || {title: 'Treasure Island', author: 'Robert Louis Stevenson', genre: 'adventure', pitch: 'A boy, an old map and a one-legged cook with a parrot.'};
     if (!d || !d.scenes) return alert('Could not load the sample film (/api/film?sample=1).');
-    ++running; api.go({location:'cinema', action:'film', with:'noa'}); api.film(d, -40);
+    ++running; api.go({location:'cinema', action:'film', with:'noa'}); api.film(d, -160);   // from the trailer for next Saturday (it starts 150 s before the film)
   }
   // a concert by one of the director's bands (from /events): every song, starting in a minute
   async function concert(){

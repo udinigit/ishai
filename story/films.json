@@ -1,5 +1,5 @@
 {
- "about": "Saturday night at the PixelPlex (docs/CINEMA_PLAN.md): the films the cinema shows, one a week, the strands taking turns. Every author died more than 70 years ago (public domain in Israel and the US); the worker finds the text on Project Gutenberg through Gutendex by title and author at run time, so no ids are needed. kind: play or story. pitch: one line for the hosts, the poster and the TV guide.",
+ "about": "Saturday night at the PixelPlex (docs/CINEMA_PLAN.md): the films the cinema shows, one a week, the strands taking turns. Every author died more than 70 years ago (public domain in Israel and the US); the worker finds the text on Project Gutenberg through Gutendex by title and author at run time, so no ids are needed. kind: play or story. pitch: one line for the hosts, the poster and the TV guide. adventure: old adventure stories and fairy tales, from the books only (never anything from later film versions).",
  "name": "PixelPlex",
  "studio": "8-BIT PICTURES",
  "strands": {
@@ -68,6 +68,29 @@
    {"title": "The Phantom of the Opera", "author": "Gaston Leroux", "died": 1927, "kind": "story", "pitch": "A ghost haunts the Paris Opera, and he has picked a singer."},
    {"title": "The Lodger", "author": "Marie Belloc Lowndes", "died": 1947, "kind": "story", "pitch": "A quiet couple takes in a polite lodger who only goes out on foggy nights."},
    {"title": "The Moonstone", "author": "Wilkie Collins", "died": 1889, "kind": "story", "pitch": "A cursed diamond disappears from a country house on a girl's birthday night."}
+  ],
+  "adventure": [
+   {"title": "The Three Musketeers", "author": "Alexandre Dumas", "died": 1870, "kind": "story", "pitch": "A country boy, three swordsmen, and a queen's diamonds that must come home in time."},
+   {"title": "The Count of Monte Cristo", "author": "Alexandre Dumas", "died": 1870, "kind": "story", "pitch": "Betrayed on his wedding day, a sailor escapes prison with a treasure map and a long memory."},
+   {"title": "Around the World in Eighty Days", "author": "Jules Verne", "died": 1905, "kind": "story", "pitch": "A wager at a London club: the whole world, eighty days, not one hour more."},
+   {"title": "Twenty Thousand Leagues Under the Sea", "author": "Jules Verne", "died": 1905, "kind": "story", "pitch": "A sea monster turns out to be a submarine, and its captain has no plans to let them go."},
+   {"title": "Journey to the Centre of the Earth", "author": "Jules Verne", "died": 1905, "kind": "story", "pitch": "A professor, his nephew and a guide climb down a volcano and keep going."},
+   {"title": "The Lost World", "author": "Arthur Conan Doyle", "died": 1930, "kind": "story", "pitch": "A plateau in the jungle where the dinosaurs never got the news."},
+   {"title": "King Solomon's Mines", "author": "H. Rider Haggard", "died": 1925, "kind": "story", "pitch": "An old map, a missing brother, and the desert between them and a legendary treasure."},
+   {"title": "The Merry Adventures of Robin Hood", "author": "Howard Pyle", "died": 1911, "kind": "story", "pitch": "Outlaws in Sherwood Forest, a sheriff who never learns, and an archery contest."},
+   {"title": "The Arabian Nights", "author": "Andrew Lang", "died": 1912, "kind": "story", "pitch": "A storyteller keeps herself alive one tale a night: lamps, thieves and flying carpets."},
+   {"title": "Grimms' Fairy Tales", "author": "Jacob Grimm", "died": 1863, "kind": "story", "pitch": "Woods, wolves, witches and a few clever children who get home anyway."},
+   {"title": "Andersen's Fairy Tales", "author": "Hans Christian Andersen", "died": 1875, "kind": "story", "pitch": "A tin soldier, an ugly duckling and an emperor with no clothes."},
+   {"title": "Alice's Adventures in Wonderland", "author": "Lewis Carroll", "died": 1898, "kind": "story", "pitch": "Down a rabbit hole to a tea party where nobody makes sense, least of all the queen."},
+   {"title": "The Wonderful Wizard of Oz", "author": "L. Frank Baum", "died": 1919, "kind": "story", "pitch": "A girl from Kansas, a yellow brick road, and a wizard who is not what he seems."},
+   {"title": "Peter Pan", "author": "J. M. Barrie", "died": 1937, "kind": "story", "pitch": "A boy who won't grow up takes three children to an island of pirates and lost boys."},
+   {"title": "The Jungle Book", "author": "Rudyard Kipling", "died": 1936, "kind": "story", "pitch": "A boy raised by wolves, taught by a bear and a panther, hunted by a tiger."},
+   {"title": "Kidnapped", "author": "Robert Louis Stevenson", "died": 1894, "kind": "story", "pitch": "Sold onto a ship by his own uncle, a young man escapes across the Highlands with an outlaw."},
+   {"title": "The Prisoner of Zenda", "author": "Anthony Hope", "died": 1933, "kind": "story", "pitch": "An Englishman who looks just like the king must take his place on the throne."},
+   {"title": "The Scarlet Pimpernel", "author": "Baroness Orczy", "died": 1947, "kind": "story", "pitch": "A lazy English gentleman by day; by night, the hero who smuggles people out of Paris."},
+   {"title": "Robinson Crusoe", "author": "Daniel Defoe", "died": 1731, "kind": "story", "pitch": "Shipwrecked alone on an island for years, until one day there is a footprint in the sand."},
+   {"title": "Gulliver's Travels", "author": "Jonathan Swift", "died": 1745, "kind": "story", "pitch": "A ship's doctor wakes up tied down by people six inches tall."},
+   {"title": "Ivanhoe", "author": "Walter Scott", "died": 1832, "kind": "story", "pitch": "A knight back from the crusades, a tournament, and a castle under siege."}
   ]
  }
 }
