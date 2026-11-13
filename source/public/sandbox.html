@@ -161,6 +161,7 @@ Back to the cameras.</textarea>
         <select id="evGuideK"><option value="today">TV guide: today</option><option value="tomorrow">TV guide: tomorrow</option><option value="week">TV guide: this week</option><option value="merch">TV guide: merch</option><option value="survey">TV guide: survey (vote now)</option><option value="surveyResults">TV guide: survey results</option><option value="promo">TV guide: next big night</option><option value="vote">TV guide: vote countdown</option></select> <button id="evGuide">Show card</button>
         <select id="evPipK"><option value="today">PiP: his day (schedule)</option><option value="week">PiP: this week</option><option value="recap">PiP: recap + up next</option><option value="people">PiP: cast file + up next</option></select> <button id="evPip">Play PiP</button>
         <select id="evHome"><option value="">Home activity: by the clock</option><option>sweep</option><option>counter</option><option>dishes</option><option>keys</option><option>couch</option><option>bed</option><option>laundry</option><option>snack</option><option>dance</option><option>workout</option><option>window</option><option>plant</option><option>nap</option><option>read</option></select>
+        <select id="evSfx" title="Turn the page's sound on first"></select> <button id="evSfxGo">Play sound</button> <button id="evSfxDir" class="ghost" title="Which way a passing car, bike or scooter goes">→</button>
       </div>
     </div>
   </div>
@@ -336,6 +337,9 @@ Back to the cameras.</textarea>
     $('evChat').onclick = () => api.chat();
     $('evGuide').onclick = () => api.guide($('evGuideK').value);
     $('evPip').onclick = () => api.pip($('evPipK').value);
+    const kinds = api.sfxKinds ? api.sfxKinds() : []; fill($('evSfx'), kinds.map(k => [k, 'Sound: ' + k]));
+    $('evSfxDir').onclick = () => { $('evSfxDir').textContent = $('evSfxDir').textContent === '→' ? '←' : '→'; };
+    $('evSfxGo').onclick = () => api.sfx($('evSfx').value, {dir: $('evSfxDir').textContent === '→' ? 1 : -1});
     $('evHome').onchange = e => { api.go({location:'apartment', action:'idle', lines:[], commentary:[], text:''}); api.home(e.target.value); };
     $('evPoll').onclick = () => api.poll({inSec: 5});            // opens in 5 s for 10 minutes; vote, then see the pretend result
     $('evPollRes').onclick = () => api.poll({result: true});

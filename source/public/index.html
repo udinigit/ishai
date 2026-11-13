@@ -1047,7 +1047,7 @@
   function courierUpdate(t){
     const d = actor.delivery; if (!d || actor.loc !== 'apartment' || actor.switching) return;
     const e = (NOW() - d.at) / 1000; if (e < 0 || e > 40) return;
-    if (!d.rang){ d.rang = true; Sound.bell(); }
+    if (!d.rang){ d.rang = true; if (!SIM) Sound.sfx('buzzer'); }   // the old buzzer at his door (never in a replay)
     const x = e < 5 ? 135 - e * 3 : e < 34 ? 120 : 120 + (e - 34) * 3, y = 74;
     alpha(1, () => { person(EXTRA.courier, x, y, t, {walk: e < 5 || e > 34, face: e < 34 ? -1 : 1}); ateHelmet(x, y); ateBox(e < 34 ? x + 9 : x - 5, y + 8);
       if (e > 8 && e < 30) R(x - 2, y + 12, 4, 4, '#e8dcc0'); });
@@ -1141,7 +1141,7 @@
       const near = Math.abs(bdx) < 44, past = Math.sign(bdx) === Math.sign(bike.dir) && Math.abs(bdx) < 30;
       const key = near && !past ? bike.id * 2 : past ? bike.id * 2 + 1 : 0;
       if (key && !dog.bikeBarks.has(key)){ dog.bikeBarks.add(key); if (dog.bikeBarks.size > 20) dog.bikeBarks.delete(dog.bikeBarks.values().next().value);
-        if (!SPEAKING && !Sound.busy()) Sound.bark(); }
+        if (!SPEAKING && !Sound.busy()) Sound.bark(key % 2 ? 1 : 0); }   // a bark as it comes, a yip as it goes
     }
     // on the leash outside
     if (leashed){
@@ -1151,7 +1151,7 @@
     }
     // an occasional bark (same moment for every viewer)
     const sec = Math.floor(NOW()/1000);
-    if (pose !== 'sleep' && sec % 71 === 0 && dog.lastBark !== sec){ dog.lastBark = sec; if (!SPEAKING && !Sound.busy() && NOW() - TALK_AT > 5000) Sound.bark(); }
+    if (pose !== 'sleep' && sec % 71 === 0 && dog.lastBark !== sec){ dog.lastBark = sec; if (!SPEAKING && !Sound.busy() && NOW() - TALK_AT > 5000) Sound.bark(sec % 3 === 0 ? 2 : 0); }
   }
 
   // ---- bystanders: muted, slightly faded, and the same for every viewer (driven by the clock) ----
@@ -1247,7 +1247,10 @@
         const withHim = actor.fromLoc && NOW() - (actor.arrivedAt || 0) < 8000 && (w.id === actor.with || (actor.pending && actor.pending.w === w.id)) ? (MAP[actor.loc] || {})[actor.fromLoc] : null;
         const fromPost = POST[actor.loc] === w.id && POST_X[actor.loc] !== undefined && !awayFrom(w.id, actor.loc);   // Dana comes round the counter to go with him
         const startX = pk ? pk.x : fromPost ? POST_X[actor.loc] : already ? w.x : withHim && withHim.entry !== undefined ? withHim.entry : exitX(actor.loc, w.id, w.x);
-        Object.assign(comp, {id:w.id, look:w.look, mode: already && !fromPost ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: startX, tx: w.x, fromDoor: !already && !fromPost, doorX: !already && !fromPost ? startX : null, since: NOW()}); }
+        Object.assign(comp, {id:w.id, look:w.look, mode: already && !fromPost ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: startX, tx: w.x, fromDoor: !already && !fromPost, doorX: !already && !fromPost ? startX : null, since: NOW()});
+        // a visitor at his front door while he is home: they knock first (Mrs. Levi her own rhythm, Avi with his fist). Never in a replay.
+        if (!SIM && !already && !fromPost && !withHim && actor.loc === 'apartment' && !actor.pending && !actor.travelling && !actor.hidden)
+          Sound.sfx(w.id === 'levi' ? 'knocklevi' : w.id === 'avi' ? 'knockhard' : 'knock'); }
     }
     // the story still has them together (Ishai is just walking to the counter, the fridge...): they stay, standing
     const together = !w && comp.id && comp.mode !== 'out' && ((actor.with === comp.id && actor.action !== 'phoning') || actor.guestWaits === comp.id);
@@ -1819,10 +1822,10 @@
   };
 
   // cars on the shops block, all from the real clock (same for every viewer): one every 7 s, 1 px per 12 ms, the light changes every 20 s
-  function shopsTraffic(now, night){
+  function shopsCars(now){   // [{i, x (left edge), stopped}] of the cars on the shops block at `now` (drawing and sound read the same)
     const EVERY = 7000, SPEED = 12, STOP = 30, LIGHT = 20000;
     const redFor = a => Math.floor(a / LIGHT) % 2 === 1;                    // cars' red = pedestrians' green
-    const first = Math.floor(now / EVERY) - 7, info = [];
+    const first = Math.floor(now / EVERY) - 7, info = [], cars = [];
     for (let i = first; i <= Math.floor(now / EVERY); i++){
       const s0 = i * EVERY, a0 = s0 + (STOP + 60) * SPEED;                  // when it would reach the stop line
       let x, stopped = false;
@@ -1834,10 +1837,16 @@
         x = now < arr ? -60 + (now - s0) / SPEED : now < r1 ? xs : xs + (now - r1) / SPEED; stopped = now >= arr && now < r1;
         info.push({r1});
       }
+      cars.push({i, x, stopped});
+    }
+    return cars;
+  }
+  function shopsTraffic(now, night){
+    shopsCars(now).forEach(({i, x, stopped}) => {
       if (x > -60 && x < W + 10){ const cx = Math.round(x), col = ['#3b7bc2','#dcdcdc','#c23b3b','#e0b04a','#7fbf6a'][((i % 5) + 5) % 5];
         R(cx,96,26,6,col); R(cx+5,92,14,4,col); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0'); R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111');
         if (night) R(cx+25,97,2,2,'#fff3b0'); if (stopped) R(cx,97,1,2,'#ff3b3b'); }   // brake lights while waiting
-    }
+    });
   }
   // ---------- the block kit: a scene from a short description (docs/WORLD_PLAN.md, phase 2) ----------
   // block(spec, cam, place) draws a walk-through or simple place the same way everywhere: sky, buildings, the spec's own fronts and props,
@@ -2472,6 +2481,7 @@
   // the trailer for next Saturday's film, in the ad reel before the film (no AI: the title, the author and the pitch from films.json)
   const TR_FROM = -150000, TR_LEN = 115000;
   const TR_SETS = {adventure:[['ship','day'],['jungle','dusk']], comedy:[['palace','day'],['garden','day']], drama:[['room','dusk'],['street','night']], horror:[['graveyard','night'],['moor','night']]};
+  const TR_SFX = nx => [[6000, 'whoosh'], [40000, 'whoosh'], [72400, 'riser'], [75000, 'hit'], [100000, 'sting-' + (['adventure','comedy','drama','horror'].includes(nx.genre) ? nx.genre : 'drama')]];
   const TR_SAY = nx => [[7000, 'Next Saturday, at the PixelPlex...'], [21000, nx.pitch || 'A story they still tell, a hundred years on.'], [76000, nx.title + '. By ' + nx.author + '.'], [100000, 'Saturday at nine. Bring a friend.']];
   function drawTrailer(S, t, k, nx){
     if (k < 6000){ cardText(S, [['COMING', '#ffd23f'], ['NEXT SATURDAY', '#ffd23f'], ['', '#000'], ['AT THE PIXELPLEX', '#c9a24a']]); return; }
@@ -2556,7 +2566,9 @@
     person(L, x - 5, y, t, o);
   }
   // the lines, on the clock: a subtitle at the foot of the screen, the voice, the audience's laugh, gasp or scream after
-  let filmSaid = -1, filmReacted = -1, filmFanfare = 0, trSaid = '';
+  let filmSaid = -1, filmReacted = -1, filmFanfare = 0, trSaid = '', filmSetSlot = -1;
+  const FILM_SET_SFX = {ship:['waves'], shore:['waves','birds'], forest:['birds'], garden:['birds'], jungle:['birds','birds','drip'], graveyard:['wind'], moor:['wind'],
+    castle:['wind','drip'], desert:['wind'], cave:['drip'], underwater:['bubbles'], lab:['bubbles','clock'], tavern:['tavern'], street:['hooves'], room:['clock'], palace:['clock']};
   const trDone = new Set();
   setInterval(() => {
     if (!FILM || actor.loc !== 'cinema' || actor.hidden || forceLoc || DREAMING) return;
@@ -2566,10 +2578,20 @@
     const done = FILM_L.items.filter(x => x.kind === 'line' && x.t1 <= T && T - x.t1 < 1500).slice(-1)[0];
     if (done){ const k = FILM_L.items.indexOf(done), r = FILM.scenes[done.scene].lines[done.line].react; if (r && k !== filmReacted){ filmReacted = k; Sound.sfx(r); } }
     if (it && it.kind === 'end' && filmReacted !== -2 && T - it.t0 < 2000){ filmReacted = -2; Sound.sfx('applause'); }
+    // inside the film: now and then a quiet sound of the scene's set (waves on the ship, birds in the forest, wind on the moor...), from the clock
+    const sc = it && (it.kind === 'line' || it.kind === 'card') && FILM.scenes[it.scene], slot = Math.floor(T / 8000);
+    if (sc && sc.set && slot !== filmSetSlot && T % 8000 < 1200){ filmSetSlot = slot;
+      const night = sc.set.time === 'night', list = (FILM_SET_SFX[sc.set.kind] || []).concat(night && ['forest','graveyard','moor','castle'].includes(sc.set.kind) ? ['owl'] : []);
+      if (list.length && hash(slot * 7 + 3) < .55) Sound.sfx(list[Math.floor(hash(slot * 11 + 1) * list.length)]); }
+    // the intermission trip: the Cooola fountain pours, then the till
+    const bk = tripNow() && filmBreakK();
+    if (bk) [[TRIP.buy - 7000, 'fizz'], [TRIP.buy - 2000, 'cash']].forEach(([at, kind]) => { const key = FILM.at + ':b' + kind; if (bk >= at && bk - at < 1500 && !trDone.has(key)){ trDone.add(key); Sound.sfx(kind); } });
     if (it && it.kind === 'title' && filmFanfare !== FILM.at && T < 1500){ filmFanfare = FILM.at; Sound.sfx('fanfare'); }   // the studio's fanfare over its card
     const nx = CINEMA() && CINEMA().next, k = T - TR_FROM;
     if (nx && k >= 0 && k < TR_LEN){
       if (k < 1500 && trSaid !== FILM.at + ':s'){ trSaid = FILM.at + ':s'; Sound.sfx('trailer'); }
+      // the trailer's own sounds: a whoosh into each shot, a riser into the title and its hit, the genre's sting on SATURDAY 21.00
+      TR_SFX(nx).forEach(([at, kind], i) => { const key = FILM.at + ':x' + i; if (k >= at && k - at < 1500 && !trDone.has(key)){ trDone.add(key); Sound.sfx(kind); } });
       TR_SAY(nx).forEach(([at, line], i) => { const key = FILM.at + ':' + i; if (k >= at && k - at < 2500 && !trDone.has(key)){ trDone.add(key);
         const ms = Math.min(9500, Math.max(3000, 1800 + line.length * 65)); showSay('fm-narrator', line); holdSay(ms); Sound.say('fm-narrator', line); } });
     }
@@ -3151,7 +3173,7 @@
     word('HAND ' + (h.n + 1), 162, 88, '#6a6a6a');
   }
   // the table's talk and sounds, on the clock (nothing is replayed: a viewer who joins late just hears what comes next)
-  let pkTalkI = 0, pkActI = '', pkLastT = 0;
+  let pkTalkI = 0, pkActI = '', pkLastT = 0; const pkArrived = new Set();
   setInterval(() => {
     if (!POKER || actor.loc !== 'apt2' || actor.hidden || forceLoc) return;
     const T = NOW() - POKER.at; if (T < pkLastT - 5000) { pkTalkI = 0; pkActI = ''; } pkLastT = T;
@@ -3159,12 +3181,14 @@
     while (pkTalkI < talk.length && talk[pkTalkI].t <= T){ const c = talk[pkTalkI++]; if (T - c.t > 4000) continue;
       if (c.who === 'ishai' && !(actor.action === 'poker')) continue;
       showSay(c.who, c.say); holdSay(2400 + c.say.length * 55); Sound.say(c.who, c.say); }
+    // the players who come after Ishai knock on Boaz's door as they arrive
+    Object.entries(POKER_ARRIVE).forEach(([id, a]) => { const k = POKER.at + ':' + id; if (a > -1e8 && T >= a && T - a < 2500 && !pkArrived.has(k)){ pkArrived.add(k); Sound.sfx(id === 'yossi' ? 'knockhard' : 'knock'); } });
     const v = pokerView(); if (!v || !v.h) return; const h = v.h;
     const key = (k) => `${h.n}:${k}`; const fire = (k, fn) => { if (pkActI.includes('|' + key(k) + '|')) return; pkActI = (pkActI + '|' + key(k) + '|').slice(-400); fn(); };
     if (T - h.t0 < 6000) fire('shuffle', () => Sound.sfx('shuffle'));
     h.acts.forEach((a, i) => { if (a.t <= T && T - a.t < 1500 && a.paid) fire('a' + i, () => Sound.sfx('chips')); });
     h.streets.forEach((s, i) => { if (s <= T && T - s < 1500) fire('s' + i, () => Sound.sfx('card')); });
-    if (POKER.pizzaAt && T - POKER.pizzaAt > 0 && T - POKER.pizzaAt < 2500) fire('pizza', () => Sound.bell());
+    if (POKER.pizzaAt && T - POKER.pizzaAt > 0 && T - POKER.pizzaAt < 2500) fire('pizza', () => Sound.sfx('chime'));   // Boaz's doorbell
   }, 300);
   // ---------- concerts at the Pump House: the director's band on stage, their songs in sync, the stage moving to each song's beat map ----------
   const BEATS = {}, EXTRA_SPK = {}; let CONFETTI_ON = -1;
@@ -4606,6 +4630,14 @@
       } else if (loc === 'corridor'){ bed(brown,'lowpass',300,.07); hum(100,.008); }
       else if (loc === 'bus'){ bed(brown,'lowpass',170,.16); hum(62,.014); }                   // the engine, and the road under the floor
       else if (loc === 'taxi'){ bed(brown,'lowpass',210,.1); hum(84,.006); }
+      else if (loc === 'cinema'){                                                                     // the PixelPlex: the projector whirring at the back, a quiet house
+        bed(brown,'bandpass',380,.03); bed(white,'bandpass',2300,.006); hum(48,.005);
+        loop(2400, 3000, () => noise(.04,{vol:.012,type:'bandpass',freq:1800,q:2,dest}));                  // a seat creaks, someone rustles a bag
+      }
+      else if (loc === 'pplobby'){                                                                    // the lobby: the popcorn machine never stops
+        bed(brown,'bandpass',520,.06); hum(110,.005);
+        loop(1200, 2200, () => { for (let i = 0; i < 3 + Math.floor(Math.random()*4); i++) noise(.014,{vol:.025 + Math.random()*.03,type:'bandpass',freq:1400 + Math.random()*1800,q:3,when:Math.random()*.9,dest}); });
+      }
       else if (SCENES[loc] && SCENES[loc].amb === 'mall'){                                        // The Big S: air conditioning, a crowd, soft music from somewhere
         bed(brown,'bandpass',520,.08); hum(110,.006);
         loop(4200, 2500, () => { const f = [392, 440, 494, 523, 587][Math.floor(Math.random()*5)]; tone(f, .5, 'sine', .012, 0, dest, 1.2); });
@@ -4702,9 +4734,27 @@
     }
 
     // small character sounds (typing, a page, a creak, steps, a clink...), played now and then by the scheduler below
-    function sfx(kind){
+    // a stereo pan that slides from one side to the other (a car going past); plain `out` where the browser has no panner
+    function pan(from, to, dur){
+      if (!ac.createStereoPanner) return out;
+      const p = ac.createStereoPanner(), t0 = ac.currentTime; p.pan.setValueAtTime(from, t0); p.pan.linearRampToValueAtTime(to, t0 + dur); p.connect(out);
+      setTimeout(() => { try { p.disconnect(); } catch(e){} }, (dur + 2) * 1000); return p;
+    }
+    // a sound that grows instead of fading (a trailer's riser): linear swell, then a quick cut
+    function swell(freq, dur, slide, vol, type='sawtooth', dest=out){
+      const t0 = ac.currentTime, o = ac.createOscillator(), gn = ac.createGain(); o.type = type; o.frequency.setValueAtTime(freq, t0);
+      o.frequency.exponentialRampToValueAtTime(freq * slide, t0 + dur); gn.gain.setValueAtTime(.0001, t0); gn.gain.linearRampToValueAtTime(vol, t0 + dur * .95);
+      gn.gain.linearRampToValueAtTime(.0001, t0 + dur); o.connect(gn).connect(dest); o.start(t0); o.stop(t0 + dur + .05);
+    }
+    // knocks on a door: [when, loudness] taps, a wooden thud each
+    function raps(times, freq, vol){ times.forEach(([w, k]) => { noise(.06,{vol: vol * k, type:'bandpass', freq, q:1.4, when:w, buf:brown}); tone(freq * .42, .06, 'triangle', vol * .3 * k, w); }); }
+    // the sounds the page can play; the sandbox lists them (`Sound.kinds`)
+    const KINDS = ['knock','knockhard','knocklevi','buzzer','chime','bikebell','bikeby','carby','busby','scooter','brake','busstop','busgo','cardoor','taxigo',
+      'whoosh','riser','hit','sting-adventure','sting-comedy','sting-drama','sting-horror','popcorn','fizz','cash',
+      'waves','birds','wind','owl','drip','bubbles','hooves','tavern','clock','bark','woof','yip'];
+    function sfx(kind, o={}){
       if (!on() || !ac) return;
-      const r = Math.random;
+      const r = Math.random, d = o.dir || 1;
       switch(kind){
         case 'type': { let w = 0; for (let i = 0; i < 7 + Math.floor(r()*6); i++){ noise(.012,{vol:.045,type:'highpass',freq:3200+r()*800,when:w}); w += .06 + r()*.09; } if (r() < .5) noise(.03,{vol:.05,type:'lowpass',freq:500,when:w+.05}); break; }
         case 'mouse': tone(1900,.01,'square',.03); tone(1900,.01,'square',.03,.13); break;
@@ -4751,10 +4801,61 @@
         case 'kids': for (let i = 0; i < 6; i++){ noise(.28,{vol:.018,type:'bandpass',freq:1400+r()*1500,q:4,when:i*.3}); tone(620+r()*600,.14,'triangle',.008,i*.3+.05,out,1.3); } break;
         case 'gas': for (let i = 0; i < 3; i++){ tone(1050+i*60,.3,'sine',.018,i*.5); noise(.05,{vol:.04,type:'bandpass',freq:900,when:i*.5}); } break;
         case 'gameshow': [523,659,784,1047].forEach((f,i) => tone(f,.12,'square',.012,i*.12)); noise(.9,{vol:.012,type:'bandpass',freq:1800,q:.7,when:.55}); break;
+        // ---- doors ----
+        case 'knock': raps([[0,1],[.22,.9],[.44,1],[1.2,.9],[1.42,1]], 340, .16); break;                                   // a friend: knock-knock-knock ... knock-knock
+        case 'knockhard': raps([[0,1],[.34,1],[.68,1],[1.02,1.1]], 230, .22); break;                                      // Avi's fist
+        case 'knocklevi': raps([[0,.8],[.28,.7],[.42,.7],[.56,.8],[.84,.9],[1.4,.8],[1.62,1]], 520, .12); break;          // Mrs. Levi: shave and a haircut, two bits
+        case 'buzzer': tone(196,.55,'square',.022); tone(199,.55,'sawtooth',.014); tone(196,.22,'square',.022,.75); tone(199,.22,'sawtooth',.014,.75); break;   // Ishai's door: the old buzzer
+        case 'chime': [[784,0],[659,.45],[523,.9]].forEach(([f,w]) => { tone(f,1.2,'sine',.05,w); tone(f*2,.6,'sine',.012,w); }); break;   // Boaz's door: ding-dong-ding
+        // ---- the road (dir: 1 = left to right) ----
+        case 'carby': { const D = pan(-.85*d, .85*d, 1.7); noise(1.7,{vol:.12,type:'lowpass',freq:300,sweep:[1500,260],buf:brown,dest:D}); tone(78,1.5,'sawtooth',.012,0,D,.82); break; }
+        case 'busby': { const D = pan(-.8*d, .8*d, 2.6); noise(2.6,{vol:.16,type:'lowpass',freq:200,sweep:[900,180],buf:brown,dest:D}); tone(52,2.4,'sawtooth',.022,0,D,.85); tone(104,2.2,'square',.006,0,D,.85); break; }
+        case 'bikeby': { const D = pan(-.7*d, .7*d, 1.3); noise(1.3,{vol:.035,type:'bandpass',freq:2600,q:.7,sweep:[3600,1900],dest:D});
+          for (let i = 0; i < 12; i++) noise(.006,{vol:.025,type:'highpass',freq:5200,when:.15 + i*.075,dest:D}); break; }   // tyres and the freewheel ticking
+        case 'bikebell': { const D = o.dir ? pan(.4*d, .5*d, .6) : out; [0,.2].forEach(w => { tone(2950,.45,'sine',.05,w,D); tone(3620,.35,'sine',.022,w,D); tone(5100,.15,'sine',.01,w,D); }); break; }   // ring-ring
+        case 'scooter': { const D = pan(-.8*d, .8*d, 1.6); tone(310,1.6,'sawtooth',.012,0,D,.78); tone(620,1.6,'square',.004,0,D,.78); noise(1.6,{vol:.03,type:'lowpass',freq:400,buf:brown,dest:D}); break; }   // an ateBite scooter's little motor
+        case 'brake': tone(2350,.7,'sine',.012,0,out,.97); noise(.6,{vol:.025,type:'bandpass',freq:3000,q:9}); break;                     // a squeak at the red light
+        case 'busstop': tone(2100,.5,'sine',.012,0,out,.95); noise(.9,{vol:.08,type:'highpass',freq:2600,when:.55});                    // the air brakes: psshh
+          noise(.5,{vol:.05,type:'bandpass',freq:3400,q:.8,when:1.5}); tone(90,.12,'square',.03,1.95); break;                              // the doors fold open: hiss, thunk
+        case 'busgo': noise(.5,{vol:.05,type:'bandpass',freq:3400,q:.8}); tone(90,.12,'square',.03,.45);                                // doors shut
+          tone(50,2.4,'sawtooth',.03,.8,out,1.9); noise(2.4,{vol:.09,type:'lowpass',freq:180,sweep:[600,300],buf:brown,when:.8}); break;  // and the engine pulls away
+        case 'cardoor': noise(.02,{vol:.05,type:'highpass',freq:3500}); noise(.14,{vol:.12,type:'lowpass',freq:420,buf:brown,when:.04}); tone(105,.1,'square',.035,.04); break;   // click, thunk
+        case 'taxigo': noise(.02,{vol:.05,type:'highpass',freq:3500}); noise(.14,{vol:.12,type:'lowpass',freq:420,buf:brown,when:.04}); tone(105,.1,'square',.035,.04);
+          tone(85,1.6,'sawtooth',.018,.5,out,1.7); noise(1.6,{vol:.06,type:'lowpass',freq:250,sweep:[800,300],buf:brown,when:.5}); break;
+        // ---- the trailer ----
+        case 'whoosh': { const D = pan(-.9, .9, 1.1); noise(1.1,{vol:.08,type:'bandpass',freq:500,q:.8,sweep:[3200,500],dest:D}); break; }
+        case 'riser': swell(90, 2.6, 4, .03); swell(180, 2.6, 4, .012, 'square'); noise(2.6,{vol:.04,type:'bandpass',freq:400,q:2,sweep:[1400,4200]}); break;
+        case 'hit': tone(48,2.4,'sine',.1,0,out,.6); tone(96,1.6,'sawtooth',.02,0,out,.7); noise(2,{vol:.13,type:'lowpass',freq:420,sweep:[220,80],buf:brown}); noise(.4,{vol:.05,type:'highpass',freq:3000}); break;
+        case 'sting-adventure': [0,.16,.32,.56].forEach((w,i) => { tone(130 - i*12,.3,'sine',.09,w,out,.5); noise(.12,{vol:.06,type:'lowpass',freq:500,when:w,buf:brown}); });   // tom-toms
+          [392,523,659].forEach(f => tone(f,.9,'square',.015,.78)); noise(1.2,{vol:.03,type:'highpass',freq:5000,when:.78}); break;
+        case 'sting-comedy': tone(260,.45,'triangle',.05,0,out,2.4); tone(700,.4,'sine',.035,.5,out,.45); tone(330,.12,'square',.02,1,out); tone(440,.2,'square',.02,1.15); break;   // boing, a slide whistle, ta-da
+        case 'sting-drama': [220,277,330,440].forEach((f,i) => { tone(f,2.8,'sine',.03,i*.05); tone(f*1.005,2.8,'triangle',.012,i*.05); }); break;   // a slow string chord
+        case 'sting-horror': [0,.9,1.8].forEach(w => { tone(55,.16,'sine',.13,w); tone(50,.16,'sine',.1,w+.22); });   // a heartbeat
+          tone(466,2.6,'sawtooth',.007,0,out,.97); tone(494,2.6,'sawtooth',.007,0,out,1.02); break;
+        // ---- the lobby ----
+        case 'popcorn': for (let i = 0; i < 16; i++) noise(.015,{vol:.04 + r()*.05,type:'bandpass',freq:1400 + r()*1800,q:3,when:Math.pow(r(), .8)*2.6}); break;
+        case 'fizz': noise(.9,{vol:.05,type:'bandpass',freq:900,q:.8,sweep:[700,1200]}); noise(2,{vol:.035,type:'highpass',freq:5200,when:.5}); break;   // the fountain pours, the Cooola fizzes
+        case 'cash': tone(2500,.08,'square',.025); tone(3300,.18,'sine',.03,.1); noise(.25,{vol:.06,type:'lowpass',freq:700,when:.35,buf:brown}); tone(1900,.3,'sine',.02,.4); break;   // the till
+        // ---- inside the films: a little sound for each set ----
+        case 'waves': noise(3,{vol:.05,type:'lowpass',freq:380,sweep:[950,260],buf:brown}); break;
+        case 'birds': for (let i = 0; i < 3 + Math.floor(r()*3); i++){ const f = 2600 + r()*1500; tone(f,.07,'sine',.016,i*.18,out,1.3); } break;
+        case 'wind': noise(3.6,{vol:.035,type:'bandpass',freq:480,q:3,sweep:[950,380]}); break;
+        case 'owl': tone(430,.32,'sine',.025,0,out,.86); tone(410,.55,'sine',.02,.48,out,.86); break;
+        case 'drip': tone(1800,.06,'sine',.025,0,out,.5); tone(1650,.06,'sine',.018,.9,out,.5); break;
+        case 'bubbles': for (let i = 0; i < 7; i++) tone(480 + r()*700,.05,'sine',.016,i*.11 + r()*.05,out,1.9); break;
+        case 'hooves': for (let i = 0; i < 8; i++) noise(.03,{vol:.04,type:'bandpass',freq:i % 2 ? 1500 : 1100,q:4,when:i*.2 + (i % 2)*.06}); break;
+        case 'tavern': noise(2.6,{vol:.022,type:'bandpass',freq:420,q:.8,buf:brown}); tone(2700,.22,'sine',.014,.8); break;
+        case 'clock': for (let i = 0; i < 6; i++) noise(.01,{vol:.03,type:'highpass',freq: i % 2 ? 2600 : 3400,when:i*.5}); break;
+        // ---- Falafel ----
+        case 'woof': bark(2); break;
+        case 'yip': bark(1); break;
       }
     }
-    function bark(){
+    // the bark: 0 the usual double bark, 1 a short high yip, 2 one deep woof
+    function bark(v = 0){
       if (!on()) return;
+      if (v === 1){ noise(.06,{vol:.1,type:'bandpass',freq:1100,q:2}); tone(700,.06,'square',.022,0,out,.7); return; }
+      if (v === 2){ noise(.16,{vol:.14,type:'bandpass',freq:480,q:1.8,buf:brown}); noise(.12,{vol:.08,type:'bandpass',freq:560,q:2}); tone(300,.14,'square',.026,0,out,.6); return; }
       noise(.09,{vol:.12,type:'bandpass',freq:650,q:2}); noise(.08,{vol:.1,type:'bandpass',freq:720,q:2,when:.16});
       tone(420,.07,'square',.025,0,out,.6); tone(460,.06,'square',.02,.16,out,.6);
     }
@@ -4808,7 +4909,7 @@
       return {stream: dest.stream, stop(){ try { o.stop(); out.disconnect(dest); out.connect(ac.destination); } catch(e){} }};
     }
     return { isOn: () => on(), voiceInfo: () => `${voiceState} · ${Voices.info()}`,
-      prefetch, hdOn, blip, key, say, hush, popAudio, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy };
+      prefetch, hdOn, blip, key, say, hush, popAudio, setAmbience, bark, duck, newSong, speaking, streaming, restartAmb, ring, bell, sfx, busy, kinds: KINDS };
   })();
   function ambienceKey(){
     if (actor.switching) return 'static||';
@@ -4817,6 +4918,7 @@
     if (settled && actor.loc==='gym' && actor.action==='exercising') extra = 'walker';
     if (actor.loc==='bar' && actor.action==='improv') extra = 'lesson';
     if (actor.loc==='bathroom' && actor.hidden && BATH.has(actor.action)) extra = actor.action==='showering' ? 'shower' : 'toilet';
+    { const tr = tripNow(); if (tr && tr.phase === 'lobby') return `pplobby||${isNight(hourNow()) ? 'night' : 'day'}|`; }   // the intermission trip: the lobby's sound
     return `${actor.loc}|${extra}|${isNight(hourNow()) ? 'night' : 'day'}|${stormy() ? 'storm' : rainy() ? 'rain' : ''}`;
   }
 
@@ -5302,6 +5404,42 @@
     if (actor.action === 'sleeping' && hash(slot * 13 + 3) < .5) return;   // a quiet night now and then
     if (list.length) Sound.sfx(list[Math.floor(hash(slot * 5 + 1) * list.length)]);
   }, 1000);
+  // ---- the road's sounds (page only, no AI): cars, the bus, bikes and ateBite scooters as they pass, panned with them, read from the same
+  // clock as the drawing (so every viewer hears the same car); a squeak when a car pulls up at the red light; his own bus or taxi at the stop.
+  // A setInterval, never update(): nothing here plays during a replay. Quiet while someone talks, the studio or a caller is on.
+  const ROAD_LEAD = 700;   // the sound starts a little before the vehicle reaches the middle of the picture
+  let roadLast = 0; const roadHeard = new Set();
+  function roadNow(loc, t){   // [{id, x (its middle), kind, stopped, bell}] for the vehicles in this place at time t
+    const out = [], sc = SCENES[loc]; if (!sc) return out;
+    if (loc === 'shops') shopsCars(t).forEach(c => out.push({id: 's' + c.i, x: c.x + 13, kind: 'carby', stopped: c.stopped}));
+    else if (loc === 'street' || ((KIT.has(loc) || WEST.has(loc)) && (sc.traffic || (sc.ground === 'indoor' ? 'none' : 'road')) === 'road')){
+      if (!(actor.ride && (loc === 'street' || sc.stop))){   // while his own bus or taxi is at the stop, nothing else drives by
+        const off = loc === 'street' ? 0 : (sc.seed || 0) * 2100, lap = Math.floor((t + off) / 6240);
+        out.push({id: loc + 'c' + lap, x: (((t + off) / 12) % 520) - 60 + (lap % 3 === 2 ? 30 : 13), kind: lap % 3 === 2 ? 'busby' : 'carby'}); }
+    }
+    const bs = BIKE_SEED[loc], b = bs != null && bikeAt(t, bs); if (b) out.push({id: 'b' + b.id, x: b.x + 9, kind: 'bikeby', bell: hash(b.k * 17 + bs * 3 + 5) < .35});
+    const a = ATE_PLACES.has(loc) && ateAt(t); if (a) out.push({id: 'a' + a.id, x: a.x + 9, kind: 'scooter'});
+    return out;
+  }
+  function heard(k){ if (roadHeard.has(k)) return true; roadHeard.add(k); if (roadHeard.size > 60) roadHeard.delete(roadHeard.values().next().value); return false; }
+  setInterval(() => {
+    const now = NOW(), last = roadLast; roadLast = now;
+    if (!last || now - last > 1500 || !Sound.isOn() || DREAMING || actor.switching || actor.loc === 'offscreen' || studioOn || showOn || callOn) return;
+    // his bus or taxi: pulling in at the stop, and pulling away (the brakes and doors, or the taxi's door and engine)
+    const r = actor.ride;
+    if (r){ const e0 = last - r.t0, e1 = now - r.t0, at = (ms, k) => { if (e0 < ms && e1 >= ms && !heard(r.t0 + ':' + k)) Sound.sfx(k); };
+      at(RIDE.come, r.kind === 'bus' ? 'busstop' : 'brake'); at(RIDE.come + RIDE.stop, r.kind === 'bus' ? 'busgo' : 'taxigo'); }
+    if (NOW() - TALK_AT < 1500 || Sound.busy()) return;
+    const was = roadNow(actor.loc, last + ROAD_LEAD), mid = W / 2;
+    roadNow(actor.loc, now + ROAD_LEAD).forEach(v => {
+      const p = was.find(q => q.id === v.id); if (!p) return;
+      if (v.stopped && !p.stopped && !heard(v.id + ':stop')) Sound.sfx('brake');
+      if ((p.x - mid) * (v.x - mid) <= 0 && p.x !== v.x && !heard(v.id)){
+        const dir = Math.sign(v.x - p.x) || 1; Sound.sfx(v.kind, {dir});
+        if (v.bell && !actor.hidden) Sound.sfx('bikebell', {dir});   // some cyclists ring as they pass him
+      }
+    });
+  }, 200);
   // the bar's and the café's music: show what is playing
   setInterval(() => { if (RADIO.on) return; const st = (actor.loc==='bar' || actor.loc==='cafe') ? Sound.streaming() : null;
     $('stMusic').textContent = st ? `\u266A ${st.name}` : ''; }, 2000);
@@ -5886,7 +6024,7 @@
       texture: x => { TEXTURE = x; },
       poll(o){ const t = NOW(), id = 'sb-poll-' + (++n); POLL = {id, sandbox: true, question: o.question || 'How will Avi make Ishai\'s next falafel?', options: o.options || ['Extremely spicy', 'Drowning in tahini', 'Just the usual'],
         opensAt: t + (o.inSec ?? 5) * 1000, closesAt: t + ((o.inSec ?? 5) + 600) * 1000, result: null}; if (o.result){ POLL.opensAt = t - 610000; POLL.closesAt = t - 10000; POLL.result = pollFake(POLL); } pollSig = ''; },
-      fillLine: slot => hostFillLine(slot), sfx: k => Sound.sfx(k),
+      fillLine: slot => hostFillLine(slot), sfx: (k, o) => Sound.sfx(k, o || {}), sfxKinds: () => Sound.kinds,
       home: (k, skip) => { actor.homeTest = k ? {k, t0: NOW() - (skip || 0) * 1000} : null; },   // play one home activity now, from its start (or `skip` seconds in)
       homeNow: () => actor.err ? {home: actor.err.home, pose: actor.err.pose, seat: actor.err.seat, tag: actor.err.tag, x: Math.round(actor.x)} : null,
       recap(lines){ if (!studioOn) playStudio({id: 'sb-st' + (++n), t: NOW(), lines}, NOW()); },
