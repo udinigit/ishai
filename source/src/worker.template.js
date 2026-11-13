@@ -3979,11 +3979,13 @@ async function triviaTick(env, s, now) {
   // collect questions: one call per tick until there are enough (Open Trivia DB allows one call per 5 seconds)
   const need = TRIVIA_ROUNDS * TRIVIA_PER;
   if (T.pool.length < need) {
-    const res = await fetch(TRIVIA_URL, { headers: { "user-agent": "WatchingIshai/1.0" } }); if (!res.ok) throw new Error("opentdb " + res.status);
+    // Cloudflare shares its outgoing addresses, so Open Trivia DB's one-call-per-5-seconds limit can answer 429: wait and try twice more
+    let res = null; for (let i = 0; i < 3; i++) { res = await fetch(TRIVIA_URL, { headers: { "user-agent": "WatchingIshai/1.0" } }); if (res.status !== 429) break; await new Promise(ok => setTimeout(ok, 5500 + i * 2000)); }
+    if (!res.ok) throw new Error("opentdb " + res.status);
     const j = await res.json(); if (j.response_code !== 0) throw new Error("opentdb code " + j.response_code);
     const have = new Set([...T.seen, ...T.pool.map(x => triviaKey(x.q))]);
     for (const x of j.results || []) { const c = triviaClean(x); if (c && !have.has(triviaKey(c.q))) { have.add(triviaKey(c.q)); T.pool.push(c); } }
-    if (T.pool.length < need) return;
+    T.err = null; if (T.pool.length < need) return;
   }
   const r = seedRng("trivia-pick-" + date), qs = T.pool.map(x => ({ x, o: r() })).sort((a, b) => a.o - b.o).map(o => o.x).slice(0, need);
   const N = triviaNight(date, t, qs);
