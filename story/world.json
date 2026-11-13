@@ -382,7 +382,7 @@
    "actions": ["walking", "idle", "talking", "eating", "drinking", "phoning"],
    "links": {
     "street": {"exit": 128, "entry": 128, "ride": true},
-    "classroom": {"exit": 60, "entry": "R"}
+    "classroom": {"exit": 60, "entry": 60}
    },
    "notes": ["the same stop: the bus (or a taxi) to the university", "the university's own bus stop; the lecture building's doors"],
    "map": [15, 0]
@@ -392,7 +392,7 @@
    "desc": "a lecture room at the university, only used during a lecture",
    "actions": ["idle", "talking", "phoning", "lecture"],
    "links": {
-    "campus": {"exit": "R", "entry": 60}
+    "campus": {"exit": "R", "entry": "R"}
    },
    "notes": ["the lecture room's door, on the right"],
    "map": [15, 1]

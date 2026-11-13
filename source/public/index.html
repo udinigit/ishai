@@ -1168,14 +1168,18 @@
   // soft fade at both ends of a time window, so still bystanders never blink in or out
   // companions who join Ishai fade in at tables/benches, and walk in from a door or the edge when standing
   // ---- doors open when Ishai or a companion walks through them ----
-  function doorBusy(cx){
-    const near = (x) => Math.abs(x + 5 - cx) < 9;
+  // cx = the door's middle; ex = the way out (an x) that leads through it, when that isn't right at the door
+  // (a door at the right wall whose way out is the edge, W+8): then the door is open all the way from it to the edge
+  function doorBusy(cx, ex){
+    const via = ex ?? cx - 5, isVia = (x) => x != null && Math.abs(x - via) < 9;
+    const near = (x) => Math.abs(x + 5 - cx) < 9 || (ex !== undefined && (x - (cx - 5)) * (ex - (cx - 5)) > 0 && Math.abs(x - (cx - 5)) <= Math.abs(ex - (cx - 5)));
     // a door opens only for someone who is going through it, never for someone walking past it
-    const leaving = actor.pending && Math.abs(actor.targetX + 5 - cx) < 9;
-    const arriving = actor.travelling && NOW() - (actor.arrivedAt || 0) < 2500;
+    const leaving = actor.pending && isVia(actor.targetX);
+    const arriving = actor.travelling && NOW() - (actor.arrivedAt || 0) < 2500 && isVia(actor.entryX);   // came in through THIS door
     if (!actor.hidden && (leaving || arriving) && near(actor.x)) return true;
-    const compDoor = comp.id && Math.abs(exitX(actor.loc, comp.id, comp.x) + 5 - cx) < 9;
-    if (compDoor && (comp.mode === 'out' || (comp.mode === 'in' && comp.fromDoor)) && near(comp.x)) return true;
+    // a friend going out through it, or one who has just come in through it (`doorX`: the way they came in)
+    const compDoor = comp.id && (comp.mode === 'out' ? isVia(exitX(actor.loc, comp.id, comp.x)) : comp.mode === 'in' && comp.fromDoor && isVia(comp.doorX));
+    if (compDoor && near(comp.x)) return true;
     if (actor.hidden && BATH.has(actor.action) && cx === 53 && actor.loc==='apartment') return false;
     return false;
   }
@@ -1243,7 +1247,7 @@
         const withHim = actor.fromLoc && NOW() - (actor.arrivedAt || 0) < 8000 && (w.id === actor.with || (actor.pending && actor.pending.w === w.id)) ? (MAP[actor.loc] || {})[actor.fromLoc] : null;
         const fromPost = POST[actor.loc] === w.id && POST_X[actor.loc] !== undefined && !awayFrom(w.id, actor.loc);   // Dana comes round the counter to go with him
         const startX = pk ? pk.x : fromPost ? POST_X[actor.loc] : already ? w.x : withHim && withHim.entry !== undefined ? withHim.entry : exitX(actor.loc, w.id, w.x);
-        Object.assign(comp, {id:w.id, look:w.look, mode: already && !fromPost ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: startX, tx: w.x, fromDoor: !already && !fromPost, since: NOW()}); }
+        Object.assign(comp, {id:w.id, look:w.look, mode: already && !fromPost ? (pk && Math.abs(pk.x - w.x) > 2 ? 'in' : 'here') : 'in', x: startX, tx: w.x, fromDoor: !already && !fromPost, doorX: !already && !fromPost ? startX : null, since: NOW()}); }
     }
     // the story still has them together (Ishai is just walking to the counter, the fridge...): they stay, standing
     const together = !w && comp.id && comp.mode !== 'out' && ((actor.with === comp.id && actor.action !== 'phoning') || actor.guestWaits === comp.id);
@@ -1532,7 +1536,7 @@
       // bathroom door (the camera never looks inside)
       const inBath = actor.hidden && BATH.has(a) && actor.loc==='apartment';
       R(46,50,15,30,C.doorFrame); R(47,52,13,28,'#7d6a58'); R(49,55,9,8,'#8a7663'); R(49,66,9,10,'#8a7663'); R(57,66,1,2,C.gold);
-      if (!actor.hidden && Math.abs(actor.x + 5 - 53) < 9 && ((actor.pending && actor.pending.route[0]==='bathroom') || (actor.fromLoc==='bathroom' && actor.travelling) || actor.dressBath === 'go')) openDoor(47,52,13,28);
+      if ((!actor.hidden && Math.abs(actor.x + 5 - 53) < 9 && ((actor.pending && actor.pending.route[0]==='bathroom') || (actor.fromLoc==='bathroom' && actor.travelling) || actor.dressBath === 'go')) || (actor.dressBath === 'in' && actor.dressDoor === BATH_DOOR_X && NOW() > actor.dressUntil - 600)) openDoor(47,52,13,28);   // also as he comes out after changing in there
       R(50,47,7,3, inBath ? '#c23b3b' : '#3a3a3a'); R(51,48,5,1, inBath ? '#ffb0b0' : '#555');
       if (inBath){ alpha(.7,()=>R(47,79,13,1,'#ffe8a0'));
         if (a==='showering') for (let i=0;i<4;i++){ const ph=(t/1400+i/4)%1; alpha((1-ph)*.8,()=>R(48+i*3+(Math.floor(ph*6)%2),78-Math.floor(ph*14),2,1,'#f2f2f2')); } }
@@ -2039,6 +2043,7 @@
       R(0,6,104,66,'#e8e4dc'); R(0,6,104,3,'#c8c2b6'); for (let x=4;x<100;x+=12) R(x,14,8,38, night ? '#2a3448' : '#8fb7d0'); for (let x=4;x<100;x+=12) R(x,14,8,1,'#ffffff');   // glass and white stone
       R(18,0,68,14,'#2a2a3a'); R(19,1,66,12,'#1a1a2a'); bigS(22,2); word('THE BIG S', 46, 5, '#ffd23f');
       R(36,52,32,20,'#3a4a5a'); R(38,54,13,18, night ? '#ffe9a8' : '#bfd8e8'); R(53,54,13,18, night ? '#ffe9a8' : '#bfd8e8'); R(51,54,2,18,'#2a3440');   // the glass doors
+      if (doorBusy(57)){ const o = night ? '#fff6d0' : '#f4ecd8'; R(38,54,13,18,o); R(53,54,13,18,o); R(38,54,2,18,'#bfd8e8'); R(64,54,2,18,'#bfd8e8'); }   // slid open for whoever goes in or out (way out 52)
       R(0,52,34,20,'#d8d2c6'); R(70,52,34,20,'#d8d2c6');
       [6,76].forEach(x => { R(x,55,22,13, night ? '#ffe9a8' : '#cfe3ee'); R(x,55,22,1,'#9a9a9a'); });
       R(104,60,2,12,'#c8c2b6');
@@ -2952,7 +2957,7 @@
       if (live) alpha(.18,()=>R(28,18,136,40,'#ffe8b0'));
       // the floor, and the door on the right
       R(0,66,W,42,'#4a4a4c'); for (let x=0;x<W;x+=16) R(x,66,1,42,'#424244'); for (let y=74;y<H;y+=10) R(0,y,W,1,'#424244');
-      R(178,30,14,58,'#2a2a2a'); R(180,32,12,56, doorBusy(186) ? '#0a0a0a' : '#4a4e52'); R(181,58,2,4,'#c8b070'); R(178,24,14,5,'#1a1a1a'); word('EXIT',179,25,'#5ad07a');
+      R(178,30,14,58,'#2a2a2a'); R(180,32,12,56, doorBusy(186, W+8) ? '#0a0a0a' : '#4a4e52'); R(181,58,2,4,'#c8b070'); R(178,24,14,5,'#1a1a1a'); word('EXIT',179,25,'#5ad07a');
       const gi = galleryInfo(), cc = !gi && concertNow();
       if (gi){ drawGalleryWalls(gi, t); drawCurtain(gi.drop); }
       zOn();
@@ -3728,7 +3733,7 @@
       R(106,8,10,10,'#f4f0e4'); R(106,8,10,1,'#3a3a44'); R(106,17,10,1,'#3a3a44'); R(106,8,1,10,'#3a3a44'); R(115,8,1,10,'#3a3a44'); R(111,10,1,3,'#222'); R(111,13,3,1,'#222');
       [124,146,168].forEach(x => { R(x,8,16,24,'#6a5a4a'); R(x+1,9,14,22, night ? '#1a2238' : '#a8cce0'); R(x+8,9,1,22,'#6a5a4a'); R(x+1,20,14,1,'#6a5a4a'); });
       // the door, on the right
-      R(182,34,10,60,'#6a4e38'); R(184,36,8,58, doorBusy(186) ? '#1a1612' : '#8a6a4a'); R(184,62,2,3,'#d8d8d8');
+      R(182,34,10,60,'#6a4e38'); R(184,36,8,58, doorBusy(186, W+8) ? '#1a1612' : '#8a6a4a'); R(184,62,2,3,'#d8d8d8');
       zOn();
       // the lectern
       zAdd(92, () => { R(64,62,14,3,'#6a4e38'); R(66,65,10,20,'#5a4030'); R(68,60,8,2,'#f4f0e4'); });
@@ -4259,14 +4264,14 @@
     const p = actor.pending; actor.switching = 0;
     if (!p || !p.route.length){ actor.pending = null; actor.hidden = actor.loc==='offscreen'; return; }
     const from = actor.loc, hop = p.route.shift(), last = !p.route.length;
-    actor.loc = hop; actor.fromLoc = from; actor.arrivedAt = NOW();
+    actor.loc = hop; actor.fromLoc = from; actor.arrivedAt = NOW(); actor.entryX = null;
     if (hop === 'offscreen'){ actor.hidden = true; if (last){ actor.action = p.a; actor.with = p.w; actor.pending = null; updateLabels(); } else { updateLabels(); actor.rideUntil = NOW() + 3000; } return; }
     if (VEH.has(hop)){   // the camera comes back on inside: he has taken his seat
       actor.hidden = false; actor.travelling = false; actor.x = SCENES[hop].entry;
       if (last){ actor.action = fixAction(hop, p.a); actor.with = p.w; actor.pending = null; } else { actor.action = 'idle'; actor.rideUntil = NOW() + RIDE_MS; }
       updateLabels(); return; }
     const link = (MAP[hop]||{})[from] || {entry: SCENES[hop].entry};
-    actor.x = link.entry;
+    actor.x = link.entry; actor.entryX = link.ride ? null : link.entry;   // the door he came in through (doorBusy)
     if (last){ actor.action = p.a; actor.with = p.w; actor.pending = null; actor.targetX = standX(hop, p.a, p.w); }
     else { actor.action = 'walking'; actor.targetX = ((MAP[hop]||{})[p.route[0]] || {exit: SCENES[hop].exit}).exit; p.ride = !!(MAP[hop][p.route[0]]||{}).ride; }
     if (hop === 'apartment' && !link.ride){   // home (or out of the bathroom): the closet first if he needs other clothes
