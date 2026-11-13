@@ -1,6 +1,9 @@
 # Saturday Night at the PixelPlex: plan
 
-Proposed 2026-11-13, updated the same day with the director's answers (end of this file). Not built yet.
+Proposed 2026-11-13, updated the same day with the director's answers (end of this file). **Built 2026-11-13 (v223).** Differences from this plan:
+- No Gutenberg ids in `story/films.json`: the worker finds each book through Gutendex by title and author at run time (and checks the author's death year there).
+- A title Gutenberg doesn't have is dropped for the next in turn. Not ready by Friday noon: a repeat, or, with no older film yet, the week is skipped.
+- The survey "Which film next Saturday?" and a promotion poster are not built yet.
 
 ## The idea
 Every Saturday night the cinema at The Big S shows a film: an old public-domain play or story retold as a short 8-bit film. One or two frames per scene show the scenery and the characters, and the characters' lines play as subtitles and voices. Ishai goes, with a friend or alone, and sits in the audience. The hosts keep quiet during the film, the way they do in a lecture. Ishai remembers the film afterwards.

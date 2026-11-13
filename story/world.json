@@ -223,10 +223,21 @@
    "kind": "pass",
    "of": "foodcourt",
    "links": {
-    "mall3a": {"exit": -14, "entry": -14}
+    "mall3a": {"exit": -14, "entry": -14},
+    "cinema": {"exit": "R", "entry": 8}
    },
-   "notes": ["floor 3, the food court east (CAM-37)"],
+   "notes": ["floor 3, the food court east (CAM-37); right edge -> the PixelPlex (its doorway)"],
    "map": [2, -3]
+  },
+  "cinema": {
+   "kind": "story",
+   "desc": "the PixelPlex, the cinema off the food court on the top floor of The Big S (up the escalators): red seats, a red curtain, the big screen. Only on Saturday nights, for the weekly film (planned moments only)",
+   "actions": ["film", "talking", "eating", "drinking", "idle", "walking"],
+   "links": {
+    "mall3b": {"exit": 8, "entry": "R"}
+   },
+   "map": [3, -3],
+   "notes": ["the PixelPlex auditorium (CAM-38, story place, event only): the door on the left (8) -> the food court's right edge"]
   },
   "west3": {
    "kind": "pass",

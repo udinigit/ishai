@@ -444,7 +444,7 @@
   let LAST_TALK = NOW();
   function setSpeaking(w){ SPEAKING = w; if (w) LAST_TALK = NOW(); }
   const LABEL = {phoning:'ON THE PHONE',drinking:'DRINKING',bathroom:'BATHROOM',showering:'SHOWER',watching:'WATCHING TV',listening:'RADIO ON',sleeping:'SLEEPING',waking:'WAKING UP',idle:'IDLE',walking:'WALKING',working:'WORKING',gaming:'GAMING',
-    eating:'EATING',cooking:'COOKING',reading:'READING',exercising:'EXERCISING',talking:'TALKING',improv:'IMPROV CLASS',lecture:'IN CLASS',away:'UNKNOWN'};
+    eating:'EATING',cooking:'COOKING',reading:'READING',exercising:'EXERCISING',talking:'TALKING',improv:'IMPROV CLASS',lecture:'IN CLASS',film:'AT THE MOVIES',away:'UNKNOWN'};
 
   const params = new URLSearchParams(location.search);
   let forceHour = params.has('hour') ? parseFloat(params.get('hour')) : null;
@@ -2222,7 +2222,7 @@
   // ---------- The Big S (CAM-30 to 37): three floors from one kit; stores differ by sign and window, some by their whole front ----------
   // Floors 1-2 are the story place 'mall', floor 3 'foodcourt' (screenFor() picks the screen). Escalators: up at 166 on mall1b and mall2b,
   // arriving from below at 40 on mall2b and mall3a. Floors 2 and 3 show the glass balustrade over the atrium at the front.
-  const SHUT = () => !!(WORLD && WORLD.shabbat && NOW() >= WORLD.shabbat.start && NOW() <= WORLD.shabbat.end);   // Shabbat: every store shuttered
+  const SHUT = () => !!(WORLD && WORLD.shabbat && NOW() >= WORLD.shabbat.start && NOW() <= WORLD.shabbat.end) || weekdayNow() === 6;   // Shabbat and all of Saturday: every store shuttered (Saturday night only the PixelPlex opens)
   function mallStore(x, w, o, t){   // o: {name, band, sign, wall, type: 'store' | 'open' | 'big' | 'boarded' | 'food', goods: [colours], menu}
     const top = o.type === 'big' ? 12 : 18, n = (o.name || '').length * 4 - 1, tx = x + Math.max(1, Math.floor((w - n) / 2));
     R(x,top,w,72-top,o.wall || '#d8d4cc');
@@ -2326,11 +2326,229 @@
     R(0,12,60,60,'#e9e6df'); R(4,16,52,10,'#1a1a2a'); bigS(6,15); word('FOOD',20,18,'#ffd23f');
   }, [[134, [[2,4],[20,8]]], [8, []]], {exitX: nearX => nearX > 150 ? W+8 : nearX < 60 ? 40 : -18, props(t){ zAdd(80, () => escalatorArrive(40, t)); }});
   SCENES.mall3b = foodScene('mall3b', 'CAM-37', 28, t => {
-    mallStore(0,48,{name:'SALAD DAYS',band:'#7fbf6a',sign:'#1a3a1a',type:'food',goods:['#7fbf6a','#e0605a','#ffd36a']},t); mallCols([48,100]);
-    mallStore(52,48,{name:'SCHNITZEL',band:'#c27a3b',sign:'#ffffff',type:'food',goods:['#e0b04a','#f4f4f4']},t);
-    mallStore(104,40,{name:'KFAR KOFI',band:'#6b3f22',sign:'#ffd9a0',type:'food',goods:['#c98a3a','#e8e4d8']},t); mallCols([144]);
-    mallStore(148,44,{name:'',band:'#c8c2b6',sign:'#000',type:'boarded'},t);
-  }, [[14, [[2,2],[20,6]]], [130, [[2,9]]], [164, []]]);
+    mallStore(0,44,{name:'SALAD DAYS',band:'#7fbf6a',sign:'#1a3a1a',type:'food',goods:['#7fbf6a','#e0605a','#ffd36a']},t); mallCols([44,86]);
+    mallStore(48,38,{name:'SCHNITZEL',band:'#c27a3b',sign:'#ffffff',type:'food',goods:['#e0b04a','#f4f4f4']},t);
+    mallStore(90,34,{name:'KOFI',band:'#6b3f22',sign:'#ffd9a0',type:'food',goods:['#c98a3a','#e8e4d8']},t); mallCols([124]);
+    pixelplexFront(128, t);
+  }, [[14, [[2,2],[20,6]]], [104, [[2,9]]]], {exitX: nearX => nearX > 120 ? W+8 : -18});
+
+  // ---------- the PixelPlex: the cinema off the food court (Saturday nights, docs/CINEMA_PLAN.md) ----------
+  // the front on mall3b: a lit marquee with this week's title, the box office, popcorn, the poster; the doorway on the right edge leads in
+  let CIN_PUB = null; const CINEMA = () => CIN_PUB;   // {title, genre, at (the film's start), filmDate, ready, live, poster colours} from publicState.cinema
+  function marqueeText(x, y, w, txt, t, c){   // scrolls on the clock when it doesn't fit (the pixel font has no colon or slash)
+    txt = String(txt || '').toUpperCase().replace(/[^A-Z0-9!.% ]/g, ' '); const fit = Math.floor(w / 4);
+    if (txt.length <= fit){ word(txt, x + Math.floor((w - txt.length*4 + 1) / 2), y, c); return; }
+    const pad = txt + '   ', k = Math.floor(t / 350) % pad.length; word((pad + pad).slice(k, k + fit), x, y, c);
+  }
+  function pixelplexFront(x, t){
+    const cin = CINEMA(), lit = Math.floor(t / 260) % 2;
+    R(x,12,64,60,'#2a1018'); R(x,12,64,2,'#5a2030');
+    R(x+2,14,60,16,'#1a0a10'); for (let i=0;i<15;i++) R(x+3+i*4,14,2,1,(i+lit)%2 ? '#ffd23f' : '#ff9a3a'); for (let i=0;i<15;i++) R(x+3+i*4,29,2,1,(i+lit+1)%2 ? '#ffd23f' : '#ff9a3a');
+    word('PIXELPLEX', x+14, 16, '#ffd23f'); marqueeText(x+3, 23, 58, cin && cin.title ? cin.title : 'SAT 21.00', t, '#f4f4f4');
+    R(x+2,34,18,22,'#e8e0c8'); R(x+4,36,14,10, '#3a2a30'); word('BOX',x+5,48,'#7a2a3a'); R(x+6,40,10,6,'#ffe9a8');   // the box office window
+    R(x+22,34,18,22,'#c23b3b'); for (let i=0;i<5;i++) R(x+24+i*3,36+(i%2),2,2,'#fff6d0'); R(x+24,40,14,8,'#f4f4f4'); R(x+24,40,14,2,'#c23b3b'); word('POP',x+25,49,'#fff6d0');   // popcorn
+    const pc = (cin && cin.poster) || ['#1a1a3a','#ffd23f','#c23b3b'];
+    R(x+42,34,14,22,'#c9a24a'); R(x+43,35,12,20,pc[0]); R(x+45,38,8,6,pc[1]); R(x+44,47,10,2,pc[2]); R(x+44,51,10,1,pc[1]);   // the poster
+    R(x+56,30,8,42,'#0a0508'); R(x+57,31,6,41,'#1a0a10');   // the doorway into the auditorium
+    R(x,56,56,16,'#3a1a22'); R(x,56,56,1,'#7a3a4a');
+  }
+  // ---- the film (docs/CINEMA_PLAN.md): fetched from /api/film, played by the clock from its start (FILM.at), the same timeline as the worker's ----
+  let FILM = null, FILM_L = null, filmWant = null;
+  const FILM_BREAK_MS = 5 * 60000, FW = 72, FH = 26;
+  function filmLayout(f){   // keep equal to filmLayout() in the worker
+    const items = []; let t = 0; const brk = f.scenes.length >= 4 ? Math.ceil(f.scenes.length / 2) : -1;
+    items.push({kind:'title', t0:t, t1:t + 8000}); t += 8000;
+    f.scenes.forEach((sc, i) => {
+      if (i === brk){ items.push({kind:'break', t0:t, t1:t + FILM_BREAK_MS}); t += FILM_BREAK_MS; }
+      items.push({kind:'card', scene:i, t0:t, t1:t + 4000}); t += 4000;
+      sc.lines.forEach((l, j) => { const d = Math.min(9500, Math.max(2600, 1800 + l.say.length * 60)); items.push({kind:'line', scene:i, line:j, t0:t, t1:t + d}); t += d + 500; });
+    });
+    items.push({kind:'end', t0:t, t1:t + 7000}); t += 7000;
+    return {items, total: t};
+  }
+  function setFilm(f){ FILM = f; FILM_L = f ? filmLayout(f) : null; if (f) (f.cast || []).forEach(c => { EXTRA_SPK['fm-' + c.id] = c.name; FILM_CAST['fm-' + c.id] = {name: c.name, look: Object.assign({}, c.look, c.voice === 'f' && !['dress'].includes(c.look.top) ? {} : {}), gender: c.voice}; }); EXTRA_SPK['fm-narrator'] = 'Narrator'; }
+  const FILM_CAST = {};
+  function filmSync(){   // fetch this week's film when it is near or he is there
+    const c = CINEMA(); if (!c || !c.ready || DREAMING) return;
+    const near = c.live || actor.loc === 'cinema' || storyLoc(actor.loc) === 'foodcourt';
+    if (!near || (FILM && FILM.date === c.filmDate) || filmWant === c.filmDate) return;
+    filmWant = c.filmDate;
+    fetch('/api/film?date=' + c.filmDate).then(r => r.ok ? r.json() : null).then(f => { if (f && f.scenes) setFilm(Object.assign(f, {date: c.filmDate, at: c.at})); }).catch(() => {});
+  }
+  setInterval(filmSync, 5000);
+  function filmAt(T){ if (!FILM_L) return null; return FILM_L.items.find(x => T >= x.t0 && T < x.t1) || null; }
+  // what the auditorium shows now: the curtain, the house lights, how full it is, the picture on the screen
+  function filmState(){
+    if (DREAMING || !FILM) return null;
+    const T = NOW() - FILM.at, total = FILM_L.total;
+    if (T < -9 * 60000 || T > total + 10 * 60000) return null;
+    const it = filmAt(T), ease = x => Math.max(0, Math.min(1, x));
+    const curtain = T < 0 ? ease((T + 8 * 60000) / 3000) : T < total ? 1 : 1 - ease((T - total) / 3000);
+    const brk = it && it.kind === 'break', dark = T >= 0 && T < total && !brk;
+    const last = it && it.kind === 'line' ? null : FILM_L.items.filter(x => x.kind === 'line' && x.t1 <= T).slice(-1)[0];
+    const prevLine = FILM_L.items.filter(x => x.kind === 'line' && x.t1 <= T && T - x.t1 < 1800).slice(-1)[0];
+    const react = prevLine && FILM.scenes[prevLine.scene].lines[prevLine.line].react;
+    return {dark, curtain, full: .8, react: react || null, draw: (S, t) => drawFilm(S, t, T, it)};
+  }
+  // the screen: ads before, the cards, the film frames, the break, THE END
+  const FILM_PAL = {warm:['#ffb070',.12], cold:['#6a9aff',.16], dark:['#000000',.35], bright:null, sepia:['#c09060',.28]};
+  let FC = null;
+  function cardText(S, lines, cols){   // centred lines of the pixel font on the screen, at the world's pixel
+    const total = lines.length * 8; let y = S.y + Math.floor((S.h - total) / 2);
+    lines.forEach(([txt, c]) => { txt = String(txt).toUpperCase().replace(/[^A-Z0-9!.% ]/g, ''); word(txt, S.x + Math.floor((S.w - txt.length * 4 + 1) / 2), y, c); y += 8; });
+  }
+  const wrapWords = (txt, n) => { const out = []; let cur = ''; String(txt).split(/\s+/).forEach(w => { if ((cur + ' ' + w).trim().length > n){ if (cur) out.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); }); if (cur) out.push(cur); return out; };
+  function drawFilm(S, t, T, it){
+    if (T < 0){   // the ad reel: the show's own brands, then phones off
+      const ads = [['COOOLA', 'THE TASTE OF COLD', '#c23b3b', '#ffffff'], ['HUMMUSPRIME', 'FRESH EVERY MORNING', '#e0b04a', '#3a2a10'], ['ATEBITE', 'HUNGRY. TAP. DONE.', '#ff7a1a', '#ffffff'], ['BRRR!', 'ON THE PROMENADE', '#3bb0d0', '#ffffff'], ['PHONES OFF', 'ENJOY THE FILM', '#1a1a2a', '#ffd23f']];
+      const k = Math.floor((T + 8 * 60000) / 15000), a = T > -30000 ? ads[ads.length - 1] : ads[((k % (ads.length - 1)) + ads.length - 1) % (ads.length - 1)];
+      R(S.x, S.y, S.w, S.h, a[2]); cardText(S, [[a[0], a[3]], ['', a[3]], [a[1], a[3]]]); return; }
+    R(S.x, S.y, S.w, S.h, '#050505');
+    if (!it || it.kind === 'end'){ cardText(S, [['THE END', '#f4f0e4']]); return; }
+    if (it.kind === 'title'){ const k = (T - it.t0) / 8000;
+      if (k < .45) cardText(S, [[FILM.studio || '8-BIT PICTURES', '#ffd23f'], ['PRESENTS', '#c9a24a']]);
+      else cardText(S, [...wrapWords(FILM.title, 30).map(l => [l, '#f4f0e4']), ['', '#000'], ['BY ' + FILM.author, '#c9a24a']]); return; }
+    if (it.kind === 'break'){ const left = Math.ceil((it.t1 - T) / 60000); cardText(S, [['INTERMISSION', '#ffd23f'], ['', '#000'], ['BACK IN ' + left + ' MIN', '#f4f0e4']]); return; }
+    const sc = FILM.scenes[it.scene];
+    if (it.kind === 'card'){ cardText(S, wrapWords(sc.title, 30).map(l => [l, '#f4f0e4'])); return; }
+    // a line: the frame it belongs to, drawn at the film's own coarser pixel and scaled onto the screen
+    const ln = sc.lines[it.line], fr = sc.frames[ln.frame] || sc.frames[0] || {who: [], pose: {}, move: 'still'};
+    if (!FC){ FC = document.createElement('canvas'); FC.width = FW; FC.height = FH; }
+    const fx = FC.getContext('2d'); fx.imageSmoothingEnabled = false; fx.clearRect(0, 0, FW, FH);
+    const prev = g; g = fx;
+    try { filmSet(sc.set, t); filmProps(sc.set, t);
+      const xs = fr.who.length === 1 ? [36] : fr.who.length === 2 ? [24, 48] : [14, 36, 58];
+      fr.who.forEach((w, i) => { const c = FILM.cast.find(x => x.id === w); if (!c) return; filmActor(c, (fr.pose || {})[w] || 'stand', xs[i], t, ln.who === w, xs[i] < 36 ? 1 : -1); });
+      if (sc.set.time === 'night' || sc.set.palette === 'dark') alpha(.25, () => R(0, 0, FW, FH, '#000010'));
+      const tint = FILM_PAL[sc.set.palette]; if (tint) alpha(tint[1], () => R(0, 0, FW, FH, tint[0]));
+    } finally { g = prev; }
+    // the camera move over the whole scene's time on this frame
+    const k = Math.max(0, Math.min(1, (T - it.t0) / Math.max(1, it.t1 - it.t0)));
+    let sx = 4, sy = 0, sw = 64, sh = FH;
+    if (fr.move === 'pan-left') sx = 8 - k * 8; else if (fr.move === 'pan-right') sx = k * 8; else if (fr.move === 'zoom-in'){ sw = 64 - k * 10; sh = sw * FH / 64; sx = 4 + (64 - sw) / 2; sy = (FH - sh) / 2; }
+    g.drawImage(FC, sx, sy, sw, sh, S.x, S.y, S.w, S.h);
+    if (sc.set.palette === 'dark' || sc.set.palette === 'cold') if (hash(Math.floor(t / 90)) < .08) alpha(.12, () => R(S.x, S.y, S.w, S.h, '#000'));   // the old film flickers
+  }
+  // the sets: a few hand-drawn backgrounds the writer can only combine (floor line at 22 of FH)
+  function filmSet(st, t){
+    const night = st.time === 'night', dusk = st.time === 'dusk', sky = night ? '#0a1028' : dusk ? '#e08a5a' : '#8fc4e8';
+    const out = () => { R(0,0,FW,22,sky); if (night) for (let i=0;i<10;i++) R((i*17)%FW, (i*7)%14, 1, 1, '#f4f4f4'); };
+    switch (st.kind){
+      case 'garden': out(); R(0,14,FW,8,'#3f7f33'); for (let x=0;x<FW;x+=6) R(x,12,5,3,'#4f9a3f'); R(0,22,FW,6,'#5aa04a'); break;
+      case 'street': out(); [[0,4,18,'#9a8a76'],[18,8,20,'#7f8a94'],[38,2,18,'#a07a6a'],[56,6,16,'#8a7f94']].forEach(([x,y,w,c]) => { R(x,y,w,22-y,c); for (let wy=y+2;wy<20;wy+=5) for (let wx=x+2;wx<x+w-2;wx+=5) R(wx,wy,2,3,night?'#ffd36a':'#cfe3ee'); }); R(0,22,FW,6,'#7a7a7a'); break;
+      case 'forest': R(0,0,FW,22,night?'#081018':'#2a4a2a'); for (let i=0;i<9;i++){ R(i*8+2,0,3,22,'#3a2a1a'); R(i*8-1,(i%3)*2,9,6,'#1f3f1f'); } R(0,22,FW,6,'#2a3a1a'); break;
+      case 'palace': R(0,0,FW,22,'#e8dcc0'); for (let x=4;x<FW;x+=16) R(x,0,4,22,'#d0c4a0'); R(0,0,FW,3,'#c9a24a'); R(0,22,FW,6,'#a02030'); break;
+      case 'shore': out(); R(0,12,FW,6,'#2f6fb5'); for (let x=(t/300|0)%6;x<FW;x+=6) R(x,13,3,1,'#bfe6f8'); R(0,18,FW,10,'#e2cf9e'); break;
+      case 'ship': out(); R(0,14,FW,4,'#2f6fb5'); R(0,18,FW,10,'#7a5534'); for (let x=0;x<FW;x+=6) R(x,18,1,10,'#5e4027'); R(60,0,2,18,'#5e4027'); R(46,2,14,10,'#f4f0e4'); break;
+      case 'tavern': R(0,0,FW,22,'#4a2e1c'); for (let y=2;y<22;y+=5) R(0,y,FW,1,'#3a2214'); R(0,22,FW,6,'#3a2214'); R(56,12,10,10,'#6b3f22'); R(57,14,8,1,'#2a1a10'); break;
+      case 'castle': R(0,0,FW,22,'#6a6a72'); for (let y=1;y<22;y+=4) for (let x=(y%8?0:3);x<FW;x+=7) R(x,y,6,3,'#7a7a82'); R(28,4,14,12,night?'#0a1028':'#8fc4e8'); R(34,4,2,12,'#4a4a52'); R(0,22,FW,6,'#4a4a52'); break;
+      case 'graveyard': R(0,0,FW,22,night?'#0a0c18':'#5a6070'); R(0,16,FW,6,'#2a3a2a'); [8,22,40,58].forEach((x,i) => { R(x,10+(i%2)*2,6,8,'#8a8a92'); R(x+2,8+(i%2)*2,2,2,'#8a8a92'); }); for (let x=0;x<FW;x+=3) R(x,14,1,6,'#2a2a2a'); R(0,22,FW,6,'#1f2a1f'); break;
+      case 'moor': R(0,0,FW,22,night?'#0a0c18':'#7a8088'); R(0,12,FW,10,'#5a6a4a'); for (let x=0;x<FW;x+=2) R(x,11+Math.round(Math.sin(x/9)*2),2,2,'#4a5a3a'); R(0,22,FW,6,'#4a5a3a'); break;
+      case 'lab': R(0,0,FW,22,'#5a5a62'); for (let y=1;y<22;y+=4) for (let x=(y%8?0:3);x<FW;x+=7) R(x,y,6,3,'#62626a'); R(4,14,24,2,'#5e4027'); [6,12,18,24].forEach((x,i) => { R(x,10,2,4,['#7fe07f','#e07fe0','#7fe0e0','#e0e07f'][i]); }); R(0,22,FW,6,'#3a3a42'); break;
+      default: { const wall = st.era && /1[5-7]\d\d/.test(st.era) ? '#8a6a4a' : '#b89a7a'; R(0,0,FW,22,wall); R(0,15,FW,7,'#7a5534'); R(0,15,FW,1,'#5e4027'); R(0,22,FW,6,'#6b4a2a'); for (let x=0;x<FW;x+=9) R(x,22,1,6,'#5e4027'); }
+    }
+    if (dusk && ['room','palace','tavern','castle','lab'].includes(st.kind)) alpha(.12, () => R(0,0,FW,FH,'#ff8a3a'));
+  }
+  function filmProps(st, t){
+    const slots = [[6,22],[58,22],[30,22],[18,22],[46,22]];
+    (st.props || []).forEach((p, i) => { const [x, y] = slots[i % slots.length]; switch (p){
+      case 'piano': R(x-2,y-7,12,6,'#1a1a1a'); R(x-2,y-7,12,1,'#f4f4f4'); R(x-1,y-1,1,1,'#1a1a1a'); R(x+8,y-1,1,1,'#1a1a1a'); break;
+      case 'table': case 'desk': R(x-2,y-6,12,2,'#7a5534'); R(x-1,y-4,1,4,'#5e4027'); R(x+8,y-4,1,4,'#5e4027'); break;
+      case 'chair': R(x,y-8,1,8,'#5e4027'); R(x,y-4,5,1,'#7a5534'); R(x+4,y-4,1,4,'#5e4027'); break;
+      case 'throne': R(x-1,y-12,8,12,'#c9a24a'); R(x,y-11,6,6,'#a02030'); break;
+      case 'tree': R(x+2,y-12,2,12,'#5e4027'); R(x-2,y-18,10,8,'#3f7f33'); break;
+      case 'window': R(x-2,3,10,9,'#5e4027'); R(x-1,4,8,7,st.time === 'night' ? '#0a1028' : '#bfe0f0'); R(x+3,4,1,7,'#5e4027'); break;
+      case 'portrait': R(x,3,7,8,'#c9a24a'); R(x+1,4,5,6,'#6a4a3a'); R(x+2,5,3,3,'#e0b090'); break;
+      case 'moon': R(x+4,2,5,5,'#f4f0d0'); break;
+      case 'stars': for (let k=0;k<6;k++) R((x+k*11)%FW,(k*5)%10,1,1,'#f4f4f4'); break;
+      case 'candle': R(x,y-5,1,5,'#f4f0e4'); R(x,y-7+(Math.floor(t/150)%2),1,2,'#ffb84d'); break;
+      case 'lamp': R(x,y-12,1,12,'#3a3a3a'); R(x-2,y-14,5,3,'#ffd36a'); break;
+      case 'coffin': R(x-2,y-3,14,3,'#3a2214'); R(x-1,y-4,12,1,'#5a3a24'); break;
+      case 'boat': R(x-4,y-3,16,3,'#7a5534'); R(x+3,y-12,1,9,'#5e4027'); R(x+4,y-11,5,6,'#f4f0e4'); break;
+      case 'door': R(x,y-14,7,14,'#5e4027'); R(x+5,y-7,1,1,'#c9a24a'); break;
+      case 'fire': R(x,y-3,7,3,'#3a2214'); R(x+1,y-6-(Math.floor(t/120)%2),5,4,'#ff8a1a'); R(x+2,y-8,3,3,'#ffd23f'); break;
+      case 'bed': R(x-2,y-5,14,5,'#e8e4dc'); R(x-2,y-7,4,3,'#f4f4f4'); R(x-2,y-5,14,1,'#a02030'); break;
+      case 'bookcase': R(x-1,y-16,10,16,'#5e4027'); for (let k=0;k<4;k++) for (let b=0;b<4;b++) R(x+b*2,y-15+k*4,1,3,['#c23b3b','#3b7bc2','#e0b04a','#4f9a3f'][(k+b)%4]); break;
+      case 'cross': R(x+2,y-10,1,10,'#8a8a92'); R(x,y-8,5,1,'#8a8a92'); break;
+      case 'skull': R(x,y-3,3,3,'#f4f0e4'); R(x,y-2,1,1,'#000'); R(x+2,y-2,1,1,'#000'); break;
+      case 'cart': R(x-2,y-6,12,4,'#7a5534'); R(x-1,y-2,3,2,'#3a3a3a'); R(x+6,y-2,3,2,'#3a3a3a'); break;
+      case 'horse': R(x-2,y-9,12,5,'#6b3f22'); R(x+8,y-12,4,5,'#6b3f22'); R(x-1,y-4,1,4,'#4a2a1a'); R(x+7,y-4,1,4,'#4a2a1a'); break;
+      case 'sword': R(x,y-10,1,8,'#d8d8e0'); R(x-1,y-3,3,1,'#c9a24a'); break;
+      case 'letter': R(x,y-8,4,3,'#f4f0e4'); break;
+      case 'cake': R(x,y-9,6,3,'#f0d0e0'); R(x+2,y-11,1,2,'#ffd23f'); break;
+      case 'teacup': R(x,y-8,2,2,'#f4f4f4'); break;
+      case 'flowers': R(x,y-4,4,4,'#c27a3b'); R(x-1,y-7,2,2,'#ff6b9a'); R(x+2,y-8,2,2,'#ffd23f'); R(x+4,y-6,2,2,'#c9a0ff'); break;
+      case 'fountain': R(x-2,y-3,12,3,'#cfc6b4'); R(x+3,y-9,2,6,'#bfe6f8'); break;
+      case 'gate': for (let k=0;k<5;k++) R(x+k*2,y-12,1,12,'#2a2a2a'); R(x,y-12,9,1,'#2a2a2a'); break;
+      case 'statue': R(x,y-3,7,3,'#cfc6b4'); R(x+2,y-12,3,9,'#d8d4cc'); R(x+2,y-14,3,2,'#d8d4cc'); break;
+      case 'bottle': R(x,y-8,2,4,'#3f7f33'); break;
+      case 'rain': for (let k=0;k<20;k++) R((k*7 + Math.floor(t/60)) % FW, (k*5 + Math.floor(t/40)) % FH, 1, 2, 'rgba(190,210,255,.6)'); break;
+      case 'fog': alpha(.25, () => R(0, 14, FW, 10, '#d8dce4')); break;
+    } });
+  }
+  function filmActor(c, pose, x, t, talking, face){
+    const L = c.look, o = {legs: true, face, talkPhase: talking};
+    if (pose === 'sit' || pose === 'kneel') o.legs = 'sit';
+    if (pose === 'point') o.fid = 'gesture'; else if (pose === 'bow') o.fid = 'shrug'; else if (pose === 'cower') o.fid = 'cross';
+    const y = pose === 'kneel' ? 3 : pose === 'fall' ? 8 : -1;
+    person(L, x - 5, y, t, o);
+  }
+  // the lines, on the clock: a subtitle at the foot of the screen, the voice, the audience's laugh, gasp or scream after
+  let filmSaid = -1, filmReacted = -1;
+  setInterval(() => {
+    if (!FILM || actor.loc !== 'cinema' || actor.hidden || forceLoc || DREAMING) return;
+    const T = NOW() - FILM.at, it = filmAt(T);
+    if (it && it.kind === 'line'){ const k = FILM_L.items.indexOf(it);
+      if (k !== filmSaid && T - it.t0 < 2500){ filmSaid = k; const l = FILM.scenes[it.scene].lines[it.line], who = 'fm-' + l.who; showSay(who, l.say); holdSay(it.t1 - T); Sound.say(who, l.say); } }
+    const done = FILM_L.items.filter(x => x.kind === 'line' && x.t1 <= T && T - x.t1 < 1500).slice(-1)[0];
+    if (done){ const k = FILM_L.items.indexOf(done), r = FILM.scenes[done.scene].lines[done.line].react; if (r && k !== filmReacted){ filmReacted = k; Sound.sfx(r); } }
+    if (it && it.kind === 'end' && filmReacted !== -2 && T - it.t0 < 2000){ filmReacted = -2; Sound.sfx('applause'); }
+  }, 300);
+  // the auditorium (CAM-38), from the back row: the screen up front, the curtain, the projector's beam, red seats and the backs of heads
+  const CIN_SCREEN = {x:32, y:5, w:128, h:52};
+  const CIN_ROWS = [68, 74, 80, 86, 92, 98];               // the seat backs' tops, front row first; he sits in the 4th (third from the back)
+  const CIN_SEATS = 14, CIN_SEAT_W = 13, CIN_SEAT_X0 = 5;
+  function cinemaSeat(x, y, near){ R(x, y, CIN_SEAT_W - 2, 8 + near, '#8a1a24'); R(x, y, CIN_SEAT_W - 2, 2, '#b02a34'); R(x + CIN_SEAT_W - 3, y + 2, 1, 6 + near, '#5a1018'); }
+  SCENES.cinema = {
+    cam:'CAM-38', place:'THE BIG S // PIXELPLEX', walkY:62, entry:8, exit:8,
+    stand:{idle:96, walking:96, film:96, talking:96, eating:96, drinking:96, phoning:96},
+    draw(t, hf, a, settled, actor){
+      const show = (typeof filmState === 'function') ? filmState() : null, dark = show && show.dark;
+      R(0,0,W,H,'#1a1014'); R(0,0,W,4,'#120a0e');
+      for (let x=0;x<W;x+=8) R(x,4,4,58,'#21141a');   // wall panels
+      // the screen and its curtain
+      const S = CIN_SCREEN; R(S.x-2,S.y-2,S.w+4,S.h+4,'#0a0608');
+      if (show && show.draw) show.draw(S, t); else { R(S.x,S.y,S.w,S.h,'#d8d4cc'); word('PIXELPLEX', S.x + 46, S.y + 24, '#7a2a3a'); }
+      const open = show ? show.curtain : 0, cw = Math.round((S.w/2 + 6) * (1 - open));
+      for (const side of [0, 1]){ const x0 = side ? S.x + S.w + 6 - cw : S.x - 6; R(x0, S.y - 4, cw, S.h + 8, '#8a1a2a'); for (let k=0;k<cw;k+=5) R(x0 + k + side, S.y - 4, 2, S.h + 8, '#6a1020'); }
+      R(S.x-8,S.y-6,S.w+16,4,'#5a0f1c');
+      // EXIT signs and the door on the left
+      [[2,10],[176,10]].forEach(([ex,ey]) => { R(ex,ey,14,6,'#0a3a1a'); word('EXIT', ex+1, ey+1, '#3bff7a'); });
+      R(2,40,14,24,'#2a1a20'); R(3,41,12,23,'#120a0e');
+      // the projector's beam from behind the camera, dust drifting in it (only while the film runs)
+      if (dark) alpha(.08, () => { for (let y=0;y<S.y+S.h;y+=2){ const k = 1 - y / (S.y + S.h + 40), w = S.w * (1 - k*.55); R(96 - w/2, H - 10 - y*1.2 < 0 ? 0 : S.y + S.h - y, w, 2, '#fff6d0'); } });
+      if (dark) for (let i=0;i<10;i++) R(60 + ((i*37 + Math.floor(t/90)) % 72), 20 + ((i*23 + Math.floor(t/140)) % 50), 1, 1, 'rgba(255,246,208,.5)');
+      // the rows: seats, the audience's backs, Ishai and his friend in the 4th row, middle
+      const me = CIN_ROWS[3], ishaiSeat = 6, fx = CIN_SEAT_X0 + ishaiSeat * CIN_SEAT_W, cl = actor.with && companionLook(a);
+      const seated = settled && a !== 'walking' && a !== 'idle' ? true : settled;
+      CIN_ROWS.forEach((ry, r) => {
+        for (let k=0;k<CIN_SEATS;k++){
+          const sx = CIN_SEAT_X0 + k * CIN_SEAT_W;
+          const taken = r === 3 && (k === ishaiSeat || (cl && k === ishaiSeat + 1));
+          if (!taken && (show ? show.full : .3) > hash(r * 31 + k * 7 + 3)) { const L = CROWD[(r * 5 + k * 3) % CROWD.length];
+            person(L, sx + 1, ry - 13, t + (r * 7 + k) * 391, {muted: true, fid: show && show.react && hash(r*13+k) < .5 ? 'shrug' : 'turn', legs: false}); }
+          if (r === 3 && k === ishaiSeat && seated && !actor.travelling){ const talk = a === 'talking' || a === 'eating' || a === 'drinking';
+            drawIshai(talk ? (a === 'talking' ? 'talking' : a) : 'back', sx + 1, ry - 14, t, {seated:true}); markHead('ishai', sx + 6, ry - 14); }
+          if (r === 3 && cl && k === ishaiSeat + 1 && seated && wantComp({id: actor.with, look: cl, x: sx + 6, kind:'seat'})){ markHead(actor.with, sx + 6, ry - 14); person(cl, sx + 1, ry - 14, t, {legs:false, fid: a === 'talking' ? undefined : 'turn', face: -1, talkPhase: a === 'talking'}); }
+          cinemaSeat(sx, ry, Math.floor(r / 2));
+        }
+      });
+      for (let r=0;r<CIN_ROWS.length;r++){ R(0, CIN_ROWS[r] + 9, 3, 1, '#ffb84d'); R(W-3, CIN_ROWS[r] + 9, 3, 1, '#ffb84d'); }   // aisle lights
+      if (!settled || actor.travelling) drawFloor(t, a, settled, actor, this);   // walking in or out along the front of the back row
+      liveLayer(t, this);
+      if (dark) alpha(.35, () => { R(0, CIN_ROWS[0] - 2, W, H, '#05030a'); R(0, 0, S.x - 8, CIN_ROWS[0], '#05030a'); R(S.x + S.w + 8, 0, W, CIN_ROWS[0], '#05030a'); });
+    }
+  };
 
   function drawBus(cx, night, doorOpen){
     R(cx-10,88,56,14,'#e8e4d8'); R(cx-10,88,56,2,'#cfc8b6'); for (let i=0;i<5;i++) R(cx-6+i*10,90,7,4, night?'#ffd36a':'#9fd3f0');
@@ -3704,7 +3922,7 @@
               phone:   {alone:3, company:1, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} }
   };
   // which actions can be interrupted, and how often (share of 45 s blocks that get a routine), alone / with company
-  const SEATED_AT = { cafe:['eating','drinking','working','reading','talking'], bar:['eating','drinking','talking'], park:['eating','reading'], apt2:['poker'], classroom:['lecture','idle','talking'] };
+  const SEATED_AT = { cinema:['film','idle','talking','eating','drinking','phoning'], cafe:['eating','drinking','working','reading','talking'], bar:['eating','drinking','talking'], park:['eating','reading'], apt2:['poker'], classroom:['lecture','idle','talking'] };
   const ERR_CHANCE = { idle:[.45,.3], talking:[0,.2], eating:[0,.12], drinking:[0,.12] };   // seated activities fidget in the seat instead (seatFid)
   const hash = n => { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4); n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; };
   function errandNow(){
@@ -4087,7 +4305,7 @@
   function placeSay(){
     const el = $('say');
     if (!SAY.who || NOW() > SAY.until || actor.switching){ el.hidden = true; return; }
-    const sp = speaker(SAY.who), head = HEADS[SAY.who];
+    const sp = speaker(SAY.who), head = HEADS[SAY.who] || (/^fm-/.test(SAY.who) && actor.loc === 'cinema' ? {x: 96, y: 55} : null);   // a film's line: a subtitle at the foot of the cinema screen
     const remote = CAST[SAY.who] && CAST[SAY.who].remote;
     if (!head && !remote && !(SAY.who === 'radio' || SAY.who === 'tv' || (actor.action === 'phoning' && actor.with === SAY.who))){ el.hidden = true; return; }
     $('sayWho').textContent = (head ? '' : SAY.who==='radio' ? '\u{1F4FB} ' : SAY.who==='tv' ? '\u{1F4FA} ' : remote && actor.with !== SAY.who ? '\u2709 ' : '\u260E ') + sp.name;
@@ -4113,7 +4331,7 @@
   $('clock').textContent = fmtClock.format(new Date(NOW()));
 
   /*__VOICES_JS__*/
-  Voices.setCast(id => (typeof CAST !== 'undefined' && CAST[id]) || null);
+  Voices.setCast(id => (typeof CAST !== 'undefined' && CAST[id]) || (typeof FILM_CAST !== 'undefined' && FILM_CAST[id]) || null);
   // ================= sound (Web Audio, generated in code, no files) =================
   const Sound = (() => {
     let ac = null, out = null, mode = 'off', amb = null, ambKey = '', wanted = '', brown = null, white = null;
@@ -4365,6 +4583,9 @@
           for (let i = 0; i < n; i++){ const w = Math.pow(r(), .7) * long; noise(.018 + r()*.02, {vol: (.03 + r()*.05) * (1 - w / long * .7), type:'bandpass', freq: 1200 + r()*2200, q: 1.2, when: w}); }
           for (let i = 0; i < (kind === 'ovation' ? 4 : 2); i++){ const w = r() * long * .6; tone(1900 + r()*500, .35, 'sine', .025, w, out, 1.35); }
           noise(1.2, {vol:.05, type:'bandpass', freq:420, q:.9, when: .2, buf: brown}); break; }
+        case 'laugh': for (let i = 0; i < 26; i++){ const w = r() * 1.6; noise(.06 + r()*.05, {vol: .02 + r()*.03, type:'bandpass', freq: 600 + r()*900, q: 2, when: w}); } break;   // a room laughing
+        case 'gasp': noise(.5, {vol:.05, type:'bandpass', freq: 900, q: 1.2, sweep:[600, 1500], buf: brown}); break;
+        case 'scream': tone(900, .5, 'sawtooth', .012, .05, out, 1.6); noise(.4, {vol:.03, type:'bandpass', freq:1400, q:2, when:.05}); break;
         case 'murmur': noise(3.2, {vol:.04, type:'bandpass', freq: 380 + r()*250, q: .8, buf: brown}); noise(2.5, {vol:.015, type:'bandpass', freq: 900 + r()*400, q: 3, when: .4}); break;   // a room full of people talking
         case 'sticks': for (let i = 0; i < 4; i++) tone(2600, .025, 'square', .05, i * .5); break;   // one, two, three, four
         case 'chair': tone(130 + r()*40,.35,'sawtooth',.018,0,out,1.5); break;
@@ -4565,7 +4786,7 @@
   const WAITS = new Set();    // the sandbox can cut waits short
   const untilT = at => { const ms = at - NOW(); if (ms <= 0) return Promise.resolve(); return new Promise(r => { const f = () => { WAITS.delete(f); clearTimeout(id); r(); }, id = setTimeout(f, ms); WAITS.add(f); }); };
   function talkPlan(ev, prevLoc, prevEv){
-    const lines = ev.lines || [], hosts = ev.action === 'lecture' ? [] : ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines), plan = [];
+    const lines = ev.lines || [], hosts = ev.action === 'lecture' || ev.action === 'film' ? [] : ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines), plan = [];
     // arriving by bus or taxi: the talk waits until he is there
     const r = prevLoc && !PREVIEW && prevLoc !== (ev.location || 'apartment') ? route(prevLoc, ev.location || 'apartment') : [], onBoard = r.some(x => VEH.has(x)) && !VEH.has(prevLoc) && !VEH.has(ev.location);
     // a gallery night: after the break the curtain rises first (CURTAIN_MS), then a few seconds of looking before anyone speaks or a picture is shown
@@ -4638,7 +4859,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', prom1:'THE PROMENADE', promenade:'THE PROMENADE', prom3:'THE PROMENADE', east1:'HERZL ST. EAST', east2:'HERZL ST. EAST', east3:'HERZL ST. EAST', kiosk:'SHMULIK\'S KIOSK', mall1a:'THE BIG S', mall1b:'THE BIG S', mall1c:'THE BIG S', mall2a:'THE BIG S', mall2b:'THE BIG S', mall2c:'THE BIG S', mall3a:'THE BIG S FOOD COURT', mall3b:'THE BIG S FOOD COURT', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', hall1:'1ST FLOOR HALL', apt2:'APARTMENT 2', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', prom1:'THE PROMENADE', promenade:'THE PROMENADE', prom3:'THE PROMENADE', east1:'HERZL ST. EAST', east2:'HERZL ST. EAST', east3:'HERZL ST. EAST', kiosk:'SHMULIK\'S KIOSK', mall1a:'THE BIG S', mall1b:'THE BIG S', mall1c:'THE BIG S', mall2a:'THE BIG S', mall2b:'THE BIG S', mall2c:'THE BIG S', mall3a:'THE BIG S FOOD COURT', mall3b:'THE BIG S FOOD COURT', cinema:'THE PIXELPLEX', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', hall1:'1ST FLOOR HALL', apt2:'APARTMENT 2', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
@@ -4734,7 +4955,7 @@
     const entry = TL.get(ev.id);
     if (!animate || !entry){    // history: everything at once
       (ev.lines||[]).forEach((l, i) => addMsg({id: ev.id + ':' + i, t: ev.t, who: l.who, say: l.say, loc: ev.location}, false));
-      if (ev.action !== 'lecture') (ev.commentary||[]).forEach((c, i) => addMsg({id: ev.id + ':c' + i, t: ev.t, who: c.who, say: c.say, loc: ev.location, host: true}, false));
+      if (ev.action !== 'lecture' && ev.action !== 'film') (ev.commentary||[]).forEach((c, i) => addMsg({id: ev.id + ':c' + i, t: ev.t, who: c.who, say: c.say, loc: ev.location, host: true}, false));
       return;
     }
     for (let k = 0; k < entry.plan.length; k++){
@@ -5008,7 +5229,7 @@
       if (at === undefined) return undefined;      // wait: the recap goes first
       if (at !== null && at + ms > from && at < c.t + 12 * 60000) from = at + ms;
     }
-    return slotAfter(from, 12 * 60000, T => { const m = momentAt(T); return m && m.ev.action !== 'sleeping' && m.ev.action !== 'lecture' && arrivedBy(m, T) && !talkBetween(T, T + 1) && !songBetween(T, T + 120000); });
+    return slotAfter(from, 12 * 60000, T => { const m = momentAt(T); return m && m.ev.action !== 'sleeping' && m.ev.action !== 'lecture' && m.ev.action !== 'film' && arrivedBy(m, T) && !talkBetween(T, T + 1) && !songBetween(T, T + 120000); });
   }
   async function playStudio(st, start, opt = {}){
     const times = STUDIO_TIMES(st.lines);
@@ -5043,7 +5264,7 @@
   // All from the server's state (GUIDE, SUMMARY, CAST) and the moments, so every viewer sees the same. No AI, no writes.
   const PIP_EVERY = 12 * 60000, PIP_AT = 80000, PIP_LEN = 45000, PIP_WAIT = 3 * 60000;
   const PIP_TURN = ['today', 'recap', 'today', 'week', 'today', 'people'];
-  const PIP_NOT = ['phoning','sleeping','talking','improv','lecture','concert','gallery','poker'];
+  const PIP_NOT = ['phoning','sleeping','talking','improv','lecture','concert','gallery','poker','film'];
   const pipDone = new Set(); let PIP_FORCE = null;
   const pipPick = (list, n, salt) => list.length ? list[Math.floor(hash(n * 31 + salt) * list.length)] : null;
   const pipWhat = w => String(w || '').replace(/\s+/g, ' ').trim();
@@ -5180,7 +5401,7 @@
   function adTick(){
     const now = NOW(), slot = Math.floor(now / AD_EVERY), e = now % AD_EVERY - 20000;
     const quiet = !forceLoc && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
-      && (actor.action === 'sleeping' || !['talking','phoning','improv','lecture'].includes(actor.action));
+      && (actor.action === 'sleeping' || !['talking','phoning','improv','lecture','film'].includes(actor.action));
     const want = e >= 0 && e < AD_SHOW && quiet ? BANNERS[Math.floor(hash(slot * 5 + 11) * BANNERS.length)] : null;
     const el = $('adb');
     if (want !== adOn){ adOn = want; el.classList.toggle('on', !!want);
@@ -5227,7 +5448,7 @@
   function guideTick(){
     const now = NOW(), slot = Math.floor(now / GUIDE_EVERY), el = $('guide'); let e = now % GUIDE_EVERY - GUIDE_AT;
     const quiet = !forceLoc && !PREVIEW && !BUILDER && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !adOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
-      && !['talking','phoning','improv','lecture','concert','gallery','poker'].includes(actor.action);
+      && !['talking','phoning','improv','lecture','concert','gallery','poker','film'].includes(actor.action);
     let c = e >= 0 && e < GUIDE_SHOW + 8000 && quiet ? guideCard(slot, now) : null;
     const pr = pollResCard(now, quiet); if (pr && pr.fresh && !studioOn && !showOn && !adOn){ c = pr; e = 0; }
     if (GUIDE_FORCE && now < GUIDE_FORCE.until){ const F = GUIDE_FORCE, k = F.kind, G = F.guide || GUIDE || {};
@@ -5501,6 +5722,7 @@
       arena(a){ ARENA = a || null; arenaPreload(); },
       promos(list){ PROMOS = list || []; renderPromos(); },
       poker(d, minAgo){ POKER = d ? {...d, at: NOW() - (minAgo || 0) * 60000} : null; },
+      film(d, secAgo){ if (!d){ setFilm(null); return; } d.at = NOW() - (secAgo || 0) * 1000; d.date = 'sample'; setFilm(d); CIN_PUB = {title: d.title, author: d.author, genre: d.genre, at: d.at, filmDate: 'sample', ready: true, live: true, poster: ['#2a1a5a','#ffd23f','#ff6b9a']}; return filmLayout(d).total; },
       go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(screenFor(e), e.action, true, e.with); },
       busy: () => !!actor.pending || actor.travelling || !!actor.ride || !!actor.switching || !!actor.rideUntil || held.size > 0 || queue.length > 0 || (!!tlLast && NOW() < tlLast.end),
       state: () => ({comp: comp.id ? {id: comp.id, x: Math.round(comp.x), mode: comp.mode, boarded: !!comp.boarded} : null, voice: Sound.voiceInfo(), regulars: Object.keys(REG).filter(regHere), say: SAY.who, loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
@@ -5689,6 +5911,7 @@
     mall2c: ['BRRR! has a shop in here as well as the cart on the promenade.', 'Page Turner, the bookshop. Ishai always slows down at a bookshop.'],
     mall3a: ['The food court, under the glass roof. Hummus, wok, pizza, and everyone eating with one eye on their phone.', 'Floor three. The sky through the roof, and the smell of everything at once.'],
     mall3b: ['Salad Days, Schnitzel Schtick and a Kfar Kofi. The whole menu of a life.', 'A table for one at the food court. The most honest seat in the city.', 'Coming soon, says the boarded counter. It has said that for a year.'],
+    cinema: ['The PixelPlex. Red seats, a curtain, and a projector older than both of us.', 'Saturday night at the movies. Phones off, please. Yes, you.', 'Third row from the back, in the middle. He always takes the same seats.'],
     prom1: ['Past the Pump House and out to the sea. The city just stops and the blue begins.', 'BRRR, the ice-cream cart. Every promenade has one man who believes in sorbet.', 'The promenade. Joggers on the left, cyclists on the right, and Ishai somewhere in the middle.'],
     promenade: ['The promenade. Wave-patterned paving, so even the floor is at the beach.', 'There is the lifeguard tower. Check the flag: white is calm, red means stay out.', 'A bench facing the walk, back to the sea. Tel Aviv has never decided which way to look.', 'Sea on one side, the whole city on the other. He picked the right side.'],
     prom3: ['The west end of the promenade, and there she is: The Big S. Three floors of air conditioning.', 'The Big S, built right on the shore. You can hear the sea from the doors.', 'Palm trees, a bench, and a mall that looks like a cruise ship ran aground.'],
@@ -5791,7 +6014,7 @@
   const talkSoon = ms => { const now = NOW(); for (const e of TL.values()){ if (e.start > now && e.start < now + ms) return true; if (e.start <= now && e.plan.some(p => e.start + p.at + p.ms > now - 1500 && e.start + p.at < now + ms)) return true; } return false; };
   function hostFill(force){
     const now = NOW(), slot = Math.floor(now / FILL_SLOT), at = slot * FILL_SLOT + hash(slot * 37 + 1) * 12000;
-    if (!force && (slot === hostFill.done || now < at || now > at + 9000 || forceLoc || PREVIEW || actor.action === 'lecture')) return false;
+    if (!force && (slot === hostFill.done || now < at || now > at + 9000 || forceLoc || PREVIEW || actor.action === 'lecture' || actor.action === 'film' || (FILM && actor.loc === 'cinema'))) return false;
     if (!force && (songBetween(now, now + 15000) || now - TALK_AT < FILL_QUIET || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || studioOn || showOn || callOn || talkSoon(7000) || (document.hidden && !POP.on))) return false;
     hostFill.done = slot;
     const say = hostFillLine(slot); if (!say) return false;
@@ -5812,6 +6035,7 @@
     mall2c: ['...two scoops, pistachio and something brave.', '...I am only looking. I am always only looking.'],
     mall3a: ['...hummus, again? We had hummus yesterday. And?', '...grab a table, I will get the trays.'],
     mall3b: ['...the schnitzel is the size of my head.', '...one salad, no onion, no tomato, no salad, I am joking.'],
+    cinema: ['...it is in black and white? No, it is in pixels.', '...did you bring the popcorn or did you eat it in the lift?', '...shh, it is starting.'],
     prom1: ['...one scoop, two spoons, we are not animals.', '...ten kilometres? I said ten minutes.', '...the Pump House is doing concerts now, did you see the board?'],
     promenade: ['...the flag is red, so the sea is closed. Closed! Like a shop.', '...I swam here every morning for forty years and I am still cold.', '...look at the sunset. No, without your phone. Look.', '...on the bench, the one by the tower, at six.'],
     prom3: ['...we are only going in for the air conditioning.', '...the food court is on the top floor, under the glass.', '...The Big S. S for what? Nobody knows.'],
@@ -6281,7 +6505,7 @@
       if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;
       if (s.course) COURSE = s.course;
-      ARENA = s.arena || null; GUIDE = s.guide || null; if (s.voices && JSON.stringify(s.voices) !== JSON.stringify(Voices.config())) Voices.setConfig(s.voices); arenaPreload(); pokerSync(s.poker); PROMOS = s.promos || []; renderPromos();
+      ARENA = s.arena || null; CIN_PUB = s.cinema || null; GUIDE = s.guide || null; if (s.voices && JSON.stringify(s.voices) !== JSON.stringify(Voices.config())) Voices.setConfig(s.voices); arenaPreload(); pokerSync(s.poker); PROMOS = s.promos || []; renderPromos();
       if ('poll' in s) setPoll(s.poll);
       if (s.summary) SUMMARY = s.summary;
       if (s.summary || s.course) renderSummary();

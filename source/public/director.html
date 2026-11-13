@@ -117,6 +117,23 @@
     <div class="box"><div style="font-size:24px">AI checks (last moments)</div><div id="diag" class="muted" style="white-space:pre-line;font-size:16px"></div></div>
 
     <div class="box">
+      <div style="font-size:24px">Cinema: Saturday night at the PixelPlex</div>
+      <div id="cinInfo" style="font-size:17px"></div>
+      <label for="cinTitle">Title for this Saturday (from story/films.json; empty = the next in turn)</label>
+      <input id="cinTitle" list="cinList" style="width:100%"><datalist id="cinList"></datalist>
+      <div class="bar" style="margin-top:8px">
+        <button id="cinPick">Pick this title</button>
+        <button id="cinWrite" class="ghost">Write it now</button>
+        <button id="cinRewrite" class="ghost">Write it again</button>
+        <button id="cinRepeat" class="ghost">Repeat an older film</button>
+        <button id="cinSkip" class="ghost">Skip this week</button>
+        <button id="cinOff" class="ghost">Cinema on / off</button>
+        <a href="/sandbox" style="color:var(--phos)">Preview a film night in the sandbox</a>
+        <span id="cinMsg"></span>
+      </div>
+    </div>
+
+    <div class="box">
       <div style="font-size:24px">Course: Strange But True</div>
       <div id="courseInfo"></div>
       <label for="courseTopic">Topic (the exact Wikipedia title, or pick from the list)</label>
@@ -165,6 +182,20 @@
       q.moments.forEach(m => (m.lines || []).forEach(l => { const r = document.createElement('div'); r.textContent = `${/^student/.test(l.who) ? 'Student' : l.who === 'sasson' ? 'Dr. Sasson' : 'Ishai'}: ${l.say}`; pv.appendChild(r); })); });
     const mm = $('courseMemory'); mm.textContent = c.memory.length ? '' : 'Nothing yet.';
     c.memory.forEach(m => { const r = document.createElement('div'); r.textContent = `${m.title}: ${m.note}`; mm.appendChild(r); });
+  }
+  function renderCinema(c){
+    if (!c) return; const el = $('cinInfo'); el.textContent = '';
+    const line = t => { const d = document.createElement('div'); d.textContent = t; el.appendChild(d); };
+    if (c.off) line('The cinema is off.');
+    (c.films || []).forEach(f => line(`${f.date}: "${f.title}" (${f.genre})${f.repeat ? ', a repeat of ' + f.repeat : ''}, written ${f.done} of ${f.of || '?'} parts${f.companion ? ', with ' + f.companion : ', alone'}${f.goal ? ', booked' : ''}${f.skip ? ', SKIPPED' : ''}`));
+    if (!(c.films || []).length) line('No film chosen yet for this Saturday (it is chosen from Sunday).');
+    if (c.next && c.next.length) line('Next in turn: ' + c.next.join(', '));
+    if (c.err) { const d = document.createElement('div'); d.className = 'err'; d.textContent = 'Last error: ' + c.err.msg; el.appendChild(d); }
+    const dl = $('cinList'); if (!dl.children.length) (c.titles || []).forEach(t => { const o = document.createElement('option'); o.value = t; dl.appendChild(o); });
+  }
+  async function cinemaDo(body, busy){
+    const msg = $('cinMsg'); msg.className = ''; msg.textContent = busy;
+    try { render(await api(body)); msg.textContent = 'Done.'; } catch(e){ msg.className = 'err'; msg.textContent = e.message; }
   }
   async function courseDo(body, busy){
     const msg = $('courseMsg'); msg.className = ''; msg.textContent = busy;
@@ -266,7 +297,7 @@
   $('vSave').onclick = async () => { $('vMsg').textContent = 'Saving…'; try { const v = await api({action: 'voicesSave', voices: vDraft || {}}); vBuilt = ''; render(v); $('vMsg').textContent = 'Saved. Open pages pick it up within a minute.'; } catch(e){ $('vMsg').textContent = e.message; } };
   $('vReset').onclick = () => { if (!confirm('Set every voice back to automatic? (Save to keep it.)')) return; vDraft = {}; Voices.setConfig(vDraft); vBuilt = 'reset'; renderVoices({cfg: {}, cast: Object.values(vCast)}); $('vMsg').textContent = 'Not saved yet.'; };
   function render(v){
-    renderVoices(v.voices); renderCourse(v.course); renderPolls(v.polls); renderSurveys(v.surveys);
+    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('last').textContent = v.last ? `${fmt(v.last.created)} (${v.last.location}/${v.last.action}) ${v.last.text}` : '—';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';
@@ -330,6 +361,12 @@
   }
   $('pollSkip').onclick = async () => { if (!confirm('Skip the coming poll? This hour will have none.')) return; render(await api({action:'pollSkip'})); };
   $('pollBank').onclick = async () => render(await api({action:'pollBank'}));
+  $('cinPick').onclick = () => cinemaDo({action:'cinemaPick', title:$('cinTitle').value}, 'Choosing...');
+  $('cinWrite').onclick = () => cinemaDo({action:'cinemaWrite'}, 'Writing the whole film (a minute or two)...');
+  $('cinRewrite').onclick = () => cinemaDo({action:'cinemaRewrite'}, 'Starting over...');
+  $('cinRepeat').onclick = () => cinemaDo({action:'cinemaRepeat'}, 'Finding an older film...');
+  $('cinSkip').onclick = () => cinemaDo({action:'cinemaSkip'}, 'Changing...');
+  $('cinOff').onclick = () => cinemaDo({action:'cinemaOff'}, 'Changing...');
   $('courseSet').onclick = () => courseDo({action:'courseSet', title:$('courseTopic').value}, 'Checking Wikipedia...');
   $('courseNew').onclick = () => courseDo({action:'courseNew'}, 'Picking...');
   $('courseGen').onclick = () => courseDo({action:'courseGen'}, 'Writing the lecture, this takes up to a minute...');

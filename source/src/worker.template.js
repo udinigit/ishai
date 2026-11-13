@@ -217,7 +217,7 @@ const LOOK = {
   extras: ["glasses","sunglasses","beard","stubble","mustache","freckles","earring","headphones","necklace","tie","scarf","apron","watch","bag","backpack"]
 };   // must match LOOK_OPTS in the page
 
-const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && a !== "lecture" && a !== "gallery" && a !== "concert" && a !== "poker" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" and "lecture" are only for planned classes
+const allowed = (loc, unlocked) => LOCATIONS[loc].filter(a => a !== "improv" && a !== "lecture" && a !== "gallery" && a !== "concert" && a !== "poker" && a !== "film" && (!NEEDS[a] || unlocked.includes(NEEDS[a])));   // "improv" and "lecture" are only for planned classes
 
 const HTML = __HTML__;
 const DIRECTOR_HTML = __DIRECTOR_HTML__;
@@ -235,6 +235,7 @@ const BUILD = "__BUILD__";
 // The story plan (story/plan.json in the repository), written ahead by the daily planner.
 const PLAN = __PLAN__;
 const COURSE = __COURSE__;
+const FILMS = __FILMS__;   // story/films.json: the PixelPlex's films (docs/CINEMA_PLAN.md)
 // sha-256 of the health check's fix token (the token itself lives only in the scheduled task)
 const FIX_HASH = "b5c6aeba6f36ea21799c22ef3a0a75c2692b6d8f9018f76669af06fe84d7c505";
 
@@ -289,7 +290,7 @@ export default {
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
-        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), life: (s.life || []).slice(-6),
+        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), cinema: cinemaHealth(s), life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
         polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3), pushes: (s.pollPushes || []).map(j => ({ kind: j.kind, poll: j.poll, at: j.at, sent: j.sent, done: j.done })) },
@@ -395,6 +396,13 @@ export default {
         const t = await req.text(); if (t.length > 400000) return json({ error: "too big" }, {}, 400); try { JSON.parse(t); } catch (e) { return json({ error: "not JSON" }, {}, 400); }
         await env.ISHAI.put("beats:" + id, t); return json({ ok: true }); }
       const v = id && await env.ISHAI.get("beats:" + id); return v ? new Response(v, { headers: { "content-type": "application/json", "cache-control": "public, max-age=86400" } }) : json({ error: "no beat map" }, {}, 404);
+    }
+    if (url.pathname === "/api/film") {   // a PixelPlex film as the page plays it; ?sample=1 a short sample for the sandbox
+      if (url.searchParams.get("sample")) return json({ ...FILM_SAMPLE, date: "sample", at: Number(url.searchParams.get("at")) || Date.now() + 60000 }, { "cache-control": "no-store" });
+      const s = await loadState(env), date = String(url.searchParams.get("date") || "").replace(/[^0-9-]/g, "").slice(0, 10), c = s.cinema;
+      const fl = c && Object.values(c.films || {}).find(x => x.date === date || x.repeat === date) || null, src = fl && (fl.repeat ? { ...fl, date: fl.repeat } : fl);
+      const f = src && await filmFull(env, src); if (!f) return json({ error: "no film for that date yet" }, {}, 404);
+      return json({ ...f, at: fl.at, title: fl.title }, { "cache-control": "public, max-age=600" });
     }
     if (url.pathname === "/api/poker") {   // a poker night as the page plays it; ?sample=1 (director) simulates a short one for the sandbox
       if (url.searchParams.get("sample")) {
@@ -510,7 +518,7 @@ function publicState(s, dev) {
     studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
-    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()), promos: promosPublic(s, Date.now()), guide: guideToday(s, Date.now()), voices: s.voiceCfg || {},
+    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()), cinema: cinemaPublic(s, Date.now()), promos: promosPublic(s, Date.now()), guide: guideToday(s, Date.now()), voices: s.voiceCfg || {},
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [], barStations: s.world.barStations || [], cafeStations: s.world.cafeStations || [] } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
@@ -609,6 +617,7 @@ async function tick(env, force) {
   if (!force) try { await courseTick(env, s, now); } catch (e) { courseOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   if (!force) try { await pokerTick(env, s, now); } catch (e) { pokerOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   if (!force) try { arenaTick(s, now); } catch (e) { arenaOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
+  if (!force) try { await filmTick(env, s, now); } catch (e) { cinemaOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   geminiOutUntil = Math.max(geminiOutUntil, s.geminiOutUntil || 0);   // a pause set by another isolate still counts
   TALK = talkLevel(s, env, now);
   // director: activate the next goal, or force it if its deadline passed
@@ -660,7 +669,7 @@ async function tick(env, force) {
   if (goal && goal.status !== "done" && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
 
   if (ev.newCard) { s.cast[ev.newCard.id] = ev.newCard; s.lastNewAt = now; }
-  if (ev.action === "lecture") ev.commentary = [];   // the hosts stay quiet while Dr. Sasson teaches
+  if (ev.action === "lecture" || ev.action === "film") ev.commentary = [];   // the hosts stay quiet while Dr. Sasson teaches, and in the cinema
   if ((ev.commentary || []).some(c => SPONSORS.some(sp => c.say.toLowerCase().includes(sp.name.toLowerCase())))) s.lastAd = now;
   const did = { eating: ["eat"], cooking: [], drinking: ["drink"], bathroom: ["bathroom"], showering: ["shower", "bathroom"] }[ev.action] || [];
   if (ev.action === "eating" && (ev.location === "cafe" || ev.location === "bar")) did.push("drink");
@@ -803,7 +812,7 @@ function autoFixNote(s, now, storyMs, last) {
 function autoFix(s, ev, goal, now, storyMs) {
   if (ev.action === "sleeping" || /^night/.test(ev.src || "")) return null;                       // sleep moments may look alike
   if (goal && goal.script && goal.step > 0) return null;                                          // a planned scene is playing as written
-  if (["lecture", "poker", "concert", "improv"].includes(ev.action)) return null;
+  if (["lecture", "poker", "concert", "improv", "film"].includes(ev.action)) return null;
   const why = loopSignal(s, now); if (!why) return null;
   if ((s.fixLog || []).some(f => now - f.at < AUTOFIX_GAP_MIN * 60000)) return null;            // cooldown
   const last = s.events[s.events.length - 1];
@@ -1368,7 +1377,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   { const ms = Date.now() + DELAY_MIN * 60000, inside = ev.location === last.location || (ev.location === "campus" && last.location === "classroom");
     if (LOCATIONS[ev.location] && !inside && !planned && PR[ev.location] && !placeOpen(ev.location, ms)) return { ev, problem: closedWhy(ev.location) }; }
   if (!LOCATIONS[ev.location]) return { ev, problem: `"${ev.location}" is not a known location` };
-  if ((ev.action === "improv" || ev.action === "lecture") && !planned) ev.action = "talking";     // the class layouts come from the plan only
+  if ((ev.action === "improv" || ev.action === "lecture" || ev.action === "film") && !planned) ev.action = "talking";     // the class layouts come from the plan only
   if (!LOCATIONS[ev.location].includes(ev.action)) {
     const A = { waiting: "idle", sitting: "idle", standing: "idle", relaxing: "idle", resting: "idle", thinking: "idle", cleaning: "idle", tidying: "idle", washing: "idle", shopping: "idle", browsing: "idle", looking: "idle", lounging: "idle", stretching: "idle",
       typing: "working", coding: "working", designing: "working", emailing: "working", texting: "phoning", calling: "phoning", chatting: "talking", speaking: "talking", greeting: "talking",
@@ -1499,12 +1508,12 @@ function cleanCard(c, s, loc) {
 }
 
 // last resort: keep the text but force legal values
-const EVENT_ONLY = ["arena", "apt2", "classroom"];   // only planned moments go in (the hall, Boaz's flat, the lecture room)
+const EVENT_ONLY = ["arena", "apt2", "classroom", "cinema"];   // only planned moments go in (the hall, Boaz's flat, the lecture room, the PixelPlex)
 function repair(ev, s, last, planned = false) {
   let loc = LOCATIONS[ev.location] ? ev.location : last.location;
   if (!planned && EVENT_ONLY.includes(loc) && loc !== last.location) loc = last.location;
   if (loc !== last.location && !NEXT[last.location].includes(loc) && !nextPath(last.location, loc)) loc = last.location;
-  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : ev.action === "concert" && loc === "arena" ? ["concert"] : ev.action === "poker" && loc === "apt2" ? ["poker"] : allowed(loc, s.unlocked);
+  const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : ev.action === "concert" && loc === "arena" ? ["concert"] : ev.action === "poker" && loc === "apt2" ? ["poker"] : ev.action === "film" && loc === "cinema" ? ["film"] : allowed(loc, s.unlocked);
   const act = legal.includes(ev.action) ? ev.action : (legal.includes("idle") ? "idle" : legal[0]);
   const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with) && act !== "sleeping";
   return { ...ev, location: loc, action: act, with: ok ? ev.with : null,
@@ -2684,7 +2693,7 @@ async function pollTick(env, s, ev, now, last) {
     const say = !r.total ? "Nobody voted this hour, so life goes on exactly as planned. Your loss." : o.kind === "none" ? `The votes are in: ${pct}% said "${o.label}". So, nothing. Democracy!`
       : at ? `The votes are in: ${pct}% chose "${o.label}"${r.tie ? " (a tie, settled by the studio coin)" : ""}. Keep watching, it happens later today.` : `The votes are in: "${o.label}" won, but life got too busy for it today.`;
     const pc = { who: pollHash(p.id) % 2 ? "zohar" : "oren", say };
-    if (ev.action === "lecture") s.surveySay = [...(s.surveySay || []), { ...pc, at: now }];   // no hosts in class: it airs after the lecture
+    if (ev.action === "lecture" || ev.action === "film") s.surveySay = [...(s.surveySay || []), { ...pc, at: now }];   // no hosts in class or at the film: it airs after
     else ev.commentary = [...(ev.commentary || []), pc];
     s.pollLog = [...(s.pollLog || []), { id: p.id, question: p.question, bank: p.bank || null, winner: o ? o.label : null, kind: o ? o.kind : null, pct, total: r.total, goal: goalId, at: at }].slice(-20);
   }
@@ -2883,7 +2892,7 @@ function surveyHosts(s, ev, now) {
       : `Remember the survey? ${svPct(r, r.winner)}% of you wanted ${surveyName(s, sv.about)} to take Ishai to ${o.label}. Here we go.` }];
   }
   s.surveySay = (s.surveySay || []).filter(x => now - x.at < 18 * 3600000);
-  if (s.surveySay.length && ev.action !== "sleeping" && ev.action !== "lecture" && (ev.commentary || []).length < 2) { const x = s.surveySay.shift(); ev.commentary = [...(ev.commentary || []), { who: x.who, say: x.say }]; }
+  if (s.surveySay.length && ev.action !== "sleeping" && ev.action !== "lecture" && ev.action !== "film" && (ev.commentary || []).length < 2) { const x = s.surveySay.shift(); ev.commentary = [...(ev.commentary || []), { who: x.who, say: x.say }]; }
 }
 // live results for everyone, counted at most once a minute per isolate
 let surveyLive = { at: 0, by: {} };
@@ -3127,6 +3136,254 @@ function arenaPublic(s, now) {
       : { id: ev.id, date: ev.date, kind: ev.kind, at: ev.at, title: ev.title, artist: ev.artist, sets: ev.sets } };
 }
 const arenaHealth = s => { const a = s.arena; if (!a) return null; return { events: Object.values(a.events).map(e => ({ id: e.id, kind: e.kind, title: e.title, artist: e.artist, companion: e.companion, goal: e.goalId || null, skip: !!e.skip })), off: !!a.off, err: a.err }; };
+// ---------- Saturday night at the PixelPlex (docs/CINEMA_PLAN.md) ----------
+// Every Saturday at 21:00 (after Shabbat) the cinema at The Big S shows an old public-domain play or story as a short 8-bit film. The text comes from
+// Project Gutenberg (found through Gutendex by title and author); Gemini writes the film one part a day, Sunday to Thursday (filmTick), each part
+// stored once in KV (film:<date>:<n>). On the night nothing is written: the page plays the film by the clock (filmLayout, the same on both sides).
+const FILM_H = 21, FILM_DAY = 6, FILM_DOORS_MIN = 9, FILM_BREAK_MS = 5 * 60000, FILM_PART_IN = 60000;
+const FILM_SETS = ["room", "garden", "street", "forest", "palace", "shore", "ship", "tavern", "castle", "graveyard", "moor", "lab"];
+const FILM_PROPS = ["piano", "table", "chair", "throne", "tree", "window", "moon", "boat", "candle", "coffin", "portrait", "door", "fire", "bed", "bookcase", "lamp", "cross", "stars", "rain", "fog", "skull", "cart", "horse", "sword", "letter", "cake", "teacup", "flowers", "fountain", "gate", "statue", "desk", "bottle"];
+const FILM_POSES = ["stand", "sit", "kneel", "bow", "point", "embrace", "fall", "cower"], FILM_MOVES = ["still", "pan-left", "pan-right", "zoom-in"], FILM_PAL = ["warm", "cold", "dark", "bright", "sepia"];
+const FILM_REACT = ["laugh", "gasp", "scream"];
+const allFilms = () => Object.entries(FILMS.strands).flatMap(([genre, list]) => list.map(f => ({ ...f, genre, id: "f-" + f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40) })));
+function nextFilmAt(s, now) {   // the next Saturday 21:00 Israel time that is not a holiday
+  for (let k = 0; k < 15; k++) {
+    const day = dayOfTZ(now + k * 86400000), [y, m, d] = day.split("-").map(Number);
+    if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() !== FILM_DAY || (s.world?.holidays || []).some(h => h.date === day)) continue;
+    const u = Date.UTC(y, m - 1, d, FILM_H), t = u - tzOffset(u);
+    if (t + 60 * 60000 > now) return t;
+  }
+  return null;
+}
+function cinemaOf(s) {
+  if (!s.cinema) s.cinema = { queue: [], used: [], strandAt: 0, films: {}, history: [], err: null, off: false };
+  const c = s.cinema;
+  while (c.queue.length < 2) { const f = pickFilm(c); if (!f) break; c.queue.push(f); }
+  return c;
+}
+function pickFilm(c) {
+  const names = Object.keys(FILMS.strands), taken = new Set([...c.used, ...c.queue.map(q => q.id)]);
+  let pool = allFilms().filter(f => !taken.has(f.id)); if (!pool.length) { c.used = []; pool = allFilms().filter(f => !c.queue.some(q => q.id === f.id)); }
+  for (let i = 0; i < names.length; i++) { const g = names[(c.strandAt + i) % names.length], l = pool.filter(f => f.genre === g);
+    if (l.length) { c.strandAt = (names.indexOf(g) + 1) % names.length; return l[Math.floor(Math.random() * l.length)]; } }
+  return pool[0] || null;
+}
+// ---- the text: Gutendex finds the book, Gutenberg's plain text without its header and footer ----
+const norm = t => String(t).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+async function gutenbergText(f) {
+  const ua = { headers: { "user-agent": "WatchingIshai/1.0 (story website; one book a week)" } };
+  let book = null;
+  if (f.gid) { const r = await fetch("https://gutendex.com/books/" + f.gid, ua); if (r.ok) book = await r.json(); }
+  if (!book) {
+    const last = f.author.split(" ").pop(), r = await fetch("https://gutendex.com/books/?languages=en&search=" + encodeURIComponent(f.title + " " + last), ua);
+    if (!r.ok) throw new Error(`Gutendex ${r.status} for ${f.title}`);
+    const want = norm(f.title), list = ((await r.json()).results || []).filter(b => b.formats && Object.keys(b.formats).some(k => k.startsWith("text/plain")));
+    book = list.find(b => norm(b.title) === want && (b.authors || []).some(a => norm(a.name).includes(norm(last))))
+      || list.find(b => norm(b.title).startsWith(want) && (b.authors || []).some(a => norm(a.name).includes(norm(last))))
+      || list.find(b => norm(b.title).includes(want) && (b.authors || []).some(a => norm(a.name).includes(norm(last))));
+    if (!book) throw new Error(`Gutenberg has no plain text of "${f.title}" by ${f.author}`);
+  }
+  const died = Math.max(...(book.authors || []).map(a => a.death_year || 0));
+  if (died && died > new Date().getUTCFullYear() - 71) throw new Error(`"${f.title}": its author died in ${died}, not yet public domain in Israel`);
+  f.gid = book.id;
+  const fm = book.formats, key = Object.keys(fm).find(k => k.startsWith("text/plain; charset=utf-8")) || Object.keys(fm).find(k => k.startsWith("text/plain"));
+  const r = await fetch(fm[key], ua); if (!r.ok) throw new Error(`Gutenberg ${r.status} for ${f.title}`);
+  let t = (await r.text()).replace(/\r/g, "");
+  const a = t.search(/\*\*\* ?START OF (THE|THIS) PROJECT GUTENBERG[^\n]*\n/i), b = t.search(/\*\*\* ?END OF (THE|THIS) PROJECT GUTENBERG/i);
+  if (a >= 0) t = t.slice(t.indexOf("\n", a) + 1); if (b > 0) t = t.slice(0, t.search(/\*\*\* ?END OF (THE|THIS) PROJECT GUTENBERG/i));
+  t = t.replace(/^[^\n]*(project gutenberg|gutenberg\.org|ebook)[^\n]*\n/gim, "");   // never a word about Gutenberg in the film
+  if (t.length < 8000) throw new Error(`"${f.title}" is too short to film`);
+  return t.trim();
+}
+// cut the text into parts at its own headings (ACT, SCENE, CHAPTER, STAVE...), else at paragraph breaks; every part at most FILM_PART_IN characters
+function filmParts(text, n) {
+  const heads = []; const re = /\n\s*(ACT|SCENE|CHAPTER|STAVE|PART|BOOK)\s+[A-Z0-9IVXLC]+[^\n]{0,60}\n/g; let m;
+  while ((m = re.exec(text))) heads.push(m.index);
+  const cuts = [0];
+  for (let k = 1; k < n; k++) {
+    const want = Math.floor(text.length * k / n), near = heads.filter(h => Math.abs(h - want) < text.length / (n * 2.5)).sort((x, y) => Math.abs(x - want) - Math.abs(y - want))[0];
+    cuts.push(near != null && near > cuts[cuts.length - 1] ? near : Math.max(cuts[cuts.length - 1] + 1, text.indexOf("\n\n", want) > 0 ? text.indexOf("\n\n", want) : want));
+  }
+  cuts.push(text.length);
+  return cuts.slice(0, -1).map((c, i) => { const p = text.slice(c, cuts[i + 1]).trim(); return p.length > FILM_PART_IN ? p.slice(0, FILM_PART_IN / 2) + "\n\n[...]\n\n" + p.slice(-FILM_PART_IN / 2) : p; });
+}
+const FILM_SYS = (f, part, of) => `You adapt "${f.title}" by ${f.author} (a ${f.kind}, ${f.genre}) into a short 8-bit film shown at a small cinema. This is part ${part} of ${of}. Reply with ONLY JSON:
+{"cast":[{"id":"short-lowercase-id","name":"Name","look":{"hair":"...","hairColor":"...","skin":"...","shirt":"...","pants":"...","hat":"...","top":"...","bottom":"...","extras":["..."]},"voice":"m or f"}],
+ "scenes":[{"title":"short place and time, e.g. Algernon's flat, morning","set":{"kind":"...","era":"1890s","time":"day|dusk|night","props":["..."],"palette":"..."},
+   "frames":[{"who":["id1","id2"],"pose":{"id1":"stand"},"move":"still"}],
+   "lines":[{"who":"id","say":"...","frame":0,"react":"laugh"}]}],
+ "recap":"one sentence: what happened in this part"}
+RULES
+- 2 to 4 scenes, in the story's order, covering THIS PART of the SOURCE only. Each scene has 6 to 16 lines; each "say" at most 130 characters.
+- Keep the plot, the characters and the best lines; condense, and modernise a little only where old wording is hard to follow. "who" is a cast id, or "narrator" for a short line that bridges a gap (at most 2 a scene).
+- "cast": everyone who speaks in this part. Reuse the ids and looks from CAST SO FAR exactly; add only new people. Look values ONLY from: hair ${LOOK.hair.filter(h => h !== "cap").join("/")}; hairColor ${LOOK.hairColor.join("/")}; skin ${LOOK.skin.join("/")}; shirt and pants ${LOOK.cloth.join("/")}; hat ${LOOK.hat.join("/")}; top ${LOOK.top.join("/")}; bottom ${LOOK.bottom.join("/")}; extras (0-3) ${LOOK.extras.join("/")}.
+- set.kind ONE of: ${FILM_SETS.join(", ")}. props (0-5) ONLY from: ${FILM_PROPS.join(", ")}. palette ONE of: ${FILM_PAL.join(", ")} (horror: cold or dark).
+- 1 or 2 frames a scene; each frame shows 1-3 cast ids with a pose from: ${FILM_POSES.join(", ")}; move one of: ${FILM_MOVES.join(", ")}. A line's "frame" is the frame shown while it is said.
+- "react" (optional) is how the audience reacts after the line: ${FILM_REACT.join(", ")}; at most 1 line in 6.
+- Deaths and horrors may happen, but nothing graphic: a fall, a fade, a scream. No sex scenes.
+- Plain speech only: no markdown, no stage directions inside "say", nothing about cameras, being filmed, Project Gutenberg or this cinema.`;
+function cleanFilm(o, castSoFar) {
+  const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+  const cast = [...castSoFar], ids = new Set(cast.map(c => c.id));
+  for (const c of (Array.isArray(o?.cast) ? o.cast : []).slice(0, 14)) { const id = str(c?.id, 20).toLowerCase().replace(/[^a-z0-9-]/g, ""); if (!id || ids.has(id) || id === "narrator") continue;
+    ids.add(id); cast.push({ id, name: str(c.name, 30) || id, look: cleanLook(c.look || {}), voice: c.voice === "f" ? "f" : "m" }); }
+  let reacts = 0;
+  const scenes = (Array.isArray(o?.scenes) ? o.scenes : []).slice(0, 4).map(sc => {
+    const set = sc?.set || {}, frames = (Array.isArray(sc?.frames) ? sc.frames : []).slice(0, 2).map(fr => {
+      const who = (Array.isArray(fr?.who) ? fr.who : []).map(w => str(w, 20).toLowerCase()).filter(w => ids.has(w)).slice(0, 3);
+      const pose = {}; who.forEach(w => { const p = str((fr.pose || {})[w], 10).toLowerCase(); pose[w] = FILM_POSES.includes(p) ? p : "stand"; });
+      return { who, pose, move: FILM_MOVES.includes(fr?.move) ? fr.move : "still" }; }).filter(fr => fr.who.length);
+    const lines = (Array.isArray(sc?.lines) ? sc.lines : []).slice(0, 16).map(l => {
+      const who = str(l?.who, 20).toLowerCase(), say = str(l?.say, 140); if (!say || !(ids.has(who) || who === "narrator")) return null;
+      const out = { who, say, frame: frames.length > 1 && +l.frame === 1 ? 1 : 0 };
+      if (FILM_REACT.includes(l.react) && reacts < 3) { out.react = l.react; reacts++; }
+      return out; }).filter(Boolean);
+    return { title: str(sc?.title, 60) || "Later", set: { kind: FILM_SETS.includes(set.kind) ? set.kind : "room", era: str(set.era, 20), time: ["day", "dusk", "night"].includes(set.time) ? set.time : "day",
+      props: (Array.isArray(set.props) ? set.props : []).filter(x => FILM_PROPS.includes(x)).slice(0, 5), palette: FILM_PAL.includes(set.palette) ? set.palette : "warm" },
+      frames: frames.length ? frames : [{ who: lines.filter(l => l.who !== "narrator").map(l => l.who).filter((w, i, a) => a.indexOf(w) === i).slice(0, 2), pose: {}, move: "still" }], lines };
+  }).filter(sc => sc.lines.length >= 3);
+  return scenes.length ? { cast, scenes, recap: str(o.recap, 300) } : null;
+}
+async function generateFilmPart(env, s, film) {
+  if (!env.GEMINI_API_KEY || Date.now() < geminiOutUntil) throw new Error("Gemini is not available (a film is written by Gemini only)");
+  const text = await gutenbergText(film), parts = filmParts(text, film.of || (film.of = text.length > 160000 ? 5 : 4)), k = film.done || 0;
+  const user = `CAST SO FAR: ${JSON.stringify((film.cast || []).map(c => ({ id: c.id, name: c.name, look: c.look, voice: c.voice })))}\nSTORY SO FAR: ${(film.recaps || []).join(" ") || "(the beginning)"}\n\nSOURCE, part ${k + 1} of ${film.of}:\n${parts[k]}`;
+  const raw = await runGemini(env, [{ role: "system", content: FILM_SYS(film, k + 1, film.of) }, { role: "user", content: user }], 7000);
+  const part = cleanFilm(parseAI(raw), film.cast || []); if (!part) throw new Error("the AI's film part could not be used");
+  await env.ISHAI.put(`film:${film.date}:${k}`, JSON.stringify({ scenes: part.scenes }));
+  film.cast = part.cast; film.recaps = [...(film.recaps || []), part.recap].slice(-6); film.done = k + 1; film.lastAt = Date.now();
+}
+// the film as the page plays it: every part from KV, the cast, the title; null until every part is written
+async function filmFull(env, film) {
+  if (!film || film.done < film.of) return null;
+  const parts = await Promise.all(Array.from({ length: film.of }, (_, k) => env.ISHAI.get(`film:${film.date}:${k}`, "json")));
+  if (parts.some(p => !p)) return null;
+  return { date: film.date, at: film.at, title: film.title, author: film.author, genre: film.genre, studio: FILMS.studio, cast: film.cast, scenes: parts.flatMap(p => p.scenes), repeat: film.repeat || null };
+}
+// the timeline, from the start of the film (21:00): the same function is in the page
+function filmLayout(f) {
+  const items = []; let t = 0;
+  const brk = f.scenes.length >= 4 ? Math.ceil(f.scenes.length / 2) : -1;
+  items.push({ kind: "title", t0: t, t1: t + 8000 }); t += 8000;
+  f.scenes.forEach((sc, i) => {
+    if (i === brk){ items.push({ kind: "break", t0: t, t1: t + FILM_BREAK_MS }); t += FILM_BREAK_MS; }
+    items.push({ kind: "card", scene: i, t0: t, t1: t + 4000 }); t += 4000;
+    sc.lines.forEach((l, j) => { const d = Math.min(9500, Math.max(2600, 1800 + l.say.length * 60)); items.push({ kind: "line", scene: i, line: j, t0: t, t1: t + d }); t += d + 500; });
+  });
+  items.push({ kind: "end", t0: t, t1: t + 7000 }); t += 7000;
+  const b = items.find(x => x.kind === "break");
+  return { items, total: t, breakAt: b ? b.t0 : null, breakEnd: b ? b.t1 : null };
+}
+const FILM_FRIENDS = ["noa", "tomer", "dana", "boaz"];
+const FILM_TALK = {
+  before: [["ishai", "Third row from the back, in the middle. Best seats in the house."], ["ishai", "I got the big popcorn. It's for both of us. Mostly for me."], ["ishai", "Phones off. I mean it this time."]],
+  friend: [["{f}", "What is it tonight? Did you even read what it's about?"], ["{f}", "If it's sad, I'm leaving at the break."], ["{f}", "Every Saturday you drag me here. Every Saturday I come. Explain that."]],
+  breakIshai: [["ishai", "I didn't see that coming. Did you see that coming?"], ["ishai", "I like the old way they talk. Nobody talks like that anymore."], ["ishai", "I think I know how it ends. I hope I'm wrong."]],
+  breakFriend: [["{f}", "Popcorn's gone. Who ate the popcorn? You ate the popcorn."], ["{f}", "The one in the hat is up to something. Trust me."], ["{f}", "Shh, it's starting again. Sit down."]],
+  after: [["ishai", "That ending. I'm going to be thinking about it all week."], ["ishai", "Same time next Saturday?"], ["ishai", "It was better than I expected. Much better."]],
+  afterFriend: [["{f}", "You cried. Don't say you didn't. I saw the light on your face."], ["{f}", "Next week I choose the seats."], ["{f}", "Good film. Long film. Good film."]] };
+const F_HOSTS = { comedy: ["Saturday night at the PixelPlex, and tonight it's a comedy. He laughs half a second after everyone else.", "A comedy at the movies. Watch him try to laugh quietly."],
+  drama: ["A drama tonight at the PixelPlex. Bring tissues, apparently.", "Something serious on the big screen tonight. He's already leaning in."],
+  horror: ["A horror film tonight. He told Noa he isn't scared. We'll see.", "Lights down, something old and creepy on the screen. Our man is gripping the armrest."] };
+// the night's moments: doors and seats, the film (no hosts, like a lecture), the break in the seats, the second half, out on the food court
+function filmMoments(s, film, f) {
+  const L = filmLayout(f), r = seedRng("film-" + film.date), fr = film.companion && s.cast[film.companion] ? film.companion : null, n = Math.ceil((FILM_DOORS_MIN * 60000 + L.total) / (INTERVAL_MIN * 60000));
+  const sub = l => l.map(([who, say]) => ({ who: who === "{f}" ? fr : who, say })).filter(l => l.who);
+  const out = [{ location: "cinema", action: "idle", with: fr, text: `Saturday night at the PixelPlex: Ishai${fr ? " and " + s.cast[fr].name : ""} buy popcorn and find their seats for "${film.title}".`,
+    lines: sub([pickR(r, FILM_TALK.before), ...(fr ? [pickR(r, FILM_TALK.friend)] : [])]), commentary: [{ who: "zohar", say: pickR(r, F_HOSTS[film.genre] || F_HOSTS.drama) }] }];
+  for (let i = 1; i < n; i++) {
+    const from = i * INTERVAL_MIN * 60000 - FILM_DOORS_MIN * 60000, bm = L.breakAt != null ? L.breakAt + FILM_BREAK_MS / 2 : -1, inBreak = bm >= from && bm < from + INTERVAL_MIN * 60000;   // the moment that holds the middle of the break
+    out.push(inBreak ? { location: "cinema", action: "talking", with: fr, text: `Intermission at the PixelPlex; the lights come up and Ishai${fr ? " and " + s.cast[fr].name : ""} talk about "${film.title}" so far.`, lines: sub([pickR(r, FILM_TALK.breakIshai), ...(fr ? [pickR(r, FILM_TALK.breakFriend)] : [])]), commentary: [] }
+      : { location: "cinema", action: "film", with: fr, text: `"${film.title}" plays at the PixelPlex; Ishai${fr ? " and " + s.cast[fr].name : ""} watch from the third row from the back.`, lines: [], commentary: [] });
+  }
+  out.push({ location: "foodcourt", action: "walking", with: fr, text: `The film is over. Ishai${fr ? " and " + s.cast[fr].name : ""} walk out through the dark food court, still talking about "${film.title}".`,
+    lines: sub([pickR(r, FILM_TALK.after), ...(fr ? [pickR(r, FILM_TALK.afterFriend)] : [])]), commentary: [],
+    update: fr ? { memory: `Saw "${film.title}" with Ishai at the PixelPlex on Saturday night.`, mood: 1 } : undefined });
+  return out;
+}
+async function filmTick(env, s, now) {
+  const c = cinemaOf(s); if (c.off) return;
+  const at = nextFilmAt(s, now); if (!at) return;
+  const date = dayOfTZ(at);
+  for (const d of Object.keys(c.films)) if (Date.parse(d) < now - 9 * 86400000) delete c.films[d];
+  // after the night: the memory, and the title is used
+  for (const fl of Object.values(c.films)) { const g = fl.goalId && !fl.remembered && s.director.find(d => d.id === fl.goalId);
+    if (g && g.status === "done") { fl.remembered = true; const fr = fl.companion && s.cast[fl.companion];
+      if (g.how === "script" || g.how === "story") addLife(s, now, "film", `Saw "${fl.title}" (${fl.author}) at the PixelPlex on Saturday night${fr ? " with " + fr.name : ""}. ${fl.recaps && fl.recaps.length ? "It's about this: " + fl.recaps[0] : ""}`.slice(0, 260));
+      c.history = [...(c.history || []).filter(h => h.date !== fl.date), { date: fl.date, title: fl.title, genre: fl.genre, of: fl.of, cast: fl.cast, author: fl.author, recaps: fl.recaps }].slice(-20); } }
+  // this week's film: chosen from Sunday (6 days ahead)
+  if (!c.films[date] && at - now < 6 * 86400000 + 15 * 3600000) {
+    const q = c.queue.shift(); cinemaOf(s); if (!q) return;
+    const r = seedRng("film-friend-" + date), friends = FILM_FRIENDS.filter(id => s.cast[id]);
+    c.films[date] = { ...q, date, at, done: 0, of: 0, cast: [], recaps: [], companion: r() < .7 && friends.length ? pickR(r, friends) : null, goalId: null };
+    c.used = [...c.used, q.id].slice(-60);
+  }
+  const fl = c.films[date]; if (!fl || fl.skip) return;
+  // write one part a day (Gemini only); a failure tries again in 3 hours
+  const ready = fl.of && fl.done >= fl.of;
+  if (!ready && !fl.repeat && now >= (fl.retryAt || 0) && now - (fl.lastAt || 0) > 20 * 3600000 && at - now > 30 * 3600000) {
+    try { await generateFilmPart(env, s, fl); c.err = null; fl.tries = 0; }
+    catch (e) { fl.tries = (fl.tries || 0) + 1; fl.retryAt = now + 3 * 3600000; c.err = { at: now, msg: String(e && e.message || e).slice(0, 240) };
+      if (/no plain text|too short|not yet public domain/.test(c.err.msg)) { delete c.films[date]; } }   // a title we can't film: the next one takes the week
+  }
+  // not ready by Friday noon (33 hours before): an older film comes back "by demand"
+  if (!ready && !fl.repeat && at - now < 33 * 3600000) { const old = (c.history || []).filter(h => h.of && h.date !== date).slice(-1)[0];
+    if (old) Object.assign(fl, { repeat: old.date, title: old.title, author: old.author, genre: old.genre, of: old.of, done: old.of, cast: old.cast, recaps: old.recaps }); else fl.skip = true; }
+  if (!fl.goalId && (fl.done >= fl.of && fl.of) && at - now < 30 * 3600000 && at - FILM_DOORS_MIN * 60000 > now) {
+    const src = fl.repeat ? { ...fl, date: fl.repeat } : fl, f = await filmFull(env, src);
+    if (f) { const moments = filmMoments(s, fl, f), id = "film-" + date, fr = fl.companion && s.cast[fl.companion] ? s.cast[fl.companion] : null;
+      const g = newGoal({ id, goal: `Ishai goes to the PixelPlex at The Big S for Saturday night at the movies: "${fl.title}".`, startAt: new Date(at - 60 * 60000).toISOString(),
+        sceneAt: new Date(at - FILM_DOORS_MIN * 60000).toISOString(), deadlineAt: new Date(at + 5 * 60000).toISOString(), location: "cinema", with: fr ? fr.name : null, forceWith: fr ? fr.id : null }, now);
+      g.id = id; g.fixed = true; g.script = cleanScript(moments, 40); s.director = s.director.filter(d => d.id !== id || d.status !== "done"); s.director.push(g); fl.goalId = id; }
+  }
+}
+const filmNext = (s, now) => { const c = s.cinema, at = nextFilmAt(s, now); return c && at ? c.films[dayOfTZ(at)] || null : null; };
+const FILM_POSTER = { comedy: ["#2a1a5a", "#ffd23f", "#ff6b9a"], drama: ["#1a1a2a", "#e8d9a8", "#c23b3b"], horror: ["#0a0a12", "#9ad0ff", "#c23b3b"] };
+function cinemaPublic(s, now) {
+  const fl = filmNext(s, now); if (!fl || fl.skip) return null;
+  return { date: fl.date, filmDate: fl.repeat || fl.date, at: fl.at, title: fl.title, author: fl.author, genre: fl.genre, pitch: fl.pitch || "", poster: FILM_POSTER[fl.genre] || FILM_POSTER.drama,
+    ready: !!(fl.of && fl.done >= fl.of), repeat: !!fl.repeat, live: now >= fl.at - 12 * 60000 && now < fl.at + 70 * 60000 };
+}
+const cinemaHealth = s => { const c = s.cinema; if (!c) return null; return { films: Object.values(c.films || {}).map(f => ({ date: f.date, title: f.title, genre: f.genre, done: f.done, of: f.of, companion: f.companion, goal: f.goalId || null, repeat: f.repeat || null, skip: !!f.skip, gid: f.gid || null })),
+  next: (c.queue || []).map(q => q.title), off: !!c.off, err: c.err || null, history: (c.history || []).slice(-4).map(h => ({ date: h.date, title: h.title })) }; };
+async function cinemaAction(env, s, b, now) {
+  const c = cinemaOf(s), at = nextFilmAt(s, now), date = at && dayOfTZ(at), fl = date && c.films[date];
+  const live = fl && fl.goalId && s.director.some(d => d.id === fl.goalId && d.status === "active");
+  if (live && b.action !== "cinemaOff") return "that film night has already started";
+  if (b.action === "cinemaPick") { if (fl) delete c.films[date]; const t = String(b.title || "").trim().toLowerCase(); if (t) { const f = allFilms().find(x => x.title.toLowerCase() === t); if (!f) return "no such title in story/films.json"; c.queue = [f, ...c.queue.filter(q => q.id !== f.id)]; } s.director = s.director.filter(d => d.id !== "film-" + date || d.status === "active"); await filmTick(env, s, now); return null; }
+  if (b.action === "cinemaWrite") { if (!fl) return "no film this week yet"; if (fl.repeat) return "this week is a repeat";
+    try { while (fl.done < (fl.of || 1) || !fl.of) { await generateFilmPart(env, s, fl); if (fl.done >= fl.of) break; } } catch (e) { c.err = { at: now, msg: String(e && e.message || e).slice(0, 240) }; return "the film could not be written: " + c.err.msg; }
+    await filmTick(env, s, now); return null; }
+  if (b.action === "cinemaRewrite") { if (!fl) return "no film this week yet"; Object.assign(fl, { done: 0, of: 0, cast: [], recaps: [], lastAt: 0, retryAt: 0, repeat: null }); s.director = s.director.filter(d => d.id !== "film-" + date || d.status === "active"); fl.goalId = null; return null; }
+  if (b.action === "cinemaRepeat") { const old = (c.history || []).filter(h => h.of && h.date !== date).slice(-1)[0]; if (!old || !fl) return "no older film to show";
+    Object.assign(fl, { repeat: old.date, title: old.title, author: old.author, genre: old.genre, of: old.of, done: old.of, cast: old.cast, recaps: old.recaps }); s.director = s.director.filter(d => d.id !== "film-" + date || d.status === "active"); fl.goalId = null; return null; }
+  if (b.action === "cinemaSkip") { if (!fl) return "no film this week yet"; fl.skip = !fl.skip; if (fl.skip) { s.director = s.director.filter(d => d.id !== fl.goalId || d.status === "active"); fl.goalId = null; } return null; }
+  if (b.action === "cinemaOff") { c.off = !c.off; return null; }
+  return "unknown cinema action";
+}
+// a short sample film for the sandbox (Wilde, 1895, public domain): two scenes and a break are enough to test the screen
+const FILM_SAMPLE = { title: "The Importance of Being Earnest", author: "Oscar Wilde", genre: "comedy", studio: "8-BIT PICTURES",
+  cast: [{ id: "algernon", name: "Algernon", voice: "m", look: { hair: "curly", hairColor: "brown", skin: "fair", shirt: "white", pants: "black", top: "jacket", bottom: "trousers", hat: "none", hatColor: "black", extras: ["tie"] } },
+    { id: "jack", name: "Jack", voice: "m", look: { hair: "side", hairColor: "black", skin: "fair", shirt: "blue", pants: "navy", top: "jacket", bottom: "trousers", hat: "none", hatColor: "black", extras: ["watch"] } },
+    { id: "lane", name: "Lane", voice: "m", look: { hair: "bald", hairColor: "gray", skin: "fair", shirt: "black", pants: "black", top: "shirt", bottom: "trousers", hat: "none", hatColor: "black", extras: ["tie"] } },
+    { id: "gwendolen", name: "Gwendolen", voice: "f", look: { hair: "bun", hairColor: "auburn", skin: "light", shirt: "purple", pants: "purple", top: "dress", bottom: "skirt", hat: "sunhat", hatColor: "pink", extras: ["necklace"] } }],
+  scenes: [
+    { title: "Algernon's flat, afternoon", set: { kind: "room", era: "1890s", time: "day", props: ["piano", "table", "window", "teacup"], palette: "warm" },
+      frames: [{ who: ["algernon", "lane"], pose: { algernon: "sit", lane: "stand" }, move: "pan-right" }, { who: ["algernon", "jack"], pose: { algernon: "stand", jack: "stand" }, move: "still" }],
+      lines: [{ who: "algernon", say: "Did you hear what I was playing, Lane?", frame: 0 }, { who: "lane", say: "I didn't think it polite to listen, sir.", frame: 0, react: "laugh" },
+        { who: "algernon", say: "I don't play accurately. Anyone can play accurately. I play with wonderful expression.", frame: 0 }, { who: "narrator", say: "The doorbell rings.", frame: 1 },
+        { who: "jack", say: "Eating as usual, I see, Algy!", frame: 1 }, { who: "algernon", say: "What brings you up to town?", frame: 1 }, { who: "jack", say: "Oh, pleasure, pleasure! What else should bring one anywhere?", frame: 1, react: "laugh" }] },
+    { title: "The same room, later", set: { kind: "room", era: "1890s", time: "dusk", props: ["table", "cake", "flowers", "portrait"], palette: "warm" },
+      frames: [{ who: ["jack", "gwendolen"], pose: { jack: "kneel", gwendolen: "stand" }, move: "zoom-in" }],
+      lines: [{ who: "gwendolen", say: "My ideal has always been to love someone of the name of Ernest.", frame: 0 }, { who: "jack", say: "But you don't really mean to say you couldn't love me if my name wasn't Ernest?", frame: 0 },
+        { who: "gwendolen", say: "Ah! That is clearly a metaphysical speculation.", frame: 0, react: "laugh" }, { who: "jack", say: "Gwendolen, will you marry me?", frame: 0 }, { who: "gwendolen", say: "Of course I will, darling. How long you have been about it!", frame: 0, react: "laugh" }] },
+    { title: "A garden in the country", set: { kind: "garden", era: "1890s", time: "day", props: ["tree", "flowers", "chair"], palette: "bright" },
+      frames: [{ who: ["algernon"], pose: { algernon: "point" }, move: "pan-left" }],
+      lines: [{ who: "narrator", say: "Algernon arrives in the country, calling himself Ernest.", frame: 0 }, { who: "algernon", say: "I am Ernest. I have been Ernest all my life. It's a wonderful name.", frame: 0 }, { who: "algernon", say: "And now I must find some muffins.", frame: 0, react: "laugh" }] },
+    { title: "The drawing room, evening", set: { kind: "room", era: "1890s", time: "night", props: ["candle", "bookcase", "portrait"], palette: "sepia" },
+      frames: [{ who: ["jack", "gwendolen", "algernon"], pose: { jack: "point", gwendolen: "stand", algernon: "bow" }, move: "zoom-in" }],
+      lines: [{ who: "jack", say: "Gwendolen, it is a terrible thing for a man to find out that all his life he has been speaking the truth.", frame: 0, react: "laugh" }, { who: "gwendolen", say: "I can. For I feel that you are sure to change.", frame: 0 }, { who: "jack", say: "I've now realised for the first time in my life the vital Importance of Being Earnest.", frame: 0 }] }] };
+
 // ---------- Poker night at Boaz's (apt 2, first floor): every second Monday at 20:00 (docs/POKER_PLAN.md) ----------
 // The whole game is simulated ahead from the date's seed, a few hands per tick (the free plan allows ~10 ms of CPU a run), then stored once in KV
 // (poker:<date>) and served by /api/poker. The page plays it by the clock: cards, chips, talk, the pizza. No AI.
@@ -3431,6 +3688,7 @@ function guideDay(s, day, keyOnly) {
     if (d === ARENA_DAY) { const ev = s.arena && s.arena.events && s.arena.events[day];
       if (!(ev && ev.skip) && !(s.arena && s.arena.off)) items.push({ at: atLocal(day, ARENA_H), what: ev ? (ev.kind === "concert" ? `${ev.artist} LIVE at the Pump House` : `Gallery night: ${ev.title}`) : "Pump House night" }); }
     const pk = s.poker && nextPokerAt(s, atLocal(day, 0)); if (pk && dayOfTZ(pk) === day) items.push({ at: pk, what: "Poker night at Boaz's" });
+    const fm = s.cinema && !s.cinema.off && nextFilmAt(s, atLocal(day, 0)); if (fm && dayOfTZ(fm) === day) { const fl = s.cinema.films[day]; if (!fl || !fl.skip) items.push({ at: fm, what: fl && fl.title ? `PixelPlex: "${fl.title}"` : "Saturday night at the PixelPlex" }); }
   }
   if (!keyOnly) for (const g of s.director || []) {
     if (g.poll || g.course || g.fixed || /^(walk|visit|poll|lecture|outing)-/.test(g.id) || g.how === "cancelled") continue;
@@ -3453,6 +3711,7 @@ function eventNote(s, now, company) {
   const a = arenaNext(s, now);
   if (a && !a.skip && a.at > now && a.at - now < 4 * 86400000) out += ` Coming up: ${day(a.at)} at 20:00 at the Pump House, ${a.kind === "gallery" ? `a gallery night, "${a.title}" by ${a.artist}` : `"${a.title}"`}${a.companion && s.cast[a.companion] ? `, and ${s.cast[a.companion].name} is coming too` : ""}. He's looking forward to it.`;
   const pk = s.poker && nextPokerAt(s, now); if (pk && pk > now && pk - now < 4 * 86400000) out += ` Coming up: poker night at Boaz's (apartment 2) on ${day(pk)} at 20:00.`;
+  const fl = s.cinema && filmNext(s, now); if (fl && !fl.skip && fl.at > now && fl.at - now < 4 * 86400000) out += ` Coming up: Saturday night at 21:00, the movies at the PixelPlex in The Big S: "${fl.title}" (${fl.author}, a ${fl.genre})${fl.companion && s.cast[fl.companion] ? `, with ${s.cast[fl.companion].name}` : ""}. He goes every Saturday night.`;
   const recent = lifeOf(s).filter(m => now - m.at < 10 * 86400000 && (m.offered || 0) < 3);
   if (recent.length && Math.random() < (company ? .3 : .15)) { const m = recent[recent.length - 1 - Math.floor(Math.random() * Math.min(2, recent.length))]; m.offered = (m.offered || 0) + 1;
     out += ` From the last few days he remembers: ${m.text} If, and only if, it fits naturally, he brings it up${company ? " with the person he is with" : " to himself (a muttered line, or to Falafel)"}, in his own words; otherwise ignore it.`; }
@@ -3766,6 +4025,8 @@ async function directorApi(req, env) {
       if (g) { g.status = "done"; g.how = "cancelled"; g.doneAt = now; }
     } else if (String(b.action || "").startsWith("course")) {
       const r = await courseAction(env, s, b, now); if (r) return json({ error: r }, {}, 400);
+    } else if (String(b.action || "").startsWith("cinema")) {
+      const r = await cinemaAction(env, s, b, now); if (r) return json({ error: r }, {}, 400);
     } else if (/^surve/.test(String(b.action || ""))) {
       const r = await surveyAction(env, s, b, now); if (r) return json({ error: r }, {}, 400);
     } else if (b.action === "pollSkip") {   // drop the coming poll (this hour has none)
@@ -3801,7 +4062,7 @@ function cleanVoices(v) {
 }
 function directorView(s, bugs) {
   const last = s.events[s.events.length - 1];
-  return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
+  return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse(), lastError: s.lastError || null,
     polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },

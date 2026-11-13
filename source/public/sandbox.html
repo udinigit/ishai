@@ -67,6 +67,7 @@
         <button id="qPump">Pump House</button>
         <button id="qGallery">Gallery night</button>
         <button id="qPoker">Poker night</button>
+        <button id="qFilm">Film night</button>
         <button id="qConcert">Concert</button>
         <a href="/?preview" target="_blank" rel="noopener">Today's plan</a>
       </div>
@@ -260,6 +261,12 @@ Back to the cameras.</textarea>
     const me = ++running; api.poker(d, 2.5); api.go({location:'corridor', action:'idle'});
     api.play({location:'apt2', action:'poker', lines:[], commentary:(d.moments && d.moments[0] && d.moments[0].commentary) || []});
   }
+  // a film at the PixelPlex: the sample film (a short Wilde), starting with the last minute of the ad reel
+  async function film(){
+    let d = null; try { d = await (await fetch('/api/film?sample=1', {cache:'no-store'})).json(); } catch(e){}
+    if (!d || !d.scenes) return alert('Could not load the sample film (/api/film?sample=1).');
+    ++running; api.go({location:'cinema', action:'film', with:'noa'}); api.film(d, -40);
+  }
   // a concert by one of the director's bands (from /events): every song, starting in a minute
   async function concert(){
     let bands = []; try { bands = (await (await fetch('/api/events', {cache:'no-store'})).json()).bands || []; } catch(e){}
@@ -304,6 +311,7 @@ Back to the cameras.</textarea>
     $('qPump').onclick = () => { running++; api.arena(null); api.go({location:'plaza', action:'idle'}); };
     $('qGallery').onclick = gallery;
     $('qPoker').onclick = poker;
+    $('qFilm').onclick = film;
     $('qConcert').onclick = concert;
     $('play').onclick = () => { running++; api.reset(); api.play(moment()); };
     $('jump').onclick = () => { running++; api.go(moment()); };
