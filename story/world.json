@@ -151,9 +151,10 @@
    "actions": ["walking", "idle", "talking", "eating", "drinking", "phoning"],
    "links": {
     "street": {"exit": -14, "entry": -14},
-    "cafe": {"exit": "R", "entry": "R"}
+    "cafe": {"exit": 186, "entry": 186},
+    "east1": {"exit": "R", "entry": "R"}
    },
-   "notes": ["right edge -> Herzl St. east (the shops)", "left edge -> street, right edge (the café corner) -> café"]
+   "notes": ["left edge -> street; the café door (186) -> Cafe Nahat; right edge -> Herzl east 1 (past the café)"]
   },
   "cafe": {
    "kind": "story",
@@ -164,6 +165,40 @@
    },
    "notes": ["entrance door -> Herzl St. east", "next: the story may send him from the café straight to the street (he walks back through the shops block)"],
    "next": ["street"]
+  },
+  "east1": {
+   "kind": "pass",
+   "links": {
+    "shops": {"exit": -14, "entry": -14},
+    "east2": {"exit": "R", "entry": "R"}
+   },
+   "notes": ["Herzl east 1 (CAM-26, page only): the square with Stanley Cubrick; left edge -> shops, right edge -> east2"]
+  },
+  "east2": {
+   "kind": "pass",
+   "links": {
+    "east1": {"exit": -14, "entry": -14},
+    "east3": {"exit": "R", "entry": "R"},
+    "kiosk": {"exit": 140, "entry": 140}
+   },
+   "notes": ["Herzl east 2 (CAM-27, page only): the mural (the Earth, squared) and Shmulik's kiosk (its counter at 140)"]
+  },
+  "east3": {
+   "kind": "pass",
+   "links": {
+    "east2": {"exit": -14, "entry": -14}
+   },
+   "notes": ["Herzl east 3 (CAM-28, page only): the fountain; left edge -> east2 (the street goes on, off camera)"]
+  },
+  "kiosk": {
+   "kind": "story",
+   "desc": "Shmulik's kiosk on Herzl Street, two blocks past Cafe Nahat (walk east past the café, the little square with the brick statue Stanley Cubrick, to the mural): a street kiosk open 24 hours, every day; a counter open to the sidewalk, sweets and snacks on shelves, a drinks fridge, sunflower seeds in bins, newspapers, the MAZAL lottery stand, a radio, a white plastic table and chairs on the sidewalk. Shmulik is behind the counter 06:00-18:00 (a quiet night clerk otherwise); he plays backgammon over the counter with regulars",
+   "actions": ["idle", "talking", "eating", "drinking", "phoning", "reading"],
+   "links": {
+    "east2": {"exit": -14, "entry": -14}
+   },
+   "next": ["street"],
+   "notes": ["Shmulik's kiosk (CAM-29, story place): he walks in from the left (the sidewalk) and leaves the same way"]
   },
   "gym": {
    "kind": "story",

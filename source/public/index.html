@@ -1292,6 +1292,7 @@
     neighbor:{hair:'curly',hairColor:'gray',skin:'tan',shirt:'green',pants:'brown',extras:[]},
     barista:{hair:'short',hairColor:'black',skin:'light',shirt:'black',pants:'black',extras:['apron']},
     kiosk:{hair:'bald',hairColor:'black',skin:'brown',shirt:'white',pants:'navy',extras:['mustache','apron']},
+    nightclerk:{hair:'curly',hairColor:'black',skin:'fair',shirt:'gray',pants:'black',top:'hoodie',extras:['headphones']},   // Shmulik's nephew-ish night clerk, nameless
     bartender:{hair:'long',hairColor:'black',skin:'tan',shirt:'black',pants:'black',extras:['beard','earring']},
     courier:{hair:'short',hairColor:'black',skin:'tan',shirt:'orange',pants:'black',extras:[]},
     cashier:{hair:'bun',hairColor:'brown',skin:'light',shirt:'blue',pants:'navy',extras:['glasses']}
@@ -1307,8 +1308,8 @@
     return null;
   }
   // people who are always at their post in a scene
-  const POST = { cafe:'dana', street:'avi' };
-  const POST_X = { cafe:150, street:163 };   // where they stand at work
+  const POST = { cafe:'dana', street:'avi', kiosk:'shmulik' };
+  const POST_X = { cafe:150, street:163, kiosk:84 };   // where they stand at work
   // ---- whereabouts: everyone in the cast is somewhere ----
   // The last moment someone spent with Ishai says where they were. Until they could have got anywhere else (WALK: minutes between two
   // story places, built from story/world.json, the same table as the worker's; at least AWAY_MS), nobody draws them at their post or
@@ -2031,7 +2032,7 @@
   }, 'CAM-25', 'PROMENADE // THE BIG S');
   // The Big S's logo: a fat pixel S in a circle
   function bigS(x, y, night){ R(x+2,y,7,1,'#ffd23f'); R(x+1,y+1,9,9,'#ffd23f'); R(x+3,y+2,5,1,'#1a1a2a'); R(x+3,y+3,1,2,'#1a1a2a'); R(x+3,y+5,5,1,'#1a1a2a'); R(x+7,y+6,1,2,'#1a1a2a'); R(x+3,y+8,5,1,'#1a1a2a'); R(x+2,y+10,7,1,'#ffd23f'); }
-  // ---------- Herzl St. east: the shops between his block and the café ----------
+  // ---------- Herzl St. east: the shops between his block and the café (the café's door at 186; the right edge goes on to Herzl east 1-3) ----------
   SCENES.shops = {
     cam:'CAM-09', place:'HERZL ST. // SHOPS', walkY:66, entry:-14, exit:W+8,
     stand:{idle:96, walking:96, talking:100, eating:100, drinking:100, phoning:96},
@@ -2053,7 +2054,8 @@
       R(114,50,24,14,'#9fc3d8'); R(140,49,11,23,'#4a5a3a');
       for (let i=0;i<4;i++){ const x = 112+i*9; R(x,68,7,4,'#7a7a7a'); ['#e0605a','#ffd36a','#d97aa0','#f4f4f4'].forEach((c,k)=>R(x+1+(k%2)*3, 63+(k>>1)*2, 2, 2, c)); R(x+2,67,3,1,'#2f7d3a'); }
       // the café on the corner (the way in to Cafe Nahat)
-      R(158,40,34,32,'#4a3220'); R(158,40,34,7,'#e0b04a'); word('CAFE',168,41,'#4a3220'); R(162,49,26,15,'#e8c890'); R(166,58,8,2,'#5e4027'); R(178,58,8,2,'#5e4027');
+      R(158,40,34,32,'#4a3220'); R(158,40,34,7,'#e0b04a'); word('CAFE',168,41,'#4a3220'); R(161,49,18,15,'#e8c890'); R(164,58,6,2,'#5e4027'); R(172,58,5,2,'#5e4027');
+      R(181,48,10,24,'#2a1a10'); R(182,49,8,23,'#6a4e38'); R(183,51,6,9,'#9fc3d8'); R(188,62,1,3,C.gold); if (doorBusy(186)){ R(182,49,8,23,'#14100c'); R(182,49,2,23,'#6a4e38'); }   // Cafe Nahat's door
       // ficus trees in planters
       [149].forEach(x=>{ R(x+3,34,3,36,'#5e4027'); R(x-6,22,20,14,'#2f7d3a'); R(x-3,18,14,6,'#3f9a48'); R(x-4,30,6,4,'#256b30'); R(x-1,68,11,5,'#7a7a7a'); });
       // sidewalk, crossing, road
@@ -2072,7 +2074,134 @@
       zAdd(200, () => { bikeRideBy(99, night); shopsTraffic(NOW(), night); ateRideBy(t + 30000, 99); });
       liveLayer(t, this); zFlush();
       if (night) alpha(.3,()=>R(0,0,W,H,'#050a1e'));
-      if (night){ alpha(.22,()=>{ R(5,49,36,17,'#ffe8a0'); R(114,50,24,14,'#ffe8a0'); R(162,49,26,15,'#ffd890'); }); }
+      if (night){ alpha(.22,()=>{ R(5,49,36,17,'#ffe8a0'); R(114,50,24,14,'#ffe8a0'); R(161,49,18,15,'#ffd890'); }); }
+    }
+  };
+
+  // ---------- Herzl east 1-3: past the café (block kit), each with one thing only it has ----------
+  const weekdayNow = () => cityWhen(NOW()).day;   // 0 = Sunday
+  const bricks = (x, y, w, h, c, m) => { R(x,y,w,h,c); for (let yy=y+2; yy<y+h; yy+=3) R(x,yy,w,1,m); for (let yy=y, k=0; yy<y+h; yy+=3, k++) for (let xx=x+(k%2)*2; xx<x+w; xx+=4) R(xx,yy,1,2,m); };
+  // Stanley Cubrick: a man built of bricks with a cube for a head, on a stone plinth (spelled so on purpose)
+  function cubrick(x, y, t){   // x = plinth's left, y = plinth's top
+    const B = '#b5523b', M = '#8a3a28';
+    bricks(x+11,y-12,5,12,B,M); bricks(x+18,y-12,5,12,B,M);          // legs
+    bricks(x+9,y-27,16,15,B,M);                                       // body
+    bricks(x+5,y-26,4,12,B,M); bricks(x+25,y-33,4,11,B,M);            // arms: one down, one raised
+    R(x+14,y-29,6,2,'#9a4a34');                                       // neck
+    R(x+10,y-41,12,12,'#c9653f'); R(x+22,y-39,3,12,'#8a3a28'); R(x+12,y-43,13,2,'#e08a5a'); R(x+22,y-43,3,4,'#b05a38');   // the cube: front, side, top
+    R(x+10,y-37,12,1,'#a84a30'); R(x+10,y-33,12,1,'#a84a30'); R(x+16,y-41,1,12,'#a84a30');                                 // mortar lines on the cube
+    R(x+12,y-39,2,2,'#2a1a10'); R(x+18,y-39,2,2,'#2a1a10');            // eyes
+    R(x,y,34,16,'#cfc6b4'); R(x,y,34,1,'#e2dacb'); R(x+2,y+2,30,13,'#8a7a50'); word('STANLEY',x+3,y+3,'#f2e6c0'); word('CUBRICK',x+3,y+9,'#f2e6c0');   // plinth and plaque
+    drawPigeon(x+12, y-43, t, 1, false); drawPigeon(x+19, y-43, t, 4, false);
+  }
+  // the Earth, squared: a cube seen from a corner (top, left and right faces), oceans and continents running over its edges
+  function earthCube(cx, cy, k){
+    const land = (u, v, f) => { const n = Math.sin(u*.55 + f*2.1) * Math.cos(v*.42 - f*1.3) + Math.sin((u+v)*.23 + f); return n > .55 ? (n > 1.1 ? 2 : 1) : 0; };
+    const SEA = ['#3f86cc', '#2f6fb5', '#24589a'], LAND = [['#6fb04f','#4f9a3f'], ['#4f9a3f','#3f7f33'], ['#3f7f33','#2f6a2a']];
+    for (let dy=-k; dy<=k; dy++){ const hw = 2*(k - Math.abs(dy)); for (let dx=-hw; dx<hw; dx++){ const L = land(dx+30, dy*2+30, 0); R(cx+dx, cy+dy, 1, 1, L ? LAND[0][L-1] : SEA[0]); } }   // top
+    for (let x=0; x<2*k; x++){ const top = cy + Math.floor(x/2); for (let y=0; y<2*k; y++){ const L = land(x, y, 1); R(cx-2*k+x, top+y, 1, 1, L ? LAND[1][L-1] : SEA[1]); } }   // left face
+    for (let x=0; x<2*k; x++){ const top = cy + k - Math.floor(x/2); for (let y=0; y<2*k; y++){ const L = land(x+7, y, 2); R(cx+x, top+y-1, 1, 1, L ? LAND[2][L-1] : SEA[2]); } }   // right face
+    R(cx, cy+k-1, 1, 2*k, '#1a3f70');   // the near edge
+  }
+  function fountain(x, y, t, on){   // x = basin's centre, y = rim
+    R(x-22,y,44,8,'#cfc6b4'); R(x-24,y-1,48,2,'#e2dacb'); R(x-20,y+1,40,4, on ? '#5fa8d8' : '#7f9aa8'); R(x-3,y-14,6,15,'#b5ab96'); R(x-6,y-16,12,3,'#cfc6b4');
+    if (on){ const f = Math.floor(t/120) % 4; R(x-1,y-26,2,10,'#bfe6f8'); R(x-3,y-27,6,2,'#dff2fc'); [[-7,0],[7,0],[-5,1],[5,1]].forEach(([dx,dy],i) => R(x+dx+(i<2?(f%2):0), y-22+((f+i)%4)*3+dy, 1, 3, '#bfe6f8'));
+      for (let i=0;i<6;i++) R(x-18+i*7+((f+i)%3), y+2, 2, 1, '#dff2fc'); }
+  }
+  const fountainOn = hf => hf >= 6 && hf < 23;
+  SCENES.east1 = block({id:'east1', seed:8, amb:'street', bld:[[0,10,52,'#9a8a76'],[140,14,52,'#7f8a94']],
+    fronts(t, night, hf){
+      // a small square set back from the street: low buildings far behind, two ficus trees, the statue
+      R(52,30,88,42,'#b8ad98'); R(52,30,88,2,'#a89c86'); for (let x=56;x<136;x+=10) R(x,36,6,8, night ? '#1a2238' : '#a9c8dc');
+      R(52,62,88,10,'#c9bfa8'); for (let x=52;x<140;x+=8) R(x,62,1,10,'#b5ab96');
+      cubrick(79, 56, t);
+      if (weekdayNow() === 5 && !isShabbatEve()) [[76,'#e0605a'],[81,'#ffd36a'],[113,'#d97aa0'],[118,'#f4f4f4']].forEach(([fx,c]) => { R(fx,69,3,2,c); R(fx+1,71,1,1,'#2f7d3a'); });   // flowers at his feet on Fridays
+      // left: a shoe shop; right: a newsagent's corner of a building, a lottery sign
+      R(2,40,48,32,'#2c3a66'); R(2,40,48,7,'#f2e6c0'); word('SHOES',16,41,'#2c3a66'); R(5,49,26,15,'#cfe3ee'); for (let i=0;i<4;i++) R(8+i*6,58,4,2,['#c23b3b','#3a3a3a','#e0b04a','#f4f4f4'][i]); R(35,49,12,23,'#1a2440'); R(37,51,8,10,'#9fc3d8');
+      R(142,40,48,32,'#e8e2d6'); R(142,40,48,7,'#7a2a6a'); word('OPTICS',152,41,'#ffffff'); R(146,49,26,15,'#9fc3d8'); [150,160].forEach(ox => { R(ox,55,4,3,'#2a2a2a'); R(ox+5,55,4,3,'#2a2a2a'); R(ox+4,56,1,1,'#2a2a2a'); }); R(176,49,12,23,'#4a3a5a'); R(178,51,8,10,'#9fc3d8');
+    },
+    props(t, night){ lampPost(56, night); lampPost(134, night); ficus(60, 87); ficus(124, 87); zAdd(84, () => { R(66,76,18,2,'#7a5534'); R(66,79,18,2,'#5e4027'); R(68,81,2,4,'#333'); R(80,81,2,4,'#333'); }); },
+    exitX: nearX => nearX > W/2 ? W+8 : -18
+  }, 'CAM-26', 'HERZL ST. // THE SQUARE');
+  SCENES.east2 = block({id:'east2', seed:9, amb:'street', bld:[[0,6,84,'#c9bfa8'],[84,16,40,'#8f7f6c'],[172,12,20,'#9a7f6a']],
+    fronts(t, night){
+      // a blank side wall with a mural: the Earth, squared
+      R(0,6,84,66,'#d8cdb4'); R(0,6,84,2,'#bfb49c'); R(4,12,76,56,'#2a3048'); for (let i=0;i<30;i++) R(6+(i*37)%72, 14+(i*23)%52, 1, 1, i%3 ? '#f4f4f4' : '#ffd36a');   // the night sky behind it
+      earthCube(42, 22, 12);
+      // a residential entrance between the mural and the kiosk
+      R(88,46,22,26,'#5a4c3f'); R(91,49,16,23,'#3a2d22'); R(98,49,2,23,'#2a2018'); R(92,42,14,4,'#c9b37a'); digit(1,96,43,'#3a2d22'); digit(4,101,43,'#3a2d22');
+      // Shmulik's kiosk: open day and night
+      kioskFront(124, t, night);
+      R(174,40,18,32,'#4a5a3a'); R(176,49,14,23,'#2a3220');
+    },
+    props(t, night){ lampPost(118, night); zAdd(86, () => { // plastic table and two chairs on the sidewalk, outside the kiosk
+      R(140,76,16,2,'#f4f4f4'); R(147,78,2,8,'#dcdcdc'); R(132,74,6,2,'#f4f4f4'); R(132,76,1,9,'#dcdcdc'); R(137,76,1,9,'#dcdcdc'); R(132,80,6,1,'#f4f4f4'); R(158,74,6,2,'#f4f4f4'); R(158,76,1,9,'#dcdcdc'); R(163,76,1,9,'#dcdcdc'); R(158,80,6,1,'#f4f4f4'); }); },
+    exitX: nearX => nearX > W/2 ? W+8 : -18
+  }, 'CAM-27', 'HERZL ST. // THE MURAL');
+  // the kiosk from the street: a booth under a striped awning, the counter open to the sidewalk; the camera goes in close when he stops there
+  function kioskFront(x, t, night){
+    R(x,30,48,42,'#e8e0c8'); for (let i=0;i<10;i++) R(x-2+i*5,26,5,6, i%2 ? '#2f6fb5' : '#f4f4f4'); R(x+4,18,40,8,'#1c2a5a'); word('SHMULIK',x+10,20,'#ffd23f');
+    R(x+4,36,40,18, night ? '#ffe9a8' : '#3a3a3a'); for (let i=0;i<9;i++) R(x+6+i*4,38,3,4,['#e0605a','#ffd36a','#7fbf6a','#9fd3f0','#f4f4f4'][i%5]); for (let i=0;i<9;i++) R(x+6+i*4,44,3,3,['#c23b3b','#3b7bc2','#e0b04a'][i%3]);
+    R(x+2,54,44,3,'#bdb6a8'); R(x+2,57,44,15,'#d8d0c0'); word('OPEN 24H',x+8,61,'#c23b3b'); R(x+38,48,6,6,'#c8c8c8'); R(x+39,49,4,2,'#2a2a2a');   // the counter; a radio on it
+    cooolaCan(x+6,51); cooolaCan(x+10,51);
+    if (night) alpha(.25, () => R(x-4,34,56,26,'#ffe9a8'));
+  }
+  SCENES.east3 = block({id:'east3', seed:10, amb:'street', bld:[[0,16,56,'#8a7f94'],[136,8,56,'#a08e7c']],
+    crowd: [[1, 33000, 61, 1], [7, 43000, 63, -1]],
+    fronts(t, night, hf){
+      R(56,34,80,38,'#c2b8a2'); R(56,34,80,2,'#aea48e'); for (let x=60;x<132;x+=12) R(x,40,8,10, night ? '#ffd36a' : '#a9c8dc');   // a low building behind the little square
+      R(56,62,80,10,'#cfc6b4'); for (let x=56;x<136;x+=8) R(x,62,1,10,'#bdb4a2');
+      fountain(96, 64, t, fountainOn(hf));
+      R(2,40,52,32,'#6b3f22'); R(2,40,52,7,'#f2e6c0'); word('FALAFEL TWO',4,41,'#6b3f22'); R(5,49,30,15,'#f0d090'); R(38,49,13,23,'#3a2212'); R(40,51,9,10,'#f0d090');   // "Falafel Two": Avi's rival, much talked about
+      R(138,40,52,32,'#3a6a5a'); R(138,40,52,7,'#e8f4ea'); word('PLANTS',152,41,'#2a5a4a'); R(141,49,30,15,'#9fc3d8'); for (let i=0;i<5;i++){ R(144+i*6,58,4,6,C.terracotta); R(145+i*6,54,2,4,C.leaf); } R(174,49,13,23,'#2a4a3a'); R(176,51,9,10,'#9fc3d8');
+    },
+    props(t, night){ lampPost(60, night); lampPost(132, night);
+      zAdd(80, () => { [[64,72],[112,72]].forEach(([bx,by]) => { R(bx,by,18,2,'#7a5534'); R(bx,by+3,18,2,'#5e4027'); R(bx+2,by+5,2,4,'#333'); R(bx+14,by+5,2,4,'#333'); }); }); },
+    exitX: nearX => nearX > W/2 ? W+8 : -18
+  }, 'CAM-28', 'HERZL ST. // THE FOUNTAIN');
+  // ---------- Shmulik's kiosk (CAM-29, story place): the counter, close up; the plastic table on the sidewalk ----------
+  // Shmulik works 06:00-18:00 (POST); otherwise, or while he is off with Ishai, the night clerk minds it. Open 24/7.
+  const shmulikHours = () => { const h = hourNow(); return h >= 6 && h < 18; };
+  SCENES.kiosk = {
+    cam:'CAM-29', place:'SHMULIK // 24/7 KIOSK', walkY:58, entry:-14, exit:-14,
+    stand:{idle:84, walking:60, talking:84, phoning:40}, postSpot:84,
+    draw(t,hf,a,settled,actor){
+      const night = isNight(hf);
+      drawSky(0,0,W,18,hf,t);
+      R(0,10,W,62,'#e8e0c8'); for (let i=0;i<20;i++) R(i*10-2,8,10,8, i%2 ? '#2f6fb5' : '#f4f4f4'); R(0,16,W,2,'#1f4f8f');
+      R(56,18,80,10,'#1c2a5a'); word('SHMULIK',66,21,'#ffd23f'); word('24H',112,21,'#ff6a6a');
+      // inside, behind the counter: shelves of sweets and snacks, the drinks fridge, cigarette-free: newspapers and seeds instead
+      R(36,28,120,30, night ? '#4a4030' : '#3a3428');
+      for (let r=0;r<3;r++){ R(38,33+r*8,82,1,'#8a7a5a'); for (let i=0;i<16;i++) R(39+i*5,29+r*8,4,4,['#e0605a','#ffd36a','#7fbf6a','#9fd3f0','#f4f4f4','#d97aa0'][(i+r*2)%6]); }
+      R(124,30,30,28,'#d8dee4'); R(126,32,26,24,'#bfe0f0'); for (let r=0;r<3;r++) for (let i=0;i<6;i++) cooolaCan(128+i*4, 34+r*8); R(124,30,30,1,'#9aa4ae');   // the fridge
+      // the clerk behind the counter
+      if (shmulikHours() && !awayFrom('shmulik', 'kiosk')){ markHead('shmulik', 84, 38); person(postLook('kiosk', EXTRA.nightclerk), 84, 38, t, {legs:false, face:0, talkPhase: settled && a==='talking' && withIsPost()}); }
+      else person(EXTRA.nightclerk, 84, 38, t, {legs:false, face:0});
+      // the counter: sunflower seeds in bins, a backgammon board when Shmulik has a game going, the radio, the lottery stand
+      R(30,54,132,5,'#bdb6a8'); R(30,59,132,13,'#d8d0c0'); R(30,54,132,1,'#e8e2d6');
+      [[40,'#2a2a2a'],[48,'#c9a060'],[56,'#e8d8b0']].forEach(([bx,c]) => { R(bx,50,7,5,'#a0a0a0'); R(bx+1,49,5,2,c); });
+      R(140,48,8,6,'#c8c8c8'); R(141,49,6,2,'#2a2a2a'); R(146,46,1,2,'#888');   // the radio (football on Saturdays)
+      const game = settled && actor.with === 'shmulik' && ['idle','talking'].includes(a) && shmulikHours();
+      if (game){ R(96,50,22,5,'#7a4a2a'); R(97,51,9,3,'#e8d8b0'); R(108,51,9,3,'#e8d8b0'); R(106,50,2,5,'#4a2a1a');
+        const mv = Math.floor(t/2400); for (let i=0;i<5;i++){ R(98+((i*3+mv)%8),51+(i%2),1,1, '#2a2a2a'); R(109+((i*5+mv*2)%8),52-(i%2),1,1,'#f4f4f4'); } }
+      R(164,30,22,42,'#f4f4f4'); R(164,30,22,7,'#2f8a4a'); word('MAZAL',165,31,'#ffffff'); for (let i=0;i<3;i++) R(167+i*6,40,4,6,['#ffd36a','#e0605a','#9fd3f0'][i]); R(166,50,18,1,'#c8c8c8');   // the lottery stand (fictional)
+      R(8,30,22,42,'#d8d0c0'); R(10,32,18,4,'#2a2a2a'); word('NEWS',11,32,'#f4f4f4'); for (let i=0;i<4;i++) R(10,38+i*8,18,6,['#f2f2f2','#e8e2d6','#f2f2f2','#e8e2d6'][i]);   // the newspaper rack
+      // the sidewalk; the plastic table on the right
+      R(0,72,W,36,'#9a9a9a'); for (let x=0;x<W;x+=24) R(x,72,1,36,'#888'); R(0,90,W,1,'#888');
+      zOn();
+      const atTable = settled && ['eating','drinking','reading'].includes(a) && !withIsPost();
+      const cl = atTable && companionLook(a), seated = cl && wantComp({id: actor.with || 'stranger', look: cl, x: 168, kind:'seat'});
+      zAdd(96, () => {
+        R(140,72,6,10,'#f4f4f4'); R(140,82,1,10,'#dcdcdc'); R(145,82,1,10,'#dcdcdc');   // his chair's back
+        if (atTable) drawIshai(a, 142, 70, t, {food: a === 'drinking' ? '#d9a03a' : '#e0c060', seated:true});
+        if (seated){ markHead(actor.with, 168, 70); person(cl, 168, 70, t, {legs:false, face:-1, talkPhase:true}); }
+        R(150,86,22,2,'#f4f4f4'); R(160,88,2,12,'#dcdcdc'); R(152,82,3,4,'#f2f2f2'); if (a === 'drinking') cooolaCan(165,81);   // the table
+        R(176,74,6,10,'#f4f4f4'); R(176,84,1,10,'#dcdcdc'); R(181,84,1,10,'#dcdcdc');
+      });
+      crowdWalk(t, 5, 26000, 9000, 72, 1, .9); crowdWalk(t, 2, 34000, 21000, 74, -1, .9);
+      if (!atTable) drawFloor(t,a,settled,actor,this);
+      liveLayer(t, this); zFlush();
+      if (night) alpha(.2,()=>R(0,0,W,H,'#050a1e'));
     }
   };
 
@@ -4215,7 +4344,7 @@
   };
   // every character's own colour: the bubble's outline and name tab use it as is; dark backgrounds (chat, cast) use a lighter tint
   const INK = {ishai:'#24998a', noa:'#d0479a', levi:'#8a4fd0', avi:'#e07b1f', dana:'#c99a12', tomer:'#2f6fd6', gadi:'#5f7088', michal:'#d23c3c',
-    sivan:'#2f9e4a', zelig:'#8a6a3a', kobi:'#a8306a', lior:'#3f8fae', yael:'#e0603a', sasson:'#5a5ad0', hagit:'#4f8a8b', boaz:'#7d8f2a', ronit:'#ff6f61', moti:'#c47b9a', yossi:'#9acd32', radio:'#c9a227', tv:'#3f8fd0'};
+    sivan:'#2f9e4a', zelig:'#8a6a3a', kobi:'#a8306a', lior:'#3f8fae', yael:'#e0603a', sasson:'#5a5ad0', hagit:'#4f8a8b', boaz:'#7d8f2a', ronit:'#ff6f61', moti:'#c47b9a', yossi:'#9acd32', shmulik:'#1c2a5a', radio:'#c9a227', tv:'#3f8fd0'};
   const INK_MORE = ['#b5523b','#2c8c6e','#7a5fc0','#c07a1a','#3b7bc2','#a83f8f','#5c8a2a','#c04848'];   // anyone new: picked by name, always the same
   const inkOf = id => INK[id] || (/^student\d$/.test(id) ? '#7d857a' : INK_MORE[strHash(id) % INK_MORE.length]);
   const inkText = hex => { const n = parseInt(hex.slice(1), 16), l = .299 * (n >> 16) + .587 * ((n >> 8) & 255) + .114 * (n & 255); return l > 150 ? '#151515' : '#ffffff'; };
@@ -4377,7 +4506,7 @@
   let DEV = false, TALK_HISTORY = [];
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
-  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', prom1:'THE PROMENADE', promenade:'THE PROMENADE', prom3:'THE PROMENADE', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', hall1:'1ST FLOOR HALL', apt2:'APARTMENT 2', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', prom1:'THE PROMENADE', promenade:'THE PROMENADE', prom3:'THE PROMENADE', east1:'HERZL ST. EAST', east2:'HERZL ST. EAST', east3:'HERZL ST. EAST', kiosk:'SHMULIK\'S KIOSK', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', hall1:'1ST FLOOR HALL', apt2:'APARTMENT 2', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
@@ -5416,6 +5545,10 @@
   const FILL = {
     hall1: ['The first floor. Apartment 2 is Boaz, the bus driver. The doormat says so.', 'One floor down from his own. A whole other country.'],
     apt2: ['Boaz\'s flat. China cabinet, fish tank, a lamp over a green felt table. Poker night.', 'Five players, fifty shekels each, and a bowl of seeds that will not survive the night.', 'Look at Ronit watching him. She has graded a thousand faces like his.', 'Moti calls everything. It is less a strategy than a worldview.', 'Yossi\'s lucky cap. Washed, he says, which is the problem.'],
+    east1: ['Stanley Cubrick. Bricks all the way up, and a cube for a head. Nobody remembers who he was. Everyone has an opinion.', 'Past the café, the little square. The pigeons have claimed the cube.', 'Somebody spelled it with a C. The sculptor says it was on purpose.'],
+    east2: ['The mural: the whole Earth, squared. Somebody finally fixed the corners.', 'Shmulik\'s kiosk. Twenty-four hours, seven days, one man and a nephew.', 'Plastic chairs outside the kiosk. The most important furniture in this city.'],
+    east3: ['The fountain at the end of Herzl Street. It runs until eleven, then it sleeps too.', 'Falafel Two, across from the fountain. We do not say that name near Avi.', 'A ring of benches round the fountain. Everyone faces the water.'],
+    kiosk: ['Shmulik\'s kiosk. Seeds, sodas, the paper and an opinion, all for nine shekels.', 'That notebook behind the counter is everyone\'s tab on Herzl Street.', 'This week\'s ticket is the one, says Shmulik. He has said it for eleven years.', 'Open all night. At three in the morning this is the town square.'],
     prom1: ['Past the Pump House and out to the sea. The city just stops and the blue begins.', 'BRRR, the ice-cream cart. Every promenade has one man who believes in sorbet.', 'The promenade. Joggers on the left, cyclists on the right, and Ishai somewhere in the middle.'],
     promenade: ['The promenade. Wave-patterned paving, so even the floor is at the beach.', 'There is the lifeguard tower. Check the flag: white is calm, red means stay out.', 'A bench facing the walk, back to the sea. Tel Aviv has never decided which way to look.', 'Sea on one side, the whole city on the other. He picked the right side.'],
     prom3: ['The west end of the promenade, and there she is: The Big S. Three floors of air conditioning.', 'The Big S, built right on the shore. You can hear the sea from the doors.', 'Palm trees, a bench, and a mall that looks like a cruise ship ran aground.'],
@@ -5529,6 +5662,10 @@
   setInterval(hostFill, 1000);
   // ================= overheard: now and then a passer-by's words, as a small caption. Never a name, a bubble, a voice or the chat, so nobody takes them for the cast =================
   const OVERHEARD = {
+    east1: ['...a cube. Why a cube? Why not?', '...my grandfather knew him. Knew who? Exactly.', '...meet me at the statue. The brick one. There is only one.'],
+    east2: ['...is Australia on the bottom face? Then where is it?', '...two Cooola and the evening paper. And put it on the tab.', '...Shmulik, open at four in the morning? He is always open.'],
+    east3: ['...throw a coin, make a wish, the city keeps the coin.', '...the falafel here is good. Do not tell Avi I said that.', '...it switches off at eleven, like my father.'],
+    kiosk: ['...one bag of seeds, the black ones. And the paper.', '...what did I owe you? Write it, I will pay Sunday.', '...six-five, again! Who taught you, my mother?'],
     prom1: ['...one scoop, two spoons, we are not animals.', '...ten kilometres? I said ten minutes.', '...the Pump House is doing concerts now, did you see the board?'],
     promenade: ['...the flag is red, so the sea is closed. Closed! Like a shop.', '...I swam here every morning for forty years and I am still cold.', '...look at the sunset. No, without your phone. Look.', '...on the bench, the one by the tower, at six.'],
     prom3: ['...we are only going in for the air conditioning.', '...the food court is on the top floor, under the glass.', '...The Big S. S for what? Nobody knows.'],
@@ -5621,6 +5758,7 @@
   const DEMO_CAST = [
     {id:'tomer',name:'Tomer',role:"Ishai's friend from school, an electrician",personality:'loud, loyal, always has a plan',look:{hair:'short',hairColor:'brown',skin:'tan',shirt:'green',pants:'navy',extras:['beard']},memory:'Owes Ishai a rematch.',relationship:4},
     {id:'sasson',name:'Dr. Sasson',role:'lectures on Strange But True at Tel Herzl University',personality:'dry, exact',look:{hair:'short',hairColor:'gray',skin:'light',shirt:'purple',pants:'black',extras:['glasses','scarf']},memory:'',relationship:0},
+    {id:'shmulik',name:'Shmulik',role:'runs the 24/7 kiosk on Herzl Street east (06:00-18:00)',personality:'gruff, kind underneath',look:{hair:'buzz',hairColor:'gray',skin:'tan',shirt:'navy',pants:'brown',top:'polo',extras:['mustache','glasses','apron']},memory:'',relationship:0},
     {id:'boaz',name:'Boaz',role:'downstairs neighbour, apt 2, drives the 88; hosts poker',personality:'dry, orderly',look:POKER_LOOK.boaz,memory:'',relationship:0},
     {id:'ronit',name:'Ronit',role:"Boaz's friend from high school, a maths teacher",personality:'sharp, teasing',look:POKER_LOOK.ronit,memory:'',relationship:0},
     {id:'moti',name:'Moti',role:'head of the building committee, apt 1',personality:'chatty, generous',look:POKER_LOOK.moti,memory:'',relationship:0},

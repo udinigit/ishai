@@ -14,7 +14,7 @@ const Voices = (() => {
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const num = v => (typeof v === 'number' && isFinite(v)) ? v : null;
   const GENDER = {zohar:'f', oren:'m', ishai:'m', levi:'f', noa:'f', avi:'m', dana:'f', tomer:'m', gadi:'m', michal:'f', sivan:'f', zelig:'m', kobi:'m', lior:'m',
-    yael:'f', sasson:'m', hagit:'f', boaz:'m', ronit:'f', moti:'m', yossi:'m', radio:'m', tv:'f', narrator:'m', dj_benny:'m', dj_shira:'f', dj_yoni:'m'};
+    yael:'f', sasson:'m', hagit:'f', boaz:'m', ronit:'f', moti:'m', yossi:'m', shmulik:'m', radio:'m', tv:'f', narrator:'m', dj_benny:'m', dj_shira:'f', dj_yoni:'m'};
   let cfg = {}, castOf = () => null;
   const listeners = [];
   const changed = () => listeners.forEach(f => { try { f(); } catch(e){} });
@@ -65,7 +65,7 @@ const Voices = (() => {
     .map(([id, name, g, grade]) => ({id, name, g, grade}));
   const KVOICE = {ishai:'am_michael', zohar:'af_bella', oren:'bm_george', noa:'af_heart', levi:'bf_isabella', avi:'am_fenrir', dana:'af_nicole', tomer:'am_puck',
     gadi:'am_eric', michal:'af_sky', sivan:'af_sarah', zelig:'bm_lewis', kobi:'am_onyx', lior:'bm_fable', yael:'af_kore', sasson:'bm_daniel', hagit:'af_aoede',
-    boaz:'am_liam', ronit:'bf_emma', moti:'am_echo', yossi:'am_eric', radio:'am_echo', tv:'af_nova', narrator:'bm_fable', dj_benny:'am_echo', dj_shira:'af_alloy', dj_yoni:'am_onyx'};
+    boaz:'am_liam', ronit:'bf_emma', moti:'am_echo', yossi:'am_eric', shmulik:'am_onyx', radio:'am_echo', tv:'af_nova', narrator:'bm_fable', dj_benny:'am_echo', dj_shira:'af_alloy', dj_yoni:'am_onyx'};
   const K_OK = new Set(K_LIST.map(k => k.id));
   const kVoice = id => { const o = cfg[id]; if (o && K_OK.has(o.kv)) return o.kv;
     if (KVOICE[id] && !(o && o.g)) return KVOICE[id];

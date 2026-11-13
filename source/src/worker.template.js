@@ -136,6 +136,12 @@ const SEED_CAST = [
     hangouts: ["street"],
     look: { hair: "bald", hairColor: "black", skin: "brown", shirt: "white", pants: "navy", extras: ["mustache", "apron"] },
     memory: "Knows Ishai always orders extra amba.", relationship: 2 },
+  { id: "shmulik", name: "Shmulik", role: "runs the 24/7 kiosk on Herzl Street, two blocks past Cafe Nahat (behind the counter 06:00-18:00; a night clerk does the nights)",
+    personality: "gruff, says little, knows everything about everyone on the street; a cook on cargo ships for twenty years; sure that this week's lottery ticket is the one; secretly soft (slips Falafel a biscuit while saying he doesn't like dogs)",
+    speech: "short sentences, ship talk ('steady', 'all hands'), keeps everyone's tab in a notebook ('I'll write it'), challenges people to backgammon",
+    hangouts: ["kiosk"],
+    look: { hair: "buzz", hairColor: "gray", skin: "tan", shirt: "navy", pants: "brown", top: "polo", extras: ["mustache", "glasses", "apron"] },
+    memory: "Ishai is new at the kiosk.", relationship: 0 },
   { id: "dana", name: "Dana", role: "barista at Cafe Nahat",
     personality: "quiet, dry humor, remembers every order, doodles on cups",
     speech: "few words, deadpan",
@@ -1609,7 +1615,7 @@ function sickEvent(s, last, hour) {
     { who: "zohar", say: "Rest up, Ishai. The whole country is whispering." },
     { who: "oren", say: "This is the most relaxing episode we have ever aired." }
   ];
-  const step = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", promenade: "street", apt2: "corridor", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
+  const step = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", promenade: "street", apt2: "corridor", cafe: "shops", kiosk: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   let ev;
   if (step) {
     const T = {
@@ -1660,9 +1666,9 @@ function sickEvent(s, last, hour) {
 }
 function fallback(last, hour, s) {
   const night = hour < 7 || hour >= 23;
-  const home = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", promenade: "street", apt2: "corridor", cafe: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
+  const home = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", promenade: "street", apt2: "corridor", cafe: "shops", kiosk: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   if (night && home) {
-    const T = { park: "He walks back through the dark park toward Herzl Street.", plaza: "He walks out of the Pump House into the night air.", promenade: "He walks along the dark promenade to the bus stop, the sea loud in the dark.", campus: "He walks out into the dark courtyard.", market: "He walks out of the store into the dark, empty market.", street: "Ishai heads back along Herzl Street toward home.", shops: "He walks back past the dark shop windows toward his building.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
+    const T = { kiosk: "He walks back from the kiosk along the dark, quiet street.", park: "He walks back through the dark park toward Herzl Street.", plaza: "He walks out of the Pump House into the night air.", promenade: "He walks along the dark promenade to the bus stop, the sea loud in the dark.", campus: "He walks out into the dark courtyard.", market: "He walks out of the store into the dark, empty market.", street: "Ishai heads back along Herzl Street toward home.", shops: "He walks back past the dark shop windows toward his building.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
     return { location: home, action: home === "apartment" ? "idle" : "walking", text: T[home], with: null, lines: [] };
   }
   const P = {
@@ -1674,6 +1680,7 @@ function fallback(last, hour, s) {
     classroom: [["campus", "walking", "He walks out of the lecture room into the courtyard."]],
     plaza: [["plaza", "idle", "Ishai reads the Pump House poster board."], ["plaza", "walking", "He walks slowly past the old pump hall, looking up at the chimney."], ["park", "walking", "He walks back into the park."]],
     arena: [["plaza", "walking", "He walks out of the hall onto the plaza."]],
+    kiosk: [["kiosk", "drinking", "Ishai sits on the plastic chair outside Shmulik's kiosk with a cold Cooola."], ["kiosk", "idle", "He leans on the kiosk counter and reads the headlines upside down."], ["kiosk", "eating", "He buys a bag of sunflower seeds and cracks them one by one."], ["shops", "walking", "He walks back along Herzl Street toward the café."]],
     promenade: [["promenade", "walking", "Ishai walks along the promenade, the sea on his left, joggers passing."], ["promenade", "idle", "He leans on the railing and watches the waves come in."], ["promenade", "reading", "He sits on a bench by the lifeguard tower with a book."], ["street", "walking", "He takes the bus back from the promenade to Herzl Street."]],
     apt2: [["corridor", "walking", "He says goodnight at Boaz's door and climbs the stairs home."]],
     park: [["park", "idle", "Ishai watches the duck. The duck watches back."], ["park", "walking", "He does a slow lap around the pond."], ["street", "walking", "He leaves the park and walks back to Herzl Street."]],
@@ -1735,7 +1742,7 @@ function travelEvent(s, last, hop, dest) {
   const wet = !!(s.world && s.world.weather && s.world.weather.rain), dog = s.unlocked.includes("dog"), umb = wet ? " under his umbrella" : "";
   const T = { "apartment>corridor": `Ishai grabs his keys${dog ? ", clips on Falafel's leash" : ""} and heads out the door.`, "corridor>street": `He goes down the stairs and out onto Herzl Street${umb}.`,
     "street>shops": `He walks east along Herzl Street${umb}, past the hardware shop and the bank.`, "shops>cafe": `He crosses at the lights${umb} and goes into Cafe Nahat.`,
-    "shops>street": `He walks back west along Herzl Street${umb} toward his building.`, "street>park": `He walks west along Herzl Street${umb}, past PicSell and the bakery, toward the park.`, "street>corridor": "He heads back into his building and up the stairs.",
+    "shops>street": `He walks back west along Herzl Street${umb} toward his building.`, "shops>kiosk": `He walks on east past Cafe Nahat${umb}, past the brick statue on the little square, to Shmulik's kiosk.`, "kiosk>shops": `He walks back west along Herzl Street${umb}, past the statue, toward the café.`, "kiosk>street": `He walks back west along Herzl Street${umb} toward his building.`, "street>park": `He walks west along Herzl Street${umb}, past PicSell and the bakery, toward the park.`, "street>corridor": "He heads back into his building and up the stairs.",
     "corridor>apartment": "He unlocks apartment 4 and goes in.", "corridor>apt2": "He goes down one flight and knocks on apartment 2.", "apt2>corridor": "He climbs the stairs back up to his floor.", "street>apt2": "He goes into his building and knocks on apartment 2 on the first floor.", "apt2>street": "He leaves apartment 2 and goes down the stairs to the street.", "park>plaza": `He walks across the park${umb}, past the pond, to the old Pump House on the far side.`, "plaza>park": `He walks back into the park${umb}.`, "plaza>arena": "He goes in through the Pump House's double doors.", "arena>plaza": "He walks out of the hall onto the plaza.", "park>street": `He walks back along Herzl Street${umb}, past the barber and PicSell, toward his building.`, "cafe>shops": `He steps out of the café onto Herzl Street${umb}, by the flower shop.`,
     "street>gym": `He pushes open the glass door of Herzl Gym${dog ? ", Falafel trotting behind" : ""}.`, "gym>street": `He leaves the gym, towel round his neck, and steps out onto Herzl Street${umb}.`,
     "street>bar": "He pushes open the heavy door of The Black Candle; red light and a guitar riff spill out.", "bar>street": `He steps out of The Black Candle onto Herzl Street${umb}.`,
@@ -2441,7 +2448,7 @@ function outingRate(s, loc, ms) {
   if (w.rain) pct *= m.rain ?? 1; else if (w.temp >= 30) pct *= m.hot ?? 1; else if (w.temp != null && w.temp <= 12) pct *= m.cold ?? 1;
   return Math.round(pct * 10) / 10;
 }
-const OUTING_AT_WORK = ["dana", "avi", "hagit"];   // met at their work, never 'coming along'
+const OUTING_AT_WORK = ["dana", "avi", "hagit", "shmulik"];   // met at their work, never 'coming along'
 const OUTING_ACT = { street: "walking", shops: "walking", cafe: "drinking", park: "walking", plaza: "idle", gym: "exercising", bar: "drinking", market: "walking", store: "idle" };
 const OUTING_WHY = { street: "a stroll down Herzl Street (the kiosk, the makolet, a look in the shop windows)", shops: "an errand on Herzl Street east (the hardware shop, the ATM, the flower shop)",
   cafe: "a coffee at Café Nahat", park: "some air in the park", plaza: "a look at what's on at the Pump House (the poster board, the ticket window)", gym: "a workout at Herzl Gym",
