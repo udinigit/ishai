@@ -121,6 +121,15 @@
   .triv{margin-top:8px;border:2px solid #ffb84d;border-radius:10px;background:#140b22;color:#fff3e0;font-size:clamp(14px,3.6vw,18px);line-height:1.2;overflow:hidden}
   .triv .tag{display:block;background:#ffb84d;color:#1a0f2a;padding:2px 8px;letter-spacing:.5px}
   .triv .tq{padding:6px 8px 4px} .triv .tq small{display:block;opacity:.65;font-size:.8em;text-transform:uppercase}
+  .recipe{margin-top:8px;border:2px solid #e8822a;border-radius:10px;background:#1c120a;color:#fff3e0;font-size:clamp(13px,3.4vw,16px);line-height:1.25;overflow:hidden}
+  .recipe .tag{display:flex;justify-content:space-between;align-items:center;background:#e8822a;color:#1c120a;padding:2px 8px;letter-spacing:.5px}
+  .recipe .tag button{font:inherit;background:none;border:0;color:#1c120a;cursor:pointer;padding:0 2px}
+  .recipe .rtop{display:flex;gap:8px;padding:6px 8px}
+  .recipe canvas{width:64px;height:64px;image-rendering:pixelated;border:2px solid #6a4a2a;border-radius:4px;background:#2a1a0e;flex:none}
+  .recipe .rname{font-size:1.15em;color:#ffd9a0} .recipe .rmeta{opacity:.7;font-size:.85em}
+  .recipe .ring{padding:0 8px 4px;font-size:.88em} .recipe .ring span{display:inline-block;margin-right:8px;white-space:nowrap} .recipe .ring .buy{color:#ffb84d} .recipe .ring .got{color:#9fe0a0}
+  .recipe ol{margin:0;padding:2px 8px 6px 28px;font-size:.88em} .recipe li{opacity:.5} .recipe li.now{opacity:1;color:#ffe08a} .recipe li.next{opacity:.85}
+  .recipe .cr{padding:2px 8px 6px;font-size:.75em;opacity:.6} .recipe .cr a{color:#ffd9a0}
   .triv .topts{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:2px 8px 6px}
   .triv .topts button{font:inherit;text-align:left;background:#2a1d40;color:#fff3e0;border:1px solid #6a4f8a;border-radius:6px;padding:5px 7px;cursor:pointer;min-height:2.3em}
   .triv .topts button:disabled{cursor:default;opacity:.85} .triv .topts button.mine{border-color:#ffd36a;background:#4a3a10}
@@ -385,6 +394,7 @@
   </div>
 
   <div class="promoC" id="promoC" hidden><span>📣 COMING UP</span><b id="promoT"></b><button id="promoMore" type="button">SEE ▸</button></div>
+  <div class="recipe" id="recipe" hidden><span class="tag"><b id="recTag"></b><button id="recX" type="button" title="Hide the recipe for today">✕</button></span><div class="rtop"><canvas id="recImg" width="32" height="32"></canvas><div><div class="rname" id="recName"></div><div class="rmeta" id="recMeta"></div></div></div><div class="ring" id="recIng"></div><ol id="recSteps"></ol><div class="cr">Recipe: <a id="recLink" href="https://www.themealdb.com" target="_blank" rel="noopener noreferrer nofollow">TheMealDB</a></div></div>
   <div class="triv" id="triv" hidden><span class="tag" id="trivTag"></span><div class="tq" id="trivQ"></div><div class="topts" id="trivO"></div><i class="tbar" id="trivBar"></i><div class="tfoot" id="trivF"></div><div class="cr">Questions: <a href="https://opentdb.com" target="_blank" rel="noopener noreferrer nofollow">Open Trivia DB</a> · CC BY-SA 4.0</div></div>
   <div class="pollC" id="pollC" hidden><div class="pollH"><span>🗳 VIEWERS' VOTE</span><button id="pollR" class="pollR" type="button" hidden></button><b id="pollT"></b><button id="pollX" class="pollX" type="button" aria-label="Hide this vote" title="Hide this vote">✕</button></div><div class="pollQ" id="pollQ"></div><div class="pollO" id="pollO"></div><div class="pollF" id="pollF" aria-live="polite"></div><div class="pollG" id="pollG" hidden></div></div>
 
@@ -4514,7 +4524,7 @@
     let j = i; while (j > 0 && isCook(list[j-1])) j--;
     let k = i; while (k + 1 < list.length && isCook(list[k+1])) k++;
     const words = list.slice(j, k + 1).map(e => (e.ev.lines || []).map(l => l.say).join(' ')).join(' ').toLowerCase();
-    return {since: list[j].start, until: k + 1 < list.length ? list[k+1].start : null, last: k + 1 < list.length ? list[k+1].ev : null, words};
+    return {since: list[j].start, until: k + 1 < list.length ? list[k+1].start : null, last: k + 1 < list.length ? list[k+1].ev : null, words, idx: i - j};
   }
   function cookNow(){
     const T = actor.cookTest;
@@ -4554,6 +4564,10 @@
       const ks = Object.keys(COOK_SUB).filter(k => k !== 'plate' && (k !== 'oven' || ovenOn)), wt = k => COOK_SUB[k].w * (COOK_SUB[k].re && COOK_SUB[k].re.test(words) ? 3 : 1);
       let r = hash(n * 31 + 17 + (actor.cookSes % 997)) * ks.reduce((a, k) => a + wt(k), 0); for (const k of ks){ r -= wt(k); if (r < 0) return k; } return 'stir'; };
     let sub = prog > .88 && !T ? 'plate' : pick(slot); if (!T && sub === pick(slot - 1) && sub !== 'stir') sub = pick(slot + 7919) === sub ? 'stir' : pick(slot + 7919);
+    { const n = T ? 0 : cookStepNo(ses);   // the recipe's own step: what it says, most of the time (a taste or a stir now and then)
+      if (n > 0 && KITCHEN_PUB.steps[n - 1] && hash(slot * 7 + 3) < .75){ const st = KITCHEN_PUB.steps[n - 1].t.toLowerCase();
+        const m = ['oven','fry','chop','whisk','knead','pour','stir','taste'].find(k => COOK_SUB[k].re.test(st)); if (m && (m !== 'oven' || ovenOn)) sub = m; }
+      if (n < 0) sub = n === -2 ? 'plate' : 'taste'; }
     if (sub === 'oven'){   // to the oven, glove on, the door drops open, the tray in (or a look), back
       const d = walk(COOK_X, OVEN_X);
       if (inSlot < d){ view({sub:'stir', ovenOn:true}); return {...base, label:'AT THE OVEN', x: COOK_X + inSlot * 24, pose:'walk', o:{}, walking:true, dir:1}; }
@@ -4563,6 +4577,45 @@
     view({sub, ovenOn});
     return {...base, label: COOK_SUB[sub].label, tag:'c-' + sub, x: COOK_X, seat:'cooking', sp: sub, walking:false};
   }
+
+  // which step of today's recipe this cooking moment is (0 = getting ready, -1 = tasting, -2 = plating): from the planned parts' step numbers
+  function cookStepNo(ses){
+    const kp = KITCHEN_PUB; if (!kp || !kp.parts || !kp.parts.length || !ses) return 0;
+    let p = kp.parts[0]; for (const q of kp.parts) if (q.at <= ses.since + 10 * 60000) p = q;
+    const off = p === kp.parts[0] && kp.guest ? 1 : 0, i = ses.idx + off;
+    if (i >= p.steps.length) return 0;
+    if (p.steps[i]) return p.steps[i];
+    if (p === kp.parts[kp.parts.length - 1] && i >= p.steps.length - (kp.guest ? 2 : 1)) return i === p.steps.length - (kp.guest ? 2 : 1) ? -1 : -2;
+    return 0;
+  }
+  // the recipe card under the picture (viewers): today's dish from the morning until the meal, the photo in 8-bit, what he has and what he buys,
+  // the step he is on while he cooks; ✕ hides it for the day (this browser)
+  let recKey = '', recImgFor = '';
+  function recipeTick(){
+    const el = $('recipe'), kp = KITCHEN_PUB, now = NOW();
+    let hid = ''; try { hid = localStorage.getItem('ishaiRecipeX') || ''; } catch(e){}
+    const show = kp && kp.name && kp.date === new Date(now).toLocaleDateString('en-CA', {timeZone: TZ}) && now < (kp.done || 0) + 20 * 60000 && hid !== kp.date;
+    if (!show){ if (!el.hidden){ el.hidden = true; recKey = ''; } return; }
+    const ses = actor.loc === 'apartment' ? cookSession() : null, n = ses ? cookStepNo(ses) : 0, cooking = !!ses;
+    const p = bagPlan(), unpacked = !!(p && p.home != null && now >= p.home), shopping = !!(p && !unpacked);
+    const key = [kp.id, kp.date, n, cooking, shopping, unpacked, now > (kp.done || 0)].join('|'); if (key === recKey) return; recKey = key; el.hidden = false;
+    const hm = ms => new Intl.DateTimeFormat('en-GB', {hour:'2-digit', minute:'2-digit', hour12:false, timeZone:TZ}).format(new Date(ms));
+    $('recTag').textContent = now > (kp.done || 0) ? '🍽 ON THE TABLE' : cooking ? (n > 0 ? `🍳 COOKING · STEP ${n} OF ${kp.steps.length}` : n === -2 ? '🍳 PLATING' : n === -1 ? '🍳 TASTING' : '🍳 COOKING') : shopping ? '🛒 SHOPPING FOR IT' : `🍳 ISHAI COOKS TODAY · ${hm(kp.at)}`;
+    $('recName').textContent = kp.name;
+    const mins = m => m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) : ''}` : m + ' min';
+    $('recMeta').textContent = [kp.area, kp.cat].filter(Boolean).join(' · ') + ` — ${mins(kp.time.active)} at the counter` + (kp.time.passive ? `, ${mins(kp.time.passive)} cooking` : '') + (kp.time.away ? `, ${mins(kp.time.away)} in the fridge` : '') + (kp.guest ? ` — with ${kp.guest}` : '');
+    const ing = $('recIng'); ing.textContent = '';
+    for (const i of kp.ing){ const sp = document.createElement('span'); sp.className = i.buy ? (unpacked ? 'got' : 'buy') : '';
+      sp.textContent = (i.buy ? (unpacked ? '✓ ' : '🛒 ') : '✓ ') + i.name + (i.amount ? ' ' + i.amount : ''); ing.appendChild(sp); }
+    const ol = $('recSteps'); ol.textContent = ''; ol.hidden = !cooking || n <= 0;
+    if (cooking && n > 0) kp.steps.forEach((x, k) => { if (k < n - 2 || k > n + 1) return; const li = document.createElement('li'); li.value = k + 1; li.textContent = x.t.length > 160 ? x.t.slice(0, 157) + '…' : x.t; li.className = k === n - 1 ? 'now' : k === n ? 'next' : ''; ol.appendChild(li); });
+    $('recLink').href = /^https:\/\/www\.themealdb\.com\//.test(kp.url || '') ? kp.url : 'https://www.themealdb.com';
+    if (recImgFor !== kp.thumb && /^https:\/\/www\.themealdb\.com\//.test(kp.thumb || '')){ recImgFor = kp.thumb;   // the photo, drawn small and shown big: chunky pixels
+      const c = $('recImg'), x = c.getContext('2d'), img = new Image(); x.fillStyle = '#2a1a0e'; x.fillRect(0, 0, 32, 32);
+      img.onload = () => { x.imageSmoothingEnabled = true; x.drawImage(img, 0, 0, 32, 32); }; img.src = kp.thumb + '/preview'; }
+  }
+  $('recX').onclick = () => { try { localStorage.setItem('ishaiRecipeX', KITCHEN_PUB ? KITCHEN_PUB.date : ''); } catch(e){} recKey = ''; recipeTick(); };
+  setInterval(recipeTick, 1000);
 
   // ================= actor & transitions =================
   // Ishai walks to the exit, the feed switches camera, he enters the new scene and walks to his spot.
@@ -6738,6 +6791,15 @@
         opensAt: t + (o.inSec ?? 5) * 1000, closesAt: t + ((o.inSec ?? 5) + 600) * 1000, result: null}; if (o.result){ POLL.opensAt = t - 610000; POLL.closesAt = t - 10000; POLL.result = pollFake(POLL); } pollSig = ''; },
       fillLine: slot => hostFillLine(slot), sfx: (k, o) => Sound.sfx(k, o || {}), sfxKinds: () => Sound.kinds,
       home: (k, skip) => { actor.homeTest = k ? {k, t0: NOW() - (skip || 0) * 1000} : null; },
+      recipe: (on) => {   // a sample recipe card (Chicken Fajitas, with Noa, cooking from now): KITCHEN_PUB as the worker would send it
+        if (!on){ KITCHEN_PUB = null; recKey = ''; return; }
+        const now = NOW(), steps = ['Slice the chicken and peppers into strips.', 'Mix the paprika, oil and lime juice and marinate the chicken for 30 minutes in the fridge.', 'Heat a large pan and fry the chicken for 5-6 minutes until golden.', 'Add the peppers and onion and cook for another 4 minutes.', 'Warm the tortillas and serve with sour cream.'];
+        KITCHEN_PUB = {date: new Date(now).toLocaleDateString('en-CA', {timeZone: TZ}), id: 'sample', name: 'Chicken Fajitas', cat: 'Chicken', area: 'Mexican', thumb: '', url: 'https://www.themealdb.com',
+          time: {active: 35, passive: 0, away: 30}, at: now, done: now + 3600000, guest: on === 'guest' ? 'Noa' : null,
+          ing: [['Chicken Breast','2','meat',1],['Red Pepper','1','veg',1],['Onion','1','veg',0],['Tortillas','8','bread',1],['Olive Oil','2 tbs','dry',0],['Lime','1','veg',1],['Sour Cream','to serve','dairy',1]].map(([name, amount, g, buy]) => ({name, amount, g, buy: !!buy})),
+          steps: steps.map(t => ({t})), parts: [{at: now, n: 9, steps: [0, 1, 2, 3, 4, 5, 0, 0, 0]}]};
+        recKey = '';
+      },
       shop: (k) => {   // the shopping bags: '' off, 'bags1' / 'bags2' carrying, 'unpack' putting it all away at home
         const now = NOW(), items = [['Chicken Breast','meat'],['Red Pepper','veg'],['Onion','veg'],['Tortillas','bread'],['Lime','veg'],['Sour Cream','dairy'],['Coriander','herbs'],['Milk','dairy']].map(([name, g]) => ({name, g}));
         actor.unpack = null;

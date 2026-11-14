@@ -4041,7 +4041,8 @@ function eventNote(s, now, company) {
   const recent = lifeOf(s).filter(m => now - m.at < 10 * 86400000 && (m.offered || 0) < 3);
   if (recent.length && Math.random() < (company ? .3 : .15)) { const m = recent[recent.length - 1 - Math.floor(Math.random() * Math.min(2, recent.length))]; m.offered = (m.offered || 0) + 1;
     out += ` From the last few days he remembers: ${m.text} If, and only if, it fits naturally, he brings it up${company ? " with the person he is with" : " to himself (a muttered line, or to Falafel)"}, in his own words; otherwise ignore it.`; }
-  const KT = s.kitchen && s.kitchen.today;
+  const KT = s.kitchen && s.kitchen.today, KL = s.kitchen && s.kitchen.leftovers;
+  if (KL && KL.until > now && !(KT && KT.r && KT.r.name === KL.name && KT.cookAt > now - 3 * 3600000)) out += ` There are leftovers of his ${KL.name} in the fridge; he may warm some up or offer them to someone.`;
   if (KT && KT.r && KT.cookAt && KT.cookAt > now && dayOfTZ(KT.cookAt) === dayOfTZ(now)) out += ` Today he plans to cook ${KT.r.name} around ${storyClock(KT.cookAt).label.slice(-5)}${KT.missing && KT.missing.length ? ` (he still needs to buy ${kList(KT.missing.slice(0, 4))} at the market)` : ""}${KT.guest && s.cast[KT.guest] ? ` and invite ${s.cast[KT.guest].name} to eat` : ""}; he may mention it.`;
   return out ? `\nIshai's evenings:${out}` : "";
 }
@@ -4448,15 +4449,85 @@ function cookBook(s, K, r, slot, missing, guest, now) {
       forceText: `Ishai takes the bus to Shuk Shalom with a shopping list for ${r.name}.` }, now);
     g.outing = { where: "market", mode: null, who: null, local: "local-vendor", chain: CHAIN_MAX }; g.cook = { day, role: "shop" }; s.director.push(g);
   }
-  const len = Math.round((slot.doneAt - slot.cookAt) / 60000);
-  const g = newGoal({ id, startAt: new Date(slot.cookAt).toISOString(), deadlineAt: new Date(slot.doneAt + 20 * 60000).toISOString(), location: "apartment", forceAction: "eating",
-    with: gName, forceWith: g0 ? guest : null,
-    teaser: `Ishai cooks ${r.name}${gName ? ` for ${gName}` : ""}`,
-    goal: kCookText(r, len, friday, gName),
-    forceText: `Ishai plates the ${r.name} he cooked and sits down to eat at the kitchen island${gName ? " with " + gName : ""}.` }, now);
-  g.cook = { day, role: "cook", recipe: r.id, guest: guest || null };
-  s.director.push(g);
-  return { shopId, cookId: id };
+  // the cooking, played as written (no AI): the recipe's own steps, one moment per tick; long waits (the oven, the fridge) split it into parts
+  const luck = kLuck(r, day), parts = cookMoments(r, guest, gName, luck, day, storyClock(slot.doneAt).label.slice(-5));
+  let at = slot.cookAt, cookId = id; const ids = [];
+  parts.forEach((p, k) => {
+    if (p.wait){   // a long wait between parts: at home (the oven) the story keeps him in, in the fridge he may go out
+      if (p.wait === "home"){ const w = newGoal({ id: `${id}-w${k}`, startAt: new Date(at).toISOString(), deadlineAt: new Date(at + p.min * 60000).toISOString(), location: "apartment", forceAction: "idle",
+        goal: `The ${r.name} is ${p.how} until about ${storyClock(at + p.min * 60000).label.slice(-5)}. Ishai stays home meanwhile (tidies up, reads, a call, the radio) and checks on it now and then; he doesn't go out.`, forceText: `Ishai checks on the ${r.name}.` }, now);
+        w.cook = { day, role: "wait" }; s.director.push(w); ids.push(w.id); }
+      at += p.min * 60000; return; }
+    const last = k === parts.length - 1, gid = last ? id : `${id}-p${k}`, len = p.moments.length * INTERVAL_MIN;
+    const g = newGoal({ id: gid, startAt: new Date(at).toISOString(), deadlineAt: new Date(at + (len + 15) * 60000).toISOString(), location: "apartment", forceAction: last ? "eating" : "cooking",
+      with: last ? gName : null, forceWith: last && g0 ? guest : null,
+      teaser: k === 0 ? `Ishai cooks ${r.name}${gName ? ` for ${gName}` : ""}` : undefined,
+      goal: last ? kMealText(r, gName, luck, friday) : `Ishai is cooking ${r.name} at home from his recipe book.`,
+      forceText: last ? `Ishai plates the ${r.name} he cooked and sits down to eat at the kitchen island${gName ? " with " + gName : ""}.` : `Ishai goes back to the ${r.name}.` }, now);
+    g.script = cleanScript(p.moments, 60); g.cook = { day, role: last ? "cook" : "part", recipe: r.id, guest: guest || null, luck };
+    s.director.push(g); ids.push(gid); at += len * 60000;
+  });
+  return { shopId, cookId, goals: ids, luck };
+}
+// about 1 dish in 6 goes a little wrong (the director's default): burnt, too salty, overcooked, or a cake that sinks. Seeded by the date.
+function kLuck(r, day) {
+  const x = seedRng("luck-" + day + r.id)(); if (x >= 1 / 6) return null;
+  return /dessert/i.test(r.cat) ? "sunk" : ["salty", "burnt", "overcooked"][Math.floor(x * 18) % 3];
+}
+const LUCK_SAY = { burnt: "a little burnt at the edges", salty: "too salty", overcooked: "a bit overcooked", sunk: "sunk in the middle" };
+// what the story writer gets for the meal, after the scripted cooking (the scene with the guest continues live)
+function kMealText(r, gName, luck, friday) {
+  const how = luck ? `it came out ${LUCK_SAY[luck]}, and he is a good sport about it` : "it came out well";
+  return gName ? `Ishai and ${gName} eat the ${r.name} he just cooked at the kitchen island${friday ? " (it's for Shabbat dinner)" : ""}; ${how}. A glass of ${/beef|lamb|goat/i.test(r.cat) ? "red" : "white"} wine or a Cooola, talk about the food and their day, then ${gName} thanks him and goes home.`
+    : `Ishai eats the ${r.name} he just cooked at the kitchen island; ${how}. He enjoys it quietly, maybe with the radio on.`;
+}
+// lines for the scripted cooking (no AI): the invitation, Ishai reading and muttering the steps, the hosts, the guest arriving
+const COOK_SAY = {
+  mutter: ["Okay. Next.", "Medium heat. What is medium, really?", "The book says 'until golden'. Golden is a feeling.", "Don't rush it, Ishai.", "Smells right so far.", "Where did I put the wooden spoon?",
+    "Pinch of salt. My pinch or the book's pinch?", "Clean as you go. That's the rule.", "This part is satisfying.", "Almost. Almost.", "Who writes 'season to taste'? Whose taste?", "Right. Good. Moving on."],
+  wait: ["Now we wait.", "Timer's on.", "Don't open the oven. Don't open the oven.", "That's the hard part done."],
+  taste: { good: ["Mm. Oh, that's good.", "Yes. Yes! That's the one."], salty: ["Oh. That's... salty.", "Too much salt. Okay. Lemon. Lemon fixes everything."], burnt: ["Is that smoke? That's smoke.", "Just the edges. The edges are character."],
+    overcooked: ["Hm. A little long.", "Well, it's cooked. Very cooked."], sunk: ["Why is it sinking? Don't sink!", "It sank. It still tastes like cake."] },
+  invite: [["ishai", "Hey {g}, it's Ishai. I'm making {dish} today and it's far too much for one."], ["{w}", "Is that an invitation?"], ["ishai", "It is. Around {t}?"], ["{w}", "I'll be there. Should I bring anything?"], ["ishai", "Just an appetite."], ["{w}", "That I have. See you at {t}."]],
+  invite1: [["ishai", "{g}! Are you free around {t}? I'm cooking {dish}."], ["{w}", "You're cooking? On purpose?"], ["ishai", "From the book and everything."], ["{w}", "Then I'm coming. {t}."], ["ishai", "Great. Bring nothing."], ["{w}", "Bringing nothing, got it."]],
+  arrive: [["{w}", "Hi! Oh, it smells amazing in here."], ["ishai", "Perfect timing, I'm just plating."], ["{w}", "Is that the {dish}?"], ["ishai", "Fresh from the book. Sit, sit."], ["{w}", "I'll get the glasses."], ["ishai", "Top shelf. Thank you."]],
+  arriveBad: [["{w}", "Hi! Something smells... interesting."], ["ishai", "It's {how}. Don't judge."], ["{w}", "I would never. Is that the {dish}?"], ["ishai", "What's left of it. Sit, sit."], ["{w}", "I'll get the glasses."], ["ishai", "Please do."]],
+  hosts: ["Ishai's cooking {dish} today, Oren. Step {n} of {all}.", "Look at that concentration. Step {n}.", "He's reading the recipe like it's a legal document.", "{dish}, from the red book. This is a big day for that kitchen.",
+    "Apron on, radio on. The man is in his element.", "I can almost smell it through the screen.", "Step {n}: '{step}'. Let's see how this goes."],
+  hostsWait: ["Now it's in the oven and he pretends he isn't watching it.", "The waiting part. Every cook's nemesis.", "{dish} is doing its thing on its own now."],
+};
+const kFill = (t, o) => String(t).replace(/\{(\w+)\}/g, (_, k) => o[k] != null ? o[k] : "");
+// the cooking as planned moments: [{moments}] parts and {wait} gaps. Each moment is one tick (INTERVAL_MIN minutes).
+function cookMoments(r, guest, gName, luck, day, eatAt) {
+  const rng = seedRng("cook-say-" + day + r.id), any = a => a[Math.floor(rng() * a.length)], o = { dish: r.name, g: gName || "", w: guest || "" };
+  const N = r.steps.length, parts = [], T = INTERVAL_MIN, H = (n, st) => [{ who: rng() < .5 ? "zohar" : "oren", say: kFill(any(COOK_SAY.hosts), { ...o, n, all: N, step: clip(st || "", 50) }) }];
+  let cur = []; const flush = () => { if (cur.length) parts.push({ moments: cur }); cur = []; };
+  // 1. the invitation, then getting everything out
+  if (guest){ const tpl = rng() < .5 ? COOK_SAY.invite : COOK_SAY.invite1, mealAt = eatAt || "seven";
+    cur.push({ location: "apartment", action: "phoning", with: guest, text: `Ishai calls ${gName} and invites them over at ${mealAt} to eat the ${r.name} he is about to cook.`,
+      lines: tpl.map(([w, l]) => ({ who: kFill(w, o), say: kFill(l, { ...o, t: mealAt }) })), commentary: [{ who: "oren", say: kFill("Ishai's inviting {g} over. Something's cooking.", o) }] }); }
+  cur.push({ location: "apartment", action: "cooking", with: null, text: `Ishai ties his apron on, opens his recipe book at ${r.name} and gets everything out on the counter.`,
+    lines: [{ who: "ishai", say: kFill(any([`Right. ${r.name}. Let's do this.`, `Okay, ${r.name}. Page one.`, `${r.name}. How hard can it be?`]), o) }], commentary: H(1, r.steps[0] && r.steps[0].t) });
+  // 2. the steps: active ones a moment each (or one per ${T} minutes), short waits as quiet moments at home, long waits split the cooking into parts
+  r.steps.forEach((st, i) => {
+    const say = clip(st.t.split(/(?<=[.!?])\s/)[0], 90), n = i + 1;
+    if ((st.kind === "passive" || st.kind === "away") && st.min >= 30){
+      cur.push({ location: "apartment", action: "cooking", with: null, text: `Step ${n} of ${N}: ${clip(st.t, 150)}`, lines: [{ who: "ishai", say }, { who: "ishai", say: any(COOK_SAY.wait) }], commentary: [{ who: "zohar", say: kFill(any(COOK_SAY.hostsWait), o) }] });
+      flush(); parts.push({ wait: st.kind === "away" ? "out" : "home", min: Math.max(0, st.min - T), how: st.kind === "away" ? "in the fridge" : /bake|roast|oven/i.test(st.t) ? "in the oven" : "cooking on the hob" }); return; }
+    const ticks = Math.max(1, Math.round(st.min / T));
+    for (let k = 0; k < ticks; k++) cur.push({ location: "apartment", action: st.kind === "active" || k === 0 ? "cooking" : "idle", with: null,
+      text: `Step ${n} of ${N} of ${r.name}: ${clip(st.t, 150)}`,
+      lines: k === 0 ? [{ who: "ishai", say }, ...(rng() < .6 ? [{ who: "ishai", say: any(COOK_SAY.mutter) }] : [])] : (rng() < .4 ? [{ who: "ishai", say: any(COOK_SAY.mutter) }] : []),
+      commentary: k === 0 && rng() < .7 ? H(n, st.t) : [] });
+  });
+  // 3. tasting and plating, then the guest at the door (the meal itself is written live)
+  const how = luck ? LUCK_SAY[luck] : null;
+  cur.push({ location: "apartment", action: "cooking", with: null, text: `Ishai tastes the ${r.name}${luck ? " and finds it " + how : ""}, then plates it.`,
+    lines: (luck ? COOK_SAY.taste[luck] : COOK_SAY.taste.good).map(say => ({ who: "ishai", say })), commentary: [{ who: "oren", say: luck ? `Uh oh. ${r.name}, ${how}. It happens to the best of us.` : `And that face says it worked. ${r.name}, done.` }] });
+  if (guest) cur.push({ location: "apartment", action: "cooking", with: guest, text: `${gName} knocks and comes in just as Ishai plates the ${r.name}.`,
+    lines: (luck ? COOK_SAY.arriveBad : COOK_SAY.arrive).map(([w, l]) => ({ who: kFill(w, o), say: kFill(l, { ...o, how }) })), commentary: [{ who: "zohar", say: kFill("And here's {g}, right on time for {dish}.", o) }] });
+  flush();
+  return parts;
 }
 async function cookTick(env, s, now) {
   const K = kitchenOf(s); if (K.off || KITCHEN.on === false) return;
@@ -4469,7 +4540,8 @@ async function cookTick(env, s, now) {
   const T = K.today;
   if (T && T.cookId && !T.remembered) { const g = s.director.find(x => x.id === T.cookId);
     if (g && g.status === "done") { T.remembered = true; K.n++; K.lastGuest = T.guest || K.lastGuest;
-      addLife(s, now, "cooking", `Cooked ${T.r.name}${T.guest && s.cast[T.guest] ? ` and ${s.cast[T.guest].name} came over to eat` : ""}.`);
+      addLife(s, now, "cooking", `Cooked ${T.r.name}${T.luck ? ` (it came out ${LUCK_SAY[T.luck]})` : ""}${T.guest && s.cast[T.guest] ? ` and ${s.cast[T.guest].name} came over to eat` : ""}.`);
+      if (!/dessert|breakfast/i.test(T.r.cat)) K.leftovers = { name: T.r.name, until: ms + 2 * 86400000 };   // a dish for four: the rest goes in the fridge
       K.log = [...(K.log || []), { date: T.date, name: T.r.name, guest: T.guest, how: g.how }].slice(-14); } }
   if (K.date === day || h < 7) return;
   // a new day: pick (or take the dish that didn't fit yesterday), then find the time
@@ -4489,8 +4561,10 @@ async function kPlan(s, K, r, now, ms, why) {
   K.next = null; K.seen = [...(K.seen || []), r.id].slice(-60);
   const guest = kGuest(s, K, now, "guest-" + day);
   const ids = cookBook(s, K, r, slot, missing, guest, now);
-  K.today = { date: day, r, missing, shopMin, guest, start: slot.start, cookAt: slot.cookAt, doneAt: slot.doneAt, ...ids, why };
+  K.today = { date: day, r, missing, shopMin, guest, start: slot.start, cookAt: slot.cookAt, doneAt: Math.max(slot.doneAt, kScriptEnd(s, ids.goals)), ...ids, why };
 }
+// when the last planned cooking moment plays (each script moment is one tick)
+function kScriptEnd(s, ids) { let e = 0; for (const id of ids || []) { const g = s.director.find(d => d.id === id); if (g && g.script) e = Math.max(e, g.startAfter + g.script.length * INTERVAL_MIN * 60000); } return e; }
 // the director's kitchen box: pick a recipe by name, a new random one, skip today, on/off
 async function kitchenAction(env, s, b, now) {
   const K = kitchenOf(s), ms = now + DELAY_MIN * 60000, day = dayOfTZ(ms);
@@ -4509,8 +4583,11 @@ function kitchenPublic(s) {
   const T = s.kitchen && s.kitchen.today; if (!T || !T.r || !T.cookId) return null;
   const r = T.r; return { date: T.date, id: r.id, name: r.name, cat: r.cat, area: r.area, thumb: r.thumb, url: r.url, time: r.time, at: T.cookAt, start: T.start, done: T.doneAt,
     ing: r.ing.map(i => ({ name: i.name, amount: i.amount, buy: (T.missing || []).includes(i.name), g: kGroup(i.name) })), steps: r.steps.map(x => ({ t: x.t, kind: x.kind, min: x.min })),
-    guest: T.guest && s.cast[T.guest] ? s.cast[T.guest].name : null, credit: "Recipe: TheMealDB", bags: kBags(s, T) };
+    guest: T.guest && s.cast[T.guest] ? s.cast[T.guest].name : null, credit: "Recipe: TheMealDB", bags: kBags(s, T), luck: T.luck || null, parts: kParts(s, T) };
 }
+// the recipe card's clock: when each planned cooking part starts and how many moments it has (step lines say "Step n of N")
+function kParts(s, T) { return (T.goals || []).map(id => s.director.find(d => d.id === id)).filter(g => g && g.script).map(g => ({ at: g.startAfter, n: g.script.length,
+  steps: g.script.map(m => { const x = /^Step (\d+) of/.exec(m.text || ""); return x ? +x[1] : 0; }) })); }
 // the shopping bags (step 3): the first moment at the market on the day's shopping trip (he fills one bag, then a second when the list is long)
 // and the first moment back home after it (he unpacks onto the counter, the cold things into the fridge). Ids, so every page times it from its own timeline.
 function kBags(s, T) {
