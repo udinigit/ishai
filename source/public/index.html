@@ -34,7 +34,7 @@
   body{min-height:100vh;display:flex;justify-content:center;padding:16px}
   .wrap{width:100%;max-width:760px;display:flex;flex-direction:column;gap:10px}
   .titleR{display:inline-flex;align-items:baseline;gap:6px;margin-left:auto;white-space:nowrap}
-  .title{flex-wrap:wrap;row-gap:4px} .title>span:first-child{white-space:nowrap}   /* narrow phones: the buttons move under the name as one row */ #bell,#eye,#acct{margin:0;padding:0 4px;line-height:1.2} #acct.on{border-color:var(--amber);box-shadow:0 0 6px rgba(255,184,77,.5)} #eye[aria-pressed=false]{opacity:.4}
+  .title{flex-wrap:wrap;row-gap:4px} .title>span:first-child{white-space:nowrap}   /* narrow phones: the buttons move under the name as one row */ #bell,#eye,#acct{margin:0;padding:0 4px;line-height:1.2} #acct.on{border-color:var(--amber);box-shadow:0 0 6px rgba(255,184,77,.5)} #eye[aria-pressed=false]{opacity:.4} #eye[aria-pressed=true]:not(.held){opacity:.7}
   .title{display:flex;justify-content:space-between;align-items:baseline;padding:0 4px;
     font-size:clamp(22px,5.5vw,32px);letter-spacing:1px;text-shadow:0 0 8px rgba(77,255,122,.45)}
   .title small{font-size:.55em;color:var(--phos-dim)}
@@ -7277,14 +7277,42 @@
   if (forceLoc){ setCast(DEMO_CAST); setState(forceLoc, forcePose || 'idle', true, params.get('with')); }
   else setState('apartment','sleeping',true);
   if (params.has('delivery')) actor.delivery = {at: NOW() - (+params.get('delivery') || 12) * 1000};   // preview an ateBite delivery (seconds into it)
-  // keep the screen on while the page is open and showing; the browser lets go when the tab is hidden, so ask again on return
-  if ('wakeLock' in navigator){ let lock = null, on = true; const eye = $('eye');
+  // keep the screen on while the page is open and showing (the eye button, on by default, saved on the device).
+  // The Screen Wake Lock is asked for again whenever it lets go (tab hidden, battery saver, full screen, the system) and on a 15 s check;
+  // where it is missing or refused (older iPhones, in-app browsers like WhatsApp's, some home-screen apps) a tiny muted looping video
+  // keeps the screen on instead, which the browser lets start only from a tap, so every tap tries again.
+  { let lock = null, on = true, vid = null, asking = false; const eye = $('eye');
+    const NOSLEEP = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMtbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAld0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAAAAABAAAAAAHPbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAgABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABem1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAATpzdGJsAAAAunN0c2QAAAAAAAAAAQAAAKphdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAMGF2Y0MBQsAK/+EAF2dCwAqmEXsBEAAAAwAQAAADACDxImEYAQAGaMhCDxMgAAAAEHBhc3AAAAABAAAAAQAAABRidHJ0AAAAAAAAClgAAApYAAAAGHN0dHMAAAAAAAAAAQAAAAIAAEAAAAAAFHN0c3MAAAAAAAAAAQAAAAEAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAIAAAABAAAAHHN0c3oAAAAAAAAAAAAAAAIAAAKLAAAACwAAABRzdGNvAAAAAAAAAAEAAANdAAAAYnVkdGEAAABabWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAtaWxzdAAAACWpdG9vAAAAHWRhdGEAAAABAAAAAExhdmY2MC4xNi4xMDAAAAAIZnJlZQAAAp5tZGF0AAACdAYF//9w3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE2NCByMzEwOCAzMWUxOWY5IC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAyMyAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTAgcmVmPTE2IGRlYmxvY2s9MTotMzotMyBhbmFseXNlPTB4MToweDEzMSBtZT11bWggc3VibWU9MTAgcHN5PTEgcHN5X3JkPTIuMDA6MC43MCBtaXhlZF9yZWY9MSBtZV9yYW5nZT0yNCBjaHJvbWFfbWU9MSB0cmVsbGlzPTIgOHg4ZGN0PTAgY3FtPTAgZGVhZHpvbmU9MjEsMTEgZmFzdF9wc2tpcD0xIGNocm9tYV9xcF9vZmZzZXQ9LTQgdGhyZWFkcz0xIGxvb2thaGVhZF90aHJlYWRzPTEgc2xpY2VkX3RocmVhZHM9MCBucj0wIGRlY2ltYXRlPTEgaW50ZXJsYWNlZD0wIGJsdXJheV9jb21wYXQ9MCBjb25zdHJhaW5lZF9pbnRyYT0wIGJmcmFtZXM9MCB3ZWlnaHRwPTAga2V5aW50PTI1MCBrZXlpbnRfbWluPTEgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJjX2xvb2thaGVhZD02MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MToxLjIwAIAAAAAPZYiCAvnP//+HooAAq8/AAAAAB0GaHAXznUA=';
     try { on = localStorage.getItem('ishaiAwake') !== '0'; } catch(e){}
-    const stayAwake = async () => { if (!on || lock || document.hidden) return; try { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } catch(e){} };
-    const show = () => { eye.setAttribute('aria-pressed', String(on)); eye.title = on ? 'The screen stays on. Tap to let it turn off' : 'Keep the screen on'; };
+    const held = () => !!lock || !!(vid && !vid.paused);
+    const show = () => { eye.setAttribute('aria-pressed', String(on)); eye.classList.toggle('held', on && held());
+      eye.title = !on ? 'Keep the screen on' : held() ? 'The screen stays on. Tap to let it turn off' : 'Tap anywhere to keep the screen on'; };
+    const video = () => { if (vid) return vid; vid = document.createElement('video');
+      vid.muted = true; vid.defaultMuted = true; vid.loop = true; vid.playsInline = true; vid.preload = 'auto';
+      ['muted', 'playsinline', 'webkit-playsinline', 'loop', 'disablepictureinpicture', 'disableremoteplayback'].forEach(a => vid.setAttribute(a, ''));
+      vid.setAttribute('aria-hidden', 'true'); vid.src = NOSLEEP;
+      vid.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:.01;pointer-events:none;z-index:-1';
+      vid.addEventListener('timeupdate', () => { if (vid.currentTime > 0.5) vid.currentTime = Math.random() * 0.1; });   // iOS sleeps at a loop's end
+      vid.addEventListener('pause', show); vid.addEventListener('playing', show);
+      document.body.appendChild(vid); return vid; };
+    const fallback = () => { if (!on || document.hidden) return; const v = video(); if (v.paused) { const p = v.play(); if (p && p.catch) p.catch(() => {}); } };
+    const stayAwake = async () => { if (!on || document.hidden) return show();
+      if (!lock && !asking && 'wakeLock' in navigator){ asking = true;
+        try { lock = await navigator.wakeLock.request('screen');
+          lock.addEventListener('release', () => { lock = null; show(); if (on && !document.hidden) setTimeout(stayAwake, 1000); });
+        } catch(e){ lock = null; }
+        asking = false; }
+      if (lock){ if (vid && !vid.paused) vid.pause(); } else fallback();
+      show(); };
+    const letGo = () => { if (lock) lock.release().catch(() => {}); lock = null; if (vid) vid.pause(); show(); };
     eye.hidden = false; show();
-    eye.onclick = e => { e.stopPropagation(); on = !on; try { localStorage.setItem('ishaiAwake', on ? '1' : '0'); } catch(err){} show(); if (on) stayAwake(); else if (lock) lock.release().catch(() => {}); };
-    stayAwake(); document.addEventListener('visibilitychange', stayAwake); document.addEventListener('pointerdown', stayAwake);   // some browsers need a tap first
+    eye.onclick = e => { e.stopPropagation(); on = !on; try { localStorage.setItem('ishaiAwake', on ? '1' : '0'); } catch(err){} if (on) stayAwake(); else letGo(); };
+    stayAwake();
+    document.addEventListener('visibilitychange', stayAwake);
+    document.addEventListener('fullscreenchange', stayAwake);
+    window.addEventListener('pageshow', stayAwake); window.addEventListener('focus', stayAwake);
+    ['click', 'touchend', 'keydown'].forEach(k => document.addEventListener(k, () => { if (!held()) stayAwake(); }, {capture: true, passive: true}));   // a real tap lets the browser say yes
+    setInterval(() => { if (on && !document.hidden && !held()) stayAwake(); }, 15000);
   }
   // notifications: a bell for each viewer, off until they turn it on (key moments, and the moments they voted for)
   const ALERT_KEY = 'BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI';
