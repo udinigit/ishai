@@ -4306,7 +4306,11 @@ const triviaHealth = s => { const T = s.trivia; if (!T) return null; return { ni
 const KITCHEN = __KITCHEN__;
 const MEALDB = key => `https://www.themealdb.com/api/json/v1/${key || "1"}/`;
 const COOK_V = 1;
-function kitchenOf(s) { return s.kitchen || (s.kitchen = { date: null, today: null, next: null, pantry: {}, seen: [], log: [], err: null, n: 0 }); }
+function kitchenOf(s) { const K = s.kitchen || (s.kitchen = { date: null, today: null, next: null, pantry: {}, seen: [], log: [], err: null, n: 0 }); if (!K.wine) K.wine = { red: 1, white: 1 }; return K; }
+// wine with dinner when someone comes (step 5): red with beef, lamb and goat, white with the rest; none with breakfast or dessert (Cooola then).
+// Fictional label, Herzl Hills. A bottle a meal; none left in the rack (or the fridge door): he buys one at Shuk Shalom with the rest.
+const WINE_NAME = { red: "Herzl Hills Red", white: "Herzl Hills White" };
+const kWine = (r, guest) => guest && !/dessert|breakfast/i.test(r.cat) ? (/beef|lamb|goat/i.test(r.cat) ? "red" : "white") : null;
 const kNorm = t => String(t || "").toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-z\s-]/g, " ").replace(/\s+/g, " ").trim();
 const kWordRe = w => new RegExp("\\b" + w.replace(/[-]/g, "\\-") + (w.length > 4 ? "\\w*" : "") + "\\b");
 const K_BANNED = (KITCHEN.bannedWords || []).map(w => [w, kWordRe(kNorm(w))]);
@@ -4534,15 +4538,17 @@ async function cookTick(env, s, now) {
   const ms = now + DELAY_MIN * 60000, day = dayOfTZ(ms), h = storyClock(ms).hour;
   // the shopping is done: what he bought is at home now
   for (const d of s.director || []) if (d.cook && d.cook.role === "shop" && d.status === "done" && !d.cook.stocked && d.arrivedAt) {
-    d.cook.stocked = true; const T = K.today; if (T && T.missing) T.missing.forEach(n => { K.pantry[kNorm(n)] = ms; }); }
+    d.cook.stocked = true; const T = K.today; if (T && T.missing) T.missing.forEach(n => { const w = Object.keys(WINE_NAME).find(k => WINE_NAME[k] === n); if (w) K.wine[w] = (K.wine[w] || 0) + 1; else K.pantry[kNorm(n)] = ms; }); }
   { const kd = KITCHEN.keepDays || {}; for (const [n, t] of Object.entries(K.pantry)) if (ms - t > (kd[kGroup(n)] ?? 4) * 86400000 + 86400000) delete K.pantry[n]; }
   // the meal is over: a memory, and the guest's
   const T = K.today;
   if (T && T.cookId && !T.remembered) { const g = s.director.find(x => x.id === T.cookId);
     if (g && g.status === "done") { T.remembered = true; K.n++; K.lastGuest = T.guest || K.lastGuest;
       addLife(s, now, "cooking", `Cooked ${T.r.name}${T.luck ? ` (it came out ${LUCK_SAY[T.luck]})` : ""}${T.guest && s.cast[T.guest] ? ` and ${s.cast[T.guest].name} came over to eat` : ""}.`);
-      if (!/dessert|breakfast/i.test(T.r.cat)) K.leftovers = { name: T.r.name, until: ms + 2 * 86400000 };   // a dish for four: the rest goes in the fridge
+      if (!/dessert|breakfast/i.test(T.r.cat)) K.leftovers = { name: T.r.name, until: ms + 2 * 86400000, from: T.date, guest: T.guest };
+      if (T.wine) K.wine[T.wine] = Math.max(0, (K.wine[T.wine] || 0) - 1);   // a dish for four: the rest goes in the fridge
       K.log = [...(K.log || []), { date: T.date, name: T.r.name, guest: T.guest, how: g.how }].slice(-14); } }
+  if (K.date === day && K.leftovers && K.leftDate !== day && K.leftovers.from !== day) kLeftovers(s, K, now, ms);
   if (K.date === day || h < 7) return;
   // a new day: pick (or take the dish that didn't fit yesterday), then find the time
   const wd = weekday(ms);
@@ -4554,14 +4560,39 @@ async function cookTick(env, s, now) {
   await kPlan(s, K, r, now, ms, why);
 }
 async function kPlan(s, K, r, now, ms, why) {
-  const day = dayOfTZ(ms), missing = kMissing(K, r, ms), shopMin = missing.length ? Math.ceil((((WALK.apartment || {}).market ?? 20) * 2 + ((PR.market && PR.market.stay) || [20])[0] + 10) / 15) * 15 : 0;
+  const day = dayOfTZ(ms), guest = kGuest(s, K, now, "guest-" + day), wine = kWine(r, guest), buyWine = !!wine && !(K.wine[wine] > 0);
+  const missing = [...kMissing(K, r, ms), ...(buyWine ? [WINE_NAME[wine]] : [])], shopMin = missing.length ? Math.ceil((((WALK.apartment || {}).market ?? 20) * 2 + ((PR.market && PR.market.stay) || [20])[0] + 10) / 15) * 15 : 0;
   const slot = cookSlot(s, r, shopMin, ms + 20 * 60000, ms);
   K.date = day;
   if (!slot) { K.next = { v: COOK_V, r }; K.today = { date: day, r, missing, skip: "no free time today: tomorrow", why }; return; }
   K.next = null; K.seen = [...(K.seen || []), r.id].slice(-60);
-  const guest = kGuest(s, K, now, "guest-" + day);
   const ids = cookBook(s, K, r, slot, missing, guest, now);
-  K.today = { date: day, r, missing, shopMin, guest, start: slot.start, cookAt: slot.cookAt, doneAt: Math.max(slot.doneAt, kScriptEnd(s, ids.goals)), ...ids, why };
+  K.today = { date: day, r, missing, shopMin, guest, wine, buyWine, start: slot.start, cookAt: slot.cookAt, doneAt: Math.max(slot.doneAt, kScriptEnd(s, ids.goals)), ...ids, why };
+}
+// leftovers (step 5): the day after, when there's a free hour around lunch (or dinner, if he isn't cooking), he warms them up and invites someone over
+const LEFT_SAY = {
+  invite: [["ishai", "{g}, hi! I've got leftover {dish} from yesterday, way too much for me. Lunch?"], ["{w}", "Leftovers? I love leftovers."], ["ishai", "Come up whenever, I'll warm it up."], ["{w}", "On my way in a bit."]],
+  warm: ["Second day. Always better on the second day.", "A little water so it doesn't dry out..."],
+  arrive: [["{w}", "Hi! Is that yesterday's famous {dish}?"], ["ishai", "The very same. It's even better today."], ["{w}", "I'll be the judge of that."], ["ishai", "Sit, it's hot."]] };
+function kLeftovers(s, K, now, ms) {
+  const L = K.leftovers, day = dayOfTZ(ms); K.leftDate = day;
+  if (!L || L.until < ms || weekday(ms) === "Sat") return;
+  const cookToday = K.today && K.today.cookAt && K.today.date === day, want = atLocal(day, cookToday && storyClock(K.today.cookAt).hour < 15 ? 19 : 13);
+  let best = null;
+  for (let t = ceil15(Math.max(ms + 30 * 60000, atLocal(day, 11))); t < atLocal(day, 20); t += 15 * 60000)
+    if (pollFree(s, t, t + 60 * 60000) && !kShabbat(s, t, t + 60 * 60000) && (!best || Math.abs(t - want) < Math.abs(best - want))) best = t;
+  if (!best) return;
+  const guest = kGuest(s, { ...K, lastGuest: L.guest || K.lastGuest }, now, "left-" + day); if (!guest || !s.cast[guest]) return;
+  const gName = s.cast[guest].name, o = { dish: L.name, g: gName, w: guest }, id = "left-" + day.slice(5);
+  const script = [
+    { location: "apartment", action: "phoning", with: guest, text: `Ishai calls ${gName} and offers them his leftover ${L.name}.`, lines: LEFT_SAY.invite.map(([w, l]) => ({ who: kFill(w, o), say: kFill(l, o) })), commentary: [{ who: "zohar", say: kFill("Leftover {dish} and an invitation. Very civilised.", o) }] },
+    { location: "apartment", action: "cooking", with: null, text: `Ishai warms up the leftover ${L.name} on the hob.`, lines: LEFT_SAY.warm.map(say => ({ who: "ishai", say })), commentary: [] },
+    { location: "apartment", action: "cooking", with: guest, text: `${gName} knocks and comes in as the ${L.name} is hot again.`, lines: LEFT_SAY.arrive.map(([w, l]) => ({ who: kFill(w, o), say: kFill(l, o) })), commentary: [] }];
+  const g = newGoal({ id, startAt: new Date(best).toISOString(), deadlineAt: new Date(best + 45 * 60000).toISOString(), location: "apartment", forceAction: "eating", with: gName, forceWith: guest,
+    teaser: `Leftover ${L.name} with ${gName}`, goal: `Ishai and ${gName} eat the leftover ${L.name} from yesterday at the kitchen island and chat; then ${gName} goes home.`,
+    forceText: `Ishai and ${gName} eat the leftover ${L.name} at the kitchen island.` }, now);
+  g.script = cleanScript(script, 6); g.cook = { day, role: "leftovers", guest }; s.director.push(g);
+  K.leftovers = null; K.leftLog = { day, guest, name: L.name };
 }
 // when the last planned cooking moment plays (each script moment is one tick)
 function kScriptEnd(s, ids) { let e = 0; for (const id of ids || []) { const g = s.director.find(d => d.id === id); if (g && g.script) e = Math.max(e, g.startAfter + g.script.length * INTERVAL_MIN * 60000); } return e; }
@@ -4580,10 +4611,10 @@ async function kitchenAction(env, s, b, now) {
   return "unknown kitchen action";
 }
 function kitchenPublic(s) {
-  const T = s.kitchen && s.kitchen.today; if (!T || !T.r || !T.cookId) return null;
+  const T = s.kitchen && s.kitchen.today; if (!T || !T.r || !T.cookId) return s.kitchen ? { bottles: s.kitchen.wine || null } : null;
   const r = T.r; return { date: T.date, id: r.id, name: r.name, cat: r.cat, area: r.area, thumb: r.thumb, url: r.url, time: r.time, at: T.cookAt, start: T.start, done: T.doneAt,
-    ing: r.ing.map(i => ({ name: i.name, amount: i.amount, buy: (T.missing || []).includes(i.name), g: kGroup(i.name) })), steps: r.steps.map(x => ({ t: x.t, kind: x.kind, min: x.min })),
-    guest: T.guest && s.cast[T.guest] ? s.cast[T.guest].name : null, credit: "Recipe: TheMealDB", bags: kBags(s, T), luck: T.luck || null, parts: kParts(s, T) };
+    ing: [...r.ing.map(i => ({ name: i.name, amount: i.amount, buy: (T.missing || []).includes(i.name), g: kGroup(i.name) })), ...(T.buyWine ? [{ name: WINE_NAME[T.wine], amount: "1 bottle", buy: true, g: "wine" }] : [])], steps: r.steps.map(x => ({ t: x.t, kind: x.kind, min: x.min })),
+    guest: T.guest && s.cast[T.guest] ? s.cast[T.guest].name : null, credit: "Recipe: TheMealDB", bags: kBags(s, T), luck: T.luck || null, parts: kParts(s, T), guestId: T.guest || null, wine: T.wine || null, buyWine: T.buyWine ? WINE_NAME[T.wine] : null, bottles: s.kitchen.wine || null };
 }
 // the recipe card's clock: when each planned cooking part starts and how many moments it has (step lines say "Step n of N")
 function kParts(s, T) { return (T.goals || []).map(id => s.director.find(d => d.id === id)).filter(g => g && g.script).map(g => ({ at: g.startAfter, n: g.script.length,

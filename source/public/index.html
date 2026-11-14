@@ -904,6 +904,13 @@
         if (sub === 'knead'){ const a2 = Math.floor(t/350)%2;   // both hands push the dough, one then the other
           head(x,y+1,{closed:blinkOn(t,700), look:0}); torso(x,y);
           R(x+1,y+9,1,2,S); R(x+2,y+11,1,1+a2,S); R(x+2,y+12+a2,2,1,K); R(x+8,y+9,1,2,S); R(x+7,y+11,1,2-a2,S); R(x+6,y+13-a2,2,1,K); break; }
+        if (sub === 'cheers'){   // his glass raised towards the guest
+          head(x,y,{closed:false, look:1, talk: Math.floor(t/220)%2}); torso(x,y);
+          R(x+1,y+9,1,3,S); R(x+1,y+12,1,1,K); R(x+8,y+8,2,1,S); R(x+10,y+6,1,2,S); R(x+10,y+5,1,1,K); break; }
+        if (sub === 'pour' && o.bottle){ const tilt = Math.floor(t/1500)%4 ? 1 : 0;   // a wine bottle tipped over the glass on his right
+          head(x,y+1,{closed:false, look:1}); torso(x,y);
+          R(x+1,y+9,1,3,S); R(x+1,y+12,1,1,K); R(x+8,y+8,2,1,S); R(x+10,y+7,1,2,S); R(x+10,y+6,2,1,K);
+          R(x+10,y+3,2,4,'#1f3a2a'); R(x+12,y+4+tilt,1,1,'#1f3a2a'); R(x+10,y+4,2,1,o.bottle); break; }
         if (sub === 'pour'){ const tilt = Math.floor(t/1200)%3 ? 1 : 0;   // the jug raised over the pot on his right
           head(x,y,{closed:blinkOn(t,900), look:1}); torso(x,y);
           R(x+1,y+9,1,3,S); R(x+1,y+12,1,1,K); R(x+8,y+9,2,1,S); R(x+10,y+7,1,2,S); R(x+10,y+5,1,2,K); R(x+10+tilt,y+2,2,3,'#e8e4d8'); R(x+12,y+2+tilt,1,1,'#e8e4d8'); break; }
@@ -1640,6 +1647,10 @@
     R(150,44,27,1,C.woodDark); R(151,45,1,2,C.woodDark); R(175,45,1,2,C.woodDark);                       // the shelf
     if (!(ck && ck.book)){ R(151,36,4,8,'#c23b3b'); R(151,36,4,1,'#d8564a'); R(152,38,2,1,'#f2e6c8'); R(154,37,1,6,'#9a2a2a'); }   // the recipe book (a red ring binder)
     [[156,'#c23b3b'],[158,'#7fbf6a'],[160,'#e0b04a']].forEach(([x,c]) => { R(x,40,2,4,'#e8e4d8'); R(x,40,2,1,c); });   // spice jars
+    { const reds = Math.min(3, (KITCHEN_PUB && KITCHEN_PUB.bottles ? KITCHEN_PUB.bottles.red : 1) - (wineOut() === 'red' ? 1 : 0));   // the little wine rack: red bottles lying, ends out
+      R(162,43,8,1,C.woodDark); R(162,39,1,4,C.woodDark); R(169,39,1,4,C.woodDark);
+      [[163,41],[166,41],[164,38]].slice(0, Math.max(0, reds)).forEach(([x,y]) => { R(x,y,2,2,'#1f3a2a'); R(x,y,1,1,'#2f5a3a'); }); }
+    if (!wineGlassesOut()) [164,167].forEach(x => { R(x,45,1,1,'#cfd8de'); R(x-1,46,3,1,'#cfd8de'); R(x-1,47,1,1,'#cfd8de'); R(x+1,47,1,1,'#cfd8de'); });   // wine glasses hanging upside down under the shelf
     R(170,37,2,7,'#d8b43a'); R(170,35,1,2,'#d8b43a'); R(173,40,2,4,'#f2f2f2'); R(173,40,2,1,'#3b7bc2');           // oil and salt
     R(150,56,9,1,C.metalDark);                                                                                   // the rail: ladle, whisk, spatula
     R(151,57,1,4,C.metal); R(150,61,3,1,C.metal); R(154,57,1,2,C.metal); R(153,59,3,3,'#c9ced4'); R(154,60,1,1,C.wall); R(157,57,1,3,'#2a2a2a'); R(156,60,3,2,'#2a2a2a');
@@ -1680,7 +1691,7 @@
   // KITCHEN_PUB.bags = {from, home, n}: the id of his first moment at the market on the shopping trip, of his first moment back home after it, and
   // one or two bags. From those moments' places on the timeline every page works out the same: a bag a minute after he gets to the market, the
   // second (long lists) a few minutes later, carried on the bus and up the street until he puts them down on the counter at home.
-  const BAG = '#c8a26a', BAG_DARK = '#a8824a', COLD = ['meat','fish','dairy','herbs'];
+  const BAG = '#c8a26a', BAG_DARK = '#a8824a', COLD = ['meat','fish','dairy','herbs','wine'];
   function bagPlan(){
     if (actor.shopTest) return actor.shopTest;
     const b = KITCHEN_PUB && KITCHEN_PUB.bags; if (!b) return null;
@@ -1709,6 +1720,7 @@
     const n = String(it.name).toLowerCase(), food = (FOOD_COL.find(([re]) => re.test(n)) || [0, '#c9a46a'])[1];
     if (/chicken|turkey|beef|lamb|mince|steak|veal|duck|liver|sausage|goat/.test(n)){ R(x,yb,4,1,'#f0f0f0'); R(x,yb-1,4,1, /beef|lamb|mince|steak|liver|goat/.test(n) ? '#b8443a' : '#eab0a0'); return 4; }
     if (/fish|salmon|tuna|cod|haddock|trout|sardine|mackerel|bass/.test(n)){ R(x,yb,4,1,'#f0f0f0'); R(x,yb-1,4,1, /salmon/.test(n) ? '#f08a5a' : '#d8dfe6'); return 4; }
+    if (it.g === 'wine' || /herzl hills/.test(n)){ R(x,yb-5,2,6,'#1f3a2a'); R(x,yb-7,1,2,'#1f3a2a'); R(x,yb-3,2,2,/white/.test(n) ? '#e8d890' : '#8a1c2c'); return 2; }
     if (/milk|cream|yog|buttermilk/.test(n)){ R(x,yb-3,2,4,'#f4f4f4'); R(x,yb-2,2,1,'#3b7bc2'); R(x,yb-4,1,1,'#f4f4f4'); return 2; }
     if (/\begg/.test(n)){ R(x,yb-1,4,2,'#d8c8a8'); R(x,yb-2,1,1,'#efe6d0'); R(x+2,yb-2,1,1,'#efe6d0'); return 4; }
     if (/butter|cheese|feta|mozzarella|parmesan|cheddar|halloumi|ricotta/.test(n)){ R(x,yb-1,3,2,'#f0d070'); R(x,yb-1,3,1,'#f8e090'); return 3; }
@@ -1751,6 +1763,54 @@
       if (e < d2) return {...base, label:'INTO THE FRIDGE', x: 156 + e * 24, pose:'walk', o:{}, walking:true, dir:1}; e -= d2;
       if (e < tf){ u.fridge = e > 1; return {...base, label:'INTO THE FRIDGE', tag:'fridge', x:168, pose:'back', o:{}, walking:false}; } e -= tf; }
     u.done = true; u.fridge = true; return null;
+  }
+
+  // ---------- wine with the meal (docs/COOKING_PLAN.md, step 5) ----------
+  // When the guest sits down to eat what he cooked (the first moment at home with them after the cooking), on the clock from that moment:
+  // the bottle comes out, the cork pops, he pours the guest's glass and then his own, they clink glasses ("L'chaim!"), and then they sip
+  // now and then, the level dropping a little each time; the glasses and the bottle stay on the island until the guest has gone.
+  const WINE_COL = {red:'#7a1a2a', white:'#e8d890'}, WINE_LABEL = {red:'#8a1c2c', white:'#e8d890'};
+  function mealStart(){
+    const kp = KITCHEN_PUB; if (!kp || !kp.wine || !kp.guestId || !kp.at || actor.loc !== 'apartment') return null;
+    const now = NOW(); let st = null;
+    for (const e of TL.values()){ if (e.dead || e.start > now || e.start < kp.at) continue;
+      const ev = e.ev; if (storyLoc(ev.location) !== 'apartment') { st = null; continue; }
+      if (ev.with === kp.guestId && ['eating','drinking','talking','idle'].includes(ev.action)){ if (st == null) st = e.start; }
+      else if (st != null && ev.with !== kp.guestId) st = null; }
+    return st != null && now - st < 2 * 3600000 ? st : null;
+  }
+  const wineOut = () => { const st = mealStart(); return st != null && NOW() - st > 1500 ? KITCHEN_PUB.wine : null; };
+  const wineGlassesOut = () => !DREAMING && !!wineOut();
+  function wineView(t){   // what he does with the wine right now, and the two glasses' levels (0-3)
+    if (DREAMING) return null;
+    const st = mealStart(); if (st == null) return null;
+    const e = (NOW() - st) / 1000, w = KITCHEN_PUB.wine, col = WINE_COL[w];
+    const v = {e, w, col, gl:[0, 0], cork: e > 2 && e < 3, pouring: null, cheers: false, sip: null};
+    if (e < 2) return v;
+    if (e < 8){ v.pose = 'cooking'; v.o = {sub:'pour', bottle: WINE_LABEL[w]}; v.pouring = 1; v.gl = [0, Math.max(0, Math.min(3, Math.floor((e - 3) / 1.5)))]; return v; }
+    if (e < 12){ v.pose = 'cooking'; v.o = {sub:'pour', bottle: WINE_LABEL[w]}; v.pouring = 0; v.gl = [Math.min(3, Math.floor((e - 8) / 1.2)), 3]; return v; }
+    if (e < 16){ v.pose = 'cooking'; v.o = {sub:'cheers'}; v.cheers = true; v.gl = [3, 3]; return v; }
+    const k = Math.floor((e - 16) / 25), inK = (e - 16) - k * 25, sips = n => Math.max(0, 3 - Math.floor(n / 2));   // two sips a level
+    v.gl = [sips(Math.ceil(k / 2)), sips(Math.floor(k / 2))];
+    if (v.gl[0] === 0 && v.gl[1] === 0) v.gl = [1, 1];   // a second small glass, then the bottle stays put
+    if (inK < 3){ if (k % 2 === 0){ v.pose = 'drinking'; v.o = {food: col}; v.sip = 0; } else v.sip = 1; }
+    return v;
+  }
+  function wineGlass(x, yb, lv, col){   // a stemmed glass, its foot at yb
+    R(x,yb,3,1,'#cfd8de'); R(x+1,yb-1,1,1,'#cfd8de'); R(x,yb-4,1,3,'#cfd8de'); R(x+2,yb-4,1,3,'#cfd8de'); R(x+1,yb-2,1,1,'#cfd8de');
+    if (lv > 0) R(x+1,yb-1-Math.min(3,lv),1,Math.min(3,lv),col);
+  }
+  function wineTable(t){
+    const v = wineView(t); if (!v || v.e < 1.5) return;
+    if (v.pouring == null){ R(175,77,2,6,'#1f3a2a'); R(175,75,1,2,'#1f3a2a'); R(175,79,2,2,WINE_LABEL[v.w]); }   // the bottle on the island
+    if (v.cork) R(176,72,1,1,'#c8a26a');
+    const mine = v.sip === 0 || v.cheers, theirs = v.sip === 1 || v.cheers;
+    if (!mine) wineGlass(165, 83, v.gl[0], v.col);
+    if (!theirs) wineGlass(169, 83, v.gl[1], v.col);
+    if (v.pouring === 1) R(170,76,1,Math.max(1, 4 - v.gl[1]),v.col); else if (v.pouring === 0) R(166,76,1,Math.max(1, 4 - v.gl[0]),v.col);
+    if (v.cheers){ wineGlass(166, 76, 3, v.col); wineGlass(169, 76, 3, v.col); R(171,77,1,1,'#e8b48a');   // the two glasses meet over the island
+      if (Math.floor(t/150)%2){ R(168,71,1,1,'#fff3b0'); R(167,72,1,1,'#fff3b0'); R(169,72,1,1,'#fff3b0'); } }
+    if (v.sip === 1){ wineGlass(175, 74, v.gl[1], v.col); R(176,75,1,1,'#e8b48a'); }   // the guest's glass up at the guest's mouth
   }
 
   // ---------- apartment ----------
@@ -1804,7 +1864,7 @@
       R(160,48,12,6,'#e8e2d6'); R(160,54,12,1,'#bdb6a8');
       R(177,38,14,42,C.fridge); R(177,52,14,1,'#b8bec4');
       const fridgeOpen = (actor.err && actor.err.tag==='fridge') || (actor.viaUntil && actor.loc==='apartment'); R(179,44,1,5,'#9aa3ad'); R(179,55,1,7,'#9aa3ad'); R(182,40,3,3,'#e0605a'); R(184,46,5,6,COOOLA.bg); bolt(185,46,COOOLA.fg);
-      if (fridgeOpen){ R(178,39,12,40,'#f4f8ff'); R(178,52,12,1,'#c9d0d6'); R(178,64,12,1,'#c9d0d6'); R(180,57,3,5,COOOLA.bg); R(184,58,3,4,COOOLA.bg); R(181,46,6,4,'#e0b04a'); R(180,68,8,3,'#7fbf6a');
+      if (fridgeOpen){ R(178,39,12,40,'#f4f8ff'); R(178,52,12,1,'#c9d0d6'); R(178,64,12,1,'#c9d0d6'); R(180,57,3,5,COOOLA.bg); R(184,58,3,4,COOOLA.bg); R(181,46,6,4,'#e0b04a'); R(180,68,8,3,'#7fbf6a'); if (KITCHEN_PUB && KITCHEN_PUB.bottles && KITCHEN_PUB.bottles.white > 0){ R(186,66,2,5,'#d8e0b8'); R(186,64,1,2,'#d8e0b8'); R(186,68,2,1,'#e8d890'); }
         R(170,38,7,42,C.fridge); R(170,38,1,42,'#b8bec4'); alpha(.15,()=>R(150,40,40,50,'#f4f8ff')); }
       if (tag==='wipe' || tag==='dishes'){ const sw = Math.round(Math.sin(NOW()/260)*2), ax = Math.round(actor.x);
         if (tag==='wipe'){ const sx = Math.min(173, ax + 10 + sw); R(sx,63,3,1,'#7fbf6a'); R(sx,64,3,1,'#e0d050'); if (Math.floor(t/500)%3===0) R(sx+4,64,1,1,'#ffffff'); }
@@ -1865,8 +1925,8 @@
       const seatedGuest = guest && wantComp({id: actor.with || 'stranger', look: guest, x: 172, kind:'seat'});
       // kitchen island: same depth as the desk, people walk behind it to the fridge and the counter
       zAdd(102, () => {
-      if (S('eating')) drawIshai('eating',158,70,t);
-      if (S('drinking')) drawIshai('drinking',158,70,t);
+      { const wv = wineView(t); if (wv && wv.pose && (S('eating') || S('drinking'))) drawIshai(wv.pose, 158, 70, t, wv.o);
+        else { if (S('eating')) drawIshai('eating',158,70,t); if (S('drinking')) drawIshai('drinking',158,70,t); } }
       if (seatedGuest){ markHead(actor.with, 172, 70); person(guest, 172, 70, t + 400, {legs:false, face:-1, talkPhase:true}); }
       if (S('cooking')) drawIshai('cooking',COOK_X,70,t,{sub: SP('cooking')});
       R(148,84,42,2,C.top); R(148,86,42,10,C.island); R(150,88,38,1,'#52616e');
@@ -1879,7 +1939,8 @@
         const f = Math.floor(t/180+i)%3; R(cx+(f===2?1:0),76,1,2,'#ffd36a'); R(cx,75+(f===1?1:0),1,1,'#fff3b0');
         alpha(.12,()=>R(cx-4,70,10,10,'#ffd36a')); }); }
       kitchenIsland(t, S('cooking') ? SP('cooking') : null);
-      if (S('eating')){ R(158,83,10,1,'#f2f2f2'); R(160,82,6,1,'#d98c4a'); R(162,81,2,1,'#7fbf6a'); R(170,81,2,3,'#9fd3f0'); }
+      if (S('eating')){ R(158,83,10,1,'#f2f2f2'); R(160,82,6,1,'#d98c4a'); R(162,81,2,1,'#7fbf6a'); if (!wineGlassesOut()) R(170,81,2,3,'#9fd3f0'); }
+      wineTable(t);
       });
       // floor
       drawFloor(t,a,settled,actor,this);
@@ -4617,6 +4678,12 @@
   $('recX').onclick = () => { try { localStorage.setItem('ishaiRecipeX', KITCHEN_PUB ? KITCHEN_PUB.date : ''); } catch(e){} recKey = ''; recipeTick(); };
   setInterval(recipeTick, 1000);
 
+  // the wine's sounds, from the meal's clock: once each (cork, two pours, the clink), never while a replay runs
+  { let fired = {};
+    setInterval(() => { if (SIM || forceLoc || !Sound.isOn()) return; const v = wineView(NOW()); if (!v){ fired = {}; return; }
+      const cue = (k, at) => { if (v.e >= at && v.e < at + 2 && !fired[k]){ fired[k] = 1; Sound.sfx(k === 'pour1' || k === 'pour2' ? 'glug' : k); } };
+      cue('cork', 2); cue('pour1', 3.5); cue('pour2', 8.5); cue('clink', 14.5); }, 300); }
+
   // ================= actor & transitions =================
   // Ishai walks to the exit, the feed switches camera, he enters the new scene and walks to his spot.
   const actor = { loc:'apartment', action:'sleeping', x:30, targetX:30, travelling:false, hidden:false, pending:null, switching:0, with:null, ride:null };
@@ -5317,7 +5384,7 @@
     // knocks on a door: [when, loudness] taps, a wooden thud each
     function raps(times, freq, vol){ times.forEach(([w, k]) => { noise(.06,{vol: vol * k, type:'bandpass', freq, q:1.4, when:w, buf:brown}); tone(freq * .42, .06, 'triangle', vol * .3 * k, w); }); }
     // the sounds the page can play; the sandbox lists them (`Sound.kinds`)
-    const KINDS = ['bag','chop','bubble','whisk','ovendoor','timer','knock','knockhard','knocklevi','buzzer','chime','bikebell','bikeby','carby','busby','scooter','brake','busstop','busgo','cardoor','taxigo',
+    const KINDS = ['cork','glug','bag','chop','bubble','whisk','ovendoor','timer','knock','knockhard','knocklevi','buzzer','chime','bikebell','bikeby','carby','busby','scooter','brake','busstop','busgo','cardoor','taxigo',
       'whoosh','riser','hit','sting-adventure','sting-comedy','sting-drama','sting-horror','popcorn','fizz','cash',
       'waves','birds','wind','owl','drip','bubbles','hooves','tavern','clock','quiz','right','wrong','bark','woof','yip'];
     function sfx(kind, o={}){
@@ -5351,6 +5418,8 @@
         case 'whisk': for (let i = 0; i < 14; i++) tone(3200 + r()*600, .015, 'triangle', .02, i*.085); break;
         case 'ovendoor': noise(.12,{vol:.07,type:'lowpass',freq:500,buf:brown}); tone(180,.2,'sine',.03,.05); noise(.08,{vol:.05,type:'lowpass',freq:600,when:1.6,buf:brown}); break;
         case 'timer': [0,.25,.5].forEach(w => tone(2350,.16,'sine',.04,w)); break;
+        case 'cork': tone(900,.05,'square',.05,0); noise(.06,{vol:.06,type:'bandpass',freq:1800,q:2}); break;
+        case 'glug': for (let i = 0; i < 6; i++) tone(180 + r()*90, .07, 'sine', .05, i*.16); break;
         case 'bag': for (let i = 0; i < 5; i++) noise(.09 + r()*.08,{vol:.035,type:'bandpass',freq:2200+r()*1800,q:.8,when:i*.22 + r()*.08}); break;   // a paper bag rustling
         case 'clink': tone(2600,.25,'sine',.04); tone(3150,.2,'sine',.03,.05); break;
         case 'crunch': for (let i = 0; i < 3; i++) noise(.05,{vol:.06,type:'lowpass',freq:900,when:i*.16}); break;
@@ -6791,6 +6860,10 @@
         opensAt: t + (o.inSec ?? 5) * 1000, closesAt: t + ((o.inSec ?? 5) + 600) * 1000, result: null}; if (o.result){ POLL.opensAt = t - 610000; POLL.closesAt = t - 10000; POLL.result = pollFake(POLL); } pollSig = ''; },
       fillLine: slot => hostFillLine(slot), sfx: (k, o) => Sound.sfx(k, o || {}), sfxKinds: () => Sound.kinds,
       home: (k, skip) => { actor.homeTest = k ? {k, t0: NOW() - (skip || 0) * 1000} : null; },
+      wine: (w) => {   // a meal with wine: Noa at the island, red or white, from now (the routine: cork, pour, cheers, sips)
+        if (!w){ KITCHEN_PUB = null; return; }
+        const now = NOW(); KITCHEN_PUB = {date: new Date(now).toLocaleDateString('en-CA', {timeZone: TZ}), at: now - 60000, done: now, wine: w, guestId: 'noa', guest: 'Noa', bottles: {red: 2, white: 1}};
+      },
       recipe: (on) => {   // a sample recipe card (Chicken Fajitas, with Noa, cooking from now): KITCHEN_PUB as the worker would send it
         if (!on){ KITCHEN_PUB = null; recKey = ''; return; }
         const now = NOW(), steps = ['Slice the chicken and peppers into strips.', 'Mix the paprika, oil and lime juice and marinate the chicken for 30 minutes in the fridge.', 'Heat a large pan and fry the chicken for 5-6 minutes until golden.', 'Add the peppers and onion and cook for another 4 minutes.', 'Warm the tortillas and serve with sour cream.'];
