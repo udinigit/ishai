@@ -267,7 +267,8 @@
   .chRowT{margin:4px 0 3px;color:#ffd36a} .chRowT small{color:#9a8bb8;font-size:.75em}
   .chRow{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
   .chan .chTile{flex:none;width:clamp(96px,26vw,150px);text-align:left;padding:4px;display:flex;flex-direction:column;gap:2px;background:#1d1036}
-  .chThumb{display:flex;flex-direction:column;align-items:center;justify-content:center;height:clamp(44px,12vw,70px);border-radius:3px;background:repeating-linear-gradient(0deg,#2b1a4d 0 2px,#24153f 2px 4px);color:#ffd36a}
+  .chThumb{display:flex;flex-direction:column;align-items:center;justify-content:center;height:clamp(44px,12vw,70px);border-radius:3px;background:repeating-linear-gradient(0deg,#2b1a4d 0 2px,#24153f 2px 4px);background-size:cover;background-position:center;image-rendering:pixelated;color:#ffd36a;text-shadow:0 0 3px #000,0 0 3px #000,1px 1px 0 #000}
+  .chHero{background-size:cover !important;background-position:center !important;image-rendering:pixelated}
   .chTile.week .chThumb{background:repeating-linear-gradient(0deg,#4a1d3b 0 2px,#3b1730 2px 4px)}
   .chThumb i{font-style:normal;font-size:.75em;color:#ff9ad0} .chThumb b{font-weight:normal;font-size:1.1em} .chThumb em{font-style:normal;font-size:.65em;color:#9fd0ff;text-align:center}
   .chTT{font-size:.9em;line-height:1.15;max-height:2.3em;overflow:hidden}
@@ -280,6 +281,7 @@
   .epMid{flex:1;min-width:0;display:flex;flex-direction:column;background:rgba(20,12,38,.8);border-radius:4px;padding:0 5px;line-height:1.15}
   .epMid b{font-weight:normal;color:#ffd36a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .epMid small{color:#ff9ad0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.85em}
   .stvCap .epClip{color:#fff} .epNext{color:#ffd36a}
+  .stv.ep .stvLive{width:46%;left:27%;top:13%} .stv.ep .stvLive span{font-size:clamp(8px,1.9vw,12px);white-space:nowrap;max-width:94%;overflow:hidden;text-overflow:ellipsis}
   @media (max-width:520px){ .epBar #epNextM,.epBar #epNextE{padding:2px 4px} }
   .term.sum details{margin:.1em 0 .5em} .term.sum summary{cursor:pointer;color:var(--amber,#ffb84d)} .term.sum ul{margin:.2em 0 .6em;padding-left:1.2em} .term.sum li{margin:.15em 0;opacity:.9}
 .surv .sv{border:1px solid #2f4a2f;border-radius:8px;padding:8px 10px;margin:0 0 10px;background:#030803}
@@ -6083,6 +6085,37 @@
   const chPlace = loc => PLACE_NAME[loc] || String(loc || '').toUpperCase();
   const epLen = ep => Math.max(1, Math.round(epItems(ep).reduce((a, it) => a + it.ms, 0) / 60000));
   const castId = name => { const n = String(name || '').toLowerCase(); if (n === 'ishai') return 'ishai'; const f = Object.entries(CAST).find(([, c]) => c && String(c.name || '').toLowerCase() === n); return f ? f[0] : n.replace(/[^a-z]/g, ''); };
+  // ---- step 3: the moment itself on the studio screen, drawn with the show's own art (no AI, nothing saved) ----
+  // The place as it looked at that hour (clear sky, passers-by), Ishai in the moment's action and whoever was with him.
+  const MEM = document.createElement('canvas'); MEM.width = W; MEM.height = H; const mctx = MEM.getContext('2d');
+  const memKey = loc => SCENES[loc] ? loc : (PLACE_SCREENS[loc] || []).find(k => SCENES[k]) || null;
+  const memHour = t => { const m = /^(\d\d):(\d\d)/.exec(t || ''); return m ? +m[1] + m[2] / 60 : 12; };
+  const MEM_POSE = ['phoning','reading','drinking','eating','working','gaming','exercising'];
+  function drawMemory(c, t, people){
+    const key = memKey(c.loc), keep = {g, HEADS, forceHour, WORLD, drawLater, DREAMING, NO_CROWD, ZQ};
+    mctx.setTransform(1,0,0,1,0,0); mctx.globalAlpha = 1; mctx.clearRect(0, 0, W, H);
+    g = mctx; HEADS = {}; forceHour = memHour(c.t); WORLD = Object.assign({}, WORLD, {weather: {temp: 22, code: 0, desc: 'clear', rain: false, cloudy: false}});
+    DREAMING = true; NO_CROWD = false; drawLater = null; ZQ = null;
+    try {
+      if (!key){ R(0, 0, W, H, '#140a26'); return; }
+      const sc = SCENES[key]; sc.draw(t, forceHour, 'idle', false, {loc: key, action: 'idle', x: 0, targetX: 0, travelling: false, hidden: true, pending: null, with: null});
+      if (drawLater) drawLater(t);
+      if (!people) return;
+      const y = sc.walkY || 66, phone = c.action === 'phoning', wid = !phone && c.with ? castId(c.with) : null, look = wid && ((CAST[wid] && CAST[wid].look) || (REG[wid] && REG[wid].look));
+      const sp = people.speaker, x = look ? Math.round(W / 2) - 20 : Math.round(W / 2) - 6;
+      const pose = MEM_POSE.includes(c.action) ? c.action : (sp === 'ishai' || look) ? 'talking' : 'idle';
+      drawIshaiBody(pose, x, y, t, {legs: 'stand'});
+      if (look) person(look, x + 26, y, t, {seed: strHash(wid) % 97, face: -1, talking: sp === wid});
+    } catch(e){ /* a scene that needs the live state: keep what was drawn */ }
+    finally { g = keep.g; HEADS = keep.HEADS; forceHour = keep.forceHour; WORLD = keep.WORLD; drawLater = keep.drawLater; DREAMING = keep.DREAMING; NO_CROWD = keep.NO_CROWD; ZQ = keep.ZQ; UMB = false; }
+  }
+  // the tiles' pictures: each place once, at noon, empty
+  const THUMBS = {};
+  function thumbOf(loc){
+    if (loc in THUMBS) return THUMBS[loc];
+    try { drawMemory({loc, t: '12:00'}, 100000, null); THUMBS[loc] = memKey(loc) ? MEM.toDataURL() : ''; } catch(e){ THUMBS[loc] = ''; }
+    return THUMBS[loc];
+  }
   async function chLoad(force){
     if (!force && CH.list && NOW() - CH.at < 60000) return CH.list;
     try { const r = await (await fetch('/api/episodes', {cache: 'no-store'})).json(); CH.list = r.episodes || []; CH.at = NOW(); } catch(e){ CH.list = CH.list || []; }
@@ -6100,10 +6133,10 @@
   function chBrowse(){
     const L = CH.list || [], today = L.find(e => e.kind === 'today'), rest = L.filter(e => e.kind !== 'today' && (CH.filter === 'all' || e.kind === CH.filter));
     chEl.querySelectorAll('[data-f]').forEach(b => b.classList.toggle('on', b.dataset.f === CH.filter));
-    chBody.innerHTML = (today ? `<div class="chHero" data-id="today"><div class="chHeroT"><small>● ${chEsc(chWhen(today))}</small><b>TODAY (SO FAR)</b><p>${chEsc(today.desc)}</p></div>
+    chBody.innerHTML = (today ? `<div class="chHero" data-id="today"${thumbOf(today.loc) ? ` style="background-image:linear-gradient(90deg,rgba(29,16,54,.95) 45%,rgba(29,16,54,.55)),url(${thumbOf(today.loc)})"` : ''}><div class="chHeroT"><small>● ${chEsc(chWhen(today))}</small><b>TODAY (SO FAR)</b><p>${chEsc(today.desc)}</p></div>
         <div class="chHeroB"><button class="chPlay" data-play="today">▶ PLAY</button><button data-info="today">ⓘ INFO</button></div></div>` : '') +
       `<div class="chRowT">${CH.filter === 'week' ? 'WEEKLY RECAPS' : CH.filter === 'day' ? 'DAILY RECAPS' : 'ALL EPISODES'} <small>newest first</small></div>` +
-      (rest.length ? `<div class="chRow">${rest.map(e => `<button class="chTile ${e.kind}" data-info="${chEsc(e.id)}"><span class="chThumb"><i>${e.kind === 'week' ? 'WEEK' : chEsc(chDay(e.date).split(' ')[0])}</i><b>${e.kind === 'week' ? chEsc(chDay(e.to, {weekday: undefined})) : chEsc(chDay(e.date, {weekday: undefined}))}</b><em>${chEsc(chPlace(e.loc))}</em></span>
+      (rest.length ? `<div class="chRow">${rest.map(e => `<button class="chTile ${e.kind}" data-info="${chEsc(e.id)}"><span class="chThumb"${thumbOf(e.loc) ? ` style="background-image:url(${thumbOf(e.loc)})"` : ''}><i>${e.kind === 'week' ? 'WEEK' : chEsc(chDay(e.date).split(' ')[0])}</i><b>${e.kind === 'week' ? chEsc(chDay(e.to, {weekday: undefined})) : chEsc(chDay(e.date, {weekday: undefined}))}</b><em>${chEsc(chPlace(e.loc))}</em></span>
           <span class="chTT">${chEsc(e.title)}</span><small>${chEsc(chWhen(e))} · ~${chMins(e)} MIN</small></button>`).join('')}</div>`
         : `<div class="chMsg">${CH.filter === 'week' ? 'The first weekly recap comes on Saturday night.' : 'The first daily recap comes after midnight.'}</div>`);
   }
@@ -6122,7 +6155,7 @@
     e.stopPropagation();
     const f = e.target.closest('[data-f]'), pl = e.target.closest('[data-play]'), inf = e.target.closest('[data-info]'), br = e.target.closest('[data-browse]');
     if (f){ CH.filter = f.dataset.f; chBrowse(); }
-    else if (pl) playEpisode(pl.dataset.play, +(pl.dataset.ch || 0));
+    else if (pl) playEpisode(pl.dataset.play, pl.dataset.ch == null ? null : +pl.dataset.ch);
     else if (inf) chInfo(inf.dataset.info);
     else if (br) chBrowse();
     else if (e.target.closest('#chLive')) closeChannel();
@@ -6144,7 +6177,7 @@
   const epWait = (P, ms) => new Promise(res => { const end = NOW() + ms; const f = () => { if (P.stop || P.jump != null || NOW() >= end) res(); else setTimeout(f, 100); }; f(); });
   function epStop(){
     if (!EP) return; EP.stop = true; EP = null; showOn = false; studioWho = null;
-    $('stv').hidden = true; $('epBar').hidden = true; $('stvTagEl').hidden = false; $('stvLiveTag').textContent = '● LIVE · ISHAI';
+    $('stv').hidden = true; $('stv').classList.remove('ep'); $('epBar').hidden = true; $('stvTagEl').hidden = false; $('stvLiveTag').textContent = '● LIVE · ISHAI';
     try { Sound.hush(); } catch(e){}
   }
   async function playEpisode(id, fromCh){
@@ -6154,18 +6187,20 @@
     if (!ep || !CH.open) return;
     const P = EP = {id, ep, items: epItems(ep), stop: false, jump: null};
     showOn = true; chEl.hidden = true;
-    const st = $('stv'), cap = $('stvCap'); st.hidden = false; cap.textContent = ''; $('epBar').hidden = false; $('stvTagEl').hidden = true;
+    const st = $('stv'), cap = $('stvCap'); st.hidden = false; st.classList.add('ep'); cap.textContent = ''; $('epBar').hidden = false; $('stvTagEl').hidden = true;
     $('epTitle').textContent = ep.title;
-    const anim = () => { if (EP !== P) return; drawStudio(wall(), stvCtx); stvLive.imageSmoothingEnabled = false; stvLive.drawImage(cv, 0, 0); requestAnimationFrame(anim); }; anim();
-    let i = Math.max(0, P.items.findIndex(it => it.ch >= (fromCh || 0)));
-    if (!fromCh) i = 0;
+    let memAt = 0;
+    const anim = () => { if (EP !== P) return; const t = wall(); drawStudio(t, stvCtx); stvLive.imageSmoothingEnabled = false;
+      if (P.view){ if (t - memAt > 90 || t < memAt){ memAt = t; drawMemory(P.view, t, {speaker: P.speaker}); } stvLive.drawImage(MEM, 0, 0); } else stvLive.drawImage(cv, 0, 0);
+      requestAnimationFrame(anim); }; anim();
+    let i = fromCh == null ? 0 : Math.max(0, P.items.findIndex(it => it.ch >= fromCh));   // a tapped moment starts there, PLAY from the intro
     while (i < P.items.length && !P.stop){
       const it = P.items[i];
       $('epNow').textContent = it.ch < 0 ? 'INTRO' : it.ch >= ep.chapters.length ? 'OUTRO' : `${it.ch + 1}/${ep.chapters.length} · ${(ep.chapters[it.ch].date ? chDay(ep.chapters[it.ch].date).split(' ')[0] + ' ' : '') + ep.chapters[it.ch].t} ${chPlace(ep.chapters[it.ch].loc)}`;
       $('epNextM').disabled = !P.items.some(x => x.ch > it.ch && x.ch < ep.chapters.length);
-      if (it.clip && (i === 0 || P.items[i - 1].ch !== it.ch || !P.items[i - 1].clip)){   // the moment itself: where and when, then the line
-        $('stvLiveTag').textContent = `▶ ${(it.clip.date ? chDay(it.clip.date).split(' ')[0] + ' ' : '') + it.clip.t} · ${chPlace(it.clip.loc)}`; }
-      else if (it.host) $('stvLiveTag').textContent = '● LIVE · ISHAI';
+      const chap = it.ch >= 0 && it.ch < ep.chapters.length ? ep.chapters[it.ch] : null;   // the whole chapter shows its moment; intro and outro show him live
+      P.view = chap; P.speaker = it.clip ? it.l.who : null;
+      $('stvLiveTag').textContent = chap ? `▶ ${(chap.date ? chDay(chap.date).split(' ')[0] + ' ' : '') + chap.t} · ${chPlace(chap.loc)}` : '● LIVE · ISHAI';
       Sound.hush(); studioWho = it.host ? it.l.who : null;
       const sp = speaker(it.l.who), row = document.createElement('div'), b = document.createElement('b'), tx = document.createElement('span');
       b.style.color = sp.color; b.style.fontWeight = 'normal'; b.textContent = (it.clip ? '▶ ' : '') + sp.name + ': '; row.append(b, tx); if (it.clip) row.className = 'epClip'; cap.appendChild(row);
@@ -6183,9 +6218,9 @@
     const L = CH.list || [], k = L.findIndex(e => e.id === id), next = k >= 0 ? L[k + 1] : null;
     if (!next){ epStop(); chEl.hidden = false; chBrowse(); return; }
     for (let s = 10; s > 0 && EP === P && !P.stop && P.jump == null; s--){ cap.innerHTML = `<div class="epNext">NEXT: ${chEsc(next.title)} · in ${s}s</div>`; await epWait(P, 1000); }
-    if (EP === P && !P.stop) playEpisode(next.id, 0);
+    if (EP === P && !P.stop) playEpisode(next.id, null);
   }
-  function epNextEpisode(){ if (!EP) return; const L = CH.list || [], k = L.findIndex(e => e.id === EP.id), next = k >= 0 ? L[k + 1] : null; if (next) playEpisode(next.id, 0); else epBack(); }
+  function epNextEpisode(){ if (!EP) return; const L = CH.list || [], k = L.findIndex(e => e.id === EP.id), next = k >= 0 ? L[k + 1] : null; if (next) playEpisode(next.id, null); else epBack(); }
   function epBack(){ const id = EP && EP.id; epStop(); chEl.hidden = false; if (id) chInfo(id); else chBrowse(); }
   $('epBar').addEventListener('click', e => {
     e.stopPropagation(); const b = e.target.closest('button'); if (!b || !EP) return;
