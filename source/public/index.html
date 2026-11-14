@@ -252,6 +252,7 @@
     font-size:clamp(12px,3vw,18px);line-height:1.2;height:3.7em;overflow:hidden;color:#f4f1ff}
   .stvBack{position:absolute;top:2.5%;right:2.5%;font-size:clamp(11px,2.6vw,15px)}
   .term.sum p{margin:.2em 0 .8em}
+  .term.sum details{margin:.1em 0 .5em} .term.sum summary{cursor:pointer;color:var(--amber,#ffb84d)} .term.sum ul{margin:.2em 0 .6em;padding-left:1.2em} .term.sum li{margin:.15em 0;opacity:.9}
 .surv .sv{border:1px solid #2f4a2f;border-radius:8px;padding:8px 10px;margin:0 0 10px;background:#030803}
 .surv .svH{display:flex;justify-content:space-between;gap:8px;color:var(--amber,#ffb84d);font-size:.8em;letter-spacing:1px}
 .surv .svQ{margin:3px 0 6px;color:#eaffea;font-size:1.08em}
@@ -5960,13 +5961,36 @@
   let SHOW = null, SUMMARY = null, showOn = false;
   const stvCtx = $('stvCv').getContext('2d'), stvLive = $('stvLiveCv').getContext('2d');
   function renderSummary(){
-    const el = $('sumPanel'), any = SUMMARY && (SUMMARY.today || SUMMARY.yesterday); if (!any && !COURSE.at) return;
+    const el = $('sumPanel'), any = SUMMARY && (SUMMARY.today || SUMMARY.yesterday); if (!any && !COURSE.at && !HISTORY) return;
     el.textContent = '';
     const add = (title, x) => { if (!x) return; const h = document.createElement('h4'); h.textContent = title; const p = document.createElement('p'); p.textContent = x.text; el.append(h, p); };
     if (COURSE.at) add(`${COURSE.name.toUpperCase()} · NEXT LECTURE · ${new Intl.DateTimeFormat('en-GB',{timeZone:TZ,weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(COURSE.at))}`, {text: COURSE.title + (COURSE.next ? ` — and after that: ${COURSE.next}` : '')});
-    if (!any) return;
+    if (any){
     add('TODAY SO FAR' + (SUMMARY.today && SUMMARY.today.at ? ' · ' + fmtHM.format(new Date(SUMMARY.today.at)) : ''), SUMMARY.today);
-    add('YESTERDAY', SUMMARY.yesterday);
+    add('YESTERDAY', SUMMARY.yesterday); }
+    renderHistory();
+  }
+  // the show's history (/api/history): the last finished weeks and the days before yesterday, each opened on tap. No AI, no writes.
+  let HISTORY = null, histAt = 0;
+  async function histLoad(){
+    if (NOW() - histAt < 600000) return; histAt = NOW();
+    try { HISTORY = await (await fetch('/api/history')).json(); } catch(e){ return; }
+    renderSummary();
+  }
+  function renderHistory(){
+    const el = $('sumPanel'); if (!HISTORY) return;
+    const skip = new Set([SUMMARY && SUMMARY.today && SUMMARY.today.date, SUMMARY && SUMMARY.yesterday && SUMMARY.yesterday.date].filter(Boolean));
+    const dfmt = d => new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',weekday:'short',day:'numeric',month:'short'}).format(new Date(d + 'T12:00:00Z'));
+    const box = (title, body, list, open) => { const d = document.createElement('details'); if (open) d.open = true; const sm = document.createElement('summary'); sm.textContent = title; d.append(sm);
+      if (body){ const p = document.createElement('p'); p.textContent = body; d.append(p); }
+      if (list && list.length){ const ul = document.createElement('ul'); list.forEach(x => { const li = document.createElement('li'); li.textContent = x; ul.append(li); }); d.append(ul); }
+      el.append(d); };
+    const weeks = (HISTORY.weeks || []).slice(-4).reverse();
+    if (weeks.length){ const h = document.createElement('h4'); h.textContent = 'WEEK BY WEEK'; el.append(h);
+      weeks.forEach((w, i) => box(`${dfmt(w.from)} – ${dfmt(w.to)}`, w.text, w.highlights, i === 0)); }
+    const days = (HISTORY.days || []).filter(d => !skip.has(d.date)).slice(-14).reverse();
+    if (days.length){ const h = document.createElement('h4'); h.textContent = 'EARLIER DAYS'; el.append(h);
+      days.forEach(d => box(dfmt(d.date), d.sum, (d.highlights || []).map(x => `${x.t} ${PLACE_NAME[x.loc] || x.loc}${x.with ? ' · with ' + x.with : ''}${x.line ? ` — ${x.line.who}: "${x.line.say}"` : ''}`), false)); }
   }
   async function playShow(start){
     if (showOn) return; const from = start || NOW();
@@ -6514,6 +6538,7 @@
     Object.entries(tabs).forEach(([k,[b,p]]) => { const on = k===which; $(p).hidden = !on; $(b).classList.toggle('on',on); $(b).setAttribute('aria-selected',String(on)); });
     if (which==='cast') renderCast();
     if (which==='surv') survLoad(true);
+    if (which==='sum') histLoad();
     if (which==='feed') term.scrollTop = term.scrollHeight;
     if (which==='talk') talkEl.scrollTop = talkEl.scrollHeight;
   }

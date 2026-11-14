@@ -286,6 +286,7 @@ export default {
         stuck: s.stuck || 0, scene: s.scene ? { with: nm(s.scene.w), lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null,
         bugs: JSON.parse(await env.ISHAI.get("bugs") || "[]").filter(x => x.status === "new").slice(-5).map(x => ({ at: x.at, text: x.text.slice(0, 200), screen: x.screen })),
         studio: { lastShowAt: s.show ? s.show.t : null, lastSummaryAt: s.daySum ? s.daySum.at : null, err: s.studioErr || null },
+        history: { lastArchived: s.lastArchived || null, weekDue: s.weekDue || null, lastWeek: s.lastWeek || null, err: s.historyErr || null },
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
@@ -324,6 +325,15 @@ export default {
     }
     if (url.pathname === "/api/ambient") return json({ city: CITY, texture: PLAN.texture || null });
     if (url.pathname === "/api/voices") { const s = await loadState(env); return json(s.voiceCfg || {}, { "cache-control": "public, max-age=60" }); }   // the director's voice settings (the trailer reads them)
+    // the show's history: the short version of each day and each week (public); a whole archived day for the director
+    if (url.pathname === "/api/history") return json(await historyGet(env), { "cache-control": "public, max-age=300" });
+    if (url.pathname === "/api/day") {
+      if (!(await isDirector(req, env))) return json({ error: "director only" }, {}, 403);
+      const date = String(url.searchParams.get("date") || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "date=YYYY-MM-DD" }, {}, 400);
+      const d = await env.ISHAI.get("day:" + date);
+      return d ? new Response(d, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } }) : json({ error: "no archive for " + date }, {}, 404);
+    }
     if (url.pathname === "/api/plan") {
       const s = await loadState(env);
       return json({ version: PLAN.version || null, written: PLAN.written || null, arcs: PLAN.arcs || [], beats: PLAN.beats || [], unlocked: s.unlocked,
@@ -740,6 +750,8 @@ async function tick(env, force) {
       if (r) { s.studioKey = key; s.studioTries = 0; s.studioErr = null; s.daySum = { date: day, text: r.today, at: storyMs }; s.show = r.show; if (r.pip) s.studio = r.pip; }
       else { s.studioTries = (s.studioTries || 0) + 1; if (!s.studioErr) s.studioErr = { at: now, msg: "the AI reply could not be used" };
         if (s.studioTries >= 3 || now < (s.aiOutUntil || 0)) { s.studioKey = key; s.studioTries = 0; const b = basicRecap(s, day, storyMs); if (b) { s.daySum = { date: day, text: b.today, at: storyMs }; s.show = b.show; } } } } }   // try again on the next moments (max 3 per hour)
+  // the show's history: archive each finished day, add its short version to the history list, and a weekly summary on Saturday
+  try { await historyTick(env, s, now); } catch (e) { s.historyErr = { at: now, msg: String(e && e.message || e).slice(0, 160) }; }
   { const d = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now)); const u = s.usage && s.usage.date === d ? s.usage : (s.usage = { date: d, calls: 0, inTok: 0, outTok: 0, moments: 0, noAI: 0 });
     u.calls += USE.calls; u.inTok += USE.inTok; u.outTok += USE.outTok; USE.calls = USE.inTok = USE.outTok = 0;
     u.jsonFixed = (u.jsonFixed || 0) + JSON_USE.fixed; u.jsonBad = (u.jsonBad || 0) + JSON_USE.bad; JSON_USE.fixed = JSON_USE.bad = 0;
@@ -3688,6 +3700,84 @@ function pokerStory(G) {
   return { place, sh, bust: bust ? { by: bust.by, mine: bust.mine, theirs: bust.theirs } : null, best: best && best.net >= 100 ? { sh: Math.round(best.net / 10), from: best.from, cards: best.cards } : null, text };
 }
 function lifeOf(s) { return s.life || (s.life = []); }
+// ================= history: every day archived, a short version kept, a weekly summary =================
+// Two KV writes a day (day:<date> with the whole log, and the "history" list), one more on Saturday night with the week.
+// One small AI call a week (hosts writer, Cloudflare first); without it the week is put together from the days' first sentences.
+const HIST_DAYS = 120, HIST_WEEKS = 52, HIGHLIGHTS = 12;
+async function historyGet(env) {
+  try { const h = JSON.parse(await env.ISHAI.get("history") || "null"); if (h && Array.isArray(h.days)) return { days: h.days, weeks: h.weeks || [] }; } catch (e) {}
+  return { days: [], weeks: [] };
+}
+const isoAdd = (date, n) => new Date(Date.parse(date + "T12:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+const weekdayOf = date => new Date(date + "T12:00:00Z").getUTCDay();   // 0 = Sunday ... 6 = Saturday (the show's week runs Sunday to Saturday)
+const dayOfMs = ms => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(ms));
+// a log line: "HH:MM place/action +Name: narration Name: "said" [zohar] host line"
+function logParse(line) {
+  const m = /^(\d\d:\d\d) ([a-z0-9]+)\/([a-z_]+)(?: \+([^:]+))?: /.exec(String(line)); if (!m) return null;
+  const said = [...String(line).matchAll(/ ((?:[A-Z][a-z]{1,3}\. )?[A-Z][\w'-]{0,20}): "([^"]{4,})"/g)].map(x => ({ who: x[1], say: x[2] }));
+  return { t: m[1], loc: m[2], action: m[3], with: m[4] || null, said };
+}
+// the moments that matter, no AI: talk with someone, the big nights; one per scene, never sleep
+function dayHighlights(lines) {
+  const BIG = /^(lecture|poker|film|trivia|concert|improv)$/;
+  const all = lines.map(logParse).map((x, i) => x && { ...x, i }).filter(x => x && x.action !== "sleeping");
+  const score = x => x.said.length + (x.with ? 4 : 0) + (BIG.test(x.action) ? 6 : 0);
+  const seen = new Set(), pick = [];
+  for (const x of [...all].sort((a, b) => score(b) - score(a))) {
+    if (pick.length >= HIGHLIGHTS || score(x) < 3) break;
+    const k = x.loc + "|" + (x.with || "") + "|" + x.action; if (seen.has(k)) continue;
+    seen.add(k); pick.push(x);
+  }
+  return pick.sort((a, b) => a.i - b.i).map(x => {
+    const l = x.said.find(y => y.who === "Ishai") || x.said.find(y => !/^(Zohar|Oren)$/.test(y.who)) || null;
+    return { t: x.t, loc: x.loc, action: x.action, with: x.with, line: l ? { who: l.who, say: l.say.slice(0, 160) } : null };
+  });
+}
+async function archiveDay(env, s, log) {
+  const date = log.date;
+  const sum = [s.yesterdaySum, s.daySum].find(x => x && x.date === date);
+  const highlights = dayHighlights(log.lines || []);
+  const life = lifeOf(s).filter(l => l && l.at && dayOfMs(l.at) === date).map(l => ({ kind: l.kind, text: l.text }));
+  const people = [...new Set(highlights.map(h => h.with).filter(Boolean))].slice(0, 4), places = [...new Set(highlights.map(h => PLACE_NAME[h.loc] || h.loc))].slice(0, 3);
+  const short = sum ? sum.text : highlights.length ? `A day at ${places.join(", ")}${people.length ? " with " + people.join(", ") : ""}.` : "A quiet day.";
+  await env.ISHAI.put("day:" + date, JSON.stringify({ date, sum: short, highlights, life, lines: log.lines || [], savedAt: Date.now() }));
+  const h = await historyGet(env);
+  h.days = [...h.days.filter(d => d.date !== date), { date, sum: short, highlights: highlights.slice(0, 6), life: life.map(l => l.text.slice(0, 160)) }]
+    .sort((a, b) => a.date < b.date ? -1 : 1).slice(-HIST_DAYS);
+  await env.ISHAI.put("history", JSON.stringify(h));
+  s.lastArchived = date;
+  if (weekdayOf(date) === 6) s.weekDue = { from: isoAdd(date, -6), to: date, tries: 0 };   // Saturday closes the week
+}
+async function writeWeek(env, s, wk) {
+  const h = await historyGet(env), days = h.days.filter(d => d.date >= wk.from && d.date <= wk.to);
+  if (!days.length) return true;   // nothing archived that week
+  const dayName = d => new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: "UTC" }).format(new Date(d + "T12:00:00Z"));
+  let text = null, highlights = [];
+  if ((wk.tries || 0) < 3 && Date.now() >= (s.aiOutUntil || 0)) {
+    const msgs = [
+      { role: "system", content: `You write the weekly recap of "Watching Ishai", a reality show about Ishai's ordinary life (he does not know he is filmed). Reply with JSON only: {"text": "...", "highlights": ["...", ...]}. "text": 90-160 words, warm and a little dramatic like a TV recap: what happened this week and which story lines are still open; never invent anything that is not in the notes. "highlights": the 3-5 biggest moments of the week, one short line each, starting with the day.` },
+      { role: "user", content: days.map(d => `${dayName(d.date)} ${d.date}: ${d.sum}${d.life && d.life.length ? " | Evening: " + d.life.join(" / ") : ""}`).join("\n").slice(0, 6000) }];
+    try {
+      const o = parseAI(await runModel(env, msgs, 700, "hosts"));
+      if (o && typeof o.text === "string" && o.text.trim().length > 40) {
+        text = o.text.replace(/\s+/g, " ").trim().slice(0, 1400);
+        highlights = (Array.isArray(o.highlights) ? o.highlights : []).map(x => String(x).replace(/\s+/g, " ").trim().slice(0, 200)).filter(x => x.length > 5).slice(0, 5);
+      }
+    } catch (e) { s.historyErr = { at: Date.now(), msg: "week: " + String(e && e.message || e).slice(0, 140) }; }
+    if (!text) { wk.tries = (wk.tries || 0) + 1; if (wk.tries < 3) return false; }   // try again on a later tick
+  }
+  if (!text) text = days.map(d => `${dayName(d.date)}: ${String(d.sum).split(/(?<=[.!?])\s/)[0]}`).join(" ");   // no AI: the first sentence of each day
+  h.weeks = [...(h.weeks || []).filter(w => w.from !== wk.from), { from: wk.from, to: wk.to, text, highlights, days: days.length, at: Date.now() }]
+    .sort((a, b) => a.from < b.from ? -1 : 1).slice(-HIST_WEEKS);
+  await env.ISHAI.put("history", JSON.stringify(h));
+  s.lastWeek = wk.from;
+  return true;
+}
+async function historyTick(env, s, now) {
+  // yesterday's log, once (this also saves the day already sitting in prevLog when this went live)
+  if (s.prevLog && s.prevLog.date && (!s.lastArchived || s.lastArchived < s.prevLog.date)) { await archiveDay(env, s, s.prevLog); return; }
+  if (s.weekDue && await writeWeek(env, s, s.weekDue)) s.weekDue = null;
+}
 function addLife(s, at, kind, text) { s.life = [...lifeOf(s), { at, kind, text: String(text).slice(0, 260), offered: 0 }].slice(-12); }
 // what the producers have planned in the next hours, for the hosts' teasers ("be back at 20:00, you don't want to miss it")
 const PLACE_NAME = { apartment: "his apartment", corridor: "the stairwell", street: "Herzl Street", shops: "Herzl Street east", park: "the park", cafe: "Café Nahat", gym: "Herzl Gym",
