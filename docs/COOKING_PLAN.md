@@ -1,6 +1,6 @@
 # Ishai Cooks: plan
 
-Proposed 2026-11-14. Not built yet. The questions at the end need the director's answers first.
+Proposed 2026-11-14, updated the same day with the director's answers (end of this file). Not built yet.
 
 ## The idea
 Cooking is Ishai's hobby. About once a day he picks a recipe, checks what he has at home, takes the bus to Shuk Shalom for what's missing, carries the bags home, puts the shopping on the counter and cooks it, step by step. Then he eats it, sometimes with a friend.
@@ -10,7 +10,7 @@ The recipes come from a free recipe site, so every dish is a real one. The cooki
 ## Where the recipes come from: TheMealDB
 - **TheMealDB** (`themealdb.com/api/json/v1/1/`): free, no sign-up, about 300 recipes from 25+ cuisines. Each recipe has a name, a category (Chicken, Beef, Vegetarian, Dessert, Breakfast, Pasta, Seafood...), a cuisine, up to 20 ingredients with amounts, step-by-step instructions and a photo.
   - The endpoints we need are all free: `random.php`, `lookup.php?i=`, `filter.php?c=` (all the recipes in one category) and `categories.php`.
-  - About the key: the shared test key `1` is meant for development and personal projects. TheMealDB asks public apps to become supporters (a one-time £10, which also removes the rate limit). Recommended, because the show is public. The code reads the key from a secret, `MEALDB_KEY`, and uses `1` until one is set.
+  - About the key: the shared test key `1` is meant for development and personal projects. TheMealDB asks public apps to become supporters (a one-time £10, which also removes the rate limit). The director chose the free test key. The code still reads an optional `MEALDB_KEY` secret and uses `1` without one, so upgrading later is just adding the secret.
   - Credit: the recipe card says "Recipe: TheMealDB" with a link to the recipe's page.
 - **Why not the others:** Spoonacular and Edamam give cooking times, but both need an account and a key, and their free plans have small daily limits. TheMealDB is enough.
 - **What TheMealDB doesn't give: the cooking time.** The worker works it out from the instructions without AI (see "How long it takes").
@@ -19,7 +19,7 @@ The recipes come from a free recipe site, so every dish is a real one. The cooki
 ## What he picks (`story/kitchen.json`, edited by hand)
 - **When the recipe is chosen:** `cookTick()` in `tick()` picks the day's recipe in the morning. It draws a category from a weighted list (more Vegetarian, Chicken, Pasta, Side and Breakfast; Dessert now and then), then a random recipe in it, with a seed from the date so it's the same for every isolate.
 - **Not picked:**
-  - anything in `kitchen.json`'s `banned` list: Pork, shellfish and the rest of the kosher list if the director wants it (question 1);
+  - anything in `kitchen.json`'s `banned` list: the Pork category and any recipe with pork, bacon, ham or shellfish (prawns, shrimp, mussels, clams, crab, lobster, scallops, squid, oysters). Meat with milk is allowed (the director's choice);
   - anything with more than 14 ingredients or an active time over 2½ hours;
   - anything cooked in the last 60 days (`s.kitchen.seen`);
   - any recipe whose ingredients the page can't draw, unless the generic jar or bag fits.
@@ -109,10 +109,10 @@ Also: the TV guide's TODAY lists "Ishai cooks: Chicken Fajitas, 18:30" (`guideDa
 3. **Shopping:** the trip, the market moments, the bags (one or two hands, on the bus, on the stairs) and unpacking at home onto the counter and into the fridge.
 4. **The cooking moments, the recipe card and the meal**, plus the leftovers, the hosts, the TV guide, the episodes and memories.
 
-## Questions for the director
-1. **Kosher?** Ishai keeps Shabbat. Should his cooking be kosher too: no pork or shellfish, and no meat with milk in one dish (a recipe with both is skipped)? Recommended: yes, which drops about a fifth of the recipes.
-2. **Supporter key:** pay TheMealDB's one-time £10 for a supporter key (recommended for a public show), or stay on the free test key?
-3. **How often:** about 6 days in 7, as planned, or less (3-4 times a week)? On Friday, should it always be the Shabbat dinner?
-4. **Guests:** how often should a friend join him for the meal (planned 30%)? Should he sometimes cook *for* a poker night or for Noa as a story beat?
-5. **Disasters:** is about 1 dish in 6 coming out wrong (burnt, too salty, sunk) right, or less?
-6. **The closet:** the apron, the glove and the big pots go in the bedroom closet, as you said. Or would you rather have a kitchen cupboard under the counter for the pots and keep only the apron in the closet?
+## The director's answers (2026-11-14)
+1. **Kosher:** only no pork and no shellfish. Meat with milk is fine.
+2. **Recipe key:** the free test key `1`. An optional `MEALDB_KEY` secret can replace it later.
+3. **How often:** about 6 days in 7. On Friday it's the Shabbat dinner, finished an hour before the candles.
+4. **Storage:** the apron, the oven glove and the big pots go in the bedroom closet.
+
+Still open, with the plan's defaults until the director says otherwise: a friend joins the meal 30% of the time, and about 1 dish in 6 comes out wrong (burnt, too salty, sunk).
