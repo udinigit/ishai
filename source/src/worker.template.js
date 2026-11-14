@@ -4508,8 +4508,18 @@ async function kitchenAction(env, s, b, now) {
 function kitchenPublic(s) {
   const T = s.kitchen && s.kitchen.today; if (!T || !T.r || !T.cookId) return null;
   const r = T.r; return { date: T.date, id: r.id, name: r.name, cat: r.cat, area: r.area, thumb: r.thumb, url: r.url, time: r.time, at: T.cookAt, start: T.start, done: T.doneAt,
-    ing: r.ing.map(i => ({ name: i.name, amount: i.amount, buy: (T.missing || []).includes(i.name) })), steps: r.steps.map(x => ({ t: x.t, kind: x.kind, min: x.min })),
-    guest: T.guest && s.cast[T.guest] ? s.cast[T.guest].name : null, credit: "Recipe: TheMealDB" };
+    ing: r.ing.map(i => ({ name: i.name, amount: i.amount, buy: (T.missing || []).includes(i.name), g: kGroup(i.name) })), steps: r.steps.map(x => ({ t: x.t, kind: x.kind, min: x.min })),
+    guest: T.guest && s.cast[T.guest] ? s.cast[T.guest].name : null, credit: "Recipe: TheMealDB", bags: kBags(s, T) };
+}
+// the shopping bags (step 3): the first moment at the market on the day's shopping trip (he fills one bag, then a second when the list is long)
+// and the first moment back home after it (he unpacks onto the counter, the cold things into the fridge). Ids, so every page times it from its own timeline.
+function kBags(s, T) {
+  if (!T.shopId || !(T.missing || []).length) return null;
+  const g = (s.director || []).find(d => d.id === T.shopId); if (!g || !g.arrivedAt) return null;
+  const evs = s.events || [], i = evs.findIndex(e => e.location === "market" && (e.t || 0) >= g.arrivedAt - 15 * 60000);
+  if (i < 0) return null;
+  const j = evs.findIndex((e, k) => k > i && e.location === "apartment");
+  return { from: evs[i].id, home: j < 0 ? null : evs[j].id, n: T.missing.length > 6 ? 2 : 1 };
 }
 const kitchenHealth = s => { const K = s.kitchen; if (!K) return null; const T = K.today || {};
   return { off: !!K.off, cooked: K.n, date: K.date, today: T.r ? { name: T.r.name, cat: T.r.cat, time: T.r.time, missing: T.missing, guest: T.guest, cookAt: T.cookAt ? storyClock(T.cookAt).label : null, shop: T.shopId || null, skip: T.skip || null } : T.skip ? { skip: T.skip } : null,
