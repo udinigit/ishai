@@ -278,7 +278,7 @@ export default {
     if (url.pathname === "/api/health") {
       const s = await loadState(env), now = Date.now(), d = (s.diag || []).filter(x => now - (x.at || 0) < 3 * 3600000);   // recent AI calls only
       const moments = d.filter(x => x.attempt === 0).length, retried = d.filter(x => x.attempt === 0 && x.problem).length;
-      const nm = id => id ? (s.cast[id]?.name || id) : null;
+      const nm = id => id ? (s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id)) : null;
       return json({ now, build: BUILD, planVersion: PLAN.version || null,
         recent: s.events.slice(-10).map(e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " +" + nm(e.with) : ""} (${(e.lines || []).length} lines, ${(e.commentary || []).length} host): ${e.text.slice(0, 110)}${e.then ? ` → then ${e.then.action}` : ""}`),
         lastMomentAgoMin: Math.round((now - (s.events[s.events.length - 1].created || 0)) / 60000),
@@ -584,7 +584,7 @@ function basicRecap(s, day, storyMs) {
   return { today: pickN.map(x => `${x.time} ${x.text}`).join(" "), show: { id: "studio-" + Math.floor(storyMs / 3600000) + "-basic", t: storyMs, lines: out, sponsors: [sp.name] } };
 }
 async function studioRecap(env, s, storyMs, day) {
-  const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || id;
+  const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
   const fmt = e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " with " + nm(e.with) : ""}: ${e.text}` +
     (e.lines || []).slice(0, 2).map(l => ` ${nm(l.who)}: "${l.say}"`).join("");
   const lastHour = s.events.filter(e => storyMs - e.t < 3600000).map(fmt);
@@ -660,6 +660,7 @@ async function tick(env, force) {
   if (!ev) ev = nightEvent(s, last, clock);                                   // asleep at night: no AI
   if (!ev && now < (s.aiOutUntil || 0) && !env.BACKUP_AI_KEY && !(env.GEMINI_API_KEY && now >= geminiOutUntil)){ ev = sickEvent(s, last, clock.hour); ev.src = "sick day (AI out of budget)"; }
   if (!ev && goal && goal.script) ev = scriptEvent(s, last, goal, now);       // the daily plan's scene, as written (no AI)
+  if (!ev && goal && goal.outing) { ev = outingStep(s, last, goal, now); if (goal.status === "done") goal = null; }   // an outing: he goes there (no AI)
   if (!ev) ev = quietMedia(s, last);                                          // between live radio/TV reactions he just listens (no AI)
   let live = ev ? null : liveCue(s, last, clock, storyMs);                    // radio / TV / weather change: written live
   if (!ev && !live) { ev = queuedEvent(s, last, goal, now);                   // the next pre-written moment of the current block (no AI)
@@ -738,7 +739,7 @@ async function tick(env, force) {
   // full-day log for the daily planner
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(storyMs));
   if (!s.log || s.log.date !== day) { if (s.log) s.prevLog = s.log; s.log = { date: day, lines: [] }; }
-  const nm = id => s.cast[id]?.name || id;
+  const nm = id => s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
   s.log.lines.push(`${storyClock(storyMs).label.slice(-5)} ${ev.location}/${ev.action}${ev.with ? " +" + nm(ev.with) : ""}: ${ev.text}` +
     (ev.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : nm(l.who)}: "${l.say}"`).join("") +
     (ev.commentary || []).map(c => ` [${c.who}] ${c.say}`).join(""));
@@ -990,7 +991,7 @@ function buildMessages(s, clock, now, goal, opt = {}) {
       (goal.brief ? `SCENE BRIEF from the director for this conversation: ${goal.brief}${goal.briefLines ? ` (about ${goal.briefLines} lines in total, over several moments)` : ""}. When it starts, turn this brief into "scene". ` : "") +
       `In the moment it is fully done, set "complete":"${goal.id}".` + (goal.unlock && ITEMS[goal.unlock] ? ` Until then Ishai does NOT have ${ITEMS[goal.unlock]}.` : "")
     : "";
-  const name = id => s.cast[id]?.name || id;
+  const name = id => s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
   const recent = s.events.slice(-6).map(e =>
     `[${storyClock(e.t).label}] (${e.location}/${e.action}${e.with ? " with " + name(e.with) : ""}) ${e.text}${e.then ? ` Then (${e.then.action}): ${e.then.text}` : ""}` +
     (e.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : name(l.who)}: "${l.say}"`).join("")).join("\n"); // host lines are listed separately (ALREADY SAID)
@@ -1077,7 +1078,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - "with" is the id of ONE person with him in this moment (a visitor at home counts), or the person on the other end when the action is "phoning"; otherwise null.
 - He is social: at least one moment in two involves another person: in person, a phone call, or a text or email. Friends visit and call, strangers start conversations, regulars say something. ${(() => { let n = 0; for (let i = s.events.length - 1; i >= 0 && n < 8; i--) { const e = s.events[i]; if (e.with || (e.lines || []).length > 1 || e.action === "sleeping") break; n++; } return n >= 3 ? `He has been alone for ${n} moments: in THIS moment someone calls, texts or talks to him.` : ""; })()}
 - GADI, his boss in all but name, is NEVER seen in person. He only phones (action "phoning", "with": "gadi") or sends a text or email: add "message":{"from":"gadi","kind":"text"|"email","say":"max 25 words"} and Ishai reacts out loud in "lines", alone or with whoever is there. Friends can text the same way. A message needs no "with".
-- REGULARS are people he doesn't know well yet, usually found in one place: ${SEED_CAST.filter(c => c.regular).map(c => `${c.name} ("${c.id}", ${c.regular})`).join(", ")}. If he is there at their hours, they can start a short exchange (use "with"), and he gets to know them over time. Kobi at the bar gets drunker with the hour; Mr. Zelig also talks to himself.
+- REGULARS are people he doesn't know well yet, usually found in one place: ${SEED_CAST.filter(c => c.regular).map(c => `${c.name} ("${c.id}", ${c.regular})`).join(", ")}. If he is there at their hours, they can start a short exchange (use "with"), and he gets to know them over time. Kobi at the bar gets drunker with the hour; Mr. Zelig also talks to himself.${localsNote(last.location)}
 - "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of ${TALK.min} to ${TALK.max} lines (each max 25 words) that fills these 4 minutes: small talk, questions and follow-up questions, stories, teasing, short answers ("yeah", "wait, what?"), interruptions, a topic that drifts to another, a pause filled by someone. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
 - "then" (optional, use it in most moments that stay in one place): what visibly changes about 3 minutes into this moment, in the SAME place with the SAME people: {"action": another action allowed in this place, "text": one short sentence}. E.g. he works at the desk, then gets up and waters Moshe; Noa sits talking, then they both start cooking. Never sleeping, bathroom, showering, the radio or the TV, and leave it out when the moment ends with him leaving. The next moment follows on from the "then".
 - EVERY CONVERSATION IS A SCENE WITH A PURPOSE. When a conversation with someone STARTS (their "with" differs from the last moment), fill "scene":
@@ -1126,7 +1127,7 @@ const dogInMoment = (s, m) => /\bFalafel\b|\bthe dog\b|leash/.test(String(m.text
 const DOG_WORDS = /\bFalafel\b|\bthe dog\b|\bdoggo\b|\bpup(py)?\b/;
 async function addHosts(env, s, moments, clock, now) {
   try {
-    const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : s.cast[id]?.name || id;
+    const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
     const said = recentHostLines(s, 10);
     const teaseNow = now - (s.lastTease || 0) > 40 * 60000 ? comingUpText(s, now, 5) : "";
     const secrets = now - (s.lastHint || 0) > HINT_GAP_MIN * 60000 ? secretsNow(now) : [];
@@ -1356,8 +1357,10 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   // who is with him
   const w = str(o.with, 40).toLowerCase();
   if (w && w !== "null" && w !== "none") {
+    const loc0 = Object.entries(LOCALS).find(([id, l]) => id === w || l.name.toLowerCase() === w || "local-" + w === id);
+    if (loc0 && !LOCALS[loc0[0]].at.includes(ev.location)) return { ev, problem: `"${loc0[0]}" is not found at ${ev.location}; locals there: ${localsAt(ev.location).map(k => `"${k}"`).join(", ") || "none"}` };
     const hit = Object.values(s.cast).find(c => c.id === w || c.name.toLowerCase() === w)
-      || (ev.newCard && (ev.newCard.id === w || ev.newCard.name.toLowerCase() === w) ? ev.newCard : null);
+      || (ev.newCard && (ev.newCard.id === w || ev.newCard.name.toLowerCase() === w) ? ev.newCard : null) || (loc0 ? { id: loc0[0] } : null);
     if (!hit) return { ev, problem: `"${o.with}" is not a known person; "with" must be one of ${Object.keys(s.cast).map(k => `"${k}"`).join(", ")} or null` };
     ev.with = hit.id;
   }
@@ -1368,7 +1371,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   const who = x => { const k = str(x, 40).toLowerCase(); if (k === "ishai") return "ishai";
     if (planned && ev.action === "lecture" && STUDENT.test(k)) return k;  // the class speaks up, nameless, from their seats
     if (planned && k === "hagit" && (ev.location === "arena" || ev.location === "plaza")) return k;   // Hagit hosts the Pump House's events
-    const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || "").toLowerCase() === k); return c ? ev.with : null; };
+    const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || LOCALS[ev.with]?.name || "").toLowerCase() === k || (LOCALS[ev.with] && "local-" + k === ev.with)); return c ? ev.with : null; };
   ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => { const x = { who: who(l?.who), say: str(l?.say, 200).replace(/^["']|["']$/g, "") };
       if (planned && Number.isInteger(l?.piece) && l.piece >= 0 && l.piece < 30) x.piece = l.piece; return x; })   // which picture a line is about (Pump House)
     .filter(l => l.who && l.say).slice(0, 14);
@@ -1382,7 +1385,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   if (o.scene && typeof o.scene === "object" && ev.with) ev.scene = {
     type: str(o.scene.type, 20) || "small talk", why: str(o.scene.why, 200), ishaiWants: str(o.scene.ishaiWants, 150), theyWant: str(o.scene.theyWant, 150),
     beats: str(o.scene.beats, 300), ending: str(o.scene.ending, 150), target: clamp(Math.round(Number(o.scene.lines) || 16), 8, 80) };
-  if (ev.with && o.update && typeof o.update === "object")
+  if (ev.with && !LOCALS[ev.with] && o.update && typeof o.update === "object")
     ev.update = { memory: str(o.update.memory, 180), mood: Number(o.update.mood) || 0 };
 
   // the picture must match the words: a drink or a meal mentioned while "idle" becomes drinking / eating
@@ -1552,7 +1555,7 @@ function repair(ev, s, last, planned = false) {
   if (loc !== last.location && !NEXT[last.location].includes(loc) && !nextPath(last.location, loc)) loc = last.location;
   const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : ev.action === "concert" && loc === "arena" ? ["concert"] : ev.action === "poker" && loc === "apt2" ? ["poker"] : ev.action === "film" && loc === "cinema" ? ["film"] : ev.action === "trivia" && loc === "cafe" ? ["trivia"] : allowed(loc, s.unlocked);
   const act = legal.includes(ev.action) ? ev.action : (legal.includes("idle") ? "idle" : legal[0]);
-  const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with) && act !== "sleeping";
+  const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with || (LOCALS[ev.with] && LOCALS[ev.with].at.includes(loc))) && act !== "sleeping";
   return { ...ev, location: loc, action: act, with: ok ? ev.with : null,
     lines: ok ? ev.lines : ev.lines.filter(l => l.who === "ishai" || STUDENT.test(l.who) || l.who === "hagit"), update: ok ? ev.update : null, newCard: ok ? ev.newCard : null };
 }
@@ -1656,7 +1659,7 @@ async function runBackup(env, messages, maxTokens = 1000) {
 function sickEvent(s, last, hour) {
   const n = s.sickN = (s.sickN || 0) + 1;
   const pick = (a) => a[(n + a.length - 1) % a.length];
-  const nm = (id) => s.cast[id]?.name || id;
+  const nm = (id) => s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
   const night = hour < 7 || hour >= 23;
   const HOSTS_SAY = [
     { who: "zohar", say: "Our boy is not okay. Somebody bring that man soup." },
@@ -1971,7 +1974,7 @@ async function callIn(env, s, storyMs) {
     const [src, url, f] = pickOf(CALL_SOURCES);
     try { const t = await getText(url); extra = `${src.toUpperCase()}: ${String(f(JSON.parse(t)) || "").replace(/\s+/g, " ").slice(0, 400)}`; } catch (e) { extra = ""; }
   }
-  const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || id;
+  const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
   const recent = s.events.slice(-6).map(e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " with " + nm(e.with) : ""}: ${e.text}`).join("\n");
   const messages = [{ role: "system", content:
 `A viewer calls in live to a reality show about Ishai (Tel Aviv). Hosts: ${HOSTS.zohar} ${HOSTS.oren}
@@ -2503,15 +2506,64 @@ function outingRate(s, loc, ms) {
   return Math.round(pct * 10) / 10;
 }
 const OUTING_AT_WORK = ["dana", "avi", "hagit", "shmulik"];   // met at their work, never 'coming along'
-const OUTING_ACT = { street: "walking", shops: "walking", cafe: "drinking", park: "walking", plaza: "idle", gym: "exercising", bar: "drinking", market: "walking", store: "idle" };
+const OUTING_ACT = { street: "walking", shops: "walking", cafe: "drinking", park: "walking", plaza: "idle", gym: "exercising", bar: "drinking", market: "walking", store: "idle",
+  promenade: "walking", kiosk: "drinking", mall: "walking", foodcourt: "eating" };
 const OUTING_WHY = { street: "a stroll down Herzl Street (the kiosk, the makolet, a look in the shop windows)", shops: "an errand on Herzl Street east (the hardware shop, the ATM, the flower shop)",
   cafe: "a coffee at Café Nahat", park: "some air in the park", plaza: "a look at what's on at the Pump House (the poster board, the ticket window)", gym: "a workout at Herzl Gym",
-  bar: "a beer at The Black Candle", market: "shopping at Shuk Shalom (bus from the Herzl Street stop)", store: "something he needs from Everything Else (bus to the market, then walk in)" };
+  bar: "a beer at The Black Candle", market: "shopping at Shuk Shalom (bus from the Herzl Street stop)", store: "something he needs from Everything Else (bus to the market, then walk in)",
+  promenade: "a walk by the sea on the promenade (bus from the Herzl Street stop)", kiosk: "a cold drink and the papers at Shmulik's kiosk", mall: "a wander round The Big S (the shops, the window displays)",
+  foodcourt: "a bite at The Big S food court" };
+// How he gets there, said in one line (a no-AI moment: the page walks him through every place on the way, by bus where it must)
+const OUTING_GO = { street: "heads down the stairs and out for a stroll along Herzl Street", shops: "walks east along Herzl Street to the shops", cafe: "walks over to Café Nahat and orders a coffee",
+  park: "walks west along Herzl Street to the park", plaza: "walks through the park to the Pump House plaza", gym: "goes down to Herzl Gym with his gym bag", bar: "walks down to The Black Candle",
+  market: "takes the bus to Shuk Shalom market", store: "takes the bus to the market and goes into Everything Else", promenade: "takes the bus to the promenade; the sea opens up in front of him",
+  kiosk: "walks east past the café to Shmulik's kiosk", mall: "takes the bus to the promenade and walks into The Big S", foodcourt: "rides the escalators up to The Big S food court and finds a table" };
+// on the way out with a friend: a few words while they walk (no AI)
+const OUT_TALK = [
+  [["w", "Okay, are you ready? You're not ready."], ["ishai", "I'm ready. Keys, phone, wallet. Ready."], ["w", "You said that last time and went back for your sunglasses."], ["ishai", "Once. That happened once."]],
+  [["ishai", "The long way or the short way?"], ["w", "The long way. It's nice out. Mostly."], ["ishai", "Mostly is my favourite kind of nice."]],
+  [["w", "Did you eat anything today? Real food?"], ["ishai", "Define real."], ["w", "Ishai."], ["ishai", "Toast. Toast is real food."]],
+  [["ishai", "Remind me why we're going?"], ["w", "Because you've been inside all day and Moshe needs a break from you."], ["ishai", "Moshe loves me."], ["w", "Moshe tolerates you."]],
+  [["w", "Walk faster, you walk like a tourist."], ["ishai", "I'm enjoying the city."], ["w", "You're reading every shop sign out loud."]]
+];
+// Nameless locals for small talk when he is out (never at home): a stranger who asks the way, a vendor, the man at the next table.
+// They have no memory and never come back by name; the page draws them with these looks (publicState.locals).
+const LOCALS = (/*__LOCALS__*/{}).locals || {};   // story/locals.json
+const localsAt = loc => Object.entries(LOCALS).filter(([, l]) => l.at.includes(loc)).map(([id]) => id);
+// for the story prompt: who could start small talk where he is now
+function localsNote(loc) {
+  const ids = localsAt(loc); if (!ids.length) return "";
+  return `\n- LOCALS: nameless strangers for SMALL TALK when he is out (never at home, never twice in a row with the same one): ${ids.map(id => `"${id}" (${LOCALS[id].role})`).join("; ")}. Use the id as "with" and in "lines" (8-12 lines: an ordinary exchange, a question, a joke, something about the place or the day; they leave after one moment). They have no memory ("update": null) and never come back by name. When he is alone out here for a while, one of them may start a conversation.`;
+}
+const OUT_STAY_DEFAULT = 20;   // minutes before a wander on, for places without a "stay"
 // No AI: in each hour he is at home, awake and free, one roll against the places' rates may send him out (a goal like a visit).
-// A friend may come along ('with') or he may meet someone there ('meet'). An outing the story never gets to just lapses.
+// A friend may come along ('with') or he may meet someone there ('meet'); alone, a local may strike up small talk.
+// Once he is out, after the shortest stay he may wander on to a place nearby (CHAIN_PCT) instead of going home, up to CHAIN_MAX times.
+const CHAIN_PCT = 55, CHAIN_MAX = 2;
+function outingGoal(s, now, where, mode, who, chain) {
+  const c = who && s.cast[who], place = placeName(where), start = now + 3 * 60000, h = storyClock(now + DELAY_MIN * 60000).hour, day = dayOfTZ(now + DELAY_MIN * 60000);
+  const locals = localsAt(where), local = locals.length ? locals[Math.floor(Math.random() * locals.length)] : null;
+  const small = local ? ` While he is there, ${LOCALS[local].role} ("with": "${local}") strikes up small talk with him for a moment.` : " Maybe a short chat with someone working there.";
+  const goal = mode === "with" ? `${c.name} and Ishai go out together for ${OUTING_WHY[where]}${chain ? "" : `: ${c.name} calls or knocks and suggests it`}; they head there and spend some time there, true to who ${c.name} is and what they both remember. Then they go their ways.`
+    : mode === "meet" ? `Ishai goes ${chain ? "on " : "out "}for ${OUTING_WHY[where]}. At ${place} he runs into ${c.name}, and they talk a while, true to who ${c.name} is and what they both remember.`
+    : `Ishai feels like ${OUTING_WHY[where]} and goes ${chain ? "on there" : "out"}. He spends a while there, noticing things.${small} Then he heads on or home.`;
+  const g = newGoal({ id: `outing-${day.slice(5)}-${h}${chain ? "-" + chain : ""}`, startAt: new Date(start).toISOString(), deadlineAt: new Date(start + 70 * 60000).toISOString(), location: where,
+    with: c ? c.name : null, forceWith: mode === "with" ? who : null, forceAction: OUTING_ACT[where] || "idle", goal, forceText: "" }, now);
+  g.outing = { where, mode, who, local, chain: chain || 0 }; s.director.push(g);
+  return g;
+}
+function pickPerson(s, now, r, mode) {
+  const seen = new Set(s.events.filter(e => e.with && now - (e.created || e.t) < 4 * 3600000).map(e => e.with));
+  const free = Object.entries(r.people || {}).filter(([id]) => s.cast[id] && !s.cast[id].phoneOnly && !POLL_NOT.includes(id) && !seen.has(id));
+  const regular = id => !!SEED_CAST.find(c => c.id === id && c.regular);
+  const list = mode === "with" ? free.filter(([id]) => !regular(id) && !OUTING_AT_WORK.includes(id)) : free;
+  let x = Math.random() * list.reduce((n, [, w]) => n + w, 0); for (const [id, w] of list) { x -= w; if (x < 0) return id; }
+  return list.length ? list[list.length - 1][0] : null;
+}
 function outingTick(s, now, last) {
   const story = now + DELAY_MIN * 60000, h = storyClock(story).hour, day = dayOfTZ(story), slot = day + " " + h;
   const o = s.outings && s.outings.date === day ? s.outings : (s.outings = { date: day, n: 0, last: (s.outings || {}).last || 0, log: [], slot: null });
+  chainTick(s, now, last, o);
   if (o.slot === slot) return; o.slot = slot;                                          // one roll an hour
   const why = last.action === "sleeping" || h < 7 || h >= 23 ? "asleep or late" : last.location !== "apartment" ? "not at home" : last.with ? "has company"
     : o.n >= (PLACE_RULES.maxPerDay || 4) ? "enough outings today" : now - o.last < (PLACE_RULES.gapMin || 120) * 60000 ? "went out not long ago"
@@ -2523,21 +2575,56 @@ function outingTick(s, now, last) {
   let roll = Math.random() * 100, where = null;
   for (const [k, p] of Object.entries(rates)) { roll -= p; if (roll < 0) { where = k; break; } }
   o.lastRoll.picked = where; if (!where) return;
-  const r = PR[where], seen = new Set(s.events.filter(e => e.with && now - (e.created || e.t) < 4 * 3600000).map(e => e.with));
-  const free = Object.entries(r.people || {}).filter(([id]) => s.cast[id] && !s.cast[id].phoneOnly && !POLL_NOT.includes(id) && !seen.has(id));
-  const pickW = list => { let x = Math.random() * list.reduce((n, [, w]) => n + w, 0); for (const [id, w] of list) { x -= w; if (x < 0) return id; } return list.length ? list[list.length - 1][0] : null; };
-  const regular = id => !!SEED_CAST.find(c => c.id === id && c.regular);
+  const r = PR[where];
   let mode = null, who = null;
-  if (Math.random() * 100 < (r.with || 0)) { who = pickW(free.filter(([id]) => !regular(id) && !OUTING_AT_WORK.includes(id))); if (who) mode = "with"; }
-  if (!mode && Math.random() * 100 < (r.meet || 0)) { who = pickW(free); if (who) mode = "meet"; }
-  const c = who && s.cast[who], place = placeName(where), start = now + 3 * 60000;
-  const goal = mode === "with" ? `${c.name} and Ishai go out together for ${OUTING_WHY[where]}: ${c.name} calls or knocks and suggests it, they head out (step by step: corridor, street${where === "street" ? "" : ", on to " + place}) and spend some time there, true to who ${c.name} is and what they both remember. Then they go their ways.`
-    : mode === "meet" ? `Ishai goes out for ${OUTING_WHY[where]} (step by step: corridor, street${where === "street" ? "" : ", on to " + place}). At ${place} he runs into ${c.name}, and they talk a while, true to who ${c.name} is and what they both remember.`
-    : `Ishai feels like ${OUTING_WHY[where]} and goes (step by step: corridor, street${where === "street" ? "" : ", on to " + place}). He spends a while there on his own, noticing things, maybe a short chat with someone working there, then heads on or home.`;
-  const g = newGoal({ id: `outing-${day.slice(5)}-${h}`, startAt: new Date(start).toISOString(), deadlineAt: new Date(start + 70 * 60000).toISOString(), location: where,
-    with: c ? c.name : null, forceWith: mode === "with" ? who : null, forceAction: OUTING_ACT[where], goal, forceText: "" }, now);
-  g.outing = { where, mode, who }; s.director.push(g);
-  o.n++; o.last = now; o.log = [...o.log, { at: now, where, pct: rates[where], mode, who }].slice(-8);
+  if (Math.random() * 100 < (r.with || 0)) { who = pickPerson(s, now, r, "with"); if (who) mode = "with"; }
+  if (!mode && Math.random() * 100 < (r.meet || 0)) { who = pickPerson(s, now, r, "meet"); if (who) mode = "meet"; }
+  const g = outingGoal(s, now, where, mode, who, 0);
+  o.n++; o.last = now; o.log = [...o.log, { at: now, where, pct: rates[where], mode, who, local: g.outing.local }].slice(-10);
+}
+// He is out on an outing and has stayed the shortest visit: now and then he wanders on to a place nearby instead of going home.
+function chainTick(s, now, last, o) {
+  const g = (s.director || []).find(d => d.outing && d.status === "active"); if (!g || !g.arrivedAt || g.chainRolled) return;
+  const loc = last.location, ms = now + DELAY_MIN * 60000, h = storyClock(ms).hour;
+  if (loc !== g.outing.where) return;
+  const r = stayRule(loc), min = r ? r[0] : OUT_STAY_DEFAULT; if (stayMins(s, loc, ms) < min) return;
+  g.chainRolled = true;
+  const friend = g.outing.mode === "with" && last.with === g.outing.who ? g.outing.who : null;
+  if ((g.outing.chain || 0) >= CHAIN_MAX || h >= 22 || h < 7 || (last.with && !friend) || Math.random() * 100 >= CHAIN_PCT) { o.lastChain = { at: now, from: loc, to: null }; return; }
+  const seen = new Set((s.director || []).filter(d => d.outing && now - (d.createdAt || 0) < 6 * 3600000).map(d => d.outing.where));
+  const near = Object.keys(PR).filter(k => k !== loc && !seen.has(k) && !PR[k].event && PR[k].rate && placeOpen(k, ms) && placeOpen(k, ms + 45 * 60000) && !["gym", "street"].includes(k)   // on, not back home
+    && ((WALK[loc] || {})[k] ?? 99) <= 16).map(k => [k, Math.max(1, outingRate(s, k, ms))]);
+  if (!near.length) { o.lastChain = { at: now, from: loc, to: null, why: "nowhere open nearby" }; return; }
+  let x = Math.random() * near.reduce((n, [, w]) => n + w, 0), to = near[near.length - 1][0];
+  for (const [k, w] of near) { x -= w; if (x < 0) { to = k; break; } }
+  finishGoal(s, g, "wandered on", now);
+  let mode = friend ? "with" : null, who = friend;
+  if (!mode && Math.random() * 100 < (PR[to].meet || 0)) { who = pickPerson(s, now, PR[to], "meet"); if (who) mode = "meet"; }
+  const ng = outingGoal(s, now - 3 * 60000, to, mode, who, (g.outing.chain || 0) + 1);
+  o.lastChain = { at: now, from: loc, to, mode, who, local: ng.outing.local };
+  o.log = [...o.log, { at: now, where: to, chain: ng.outing.chain, mode, who, local: ng.outing.local }].slice(-10);
+}
+// No AI: an outing that has begun takes him there in one moment (the page walks him through every place on the way, by bus where it must).
+// With a friend, the friend comes over first (the story writes it); anyone else with him is seen off first.
+function outingStep(s, last, g, now) {
+  const o = g.outing; if (!o) return null;
+  const to = o.where;
+  if (last.location === to) { if (!g.arrivedAt) { g.arrivedAt = now; const r = stayRule(to); g.deadlineAt = Math.max(deadlineOf(g), now + ((r ? r[0] : OUT_STAY_DEFAULT) + 20) * 60000); } return null; }
+  if (g.arrivedAt) { finishGoal(s, g, "story", now); return null; }                        // he was there and has moved on
+  if (["sleeping", "waking"].includes(last.action) || BATH_ACTIONS.includes(last.action) || last.action === "phoning") return null;
+  if (o.mode === "with" && last.with !== o.who) {
+    if (now - (g.activatedAt || now) < 20 * 60000 || last.with) return null;                 // the story brings the friend over first
+    o.mode = null; g.forceWith = null; g.with = null; g.goal = `Ishai feels like ${OUTING_WHY[to]} and goes out on his own.`;   // the friend never came: he goes alone
+  } else if (o.mode !== "with" && last.with) return null;                                    // he finishes with whoever is here first
+  const ms = now + DELAY_MIN * 60000;
+  if (PR[to] && PR[to].open && !placeOpen(to, ms)) { finishGoal(s, g, "closed", now); return null; }
+  if (!pathStep(last.location, to)) return null;
+  const w = o.mode === "with" ? o.who : null, nm = w ? s.cast[w].name : "", wet = !!(s.world && s.world.weather && s.world.weather.rain);
+  const go = last.location === "apartment" || last.location === "corridor" ? OUTING_GO[to] : `heads on from ${placeName(last.location)} to ${placeName(to)}`;   // wandering on from one place to the next
+  const text = (w ? `Ishai and ${nm} ` + go.replace(/\b(heads|walks|orders|goes|takes|rides|finds)\b/g, v => ({ goes: "go" })[v] || v.slice(0, -1)).replace(/\bhis\b/g, "their").replace(/\bhim\b/g, "them") : `Ishai ${go}`).replace(/\.$/, "") + (wet ? ", under an umbrella" : "") + ".";
+  const pool = OUT_TALK[Math.floor(Math.random() * OUT_TALK.length)];
+  const lines = w ? pool.map(([k, say]) => ({ who: k === "w" ? w : "ishai", say })) : [];
+  return { location: to, action: LOCATIONS[to].includes(OUTING_ACT[to]) ? OUTING_ACT[to] : "walking", text, with: w, lines, commentary: [], src: "outing: on the way (no AI)" };
 }
 const pollShabbat = (s, ms) => { const sh = s.world && s.world.shabbat; return !!sh && ms >= sh.start - 30 * 60000 && ms <= (sh.end || sh.start + 26 * 3600000); };
 const pollAwake = ms => { const h = storyClock(ms).hour; return h >= POLL_AWAKE[0] && h < POLL_AWAKE[1]; };

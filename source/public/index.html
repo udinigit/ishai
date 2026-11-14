@@ -1385,7 +1385,10 @@
     cashier:{hair:'bun',hairColor:'brown',skin:'light',shirt:'blue',pants:'navy',extras:['glasses']}
   };
   let CAST = {}; // id -> card, from the Worker
-  const lookOf = id => { const L = CAST[id] && CAST[id].look; if (!L) return null;
+  // nameless locals for small talk when he is out (story/locals.json, filled in by the build): a tourist, a vendor, the man at the next table
+  const LOCAL = (/*__LOCALS__*/{}).locals || {};
+  const lookOf = id => { if (LOCAL[id] && !CAST[id]) return LOCAL[id].look;
+    const L = CAST[id] && CAST[id].look; if (!L) return null;
     let f = null; try { f = outfitOf(id, actor.loc, actor.action); } catch(e){} return f ? Object.assign({}, L, {_fit: f}) : L; };
   // the person currently with Ishai (or a generic stranger when he talks to someone unnamed)
   function companionLook(a){
@@ -1862,8 +1865,9 @@
       // bystanders: a far lane of pedestrians, someone waiting on the bench
       zOn();
       crowdWalk(t, 0, 26000, 0, 61, 1, .7); crowdWalk(t, 1, 33000, 9000, 61, -1, .7); crowdWalk(t, 5, 41000, 20000, 63, 1, .75);
-      if (Math.floor(t/90000) % 3 !== 0) crowdVisit(t, 90000, 3 + Math.floor(t/90000) % 4, 124, 48, W+8, 61, {legs:'sit'});
+      if (Math.floor(t/90000) % 3 !== 0) crowdVisit(t, 90000, 3 + Math.floor(t/90000) % 4, 124, 48, W+8, 50, {legs:'sit'});   // walks along the shopfronts to the bench and sits (no jump from the curb)
       crowdWalk(t, 6, 57000, 31000, 67, -1, .85);
+      stopLife('street');   // people waiting for line 88, getting on and off
       drawFloor(t,a,settled,actor,this);
       zAdd(200, () => {
       bikeRideBy(99, night);
@@ -1875,6 +1879,7 @@
         const vx = rideX(actor.ride, NOW());
         if (actor.ride.kind === 'bus') drawBus(vx+10, night, (NOW()-actor.ride.t0) > RIDE.come && (NOW()-actor.ride.t0) < RIDE.come + RIDE.stop);
         else drawTaxi(vx, night);
+      } else if (stopBus('street', night)){ // line 88 at the stop
       } else if (lap % 3 === 2 && cx < W+10){ // the Cooola bus
         drawBus(cx, night, false);
       } else if (cx < W+10){ const col = ['#c23b3b','#3b7bc2','#e0b04a','#dcdcdc'][lap%4];
@@ -1954,11 +1959,13 @@
         scene.props && scene.props(t, night, hf);
         (scene.crowd || [[scene.seed, 31000, 61, 1], [scene.seed+2, 39000, 63, -1], [scene.seed+4, 47000, 67, 1]])
           .forEach(([idx, per, y, dir], k) => crowdWalk(t, idx, per, scene.seed*(3000 + k*2000), y, dir, .75 + (y > 65 ? .1 : 0)));
+        if (scene.stop && id) stopLife(id);
         if (!(scene.sits && scene.sits(a, settled, actor))) drawFloor(t,a,settled,actor,this);
         if (traffic === 'road') zAdd(200, () => { bikeRideBy(ground === 'promenade' ? 91 : 99, night); if (!actor.ride || !scene.stop) ateRideBy(t + scene.seed*20000, 99);
           const off = scene.seed*2100, cx = (((t+off)/12) % 520) - 60, lap = Math.floor((t+off)/6240);
           if (scene.stop && actor.ride && !DREAMING){ const vx = rideX(actor.ride, NOW());   // his bus or taxi at the stop
             if (actor.ride.kind === 'bus') drawBus(vx+10, night, (NOW()-actor.ride.t0) > RIDE.come && (NOW()-actor.ride.t0) < RIDE.come + RIDE.stop); else drawTaxi(vx, night); }
+          else if (scene.stop && stopBus(id, night)){}
           else if (lap % 3 === 2 && cx < W+10) drawBus(cx, night, false);
           else if (cx < W+10){ const col = ['#c23b3b','#3b7bc2','#e0b04a','#dcdcdc'][lap%4];
             R(cx,96,26,6,col); R(cx+5,92,14,4,col); R(cx+7,93,4,3,'#9fd3f0'); R(cx+13,93,4,3,'#9fd3f0'); R(cx+3,102,5,3,'#111'); R(cx+18,102,5,3,'#111'); if (night) R(cx+25,97,2,2,'#fff3b0'); } });
@@ -3837,11 +3844,12 @@
       // shoppers; an ateBite courier waiting for an order now and then
       crowdWalk(t, 1, 24000, 2000, 61, 1, .75); crowdWalk(t, 5, 31000, 11000, 63, -1, .75); crowdWalk(t, 7, 27000, 19000, 67, 1, .85); crowdWalk(t, 3, 35000, 5000, 65, -1, .8);
       if (Math.floor(t/60000) % 2){ const w = visitAt(t, 60000, 176, W+8), cx = w ? w.x : 176; zAdd(88, () => { person(EXTRA.courier, cx, 66, t, {face:-1, muted:true, walk: !!w}); ateHelmet(cx, 66); ateBox(cx + 9, 74); }); }
+      stopLife('market');
       drawFloor(t,a,settled,actor,this);
       zAdd(200, () => {
       if (actor.ride && !DREAMING){ const vx = rideX(actor.ride, NOW());
         if (actor.ride.kind === 'bus') drawBus(vx+10, night, (NOW()-actor.ride.t0) > RIDE.come && (NOW()-actor.ride.t0) < RIDE.come + RIDE.stop); else drawTaxi(vx, night); }
-      else ateRideBy(t + 50000, 99);
+      else if (!stopBus('market', night)) ateRideBy(t + 50000, 99);
       });
       liveLayer(t, this); zFlush();
       if (night) alpha(.35,()=>R(0,0,W,H,'#050a1e'));
@@ -3876,11 +3884,13 @@
       zAdd(86, () => { R(8,44,18,40,'#2a1f3a'); R(9,45,16,10,COOOLA.bg); R(10,47,14,1,COOOLA.fg); R(10,50,14,1,COOOLA.fg); R(10,58,10,14,'#14141a'); for (let i=0;i<3;i++) R(11+i*3,60,2,10,['#c23b3b','#e0b04a','#4f9a3f'][i]); R(21,60,3,6,'#8a8a94'); R(10,76,14,4,'#0e0e12'); });
       zAdd(84, () => { R(152,70,28,2,'#7a5a3a'); R(152,74,28,2,'#7a5a3a'); R(154,76,2,8,'#444'); R(176,76,2,8,'#444'); });
       if (!NO_CROWD){ crowdWalk(t, 2, 26000, 3000, 62, 1, .8); crowdWalk(t, 6, 33000, 15000, 64, -1, .8);
-        if (Math.floor(t/70000) % 2) crowdStill(t, 3, 156, 58, {legs:'sit', face:-1}); if (Math.floor(t/90000) % 3) crowdVisit(t, 90000, 5, 164, 58, W+8, 66, {legs:'sit', face:-1}); }
+        stopLife('campus');
+        if (Math.floor(t/70000) % 2) crowdVisit(t, 70000, 3, 156, 58, W+8, 60, {legs:'sit', face:-1}); if (Math.floor(t/90000) % 3) crowdVisit(t, 90000, 5, 170, 58, W+8, 60, {legs:'sit', face:-1}); }   // they walk to the bench and away, never pop onto it
       drawFloor(t,a,settled,actor,this);
       zAdd(200, () => {
       if (actor.ride && !DREAMING){ const vx = rideX(actor.ride, NOW());
         if (actor.ride.kind === 'bus') drawBus(vx+10, night, (NOW()-actor.ride.t0) > RIDE.come && (NOW()-actor.ride.t0) < RIDE.come + RIDE.stop); else drawTaxi(vx, night); }
+      else stopBus('campus', night);
       });
       liveLayer(t, this); zFlush();
       if (night) alpha(.35,()=>R(0,0,W,H,'#050a1e'));
@@ -4011,7 +4021,7 @@
     if (!lights){ R(sx+2,base-7,bw-4,7,'#39424a'); R(sx+4,base-6,bw-8,5,'#6f8794'); for (let x=sx+2;x<sx+bw-2;x+=4) R(x,base-9,2,2,aw); R(sx+2,base-9,bw-4,1,aw); }
     else { const open = hash(id + Math.floor(t/300000)) < .6; if (open) R(sx+4,base-6,bw-8,5,'#ffe2a0'); R(sx+4,base-9,bw-8,1,aw); }
   }
-  function cityDrive(x,y,w,h,t,hf){
+  function cityDrive(x,y,w,h,t,hf,station){   // station: the bus's stops are bus stops (a sign and a shelter at the kerb)
     const D = driveAt(t), base = y+h-8, night = isNight(hf);
     g.save(); g.beginPath(); g.rect(x,y,w,h); g.clip();
     const s = drawSky(x,y,w,h-8,hf,t);
@@ -4043,7 +4053,10 @@
     // the junction: the light he stops at, red while the traffic waits
     { const q = x + w*.34 + (D.d - D.stopAt), red = D.brake || D.stopped;
       if (q > x-10 && q < x+w+10){ R(q,base-24,2,27,'#2f3338'); R(q-2,base-31,6,9,'#16181a');
-        R(q-1,base-30,4,2, red ? '#ff3b30' : '#4a1512'); R(q-1,base-27,4,2,'#4a3a12'); R(q-1,base-24,4,2, red ? '#123a1a' : '#39e06a'); } }
+        R(q-1,base-30,4,2, red ? '#ff3b30' : '#4a1512'); R(q-1,base-27,4,2,'#4a3a12'); R(q-1,base-24,4,2, red ? '#123a1a' : '#39e06a'); }
+      const b = q - 20;
+      if (station && b > x-24 && b < x+w+10){ R(b,base-22,1,25,'#555'); R(b-3,base-28,7,6,'#2f6fb5'); R(b-2,base-27,5,1,'#f2f2f2'); R(b-1,base-25,3,2,'#f2f2f2');   // the stop sign
+        R(b-18,base-17,13,1,'#6f7f8a'); R(b-18,base-17,1,20,'#6f7f8a'); R(b-6,base-17,1,20,'#6f7f8a'); alpha(.22,()=>R(b-17,base-16,11,18,'#bfe0f0')); R(b-16,base-4,9,1,'#8a6a4a'); } }
     // rain on the glass
     if (rainy()){ alpha(.5, () => drawRain(x,y,w,h,t,Math.max(10,Math.floor(w*h/90))));
       for (let i=0;i<Math.floor(w/9);i++){ const rx = x + (i*53 + Math.floor(D.d*(.2+(i%3)*.1))) % w, ry = y + (i*31) % (h-6) ; alpha(.35, () => { R(rx,ry,1,3,'#dfeaf5'); R(rx-1,ry+3,1,2,'#dfeaf5'); }); } }
@@ -4063,7 +4076,7 @@
   SCENES.bus = {
     cam:'CAM-12', place:'LINE 88 // ON THE BUS', walkY:78, entry:108, exit:108, stand:{idle:108,talking:108,phoning:108,reading:108},
     draw(t,hf,a,settled,actor){
-      const c = cityDrive(0,12,W,50,t,hf), D = c.D, bump = D.sp > .5 && (Math.floor(t/430) % 7 === 0) ? 1 : 0, lean = D.brake ? -2 : D.pull ? 2 : 0;
+      const c = cityDrive(0,12,W,50,t,hf,true), D = c.D, bump = D.sp > .5 && (Math.floor(t/430) % 7 === 0) ? 1 : 0, lean = D.brake ? -2 : D.pull ? 2 : 0;
       // roof, ads, the lit panel
       R(0,0,W,3,'#efece2'); R(0,3,W,9,'#dcd8cb'); R(30,0,132,2,'#fff7d6');
       for (let i=0;i<5;i++){ const ax = 6 + i*38; R(ax,4,32,7,'#f4f1e6'); R(ax,4,32,1,'#b5b0a0');
@@ -4075,7 +4088,9 @@
       const tt = t + DRIVE.stop + 0, BL = DRIVE_P*3, block = Math.floor(tt/BL), SX = [28,76,144], sy = 54 + bump;
       const seat = x => { R(x-2,70,16,3,'#b33f3f'); R(x+1,73,12,5,'#7f2c2c'); R(x+12,48,4,25,'#b33f3f'); R(x+13,49,2,3,'#d98a8a'); };
       SX.forEach(seat); seat(108);
-      SX.forEach((x, i) => { if (hash(block*5 + i*3 + 1) > .68) return; const w = visitAt(tt, BL, x, 2), L = CROWD[(block + i*3) % CROWD.length]; if (w) person(L, w.x, 60, t + i*700, {walk:true, face:w.dir, muted:true}); else sitter(L, x, sy, t + i*700, {seed: 40 + i}); });
+      const plan = !DREAMING && actor.loc === 'bus' && actor.rideInfo && actor.rideInfo.plan;
+      if (plan){ seat(172); busRidersDraw(plan, t, t, sy); }   // his ride: who got on with him, who gets on and off at each stop
+      else SX.forEach((x, i) => { if (hash(block*5 + i*3 + 1) > .68) return; const w = visitAt(tt, BL, x, 2), L = CROWD[(block + i*3) % CROWD.length]; if (w) person(L, w.x, 60, t + i*700, {walk:true, face:w.dir, muted:true}); else sitter(L, x, sy, t + i*700, {seed: 40 + i}); });
       // Ishai's seat, and a friend on the seat next to his
       const m = rideMate(actor);
       if (m && m.look){ seat(92); markHead(m.id, 92, sy); person(m.look, 92, sy, t+300, {legs:false, face:1, talkPhase:true}); R(93,sy+16,8,2,'#3f4650'); R(93,sy+18,2,4,'#3f4650'); R(93,sy+22,3,1,'#222'); }
@@ -4156,7 +4171,7 @@
       const armK = mode === 'clap' ? Math.floor(NOW() / 150) % 2 : mode === 'arms' ? Math.floor(NOW() / 1400) % 2 : (kb >> 1) % 2;
       drawIshai('back', X, Y, t, {armPose, armK});
       return; }
-    if (a==='walking' && actor.pacePause && !actor.travelling && !actor.pending) drawIshai('idle', actor.x, y, t);
+    if (a==='walking' && actor.pacePause && !actor.travelling && !actor.pending) drawIshai(OUTSIDE.has(actor.loc) && !actor.with && hash(Math.floor(NOW()/32000) * 3 + 7) < .45 ? 'back' : 'idle', actor.x, y, t);   // stops to look at a window, a poster, the sea
     else if (actor.travelling || a==='walking') drawIshai('walk', actor.x, y, t);
     else if (actor.dressTo) drawIshai(actor.dressBath ? 'back' : 'idle', actor.x, y, t);   // at the closet: changing (under the bar), or taking clothes out with his back to us
     else if (!settled) return;
@@ -4189,13 +4204,20 @@
       phone:   {alone:2, company:2, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]}                       // checks (or shows) something on his phone
     },
     park:   { look:    {alone:3, company:1, steps:[{pose:'idle',dur:3},{to:'+26'},{pose:'back',dur:3},{to:'+0'}]},
+              stroll:  {again:true, alone:3, company:1, steps:[{to:'-50'},{pose:'back',dur:4},{to:'+20'},{pose:'idle',dur:3}]},
               stretch: {alone:2, company:1, steps:[{pose:'stretch',dur:4}]},
               phone:   {alone:1, company:2, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} },
     shops:  { atm:     {alone:2, company:0, steps:[{to:92},{pose:'back',dur:4}]},
+              stroll:  {again:true, alone:3, company:0, steps:[{to:150},{pose:'back',dur:4},{to:60},{pose:'back',dur:3}]},
               window:  {alone:2, company:1, steps:[{to:22},{pose:'back',dur:4}]},
               phone:   {alone:1, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
     street: { look:    {alone:2, company:1, steps:[{pose:'back',dur:3}]},
+              stroll:  {again:true, alone:4, company:0, steps:[{to:'-44'},{pose:'back',dur:4},{to:'+40'},{pose:'idle',dur:3,o:{fidget:'phone'}}]},   // up the block to the gym window, back past the bench
               phone:   {alone:2, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
+    // any other street, the promenade or The Big S (the block kit): he strolls a little way, looks at a window or the sea, and comes back
+    _out:   { stroll:  {again:true, alone:4, company:1, steps:[{to:'-46'},{pose:'back',dur:4},{to:'+38'},{pose:'back',dur:3},{to:'+0'}]},
+              look:    {alone:2, company:1, steps:[{to:'+30'},{pose:'back',dur:5}]},
+              phone:   {alone:1, company:1, steps:[{pose:'idle',dur:4,o:{fidget:'phone'}}]} },
     cafe:   { phone:   {alone:3, company:1, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} },
     corridor: { phone: {alone:1, company:1, steps:[{pose:'idle',dur:3,o:{fidget:'phone'}}]} },
     gym:    { water:   {alone:2, company:1, steps:[{to:84},{pose:'drinking',dur:4,o:{legs:'stand'}}]},
@@ -4221,22 +4243,24 @@
   };
   // which actions can be interrupted, and how often (share of 45 s blocks that get a routine), alone / with company
   const SEATED_AT = { cinema:['film','idle','talking','eating','drinking','phoning'], cafe:['eating','drinking','working','reading','talking','trivia'], bar:['eating','drinking','talking'], park:['eating','reading'], apt2:['poker'], classroom:['lecture','idle','talking'] };
-  const ERR_CHANCE = { idle:[.45,.3], talking:[0,.2], eating:[0,.12], drinking:[0,.12] };   // seated activities fidget in the seat instead (seatFid)
+  const ERR_CHANCE = { idle:[.45,.3], talking:[0,.2], eating:[0,.12], drinking:[0,.12] };
+  const ERR_OUT = [.8, .3];   // out on the street (or the promenade, The Big S) alone he hardly ever just stands: most blocks he strolls   // seated activities fidget in the seat instead (seatFid)
   const hash = n => { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4); n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; };
   function errandNow(){
-    const a = actor.action, list = ERRANDS[actor.loc], co = actor.with ? 1 : 0;
+    const a = actor.action, list = ERRANDS[actor.loc] || ((KIT.has(actor.loc) || OUTSIDE.has(actor.loc)) && !SEATED_AT[actor.loc] ? ERRANDS._out : null), co = actor.with ? 1 : 0;
     if (SEATED_AT[actor.loc] && SEATED_AT[actor.loc].includes(a)) return null;   // he is drawn sitting: never jump up for a look back or a phone check
     if (!list || !(a in ERR_CHANCE) || actor.travelling || actor.hidden || actor.pending || actor.switching || actor.ride || actor.dressTo) return null;
     if (co && (SPEAKING === 'ishai' || actor.action === 'phoning')) return null;   // not in the middle of his own line
     const now = NOW(), block = Math.floor(now / ERR_BLOCK), start = block * ERR_BLOCK + 4000;
     if (now < start || actor.settledAt == null || actor.settledAt > start) return null;
-    if (hash(block * 7 + 1) > ERR_CHANCE[a][co]) return null;
+    if (hash(block * 7 + 1) > (a === 'idle' && (KIT.has(actor.loc) || OUTSIDE.has(actor.loc)) ? ERR_OUT : ERR_CHANCE[a])[co]) return null;
     // weighted pick, never the same routine as the block before (no drink-drink-drink loops)
     const pick = b => { const ks = Object.keys(list).filter(k => list[k][co ? 'company' : 'alone'] > 0); if (!ks.length) return null;
       const tot = ks.reduce((n, k) => n + list[k][co ? 'company' : 'alone'], 0); let r = hash(b * 13 + 5) * tot;
       for (const k of ks){ r -= list[k][co ? 'company' : 'alone']; if (r < 0) return k; } return ks[ks.length - 1]; };
     let kind = pick(block); if (!kind) return null;
-    if (kind === pick(block - 1) || kind === pick(block - 2)){ const ks = Object.keys(list).filter(k => k !== kind && list[k][co ? 'company' : 'alone'] > 0); if (!ks.length) return null; kind = ks[Math.floor(hash(block * 17 + 9) * ks.length)]; }
+    // a stroll may come again (outdoors he keeps strolling); anything else never twice in a row
+    if (!list[kind].again && (kind === pick(block - 1) || kind === pick(block - 2))){ const ks = Object.keys(list).filter(k => k !== kind && list[k][co ? 'company' : 'alone'] > 0); if (!ks.length) return null; kind = ks[Math.floor(hash(block * 17 + 9) * ks.length)]; }
     const steps = list[kind].steps;
     // build the timeline: walk there, do things, walk back to his spot
     const x0 = standX(actor.loc, a, actor.with); let x = x0, e = (now - start) / 1000;
@@ -4244,7 +4268,7 @@
     const seq = [...steps, {to: x0}];
     for (const st of seq){
       if (st.pose){ if (e < st.dur) return {x, pose: st.pose, o: st.o || {}, tag: st.tag, walking:false}; e -= st.dur; continue; }
-      const to = typeof st.to === 'string' ? x0 + Number(st.to) : st.to, d = Math.abs(to - x) / 24;
+      const to = typeof st.to === 'string' ? Math.max(10, Math.min(W - 22, x0 + Number(st.to))) : st.to, d = Math.abs(to - x) / 24;
       if (e < d){ const nx = x + Math.sign(to - x) * e * 24; return {x: nx, pose:'walk', o:{}, walking:true, dir: Math.sign(to - x)}; }
       e -= d; x = to;
     }
@@ -4336,7 +4360,7 @@
   // built from story/world.json by source/world.mjs (edit the map there, never here)
   const MAP = /*__WORLD_MAP__*/{};
 
-  ['street','market','campus'].forEach(p => { MAP[p].bus = {exit:128, entry:128, ride:true}; MAP[p].taxi = {exit:128, entry:128, ride:true}; });
+  ['street','market','campus','promenade'].forEach(p => { MAP[p].bus = {exit:128, entry:128, ride:true}; MAP[p].taxi = {exit:128, entry:128, ride:true}; });
   const RIDE_HOPS = 5;
   function route(from, to){ // shortest path through the map, e.g. cafe -> street -> corridor -> apartment
     if (from === to) return [];
@@ -4361,7 +4385,7 @@
       if (actor.dressBath === 'in'){ actor.hidden = false; actor.x = actor.dressDoor ?? BATH_DOOR_X; } }
     actor.dressBath = null; actor.dressDoor = null;
     if (instant){
-      Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, dressTo:null, dressUntil:0, dressBath:null, dressFinal:null, dressDoor:null, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null, rideUntil:0});
+      Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, dressTo:null, dressUntil:0, dressBath:null, dressFinal:null, dressDoor:null, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null, rideUntil:0, rideInfo:null});
       WEAR = loc === 'gym' ? 'gym' : (loc === 'apartment' || loc === 'bathroom') ? homeWear(a) : outWear(null);
       actor.x = standX(loc,a,w); actor.settledAt = NOW(); comp.settleUntil = NOW() + 2500; updateLabels(); return;
     }
@@ -4446,6 +4470,8 @@
     if (VEH.has(hop)){   // the camera comes back on inside: he has taken his seat
       actor.hidden = false; actor.travelling = false; actor.x = SCENES[hop].entry;
       if (last){ actor.action = fixAction(hop, p.a); actor.with = p.w; actor.pending = null; } else { actor.action = 'idle'; actor.rideUntil = NOW() + RIDE_MS; }
+      if (hop === 'bus'){ const ri = actor.rideInfo || {seed: Math.floor(NOW() / 1000), withHim: []}, tt = NOW() % 86400000;   // who rides along, and the stops on the way
+        actor.rideInfo = Object.assign(ri, {plan: busPlan(ri.seed, ri.withHim || [], tt, tt + (last ? 6 * 60000 : RIDE_MS))}); }
       updateLabels(); return; }
     const link = (MAP[hop]||{})[from] || {entry: SCENES[hop].entry};
     actor.x = link.entry; actor.entryX = link.ride ? null : link.entry;   // the door he came in through (doorBusy)
@@ -4455,7 +4481,10 @@
       const want = last ? homeWear(p.a) : p.route[0] === 'bathroom' ? null : outWear(p.route[p.route.length - 1]);
       if (want && want !== WEAR){ actor.dressTo = want; actor.dressFinal = last ? actor.targetX : null; actor.targetX = CLOSET_X; } }
     if (hop === 'gym' && WEAR !== 'gym' && !link.ride) gymChange('gym', last ? actor.targetX : null);   // in through the changing room
-    if (link.ride){ startRide('arrive', VEH.has(from) ? from : null); actor.hidden = true; actor.travelling = false; }  // steps off the bus/taxi first
+    if (link.ride){ startRide('arrive', VEH.has(from) ? from : null); actor.hidden = true; actor.travelling = false;   // steps off the bus/taxi first
+      const pl = from === 'bus' && actor.rideInfo && actor.rideInfo.plan;   // whoever was going to this stop too gets off after him
+      STOPOFF = pl ? {loc: hop, t0: NOW(), list: pl.riders.filter(r => r.off === 'end').slice(0, 3).map((r, j) => ({idx: r.idx, to: hash(actor.rideInfo.seed + j * 17) < .5 ? -14 : W + 8}))} : null;
+      actor.rideInfo = null; }
     else { actor.hidden = false; actor.travelling = Math.abs(actor.x-actor.targetX) > 1; }
     updateLabels();
   }
@@ -4465,10 +4494,11 @@
     const hf = hourNow(), sh = WORLD && WORLD.shabbat, n = NOW(), shabbat = !!sh && !!sh.start && !!sh.end && n > sh.start && n < sh.end;
     return NEXT_RIDE || (hf >= 21 || hf < 6 || rainy() || shabbat ? 'taxi' : 'bus');
   }
-  function startRide(mode, kind){ actor.ride = { mode, kind: kind || rideKind(), t0: NOW() }; }
+  function startRide(mode, kind){ actor.ride = { mode, kind: kind || rideKind(), t0: NOW() };
+    if (mode === 'depart') actor.rideInfo = actor.ride.kind === 'bus' ? {seed: Math.floor(actor.ride.t0 / 1000), from: actor.loc, withHim: boardingWith(actor.loc, actor.ride.t0).map(w => ({idx: w.idx}))} : null; }
   const RIDE_LEAD = 12000, RIDE_LAND = 7000;   // about how long boarding and getting off take
   const RIDE_MS = 150000;  // how long a ride shows from inside when the story just says he goes somewhere; the city keeps looping past
-  const RIDE = { come: 2600, stop: 1600, go: 2000 };
+  const RIDE = { come: 2600, stop: 2600, go: 2000 };   // the stop is long enough for whoever waits there to get on, and for riders to get off with him
   function rideX(r, now){ // the vehicle's left x on the road
     const stopX = r.kind === 'bus' ? 98 : 116, e = now - r.t0;
     if (e < RIDE.come){ const p = e / RIDE.come; return -70 + (stopX + 70) * (1 - (1-p)*(1-p)); }
@@ -4484,6 +4514,105 @@
       if (e > RIDE.come + RIDE.stop * .4 && actor.hidden){ actor.hidden = false; actor.travelling = Math.abs(actor.x-actor.targetX) > 1; } // steps off
       if (e > RIDE.come + RIDE.stop + RIDE.go) actor.ride = null;
     }
+  }
+
+  // ================= line 88 at the stops: everyone uses the bus, not just Ishai =================
+  // Every stop (the street, the market, the university, the promenade) gets a bus every BUS_EVERY, from the clock (same for every viewer).
+  // Before it comes, a few people walk to the stop and wait; when it pulls in, the ones who came get off and walk away, and the waiting ones get on.
+  // When HIS bus pulls in, whoever is waiting gets on with him (RIDERS: they ride along inside, CAM-12), and at his stop the riders
+  // who were going there too step off after him and walk away into the new place (STOPOFF).
+  const STOP_AT = {street:1, market:2, campus:3, promenade:4};
+  const BUS_EVERY = 180000, BUS_ST = {come: 2600, stop: 6000, go: 2000}, STOP_DOOR = 146, STOP_Y = 62, STOP_SPOT = [156, 168, 180];
+  const STOP_WALK = 28;   // px a second on foot
+  function busesRun(){ const hf = hourNow(), sh = WORLD && WORLD.shabbat, n = NOW(); return !(hf >= 21 || hf < 6 || (!!sh && !!sh.start && !!sh.end && n > sh.start && n < sh.end)); }
+  function stopCycle(loc, N){ const off = (STOP_AT[loc] * 37000) % BUS_EVERY, c = Math.floor((N - off) / BUS_EVERY), cs = c * BUS_EVERY + off;
+    return {c, cs, bus: cs + BUS_EVERY - (BUS_ST.come + BUS_ST.stop + BUS_ST.go)}; }
+  // who walks to the stop in cycle c (0-3 people, each from an edge, at their own time, to their own spot right of the sign)
+  function stopWaiters(loc, c){
+    const {cs, bus} = (() => { const off = (STOP_AT[loc] * 37000) % BUS_EVERY, cs = c * BUS_EVERY + off; return {cs, bus: cs + BUS_EVERY - (BUS_ST.come + BUS_ST.stop + BUS_ST.go)}; })();
+    const n = [0,1,1,2,2,3][Math.floor(hash(c * 31 + STOP_AT[loc] * 7) * 6)], out = [];
+    for (let j = 0; j < n; j++){ const h = k => hash(c * 97 + j * 13 + k + STOP_AT[loc] * 101), from = h(3) < .5 ? -14 : W + 8, x = STOP_SPOT[j];
+      const at = cs + 20000 + h(2) * (bus - cs - 45000);
+      let idx = Math.floor(h(1) * CROWD.length); while (out.some(o => o.idx % CROWD.length === idx % CROWD.length)) idx++;   // three different people
+      out.push({j, idx, at, from, x, there: at + Math.abs(x - from) / STOP_WALK * 1000}); }
+    return out;
+  }
+  // who gets off the background bus of cycle c
+  function stopAlight(loc, c){ const n = [0,0,1,1,2][Math.floor(hash(c * 53 + STOP_AT[loc] * 11) * 5)], out = [];
+    for (let j = 0; j < n; j++) out.push({j, idx: Math.floor(hash(c * 71 + j * 19 + STOP_AT[loc]) * CROWD.length), to: hash(c * 29 + j * 5 + STOP_AT[loc]) < .5 ? -14 : W + 8}); return out; }
+  // everyone waiting when his own bus pulls in gets on it with him
+  function boardingWith(loc, t0){
+    if (!STOP_AT[loc] || !busesRun()) return [];
+    const {c, bus} = stopCycle(loc, t0); if (t0 >= bus) return [];   // the last bus has just taken this cycle's people
+    return stopWaiters(loc, c).filter(w => w.there <= t0 + RIDE.come);
+  }
+  let STOPOFF = null;   // {loc, t0, list: [{idx, to}]}: riders who got off with him at this stop
+  function walkTo(L, x0, x1, start, now, y, seed){   // someone walking from x0 to x1 from `start`; false once they're there
+    const d = Math.abs(x1 - x0) / STOP_WALK * 1000, e = now - start; if (e < 0 || e > d) return false;
+    const x = x0 + (x1 - x0) * e / d; zAdd(y + 22, () => person(L, x, y, now + seed, {walk:true, face: Math.sign(x1 - x0) || 1, muted:true})); return true;
+  }
+  // the people at a stop: walking in, waiting (looking up the road for the bus), getting on, and the ones who got off walking away
+  function stopLife(loc){
+    if (!STOP_AT[loc] || DREAMING || BUILDER) return;
+    const N = NOW(), run = busesRun();
+    const mine = actor.ride && actor.loc === loc && actor.ride.kind === 'bus' ? actor.ride : null;
+    if (run){
+      const {c, bus} = stopCycle(loc, N), myWith = mine ? boardingWith(loc, mine.t0) : [];
+      stopWaiters(loc, c).forEach(w => {
+        const L = CROWD[w.idx % CROWD.length], seed = w.j * 977 + c;
+        if (N < w.at) return;
+        if (walkTo(L, w.from, w.x, w.at, N, STOP_Y, seed)) return;
+        const k = myWith.findIndex(m => m.j === w.j);
+        const board = k >= 0 ? mine.t0 + RIDE.come + 200 + k * 350 : bus + BUS_ST.come + 500 + w.j * 600;
+        if (N < board){ zAdd(STOP_Y + 22, () => person(L, w.x, STOP_Y, N + seed, {face: -1, muted:true})); return; }   // waiting, looking up the road
+        walkTo(L, w.x, STOP_DOOR, board, N, STOP_Y, seed);                                                          // gets on (then is on board)
+      });
+      if (!actor.ride || actor.loc !== loc){ const e = N - bus;   // the background bus: the riders step off and walk away
+        if (e > BUS_ST.come + 300) stopAlight(loc, c).forEach(a => walkTo(CROWD[a.idx % CROWD.length], STOP_DOOR, a.to, bus + BUS_ST.come + 300 + a.j * 600, N, STOP_Y, a.j * 311 + c)); }
+    }
+    if (STOPOFF && STOPOFF.loc === loc) STOPOFF.list.forEach((r, j) =>   // came with him on his bus: off after him, away into the place
+      walkTo(CROWD[r.idx % CROWD.length], STOP_DOOR, r.to, STOPOFF.t0 + RIDE.come + RIDE.stop * .4 + 500 * (j + 1), N, STOP_Y, j * 211));
+  }
+  // the background bus at a stop (only when his own bus or taxi isn't there): true while it is drawn
+  function stopBus(loc, night){
+    if (!STOP_AT[loc] || DREAMING || BUILDER || !busesRun() || (actor.ride && actor.loc === loc)) return false;
+    const N = NOW(), {bus} = stopCycle(loc, N), e = N - bus, {come, stop, go} = BUS_ST, stopX = 98;
+    if (e < 0 || e > come + stop + go) return false;
+    const x = e < come ? -70 + (stopX + 70) * (1 - (1 - e/come) ** 2) : e < come + stop ? stopX : stopX + (W + 80 - stopX) * ((e - come - stop) / go) ** 2;
+    drawBus(x + 10, night, e > come && e < come + stop); return true;
+  }
+
+  // ---- inside the bus (CAM-12): who rides with him. Built when the camera comes on inside, from the clock and his ride. ----
+  // The bus stops at every station on the way (driveAt: one every DRIVE_P); at each, some riders get off (walk out by the door on the left)
+  // and some get on. The people who got on with him ride along; some get off before him, some ride on past, some get off with him (STOPOFF).
+  const BUS_SEATS = [28, 76, 144, 172], BUS_STAND = [44, 160];
+  function busPlan(seed, withHim, from, until){
+    const P = DRIVE_P, C = DRIVE.cruise + DRIVE.brake, stops = [];
+    for (let k = Math.floor(from / P); k * P < until; k++){ const st = k * P + C; if (st > from + 1500 && st + DRIVE.stop < until - 2500) stops.push(st); }
+    const h = k => hash(seed * 7 + k * 131), R = [], spots = [...BUS_SEATS.map(x => ({x, stand:false})), ...BUS_STAND.map(x => ({x, stand:true}))];
+    const pickOff = (after, k) => { const r = h(k); if (r < .35) return 'end'; if (r < .55) return 'beyond';
+      const left = stops.length - 1 - after; return left > 0 ? after + 1 + Math.floor(h(k + 1) * left) : 'end'; };
+    const busy = new Set(), take = (stand) => { const f = spots.find(s => !busy.has(s.x) && (stand || !s.stand)) || spots.find(s => !busy.has(s.x)); if (f) busy.add(f.x); return f; };
+    const who = k => { let i = Math.floor(h(k) * CROWD.length); for (let n = 0; n < CROWD.length && R.some(r => r.idx % CROWD.length === i % CROWD.length); n++) i++; return i; };   // never the same face twice on board
+    withHim.forEach((w, i) => { const f = take(false); if (f) R.push({idx: w.idx, x: f.x, stand: f.stand, on:-1, off: pickOff(-1, 60 + i * 3), j: i, his: true}); });
+    BUS_SEATS.forEach((x, i) => { if (busy.has(x)) return; if (h(10 + i) < .4){ busy.add(x); R.push({idx: who(20 + i), x, stand:false, on:-1, off: pickOff(-1, 30 + i * 3), j: i}); } });
+    stops.forEach((_, si) => {
+      R.filter(r => r.off === si).forEach(r => busy.delete(r.x));
+      const n = [0,1,1,2][Math.floor(h(90 + si) * 4)];
+      for (let i = 0; i < n; i++){ const f = take(false); if (!f) break; R.push({idx: who(100 + si * 7 + i), x: f.x, stand: f.stand, on: si, off: pickOff(si, 120 + si * 9 + i * 3), j: i}); }
+    });
+    return {stops, riders: R};
+  }
+  function busRidersDraw(plan, tt, t, sy){
+    const out = 2, sp = 40, y = 60;   // the door is on the left; riders walk a little quicker than on the street
+    plan.riders.forEach(r => {
+      const L = CROWD[r.idx % CROWD.length], dur = Math.abs(r.x - out) / sp * 1000;
+      const inT = r.on >= 0 ? plan.stops[r.on] + 2600 + r.j * 700 : -Infinity, outT = typeof r.off === 'number' ? plan.stops[r.off] + 400 + r.j * 700 : Infinity;
+      if (tt < inT) return;
+      if (tt < inT + dur){ person(L, out + (r.x - out) * (tt - inT) / dur, y, t + r.j * 700, {walk:true, face:1, muted:true}); return; }
+      if (tt >= outT){ if (tt < outT + dur) person(L, r.x + (out - r.x) * (tt - outT) / dur, y, t + r.j * 700, {walk:true, face:-1, muted:true}); return; }
+      if (r.stand) person(L, r.x, y - 2, t + r.j * 700, {face:-1, muted:true}); else sitter(L, r.x, sy, t + r.j * 700, {seed: 40 + r.j});
+    });
   }
 
   function update(dt, now){
@@ -4508,7 +4637,7 @@
         if (actor.viaFinal != null && !actor.pending){ actor.viaUntil = now + 2200; return; }
         if (actor.loc !== 'bathroom') actor.fromLoc = null;
         actor.settledAt = NOW();
-        if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && (actor.loc==='street' || actor.loc==='market' || actor.loc==='campus')) startRide('depart', VEH.has(actor.pending.route[0]) ? actor.pending.route[0] : null); else beginSwitch(); }
+        if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && (actor.loc==='street' || actor.loc==='market' || actor.loc==='campus' || actor.loc==='promenade')) startRide('depart', VEH.has(actor.pending.route[0]) ? actor.pending.route[0] : null); else beginSwitch(); }
         else if (BATH.has(actor.action)){ actor.hidden = true; actor.hiddenAt = now; actor.leftBath = null; }
       }
     } else if (actor.action==='gallery' && !actor.pending && actor.loc==='arena'){
@@ -4518,9 +4647,10 @@
         else { actor.x = gs.x; actor.gpose = gs.pose; } }
     } else if (actor.action==='walking' && !actor.pending){
       // pacing back and forth, position taken from the real clock
-      const lo = actor.loc==='street'?50:actor.loc==='park'?40:actor.loc==='shops'||actor.loc==='market'||actor.loc==='campus'?36:52, hi = actor.loc==='street'?140:actor.loc==='shops'?150:actor.loc==='cafe'?110:124;
+      const out = OUTSIDE.has(actor.loc) || KIT.has(actor.loc);
+      const lo = actor.loc==='street'?40:actor.loc==='park'?40:actor.loc==='shops'||actor.loc==='market'||actor.loc==='campus'?36:out?24:52, hi = actor.loc==='street'?146:actor.loc==='shops'?150:actor.loc==='cafe'?110:out?164:124;
       // every ~2 minutes he walks to a new spot somewhere in the room, then stands there (clock-driven, same for everyone)
-      const span = hi - lo, D = 120, now = NOW()/1000, k = Math.floor(now / D), e = now % D;
+      const span = hi - lo, D = OUTSIDE.has(actor.loc) || KIT.has(actor.loc) ? 32 : 120, now = NOW()/1000, k = Math.floor(now / D), e = now % D;   // outdoors a new spot every ~half minute: he strolls, stops at a window, strolls on
       const spot = n => { const a = lo + hash(n*7 + 3) * span, b = lo + hash((n-1)*7 + 3) * span; return Math.abs(a - b) < 18 ? (a + span/2 - lo) % span + lo : a; };
       const from = spot(k - 1), to = spot(k), wt = Math.abs(to - from) / 14;
       actor.paceDir = Math.sign(to - from) || 1;
@@ -4640,7 +4770,7 @@
   $('clock').textContent = fmtClock.format(new Date(NOW()));
 
   /*__VOICES_JS__*/
-  Voices.setCast(id => (typeof CAST !== 'undefined' && CAST[id]) || (typeof FILM_CAST !== 'undefined' && FILM_CAST[id]) || null);
+  Voices.setCast(id => (typeof CAST !== 'undefined' && CAST[id]) || (typeof FILM_CAST !== 'undefined' && FILM_CAST[id]) || (typeof LOCAL !== 'undefined' && LOCAL[id] && {name: LOCAL[id].name, look: LOCAL[id].look, gender: LOCAL[id].g}) || null);
   // ================= sound (Web Audio, generated in code, no files) =================
   const Sound = (() => {
     let ac = null, out = null, mode = 'off', amb = null, ambKey = '', wanted = '', brown = null, white = null;
@@ -5103,6 +5233,7 @@
     if (id==='ishai') return {name:'ISHAI', color:tint(CLOTH.teal,.45)};
     if (/^student\d$/.test(id)) return {name:'STUDENT', color:'#b8c4b0'};
     if (EXTRA_SPK[id]) return {name: EXTRA_SPK[id].toUpperCase(), color: tint(CLOTH.gray,.45)};   // a band member on stage
+    if (LOCAL[id] && !CAST[id]) return {name: LOCAL[id].name.toUpperCase(), color: tint(CLOTH[LOCAL[id].look.shirt]||CLOTH.gray,.45)};   // a local making small talk
     const c = CAST[id]; return {name:(c?c.name:id).toUpperCase(), color: tint(CLOTH[c?.look?.shirt]||CLOTH.gray,.45)};
   }
   const charDelay = ch => 28 + (ch===','?120:ch==='.'?220:0);
@@ -5586,6 +5717,9 @@
     const r = actor.ride;
     if (r){ const e0 = last - r.t0, e1 = now - r.t0, at = (ms, k) => { if (e0 < ms && e1 >= ms && !heard(r.t0 + ':' + k)) Sound.sfx(k); };
       at(RIDE.come, r.kind === 'bus' ? 'busstop' : 'brake'); at(RIDE.come + RIDE.stop, r.kind === 'bus' ? 'busgo' : 'taxigo'); }
+    else if (STOP_AT[actor.loc] && busesRun()){   // line 88 at this stop for everyone else: the brakes and doors, then pulling away
+      const b = stopCycle(actor.loc, now).bus, e0 = last - b, e1 = now - b, at = (ms, k) => { if (e0 < ms && e1 >= ms && !heard(b + ':' + k)) Sound.sfx(k); };
+      at(BUS_ST.come, 'busstop'); at(BUS_ST.come + BUS_ST.stop, 'busgo'); }
     if (NOW() - TALK_AT < 1500 || Sound.busy()) return;
     const was = roadNow(actor.loc, last + ROAD_LEAD), mid = W / 2;
     roadNow(actor.loc, now + ROAD_LEAD).forEach(v => {
@@ -6327,6 +6461,7 @@
     const event = m => ({id: 'sb-' + (++n), t: NOW(), location: m.location, action: m.action, with: m.with || null, ride: m.ride || undefined, delivery: m.delivery || undefined, media: m.media || undefined, art: m.art || undefined, text: '', lines: m.lines || [], commentary: m.commentary || []});
     window.__sandbox = {
       menus: () => ({locations: Object.fromEntries(Object.entries(LOCATIONS).filter(([k]) => k !== 'bathroom')), hair: LOOK_OPTS.hair, hairColor: Object.keys(HAIRC), skin: Object.keys(SKINC), cloth: Object.keys(CLOTH), hat: LOOK_OPTS.hat, top: LOOK_OPTS.top, bottom: LOOK_OPTS.bottom, extras: LOOK_OPTS.extras}),
+      locals: () => LOCAL,
       cast: () => Object.values(CAST), setCast: list => setCast([...base, ...list]), reset,
       play(m){ const e = event(m); ingest([e], false); },
       arena(a){ ARENA = a || null; arenaPreload(); },
@@ -6335,6 +6470,7 @@
       trivia(d, inSec){ if (!d){ TRIVIA = null; return; } d.at = NOW() + (inSec || 0) * 1000; TRIVIA = d; trivKey = ''; },   // the sandbox's trivia night, starting in inSec seconds
       film(d, secAgo){ if (!d){ setFilm(null); return; } d.at = NOW() - (secAgo || 0) * 1000; d.date = 'sample'; setFilm(d); CIN_PUB = {title: d.title, author: d.author, genre: d.genre, at: d.at, filmDate: 'sample', ready: true, live: true, poster: ['#2a1a5a','#ffd23f','#ff6b9a'], next: d.next || null}; return filmLayout(d).total; },
       go(m){ reset(); const e = event(m); NEXT_RIDE = e.ride || null; setState(screenFor(e), e.action, true, e.with); },
+      ride: () => ({info: actor.rideInfo, stopoff: STOPOFF, waiting: STOP_AT[actor.loc] ? stopWaiters(actor.loc, stopCycle(actor.loc, NOW()).c).filter(w => w.there <= NOW()).length : null}),   // who rides with him (the bus plan), who got off with him
       busy: () => !!actor.pending || actor.travelling || !!actor.ride || !!actor.switching || !!actor.rideUntil || held.size > 0 || queue.length > 0 || (!!tlLast && NOW() < tlLast.end),
       state: () => ({comp: comp.id ? {id: comp.id, x: Math.round(comp.x), mode: comp.mode, boarded: !!comp.boarded} : null, voice: Sound.voiceInfo(), regulars: Object.keys(REG).filter(regHere), say: SAY.who, loc: actor.loc, action: actor.action, with: actor.with, x: actor.x, moving: !!actor.pending || actor.travelling || !!actor.rideUntil || !!actor.ride, cam: SCENES[actor.loc].cam, hour: hourNow(), rain: rainy(), storm: stormy(), said: [...document.querySelectorAll('#talk .msg .said')].map(x => x.textContent).slice(-1)[0] || ''}),
       world(o){ forceHour = o.hour; const code = {clear: 0, cloudy: 3, rain: 61, storm: 95}[o.weather]; const t = NOW();

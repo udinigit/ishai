@@ -22,6 +22,7 @@ const Voices = (() => {
     const o = cfg[id]; if (o && (o.g === 'm' || o.g === 'f')) return o.g;
     if (GENDER[id]) return GENDER[id];
     const c = castOf(id), L = c && c.look;
+    if (c && (c.gender === 'm' || c.gender === 'f')) return c.gender;   // a local, a film's cast: their own
     if (c && /^(mrs|ms|miss)\b/i.test(c.name || '')) return 'f';
     if (L) return (/^(long|bun|ponytail|pigtails|braids|bob)$/.test(L.hair) || L.top === 'dress' || L.bottom === 'skirt') ? 'f' : 'm';
     return hsh(id) % 2 ? 'f' : 'm';

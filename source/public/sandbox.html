@@ -176,7 +176,7 @@ Back to the cameras.</textarea>
   const fill = (el, items, pick) => { const v = el.value; el.textContent = ''; items.forEach(([val, txt]) => { const o = document.createElement('option'); o.value = val; o.textContent = txt; el.appendChild(o); }); if (items.some(x => x[0] === v)) el.value = v; else if (pick) el.value = pick; };
   let api = null, M = null, lines = [], editing = -1, running = 0;
 
-  function cast(){ return api.cast(); }
+  function cast(){ return [...api.cast(), ...Object.entries(api.locals ? api.locals() : {}).map(([id, l]) => ({id, name: l.name + ' (local)'}))]; }   // the nameless locals for small talk too
   function refreshWho(){
     fill($('with'), [['', 'Nobody'], ...cast().map(c => [c.id, c.name])]);
     document.querySelectorAll('.lineWho').forEach(sel => fill(sel, whoList()));

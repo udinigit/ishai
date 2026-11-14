@@ -108,7 +108,8 @@ Every exit leads to a specific entry in a specific place. The map lives in one f
 - Main characters always **walk in** from an exit point to their spot, and **walk out** to an exit point when they leave — even from a seat (table, bench, counter). Use the companion controller (`wantComp` / `compUpdate`); never draw a companion directly at their spot without it.
 - Ishai walks to an exit before every camera switch, and walks in from the matching entry after it.
 - Hiding is only allowed behind something real: the bathroom door, the camera switch, or off-camera locations ("CAM-??").
-- Nobody fades. Background people who come for a while walk in from an exit and walk out again (`crowdVisit()`, `visitAt()`); walking bystanders enter and leave off the screen edges.
+- Nobody fades. Background people who come for a while walk in from an exit and walk out again (`crowdVisit()`, `visitAt()`); walking bystanders enter and leave off the screen edges. Someone who sits on a bench walks to it along the line the bench stands on (the walking line is the seat's line plus 2), so they sit down instead of jumping from the kerb onto it.
+- Buses stop for everyone: at every stop people walk up and wait, get on when line 88 pulls in, and riders get off and walk away; whoever waits when his bus comes rides with him, and anyone getting off at his stop walks into the new scene behind him (see CLAUDE.md, "Line 88 at the stops").
 
 ## 3. Nothing floats
 - Every prop sits on a surface or hangs from something visible (signs on wires/brackets, posters on walls, cans on counters).
