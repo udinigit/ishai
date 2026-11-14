@@ -252,6 +252,35 @@
     font-size:clamp(12px,3vw,18px);line-height:1.2;height:3.7em;overflow:hidden;color:#f4f1ff}
   .stvBack{position:absolute;top:2.5%;right:2.5%;font-size:clamp(11px,2.6vw,15px)}
   .term.sum p{margin:.2em 0 .8em}
+  /* 8bitTV+ channel */
+  .chan{position:absolute;inset:0;z-index:9;background:linear-gradient(#140a26,#07040e);color:#f4f1ff;display:flex;flex-direction:column;font-size:clamp(11px,2.6vw,15px);overflow:hidden}
+  .chan button,.epBar button{font:inherit;font-size:.9em;background:#2a1748;color:#f4f1ff;border:1px solid #6b4fa0;border-radius:4px;padding:2px 7px;cursor:pointer}
+  .chan button.on{background:#ff9ad0;color:#1a0d2e;border-color:#ff9ad0}
+  .chHead{display:flex;align-items:center;gap:6px;padding:4px 6px;border-bottom:1px solid #3a2560;flex:none}
+  .chLogo{font-weight:normal;letter-spacing:1px;color:#ffd36a;margin-right:auto} .chLogo i{color:#ff9ad0;font-style:normal}
+  .chF{display:flex;gap:3px}
+  .chBody{flex:1;overflow-y:auto;padding:6px}
+  .chHero{display:flex;gap:8px;align-items:flex-end;justify-content:space-between;padding:8px;border-radius:6px;background:linear-gradient(90deg,#3b1d63,#1d1036);border:1px solid #6b4fa0;margin-bottom:6px}
+  .chHeroT small,.chInfo small,.chTile small{color:#ff9ad0;font-size:.8em} .chHeroT b{display:block;font-weight:normal;font-size:1.25em;color:#ffd36a}
+  .chHeroT p{margin:.2em 0 0;opacity:.85;font-size:.9em;max-height:2.6em;overflow:hidden} .chHeroB{display:flex;flex-direction:column;gap:4px;flex:none}
+  .chan .chPlay{background:#ffd36a;color:#1a0d2e;border-color:#ffd36a}
+  .chRowT{margin:4px 0 3px;color:#ffd36a} .chRowT small{color:#9a8bb8;font-size:.75em}
+  .chRow{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+  .chan .chTile{flex:none;width:clamp(96px,26vw,150px);text-align:left;padding:4px;display:flex;flex-direction:column;gap:2px;background:#1d1036}
+  .chThumb{display:flex;flex-direction:column;align-items:center;justify-content:center;height:clamp(44px,12vw,70px);border-radius:3px;background:repeating-linear-gradient(0deg,#2b1a4d 0 2px,#24153f 2px 4px);color:#ffd36a}
+  .chTile.week .chThumb{background:repeating-linear-gradient(0deg,#4a1d3b 0 2px,#3b1730 2px 4px)}
+  .chThumb i{font-style:normal;font-size:.75em;color:#ff9ad0} .chThumb b{font-weight:normal;font-size:1.1em} .chThumb em{font-style:normal;font-size:.65em;color:#9fd0ff;text-align:center}
+  .chTT{font-size:.9em;line-height:1.15;max-height:2.3em;overflow:hidden}
+  .chMsg{opacity:.8;padding:10px 4px}
+  .chInfo h3{margin:.15em 0;font-weight:normal;color:#ffd36a;font-size:1.25em} .chInfo p{margin:.2em 0 .5em;opacity:.9}
+  .chBack{margin-bottom:4px}
+  .chChaps{margin:.5em 0 0;padding-left:1.4em} .chChaps li{margin:.25em 0;cursor:pointer} .chChaps li b{font-weight:normal;color:#9fd0ff} .chChaps li span{opacity:.75;font-size:.9em}
+  .epBar{position:absolute;top:1.5%;left:1.5%;right:1.5%;display:flex;align-items:center;gap:4px;z-index:2;font-size:clamp(10px,2.4vw,14px)}
+  .epBar button:disabled{opacity:.35}
+  .epMid{flex:1;min-width:0;display:flex;flex-direction:column;background:rgba(20,12,38,.8);border-radius:4px;padding:0 5px;line-height:1.15}
+  .epMid b{font-weight:normal;color:#ffd36a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .epMid small{color:#ff9ad0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.85em}
+  .stvCap .epClip{color:#fff} .epNext{color:#ffd36a}
+  @media (max-width:520px){ .epBar #epNextM,.epBar #epNextE{padding:2px 4px} }
   .term.sum details{margin:.1em 0 .5em} .term.sum summary{cursor:pointer;color:var(--amber,#ffb84d)} .term.sum ul{margin:.2em 0 .6em;padding-left:1.2em} .term.sum li{margin:.15em 0;opacity:.9}
 .surv .sv{border:1px solid #2f4a2f;border-radius:8px;padding:8px 10px;margin:0 0 10px;background:#030803}
 .surv .svH{display:flex;justify-content:space-between;gap:8px;color:var(--amber,#ffb84d);font-size:.8em;letter-spacing:1px}
@@ -336,9 +365,14 @@
     <div class="fsCap" id="fsCap"></div>
     <div class="stv" id="stv" hidden>
       <canvas id="stvCv" width="64" height="40"></canvas>
-      <div class="stvLive"><canvas id="stvLiveCv" width="192" height="108"></canvas><span>● LIVE · ISHAI</span></div>
-      <span class="stvTag">● STUDIO · RECAP</span>
+      <div class="stvLive"><canvas id="stvLiveCv" width="192" height="108"></canvas><span id="stvLiveTag">● LIVE · ISHAI</span></div>
+      <span class="stvTag" id="stvTagEl">● STUDIO · RECAP</span>
+      <div class="epBar" id="epBar" hidden><button id="epBack">← BACK</button><span class="epMid"><b id="epTitle"></b><small id="epNow"></small></span><button id="epNextM" title="Next moment">⏭ MOMENT</button><button id="epNextE" title="Next episode">⏭⏭ NEXT</button><button id="epLive">✕ LIVE</button></div>
       <div class="stvCap" id="stvCap"></div>
+    </div>
+    <div class="chan" id="chan" hidden>
+      <div class="chHead"><b class="chLogo">8bitTV<i>+</i></b><span class="chF"><button data-f="all">ALL</button><button data-f="day">DAYS</button><button data-f="week">WEEKS</button></span><button id="chLive">✕ LIVE</button></div>
+      <div class="chBody" id="chBody"></div>
     </div>
     <div class="over" id="over" hidden aria-hidden="true"><span id="overText"></span><small id="overTag">overheard</small></div>
     <div class="chatC" id="chatC" hidden aria-hidden="true"><small>HERZL ST. BUILDING CHAT</small><b id="chatWho"></b> <span id="chatSay"></span></div>
@@ -5993,7 +6027,7 @@
       days.forEach(d => box(dfmt(d.date), d.sum, (d.highlights || []).map(x => `${x.t} ${PLACE_NAME[x.loc] || x.loc}${x.with ? ' · with ' + x.with : ''}${x.line ? ` — ${x.line.who}: "${x.line.say}"` : ''}`), false)); }
   }
   async function playShow(start){
-    if (showOn) return; const from = start || NOW();
+    if (showOn || (typeof CH !== 'undefined' && CH.open)) return;   // not while the viewer is in 8bitTV+ const from = start || NOW();
     // no hourly recap yet: the hosts improvise from their latest quick recap, or just say hello
     // no hourly recap yet: read the day's summary if there is one, otherwise the latest quick recap
     const sumLines = SUMMARY ? [SUMMARY.yesterday && ('Yesterday: ' + SUMMARY.yesterday.text), SUMMARY.today && ('Today so far: ' + SUMMARY.today.text)].filter(Boolean)
@@ -6023,7 +6057,6 @@
     st.hidden = true; showOn = false; studioWho = null; SHOW_STOP = null; $('studioBtn').textContent = '📺 STUDIO';
   }
   let SHOW_STOP = null;
-  $('studioBtn').onclick = (e) => { e.stopPropagation(); if (showOn){ if (SHOW_STOP) SHOW_STOP(); } else playShow(); };   // the same button switches Studio <-> Live
   // ================= full screen: tap the picture (works for the live picture and the Studio); the last lines stay visible =================
   const camEl = $('scene').closest('.cam'), FS = [];
   function fsPush(who, say, nm, col){
@@ -6036,8 +6069,133 @@
     try { if (on && !document.fullscreenElement && camEl.requestFullscreen) camEl.requestFullscreen().catch(()=>{});
           if (!on && document.fullscreenElement) document.exitFullscreen().catch(()=>{}); } catch(e){}
   }
-  camEl.addEventListener('click', e => { if (e.target.closest('button')) return; setFs(!camEl.classList.contains('fs')); });
+  camEl.addEventListener('click', e => { if (e.target.closest('button, #chan, #epBar')) return; setFs(!camEl.classList.contains('fs')); });
   document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && camEl.classList.contains('fs')) { camEl.classList.remove('fs'); document.body.classList.remove('fsOn'); } });
+  // ================= 8bitTV+: the Studio as a streaming channel (docs/STUDIO_PLAN.md) =================
+  // STUDIO opens the channel over the picture: Today (so far) first, then every daily and weekly recap, newest first.
+  // Watching is personal (like the old STUDIO button): the live feed runs on underneath, the auto Studio break is unchanged.
+  let CH = {list: null, at: 0, filter: 'all', open: false}, EP = null;
+  const chEl = $('chan'), chBody = $('chBody');
+  const chEsc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const chDay = (d, o) => new Intl.DateTimeFormat('en-GB', Object.assign({timeZone:'UTC', weekday:'short', day:'numeric', month:'short'}, o || {})).format(new Date(d + 'T12:00:00Z')).toUpperCase();
+  const chWhen = e => e.kind === 'today' ? 'TODAY · LIVE' : e.kind === 'week' ? `WEEK · ${chDay(e.from, {weekday: undefined})} – ${chDay(e.to, {weekday: undefined})}` : chDay(e.date);
+  const chMins = e => Math.max(1, Math.round(((e.n || 0) * 3.5 + (e.kind === 'today' ? 12 : 5)) * 7.5 / 60));   // about 7.5 s a line
+  const chPlace = loc => PLACE_NAME[loc] || String(loc || '').toUpperCase();
+  const epLen = ep => Math.max(1, Math.round(epItems(ep).reduce((a, it) => a + it.ms, 0) / 60000));
+  const castId = name => { const n = String(name || '').toLowerCase(); if (n === 'ishai') return 'ishai'; const f = Object.entries(CAST).find(([, c]) => c && String(c.name || '').toLowerCase() === n); return f ? f[0] : n.replace(/[^a-z]/g, ''); };
+  async function chLoad(force){
+    if (!force && CH.list && NOW() - CH.at < 60000) return CH.list;
+    try { const r = await (await fetch('/api/episodes', {cache: 'no-store'})).json(); CH.list = r.episodes || []; CH.at = NOW(); } catch(e){ CH.list = CH.list || []; }
+    return CH.list;
+  }
+  function chBtnLive(on){ $('studioBtn').textContent = on ? '● LIVE' : '📺 STUDIO'; }
+  async function openChannel(){
+    if (showOn && SHOW_STOP) SHOW_STOP();   // an auto Studio break gives way
+    if (camEl.classList.contains('fs')) setFs(false);
+    CH.open = true; chEl.hidden = false; chBtnLive(true);
+    chBody.innerHTML = '<div class="chMsg">Tuning in…</div>';
+    await chLoad(); if (CH.open && !EP) chBrowse();
+  }
+  function closeChannel(){ epStop(); CH.open = false; chEl.hidden = true; chBtnLive(false); }
+  function chBrowse(){
+    const L = CH.list || [], today = L.find(e => e.kind === 'today'), rest = L.filter(e => e.kind !== 'today' && (CH.filter === 'all' || e.kind === CH.filter));
+    chEl.querySelectorAll('[data-f]').forEach(b => b.classList.toggle('on', b.dataset.f === CH.filter));
+    chBody.innerHTML = (today ? `<div class="chHero" data-id="today"><div class="chHeroT"><small>● ${chEsc(chWhen(today))}</small><b>TODAY (SO FAR)</b><p>${chEsc(today.desc)}</p></div>
+        <div class="chHeroB"><button class="chPlay" data-play="today">▶ PLAY</button><button data-info="today">ⓘ INFO</button></div></div>` : '') +
+      `<div class="chRowT">${CH.filter === 'week' ? 'WEEKLY RECAPS' : CH.filter === 'day' ? 'DAILY RECAPS' : 'ALL EPISODES'} <small>newest first</small></div>` +
+      (rest.length ? `<div class="chRow">${rest.map(e => `<button class="chTile ${e.kind}" data-info="${chEsc(e.id)}"><span class="chThumb"><i>${e.kind === 'week' ? 'WEEK' : chEsc(chDay(e.date).split(' ')[0])}</i><b>${e.kind === 'week' ? chEsc(chDay(e.to, {weekday: undefined})) : chEsc(chDay(e.date, {weekday: undefined}))}</b><em>${chEsc(chPlace(e.loc))}</em></span>
+          <span class="chTT">${chEsc(e.title)}</span><small>${chEsc(chWhen(e))} · ~${chMins(e)} MIN</small></button>`).join('')}</div>`
+        : `<div class="chMsg">${CH.filter === 'week' ? 'The first weekly recap comes on Saturday night.' : 'The first daily recap comes after midnight.'}</div>`);
+  }
+  async function chInfo(id){
+    const card = (CH.list || []).find(e => e.id === id); chBody.innerHTML = '<div class="chMsg">Loading…</div>';
+    let ep = null; try { const r = await fetch('/api/episode?id=' + encodeURIComponent(id)); if (r.ok) ep = await r.json(); } catch(e){}
+    if (!CH.open || EP) return;
+    if (!ep){ chBody.innerHTML = '<div class="chMsg">This episode is not ready yet.</div><button class="chBack" data-browse="1">← BACK</button>'; return; }
+    chBody.innerHTML = `<button class="chBack" data-browse="1">← BACK</button>
+      <div class="chInfo"><small>${chEsc(chWhen(card || ep))} · ${ep.chapters.length} MOMENTS · ~${epLen(ep)} MIN</small><h3>${chEsc(ep.title)}</h3><p>${chEsc(ep.desc)}</p>
+      <button class="chPlay" data-play="${chEsc(id)}">▶ PLAY</button>
+      <ol class="chChaps">${ep.chapters.map((c, i) => `<li data-play="${chEsc(id)}" data-ch="${i}"><b>${chEsc(c.date ? chDay(c.date).split(' ')[0] + ' ' : '')}${chEsc(c.t)}</b> ${chEsc(chPlace(c.loc))}${c.with ? ' · ' + chEsc(c.with) : ''}${c.line ? `<br><span>${chEsc(c.line.who)}: “${chEsc(c.line.say)}”</span>` : ''}</li>`).join('')}</ol></div>`;
+    CH.ep = ep;
+  }
+  chEl.addEventListener('click', e => {
+    e.stopPropagation();
+    const f = e.target.closest('[data-f]'), pl = e.target.closest('[data-play]'), inf = e.target.closest('[data-info]'), br = e.target.closest('[data-browse]');
+    if (f){ CH.filter = f.dataset.f; chBrowse(); }
+    else if (pl) playEpisode(pl.dataset.play, +(pl.dataset.ch || 0));
+    else if (inf) chInfo(inf.dataset.info);
+    else if (br) chBrowse();
+    else if (e.target.closest('#chLive')) closeChannel();
+  });
+  // ---- the player: intro, then per chapter its host line, the clip (the moment's own spoken line), the hosts' reaction; then the outro
+  const epMs = say => Math.max(2600, String(say).length * 68) + 900;   // about how long a line takes to say, plus a breath
+  function epItems(ep){
+    const out = [], host = l => ({l, host: true, ms: epMs(l.say)});
+    (ep.intro || []).forEach(l => out.push({...host(l), ch: -1}));
+    ep.chapters.forEach((c, i) => {
+      (c.before || []).forEach(l => out.push({...host(l), ch: i}));
+      if (c.line) out.push({l: {who: castId(c.line.who), say: c.line.say}, clip: c, ch: i, ms: epMs(c.line.say) + 600});
+      (c.after || []).forEach(l => out.push({...host(l), ch: i}));
+    });
+    (ep.outro || []).forEach(l => out.push({...host(l), ch: ep.chapters.length}));
+    return out;
+  }
+  // a wait that ends early when the viewer skips or leaves
+  const epWait = (P, ms) => new Promise(res => { const end = NOW() + ms; const f = () => { if (P.stop || P.jump != null || NOW() >= end) res(); else setTimeout(f, 100); }; f(); });
+  function epStop(){
+    if (!EP) return; EP.stop = true; EP = null; showOn = false; studioWho = null;
+    $('stv').hidden = true; $('epBar').hidden = true; $('stvTagEl').hidden = false; $('stvLiveTag').textContent = '● LIVE · ISHAI';
+    try { Sound.hush(); } catch(e){}
+  }
+  async function playEpisode(id, fromCh){
+    epStop();
+    let ep = CH.ep && CH.ep.id === id ? CH.ep : null;
+    if (!ep){ try { const r = await fetch('/api/episode?id=' + encodeURIComponent(id)); if (r.ok) ep = await r.json(); } catch(e){} }
+    if (!ep || !CH.open) return;
+    const P = EP = {id, ep, items: epItems(ep), stop: false, jump: null};
+    showOn = true; chEl.hidden = true;
+    const st = $('stv'), cap = $('stvCap'); st.hidden = false; cap.textContent = ''; $('epBar').hidden = false; $('stvTagEl').hidden = true;
+    $('epTitle').textContent = ep.title;
+    const anim = () => { if (EP !== P) return; drawStudio(wall(), stvCtx); stvLive.imageSmoothingEnabled = false; stvLive.drawImage(cv, 0, 0); requestAnimationFrame(anim); }; anim();
+    let i = Math.max(0, P.items.findIndex(it => it.ch >= (fromCh || 0)));
+    if (!fromCh) i = 0;
+    while (i < P.items.length && !P.stop){
+      const it = P.items[i];
+      $('epNow').textContent = it.ch < 0 ? 'INTRO' : it.ch >= ep.chapters.length ? 'OUTRO' : `${it.ch + 1}/${ep.chapters.length} · ${(ep.chapters[it.ch].date ? chDay(ep.chapters[it.ch].date).split(' ')[0] + ' ' : '') + ep.chapters[it.ch].t} ${chPlace(ep.chapters[it.ch].loc)}`;
+      $('epNextM').disabled = !P.items.some(x => x.ch > it.ch && x.ch < ep.chapters.length);
+      if (it.clip && (i === 0 || P.items[i - 1].ch !== it.ch || !P.items[i - 1].clip)){   // the moment itself: where and when, then the line
+        $('stvLiveTag').textContent = `▶ ${(it.clip.date ? chDay(it.clip.date).split(' ')[0] + ' ' : '') + it.clip.t} · ${chPlace(it.clip.loc)}`; }
+      else if (it.host) $('stvLiveTag').textContent = '● LIVE · ISHAI';
+      Sound.hush(); studioWho = it.host ? it.l.who : null;
+      const sp = speaker(it.l.who), row = document.createElement('div'), b = document.createElement('b'), tx = document.createElement('span');
+      b.style.color = sp.color; b.style.fontWeight = 'normal'; b.textContent = (it.clip ? '▶ ' : '') + sp.name + ': '; row.append(b, tx); if (it.clip) row.className = 'epClip'; cap.appendChild(row);
+      const at = NOW(); Sound.say(it.l.who, it.l.say);
+      typeInto(tx, it.l.say, true, ch => { if (EP === P){ Sound.blip(it.l.who, ch); cap.scrollTop = cap.scrollHeight; } }, {at});
+      await epWait(P, it.ms);
+      if (P.stop) return;
+      if (P.jump != null){ const j = P.jump; P.jump = null; Sound.hush(); cap.textContent = '';
+        if (j === 'next'){ const k = P.items.findIndex(x => x.ch > it.ch); i = k < 0 ? P.items.length : k; } continue; }
+      i++;
+    }
+    if (P.stop || EP !== P) return;
+    studioWho = null;
+    // the end: the next episode in the list after 10 s, unless the viewer goes back or to live
+    const L = CH.list || [], k = L.findIndex(e => e.id === id), next = k >= 0 ? L[k + 1] : null;
+    if (!next){ epStop(); chEl.hidden = false; chBrowse(); return; }
+    for (let s = 10; s > 0 && EP === P && !P.stop && P.jump == null; s--){ cap.innerHTML = `<div class="epNext">NEXT: ${chEsc(next.title)} · in ${s}s</div>`; await epWait(P, 1000); }
+    if (EP === P && !P.stop) playEpisode(next.id, 0);
+  }
+  function epNextEpisode(){ if (!EP) return; const L = CH.list || [], k = L.findIndex(e => e.id === EP.id), next = k >= 0 ? L[k + 1] : null; if (next) playEpisode(next.id, 0); else epBack(); }
+  function epBack(){ const id = EP && EP.id; epStop(); chEl.hidden = false; if (id) chInfo(id); else chBrowse(); }
+  $('epBar').addEventListener('click', e => {
+    e.stopPropagation(); const b = e.target.closest('button'); if (!b || !EP) return;
+    if (b.id === 'epBack') epBack();
+    else if (b.id === 'epNextM') EP.jump = 'next';
+    else if (b.id === 'epNextE') epNextEpisode();
+    else if (b.id === 'epLive') closeChannel();
+  });
+  // the same button switches Studio <-> Live: the channel, or back to live from the channel or an auto Studio break
+  $('studioBtn').onclick = (e) => { e.stopPropagation(); if (CH.open) closeChannel(); else if (showOn && SHOW_STOP) SHOW_STOP(); else openChannel(); };
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && camEl.classList.contains('fs')) setFs(false); });
   // ================= callers: every 30 minutes a viewer phones the hosts (shown in a call window, in the hosts' column and in full screen) =================
   let CALL = null, callOn = false; const callDone = new Set();
