@@ -639,6 +639,7 @@
   const WEAR_FIT = {everyday: null, pajamas: {shirt:'#9fc3e6', pants:'#7fa6cc', pjs:true}, gym: {shirt:'#c23b3b', pants:'#2a2a2a'}, shabbat: {shirt:'#f2f0ea'}, towel: {towel:true}};
   let WEAR = 'everyday';
   const CLOSET_X = 62, DRESS_MS = 6000, GYM_LOCKER_X = 181;
+  const COOK_X = 152, OVEN_X = 170;   // cooking: his spot behind the island (the hob is on the island to his right), and where he stands at the oven in the wall counter
   function homeWear(a){ const h = hourNow(); if (a === 'sleeping' || a === 'waking' || ((h >= 23 || h < 7) && !actor.with)) return 'pajamas'; return isShabbatEve() ? 'shabbat' : 'everyday'; }
   function outWear(dest){ return dest === 'gym' ? 'gym' : isShabbatEve() ? 'shabbat' : 'everyday'; }
   function outfitOf(id, loc, act){
@@ -730,7 +731,12 @@
     if (pose==='sleeping' || pose==='listening' || pose==='lounge') markHead('ishai', 9, 66); else markHead('ishai', x, y);
     if (pose==='sleeping' || pose==='listening' || pose==='lounge') return outlined(6, 56, 44, 26, () => drawIshaiRaw(pose, x, y, t, o));
     const umb = UMB && !DREAMING && !['exercising','stretch','waking','sweep','dance','fold'].includes(pose);
-    return outlined(x-12, y-10, 36, 36, () => { drawIshaiRaw(pose, x, y, t, o); if (umb) umbrella(x, y, t); });
+    return outlined(x-12, y-10, 36, 36, () => { drawIshaiRaw(pose, x, y, t, o); if (APRON_ON() && !['exercising','stretch'].includes(pose)) apronOn(pose, x, y); if (o.glove) R(x+8,y+12,2,3,'#c23b3b'); if (umb) umbrella(x, y, t); });
+  }
+  // the cooking apron, over whatever he wears (he ties it on at the closet and hangs it back there); from behind only the tie shows
+  function apronOn(pose, x, y){
+    if (pose === 'back'){ R(x+2,y+14,6,1,'#ece6d6'); R(x+4,y+15,2,1,'#ece6d6'); return; }
+    R(x+3,y+9,1,1,'#ece6d6'); R(x+6,y+9,1,1,'#ece6d6'); R(x+3,y+10,4,6,'#ece6d6'); R(x+3,y+16,4,1,'#ece6d6'); R(x+4,y+13,2,1,'#c9c1ac'); R(x+2,y+12,1,1,'#ece6d6'); R(x+7,y+12,1,1,'#ece6d6');
   }
   function drawIshaiRaw(pose, x, y, t, o={}){
     const f2 = Math.floor(t/450)%2;
@@ -873,11 +879,36 @@
           alpha(.2,()=>R(13,68,6,4,'#9fd0ff')); }
         else { R(10,68,2,2,C.skin); R(10,70,1,2,C.shirt); }
         break; }
-      case 'cooking': {
-        const st = Math.floor(t/300)%2;
-        head(x,y,{closed:blinkOn(t,900), look:1}); torso(x,y);
-        R(x+1,y+9,1,3,C.shirt); R(x+1,y+12,1,1,C.skin);
-        R(x+8,y+9,2,1,C.shirt); R(x+10,y+10+st,1,2,C.skin); R(x+11+st,y+8,1,4,'#b8875a'); break; }
+      case 'cooking': {   // behind the island, the hob on his right: o.sub says what he is doing (the island hides him below the waist)
+        const sub = o.sub || 'stir', K = C.skin, S = C.shirt, METAL = '#c9ced4';
+        if (sub === 'chop'){ const k = Math.floor(t/170)%2;   // the left hand holds it on the board, the knife goes up and down
+          head(x,y+1,{closed:blinkOn(t,300), look:0}); torso(x,y);
+          R(x+1,y+9,1,3,S); R(x+1,y+12,1,1,K); R(x+2,y+12,1,1,K);
+          R(x+8,y+9,1,3-k,S); R(x+8,y+12-k,1,1,K); R(x+7,y+9-k*2,1,3,METAL); R(x+7,y+8-k*2,1,1,'#2a2a2a'); break; }
+        if (sub === 'fry'){ const j = Math.floor(t/260)%3 === 0 ? 1 : 0;   // a hand on the pan's handle, a shake now and then
+          head(x,y,{closed:blinkOn(t,900), look:1}); torso(x,y);
+          R(x+1,y+9,1,3,S); R(x+1,y+12,1,1,K); R(x+8,y+9,1,3,S); R(x+8+j,y+12,2,1,K); break; }
+        if (sub === 'whisk'){ const w = Math.floor(t/90)%3;   // the bowl in the crook of his left arm, the whisk going round
+          head(x,y+1,{closed:blinkOn(t,500), look:0}); torso(x,y);
+          R(x+1,y+9,1,2,S); R(x+1,y+11,2,1,S); R(x+3,y+11,1,1,K); R(x+8,y+9,1,2,S); R(x+7,y+11,1,1,S); R(x+5+(w-1),y+11,2,1,K); R(x+5+(w-1),y+12,1,2,METAL); break; }
+        if (sub === 'knead'){ const a2 = Math.floor(t/350)%2;   // both hands push the dough, one then the other
+          head(x,y+1,{closed:blinkOn(t,700), look:0}); torso(x,y);
+          R(x+1,y+9,1,2,S); R(x+2,y+11,1,1+a2,S); R(x+2,y+12+a2,2,1,K); R(x+8,y+9,1,2,S); R(x+7,y+11,1,2-a2,S); R(x+6,y+13-a2,2,1,K); break; }
+        if (sub === 'pour'){ const tilt = Math.floor(t/1200)%3 ? 1 : 0;   // the jug raised over the pot on his right
+          head(x,y,{closed:blinkOn(t,900), look:1}); torso(x,y);
+          R(x+1,y+9,1,3,S); R(x+1,y+12,1,1,K); R(x+8,y+9,2,1,S); R(x+10,y+7,1,2,S); R(x+10,y+5,1,2,K); R(x+10+tilt,y+2,2,3,'#e8e4d8'); R(x+12,y+2+tilt,1,1,'#e8e4d8'); break; }
+        if (sub === 'taste'){ const ph = Math.floor((t % 4000) / 1000);   // a spoon to his mouth, a pause, a nod
+          head(x,y+(ph===3?1:0),{closed: ph===2, look:0, talk: ph===1 && Math.floor(t/200)%2}); torso(x,y);
+          R(x+1,y+9,1,3,S); R(x+1,y+12,1,1,K);
+          if (ph < 3){ R(x+8,y+9,1,2,S); R(x+7,y+7,2,2,K); R(x+5,y+6,3,1,METAL); } else { R(x+8,y+9,1,3,S); R(x+8,y+12,1,1,K); } break; }
+        if (sub === 'plate'){ const ph = Math.floor(t/700)%2;   // spooning it onto the plate in front of him
+          head(x,y+1,{closed:blinkOn(t,400), look:0}); torso(x,y);
+          R(x+1,y+9,1,3,S); R(x+1,y+12,2,1,K); R(x+8,y+9,1,2,S); R(x+7,y+11,1,1,S); R(x+5+ph,y+12,2,1,K); R(x+4+ph,y+11,2,1,METAL); break; }
+        { const st = Math.floor(t/300)%2;   // stirring the pot on his right (also the old plain 'cooking')
+          head(x,y,{closed:blinkOn(t,900), look:1}); torso(x,y);
+          R(x+1,y+9,1,3,S); R(x+1,y+12,1,1,K);
+          R(x+8,y+9,2,1,S); R(x+10,y+10+st,1,2,K); R(x+11+st,y+8,1,4,'#b8875a'); }
+        break; }
     }
   }
   // ================= other people (drawn from a saved "look") =================
@@ -1582,10 +1613,63 @@
     word('CENSORED', x - 10, y + 9, '#ffffff');
     const k = (t % 1600) / 1600; if (k < .55){ const p = k / .55; R(x + 4 + Math.round(p * 14), y - 2 - Math.round(Math.sin(p * Math.PI) * 9), 3, 2, '#7fa6cc'); }
   }
+  // ---------- the kitchen (docs/COOKING_PLAN.md, step 2): the shelf with his recipe book, the rail, the oven, the hob on the island ----------
+  // actor.cook is set by cookNow() while he cooks: {sub, book, ovenOn, ovenOpen, prog, on}. The art is the same for every viewer (clock + timeline).
+  let KITCHEN_PUB = null;   // publicState.kitchen: today's recipe (its ingredients colour the food)
+  const APRON_ON = () => !DREAMING && actor.loc === 'apartment' && !!actor.apron;
+  const FOOD_COL = [[/tomato|pepper|chilli|chili|paprika|red/,'#d9452b'],[/carrot|pumpkin|squash|orange|sweet potato|salmon/,'#e8822a'],[/lettuce|spinach|herb|parsley|coriander|basil|mint|courgette|zucchini|cucumber|pea|bean|broccoli|kale|lime|leek|green/,'#5aa63f'],
+    [/onion|garlic|cauliflower|rice|potato|cream|milk|yogurt|yoghurt|cheese|egg|flour|pasta|noodle|bread/,'#efe2b4'],[/lemon|corn|banana|butter|mustard|curry|turmeric/,'#f0cf4a'],[/chicken|turkey|fish|cod|tuna|tofu/,'#e8c49a'],
+    [/beef|lamb|mince|steak|mushroom|chocolate|lentil|soy|goat|liver/,'#7a4a2e'],[/aubergine|eggplant|beetroot|berr|plum|cabbage/,'#7a3f8a']];
+  function cookFood(){   // up to four colours of what's in the pot, from today's recipe (else a vegetable medley)
+    const names = KITCHEN_PUB && KITCHEN_PUB.ing ? KITCHEN_PUB.ing.map(i => String(i.name).toLowerCase()) : [], out = [];
+    for (const n of names){ const f = FOOD_COL.find(([re]) => re.test(n)); if (f && !out.includes(f[1])) out.push(f[1]); if (out.length === 4) break; }
+    return out.length ? out : ['#d9452b','#5aa63f','#efe2b4'];
+  }
+  function kitchenWall(t){
+    const ck = !DREAMING && actor.loc === 'apartment' ? actor.cook : null;
+    R(150,44,27,1,C.woodDark); R(151,45,1,2,C.woodDark); R(175,45,1,2,C.woodDark);                       // the shelf
+    if (!(ck && ck.book)){ R(151,36,4,8,'#c23b3b'); R(151,36,4,1,'#d8564a'); R(152,38,2,1,'#f2e6c8'); R(154,37,1,6,'#9a2a2a'); }   // the recipe book (a red ring binder)
+    [[156,'#c23b3b'],[158,'#7fbf6a'],[160,'#e0b04a']].forEach(([x,c]) => { R(x,40,2,4,'#e8e4d8'); R(x,40,2,1,c); });   // spice jars
+    R(170,37,2,7,'#d8b43a'); R(170,35,1,2,'#d8b43a'); R(173,40,2,4,'#f2f2f2'); R(173,40,2,1,'#3b7bc2');           // oil and salt
+    R(150,56,9,1,C.metalDark);                                                                                   // the rail: ladle, whisk, spatula
+    R(151,57,1,4,C.metal); R(150,61,3,1,C.metal); R(154,57,1,2,C.metal); R(153,59,3,3,'#c9ced4'); R(154,60,1,1,C.wall); R(157,57,1,3,'#2a2a2a'); R(156,60,3,2,'#2a2a2a');
+    if (ck && ck.book){ R(166,61,10,3,'#f4efe2'); R(170,61,1,3,'#c23b3b'); R(165,63,12,1,'#c23b3b'); R(167,62,2,1,'#9a9a9a'); R(172,62,3,1,'#9a9a9a'); }   // open on the counter
+    // the oven in the wall counter: knobs, the red light, the window, the door that drops open
+    const on = ck && (ck.ovenOn || ck.ovenOpen), open = ck && ck.ovenOpen, food = cookFood();
+    R(165,66,1,1,'#1b1b1b'); R(168,66,1,1,'#1b1b1b'); R(171,66,1,1,'#1b1b1b'); R(173,66,1,1, on ? '#ff3b3b' : '#5a1a1a');
+    R(164,67,10,11,'#2b2b30'); R(164,67,10,1,'#3a3a42');
+    if (open){ R(165,68,8,9,'#4a2a1a'); alpha(.55,()=>R(165,68,8,9,'#ffb060')); R(165,73,8,1,'#7d858f'); R(166,72,6,1,'#9aa3ad'); R(167,71,4,1,food[0]);
+      R(163,77,12,3,'#2b2b30'); R(164,78,10,1,'#3a3a42'); }
+    else { R(165,68,8,1,C.metal); R(166,70,6,5, on ? (Math.floor(t/400)%3 ? '#e0812a' : '#e8923a') : '#1a1a1e'); if (on) R(167,73,4,1,food[0]); }
+  }
+  function kitchenIsland(t, sub){
+    const ck = !DREAMING && actor.loc === 'apartment' ? actor.cook : null, food = cookFood();
+    R(160,84,16,1,'#2b2b30'); R(161,84,5,1,'#4a4a50'); R(169,84,5,1,'#4a4a50');                          // the hob, set into the island
+    if (!ck && !sub) return;
+    sub = sub || ck.sub; const prog = ck ? ck.prog : .5, flick = Math.floor(t/150)%2;
+    if (sub !== 'plate' && sub !== 'knead' && sub !== 'whisk' || ck && ck.on){ R(161,84,5,1, flick ? '#ff7a2a' : '#ffa040'); }
+    if (ck && ck.on) R(169,84,5,1, flick ? '#ffa040' : '#ff7a2a');
+    const cooked = c => prog < .35 ? c : shade(c, prog < .7 ? .85 : .72);
+    if (sub === 'fry'){ const j = Math.floor(t/260)%3 === 0 ? 1 : 0;   // the frying pan on the near burner, its handle towards him
+      R(161+j,82,7,2,'#3a3a3a'); R(161+j,82,7,1,'#4a4a4a'); R(157+j,82,4,1,'#2a2a2a');
+      food.slice(0,3).forEach((c,i) => R(162+j+i*2,81 - (j && i===1 ? 2 : 0),1,1,cooked(c)));
+      if (Math.floor(t/500)%2) R(165,79,1,1,'#f2f2f2'); }
+    else { R(161,79,6,5,C.pot); R(160,79,8,1,'#5a5a5a'); R(160,80,1,1,'#5a5a5a'); R(167,80,1,1,'#5a5a5a');   // the pot
+      if (sub === 'stir' || sub === 'pour' || sub === 'taste') R(162,79,4,1,cooked(food[0]));
+      for (let i=0;i<3;i++){ const ph=(t/600+i*.33)%1; alpha(1-ph,()=>R(162+i*2+(Math.floor(ph*4)%2),78-Math.floor(ph*9),1,1,'#f2f2f2')); } }
+    if (ck && ck.on){ R(169,81,5,3,'#5a5a5a'); R(169,81,5,1,'#6a6a6a'); }                                // a second pot on the far burner
+    if (sub === 'pour') R(163,75,1,4,'#cfe0f0');
+    if (sub === 'chop'){ R(150,83,10,1,'#c8a26a'); R(150,84,10,1,'#a8824a');                            // the board: a whole one, and the chopped bits
+      R(151,81,3,2,food[0]); for (let i=0;i<4;i++) R(155+i,82,1,1,food[(i+1)%food.length]); if (Math.floor(t/340)%2) R(158,83,1,1,food[1 % food.length]); }
+    if (sub === 'whisk'){ R(152,81,7,3,'#e8e4d8'); R(152,81,7,1,'#c9c1ac'); R(153,81,5,1,'#f0d070'); }
+    if (sub === 'knead'){ R(151,83,9,1,'#f8f4ea'); R(152,81,7,2,'#ecd9b0'); R(153,81,5,1,'#f4e6c4'); }
+    if (sub === 'plate'){ R(151,83,9,1,'#f2f2f2'); R(152,82,7,1,'#e2e2e2'); food.slice(0,3).forEach((c,i) => R(153+i*2,81,2,1,cooked(c))); }
+  }
+
   // ---------- apartment ----------
   SCENES.apartment = {
     cam:'CAM-01', place:'ISHAI // APARTMENT 4', walkY:74, entry:135, exit:135,
-    stand:{bathroom:48, showering:48, drinking:158, idle:144, walking:58, working:75, gaming:75, reading:111, watching:111, exercising:52, eating:158, cooking:159, waking:30, sleeping:30, listening:30},
+    stand:{bathroom:48, showering:48, drinking:158, idle:144, walking:58, working:75, gaming:75, reading:111, watching:111, exercising:52, eating:158, cooking:152, waking:30, sleeping:30, listening:30},
     draw(t,hf,a,settled,actor){
       const seat = actor.err && actor.err.seat && actor.loc === 'apartment' && !DREAMING ? actor.err : null, tag = actor.err && actor.loc === 'apartment' ? actor.err.tag : null;
       R(0,0,W,80,C.wall); for (let x=0;x<W;x+=16) R(x,0,1,78,C.wallDark);
@@ -1599,7 +1683,7 @@
       if (UNLOCKED.has('radio')){ markHead('radio', 14, 34); if (a==='listening' && boolifyOn()) drawLater = t2 => { R(20,35,4,2,'#1a0a1a'); for (let i=0;i<4;i++) R(20+i,35,1,2,(Math.floor(t2/400)+i)%2?'#ff7ad9':'#7a2a6a'); };
         R(14,34,11,6,'#8a4a2a'); R(14,34,11,1,'#a65d36'); R(15,35,4,4,'#5a2f1a'); R(16,36,1,1,'#3a1e10'); R(18,37,1,1,'#3a1e10'); R(16,38,1,1,'#3a1e10');
         R(20,35,4,2,'#e0c060'); R(21,38,2,1,'#2a2a2a'); line(23,33,27,27,'#bbbbbb');
-        if (settled && (a==='listening' || radioBg())) for (let i=0;i<3;i++){ const ph=(t/1600+i/3)%1; const nx=22+Math.floor(ph*14)+(i%2)*3, ny=31-Math.floor(ph*18);
+        if ((settled || (actor.cook && actor.err && !DREAMING)) && (a==='listening' || radioBg())) for (let i=0;i<3;i++){ const ph=(t/1600+i/3)%1; const nx=22+Math.floor(ph*14)+(i%2)*3, ny=31-Math.floor(ph*18);
           alpha(1-ph,()=>{ R(nx,ny,2,2,'#ffd36a'); R(nx+1,ny-3,1,3,'#ffd36a'); if (i%2) R(nx+2,ny-3,1,1,'#ffd36a'); }); }
       }
       R(37,36,5,4,C.terracotta); R(38,33,1,3,C.leaf); R(40,32,1,4,C.leaf); R(37,32,2,2,C.leafDark); R(40,31,2,2,C.leaf); R(39,34,1,1,C.leafDark);
@@ -1612,11 +1696,14 @@
       if (inBath){ alpha(.7,()=>R(47,79,13,1,'#ffe8a0'));
         if (a==='showering') for (let i=0;i<4;i++){ const ph=(t/1400+i/4)%1; alpha((1-ph)*.8,()=>R(48+i*3+(Math.floor(ph*6)%2),78-Math.floor(ph*14),2,1,'#f2f2f2')); } }
       // the closet: a narrow wardrobe between the bathroom door and the desk; its door stands open while he changes
-      const dressing = actor.loc === 'apartment' && !!actor.dressUntil && actor.dressBath !== 'in';
+      const dressing = actor.loc === 'apartment' && ((!!actor.dressUntil && actor.dressBath !== 'in') || (!DREAMING && actor.err && actor.err.closet));
       R(62,50,11,30,C.woodDark); R(62,49,11,1,C.wood);
       if (dressing){ R(63,51,9,29,'#2a1f17'); R(63,53,9,1,'#a9a9a9');
         [['#2fb3a5',64],['#f2f0ea',66],['#c23b3b',68],['#9fc3e6',70]].forEach(([c,x]) => { R(x,54,2,9,c); R(x,54,2,1,shade(c,.8)); });
         R(64,72,7,1,C.wood); R(64,74,3,2,'#3b7bc2'); R(68,74,3,2,'#7a5a3a');
+        if (!APRON_ON()) { R(71,54,1,1,'#a9a9a9'); R(70,55,2,8,'#ece6d6'); R(70,58,2,1,'#c9c1ac'); }   // the apron on its hook
+        R(63,63,2,2,'#c23b3b'); R(63,62,1,1,'#a9a9a9');                                                  // the oven glove
+        R(64,77,4,2,C.pot); R(63,77,1,1,'#5a5a5a'); R(68,78,4,1,'#9aa3ad');                             // the big pot and a baking tray
         R(57,51,5,29,C.wood); R(57,51,1,29,C.woodLight); R(60,65,1,2,C.gold); }
       else { R(63,51,9,28,C.wood); R(63,51,9,1,C.woodLight); R(64,53,7,11,C.woodDark); R(64,66,7,11,C.woodDark); R(65,54,5,9,C.wood); R(65,67,5,9,C.wood); R(70,63,1,3,C.gold); }
       R(64,44,30,2,C.woodDark);
@@ -1624,8 +1711,9 @@
       R(102,22,18,24,'#1b2230'); R(104,24,14,20,'#f0d070'); R(106,30,10,10,'#e0605a'); R(108,26,6,2,'#1b2230');
       R(131,46,18,34,C.doorFrame); R(133,48,14,32,C.door); R(135,51,10,10,'#6a4e38'); R(135,64,10,12,'#6a4e38'); R(144,64,2,2,C.gold);
       if (doorBusy(140) || deliveryDoor()) openDoor(133,48,14,32);
-      R(151,64,25,2,C.top); R(151,66,25,14,C.counter); R(153,68,9,10,'#7a6b5c'); R(164,68,9,10,'#7a6b5c');
-      R(161,72,1,2,C.metal); R(165,72,1,2,C.metal); R(154,63,4,1,'#333'); R(166,63,4,1,'#333');
+      R(151,64,25,2,C.top); R(151,66,25,14,C.counter); R(153,68,9,10,'#7a6b5c');
+      R(161,72,1,2,C.metal); R(154,63,4,1,'#333');
+      kitchenWall(t);
       R(160,48,12,6,'#e8e2d6'); R(160,54,12,1,'#bdb6a8');
       R(177,38,14,42,C.fridge); R(177,52,14,1,'#b8bec4');
       const fridgeOpen = (actor.err && actor.err.tag==='fridge') || (actor.viaUntil && actor.loc==='apartment'); R(179,44,1,5,'#9aa3ad'); R(179,55,1,7,'#9aa3ad'); R(182,40,3,3,'#e0605a'); R(184,46,5,6,COOOLA.bg); bolt(185,46,COOOLA.fg);
@@ -1686,14 +1774,14 @@
           alpha(.5,()=>{ R(107,82,1,11,c); R(128,82,1,11,c); R(108,81,20,1,c); }); }
       });
       // a guest at the kitchen island (Shabbat dinner, coffee with a friend)
-      const guest = settled && ['eating','drinking','cooking'].includes(a) ? companionLook(a) : null;
+      const guest = (settled || (actor.cook && actor.err && !DREAMING)) && ['eating','drinking','cooking'].includes(a) ? companionLook(a) : null;   // the cooking routine keeps him busy, the guest still sits at the island
       const seatedGuest = guest && wantComp({id: actor.with || 'stranger', look: guest, x: 172, kind:'seat'});
       // kitchen island: same depth as the desk, people walk behind it to the fridge and the counter
       zAdd(102, () => {
       if (S('eating')) drawIshai('eating',158,70,t);
       if (S('drinking')) drawIshai('drinking',158,70,t);
       if (seatedGuest){ markHead(actor.with, 172, 70); person(guest, 172, 70, t + 400, {legs:false, face:-1, talkPhase:true}); }
-      if (S('cooking')) drawIshai('cooking',159,70,t);
+      if (S('cooking')) drawIshai('cooking',COOK_X,70,t,{sub: SP('cooking')});
       R(148,84,42,2,C.top); R(148,86,42,10,C.island); R(150,88,38,1,'#52616e');
       if (isShabbatEve()){
         // challah under a cloth, and a kiddush cup
@@ -1703,15 +1791,14 @@
         [150,154].forEach((cx,i)=>{ R(cx,78,2,6,'#f2efe0'); R(cx-1,83,4,1,'#c9b37a');
         const f = Math.floor(t/180+i)%3; R(cx+(f===2?1:0),76,1,2,'#ffd36a'); R(cx,75+(f===1?1:0),1,1,'#fff3b0');
         alpha(.12,()=>R(cx-4,70,10,10,'#ffd36a')); }); }
-      if (S('cooking')){ R(170,79,9,5,C.pot); R(169,79,11,1,'#5a5a5a');
-        for (let i=0;i<3;i++){ const ph=(t/600+i*.33)%1; alpha(1-ph,()=>R(172+i*2+(Math.floor(ph*4)%2),78-Math.floor(ph*9),1,1,'#f2f2f2')); } }
+      kitchenIsland(t, S('cooking') ? SP('cooking') : null);
       if (S('eating')){ R(158,83,10,1,'#f2f2f2'); R(160,82,6,1,'#d98c4a'); R(162,81,2,1,'#7fbf6a'); R(170,81,2,3,'#9fd3f0'); }
       });
       // floor
       drawFloor(t,a,settled,actor,this);
       // light
       liveLayer(t, this); zFlush();
-      if (dressing && !actor.hidden && !actor.dressBath) censorBox(Math.round(actor.x), this.walkY, t);
+      if (dressing && actor.dressUntil && !actor.hidden && !actor.dressBath) censorBox(Math.round(actor.x), this.walkY, t);   // not for the apron: that goes over his clothes
       if (actor.loc === 'apartment' && actor.dressBath === 'go' && !actor.hidden){ const cx = Math.round(actor.x); R(cx + 8, this.walkY + 12, 4, 3, '#9fc3e6'); R(cx + 8, this.walkY + 12, 4, 1, '#f2f0ea'); }   // the clean clothes in his hand
       let dark = 0; if (isNight(hf)) dark = S('sleeping') ? .62 : .28; else if (hf<7||hf>=18) dark=.12;
       if (dark) alpha(dark,()=>R(0,0,W,H,'#050a1e'));
@@ -4289,7 +4376,7 @@
     couch:   {w:3, label:'CHILLING', steps:[{to:111},{seat:'watching',sp:'scroll',dur:70,tag:'scroll'}]},
     bed:     {w:3, label:'CHILLING', steps:[{to:30},{seat:'listening',sp:'lounge',dur:75,tag:'bedphone'}]},
     laundry: {w:2, label:'FOLDING LAUNDRY', shabbat:false, steps:[{to:28},{pose:'fold',dur:32,tag:'laundry'}]},
-    snack:   {w:3, label:'MAKING A SNACK', shabbat:false, steps:[{to:168},{pose:'back',dur:2,tag:'fridge'},{to:159},{seat:'cooking',dur:35,tag:'snack'},{seat:'eating',dur:25,x:158}]},
+    snack:   {w:3, label:'MAKING A SNACK', shabbat:false, steps:[{to:168},{pose:'back',dur:2,tag:'fridge'},{to:152},{seat:'cooking',sp:'fry',dur:35,tag:'snack'},{seat:'eating',dur:25,x:158}]},
     dance:   {w:1, label:'DANCING', shabbat:false, steps:[{to:142},{pose:'dance',dur:16}]},
     workout: {w:1, label:'WORKING OUT', steps:[{to:52},{pose:'exercising',dur:30}]},
     window:  {w:2, label:'COFFEE BREAK', shabbat:false, steps:[{to:156},{pose:'back',dur:5,tag:'kettle'},{to:24},{pose:'back',dur:20,o:{mug:true}}]},
@@ -4330,6 +4417,73 @@
       e -= d; x = st.to;
     }
     return null;
+  }
+
+  // ================= cooking: a routine on the clock while the moment's action is cooking (docs/COOKING_PLAN.md, step 2) =================
+  // From the start of the cooking (the first of the run of cooking moments at home): he walks to the closet and ties his apron on, takes the
+  // recipe book from the shelf, then each 20 s slot is one thing (chopping, stirring, frying, whisking, kneading, pouring, tasting, now and then
+  // the oven), picked from the clock and from what today's recipe and the lines say. When the next moment is known not to be cooking, he hangs
+  // the apron back in the closet before it starts. Everything comes from the timeline and the clock, so every viewer sees the same.
+  const COOK_SLOT = 20000;
+  const COOK_SUB = {chop:{w:4,label:'CHOPPING',re:/\b(chop|slic|dic|cut|mince|grat|peel)/}, stir:{w:4,label:'STIRRING',re:/\b(stir|simmer|sauce|soup|stew|boil)/},
+    fry:{w:3,label:'FRYING',re:/\b(fry|fried|saut|brown|sear|pan)/}, whisk:{w:2,label:'WHISKING',re:/\b(whisk|beat|batter|eggs?)\b/}, knead:{w:1,label:'KNEADING',re:/\b(knead|dough|roll out|pastry)/},
+    pour:{w:1,label:'POURING',re:/\b(pour|stock|milk|broth)/}, taste:{w:2,label:'TASTING',re:/\b(taste|season|salt)/}, oven:{w:1,label:'AT THE OVEN',re:/\b(oven|bake|baking|roast|grill)/},
+    plate:{w:0,label:'PLATING'}};
+  function cookSession(){   // the run of cooking moments at home around now: {since, until (the next moment, when it isn't cooking), words}
+    const now = NOW(), list = [...TL.values()].filter(e => !e.dead); let i = -1;
+    for (let k = 0; k < list.length; k++) if (list[k].start <= now) i = k; else break;
+    const isCook = e => e && e.ev && e.ev.action === 'cooking' && storyLoc(e.ev.location) === 'apartment';
+    if (i < 0 || !isCook(list[i])) return null;
+    let j = i; while (j > 0 && isCook(list[j-1])) j--;
+    let k = i; while (k + 1 < list.length && isCook(list[k+1])) k++;
+    const words = list.slice(j, k + 1).map(e => (e.ev.lines || []).map(l => l.say).join(' ')).join(' ').toLowerCase();
+    return {since: list[j].start, until: k + 1 < list.length ? list[k+1].start : null, last: k + 1 < list.length ? list[k+1].ev : null, words};
+  }
+  function cookNow(){
+    const T = actor.cookTest;
+    if (actor.loc !== 'apartment' || actor.travelling || actor.hidden || actor.pending || actor.switching || actor.dressTo || actor.viaUntil || actor.wash || (actor.action !== 'cooking' && !T)){ actor.cook = null; if (actor.loc !== 'apartment') actor.apron = false; return null; }
+    const ses = T ? {since: T.t0, until: T.until || null, words: T.words || ''} : cookSession();
+    if (!ses){ actor.cook = null; return null; }
+    const now = NOW();
+    if (actor.cookSes !== ses.since){   // a new cooking session: from when he is at his spot (late joiners: from its start)
+      if (!actor.err && Math.abs(actor.x - COOK_X) > 3 && now - ses.since < 20000) return null;
+      actor.cookSes = ses.since; actor.cookT0 = (now - ses.since > 20000 ? ses.since : now) - (T && T.skip || 0) * 1000; }
+    let e = (now - actor.cookT0) / 1000;
+    const words = ((KITCHEN_PUB && KITCHEN_PUB.steps ? KITCHEN_PUB.steps.map(x => x.t).join(' ') : '') + ' ' + ses.words).toLowerCase();
+    const ovenOn = COOK_SUB.oven.re.test(words), walk = (a, b) => Math.abs(b - a) / 24;
+    const prog = ses.until ? Math.max(0, Math.min(1, (now - actor.cookT0) / Math.max(60000, ses.until - actor.cookT0))) : Math.min(1, e / 1800);
+    const base = {label:'COOKING', tag:'cook'}, view = o => { actor.cook = {prog, ovenOn, book: e > 0, on: true, ...o}; };
+    // the end: the next moment is not cooking, so he hangs the apron back before it starts
+    if (ses.until && !T || T && T.off){
+      const off = (T && T.off ? actor.cookT0 + T.off * 1000 : ses.until - 13000);
+      if (now >= off){ let f = (now - off) / 1000; const d = walk(COOK_X, CLOSET_X);
+        view({sub:'stir', book:false, on:false});
+        if (f < d){ actor.apron = true; return {...base, label:'HANGING UP THE APRON', x: COOK_X - f * 24, pose:'walk', o:{}, walking:true, dir:-1}; } f -= d;
+        if (f < 2.5){ actor.apron = f < 1.5; return {...base, label:'HANGING UP THE APRON', x: CLOSET_X, pose:'back', o:{}, closet:true, walking:false}; } f -= 2.5;
+        actor.apron = false;
+        if (f < d) return {...base, x: CLOSET_X + f * 24, pose:'walk', o:{}, walking:true, dir:1};
+        actor.cook = null; return null; } }
+    // the start: the apron from the closet, then the recipe book from the shelf
+    const d0 = walk(COOK_X, CLOSET_X);
+    if (e < d0){ actor.apron = false; view({sub:'stir', book:false, on:false}); return {...base, label:'GETTING THE APRON', x: COOK_X - e * 24, pose:'walk', o:{}, walking:true, dir:-1}; } e -= d0;
+    if (e < 3){ actor.apron = e > 2.2; view({sub:'stir', book:false, on:false}); return {...base, label:'PUTTING ON THE APRON', x: CLOSET_X, pose:'back', o:{}, closet:true, walking:false}; } e -= 3;
+    actor.apron = true;
+    if (e < d0){ view({sub:'stir', book:false, on:false}); return {...base, x: CLOSET_X + e * 24, pose:'walk', o:{}, walking:true, dir:1}; } e -= d0;
+    if (e < 2.5){ view({sub:'stir', book: e > 1.5, on:false}); return {...base, label:'THE RECIPE BOOK', x: COOK_X, pose:'back', o:{}, walking:false}; } e -= 2.5;
+    // the cooking itself: one thing per 20 s slot, on the clock
+    const slot = Math.floor((now - (actor.cookT0 + (2 * d0 + 5.5) * 1000)) / COOK_SLOT), inSlot = e - slot * COOK_SLOT / 1000;
+    const pick = n => { if (T && T.sub && T.sub !== 'full') return T.sub;
+      const ks = Object.keys(COOK_SUB).filter(k => k !== 'plate' && (k !== 'oven' || ovenOn)), wt = k => COOK_SUB[k].w * (COOK_SUB[k].re && COOK_SUB[k].re.test(words) ? 3 : 1);
+      let r = hash(n * 31 + 17 + (actor.cookSes % 997)) * ks.reduce((a, k) => a + wt(k), 0); for (const k of ks){ r -= wt(k); if (r < 0) return k; } return 'stir'; };
+    let sub = prog > .88 && !T ? 'plate' : pick(slot); if (!T && sub === pick(slot - 1) && sub !== 'stir') sub = pick(slot + 7919) === sub ? 'stir' : pick(slot + 7919);
+    if (sub === 'oven'){   // to the oven, glove on, the door drops open, the tray in (or a look), back
+      const d = walk(COOK_X, OVEN_X);
+      if (inSlot < d){ view({sub:'stir', ovenOn:true}); return {...base, label:'AT THE OVEN', x: COOK_X + inSlot * 24, pose:'walk', o:{}, walking:true, dir:1}; }
+      if (inSlot < d + 6){ const k = inSlot - d; view({sub:'stir', ovenOn:true, ovenOpen: k > 1 && k < 5}); return {...base, label:'AT THE OVEN', tag:'oven', x: OVEN_X, pose:'back', o:{glove:true}, walking:false}; }
+      if (inSlot < 2 * d + 6){ view({sub:'stir', ovenOn:true}); return {...base, x: OVEN_X - (inSlot - d - 6) * 24, pose:'walk', o:{}, walking:true, dir:-1}; }
+      sub = 'stir'; }
+    view({sub, ovenOn});
+    return {...base, label: COOK_SUB[sub].label, tag:'c-' + sub, x: COOK_X, seat:'cooking', sp: sub, walking:false};
   }
 
   // ================= actor & transitions =================
@@ -4617,7 +4771,7 @@
 
   function update(dt, now){
     if (actor.switching){ if (now >= actor.switching) finishSwitch(); return; }
-    { const was = actor.err; actor.err = homeNow() || errandNow();
+    { const was = actor.err; actor.err = homeNow() || cookNow() || errandNow();
       { const lab = actor.err && actor.err.label || null, hud = $('hudAction');   // the corner label says what he is doing at home
         if (lab && !actor.dressTo && !actor.dressUntil && hud.textContent !== lab) hud.textContent = lab; else if (!lab && actor.homeLab) updateLabels(); actor.homeLab = lab; }
       if (actor.err) actor.x = actor.err.x;
@@ -5032,7 +5186,7 @@
     // knocks on a door: [when, loudness] taps, a wooden thud each
     function raps(times, freq, vol){ times.forEach(([w, k]) => { noise(.06,{vol: vol * k, type:'bandpass', freq, q:1.4, when:w, buf:brown}); tone(freq * .42, .06, 'triangle', vol * .3 * k, w); }); }
     // the sounds the page can play; the sandbox lists them (`Sound.kinds`)
-    const KINDS = ['knock','knockhard','knocklevi','buzzer','chime','bikebell','bikeby','carby','busby','scooter','brake','busstop','busgo','cardoor','taxigo',
+    const KINDS = ['chop','bubble','whisk','ovendoor','timer','knock','knockhard','knocklevi','buzzer','chime','bikebell','bikeby','carby','busby','scooter','brake','busstop','busgo','cardoor','taxigo',
       'whoosh','riser','hit','sting-adventure','sting-comedy','sting-drama','sting-horror','popcorn','fizz','cash',
       'waves','birds','wind','owl','drip','bubbles','hooves','tavern','clock','quiz','right','wrong','bark','woof','yip'];
     function sfx(kind, o={}){
@@ -5061,6 +5215,11 @@
         case 'page':  noise(.18,{vol:.05,type:'highpass',freq:2500,sweep:[5000,1500]}); break;
         case 'remote': tone(2400,.02,'square',.03); noise(.15,{vol:.04,type:'bandpass',freq:1200,when:.1}); break;
         case 'sizzle': noise(1.6,{vol:.04,type:'highpass',freq:4000}); break;
+        case 'chop': for (let i = 0; i < 6 + Math.floor(r()*4); i++) noise(.03,{vol:.07,type:'bandpass',freq:900+r()*300,q:2,when:i*.17}); break;   // the knife on the board
+        case 'bubble': for (let i = 0; i < 9; i++) tone(240 + r()*260, .05, 'sine', .022, r()*1.6, out, 1.6); break;   // a pot on the boil
+        case 'whisk': for (let i = 0; i < 14; i++) tone(3200 + r()*600, .015, 'triangle', .02, i*.085); break;
+        case 'ovendoor': noise(.12,{vol:.07,type:'lowpass',freq:500,buf:brown}); tone(180,.2,'sine',.03,.05); noise(.08,{vol:.05,type:'lowpass',freq:600,when:1.6,buf:brown}); break;
+        case 'timer': [0,.25,.5].forEach(w => tone(2350,.16,'sine',.04,w)); break;
         case 'clink': tone(2600,.25,'sine',.04); tone(3150,.2,'sine',.03,.05); break;
         case 'crunch': for (let i = 0; i < 3; i++) noise(.05,{vol:.06,type:'lowpass',freq:900,when:i*.16}); break;
         case 'sip':   noise(.3,{vol:.045,type:'bandpass',freq:700,q:3,sweep:[1200,500]}); break;
@@ -5685,7 +5844,7 @@
     if (now - TALK_AT < 5000 || SPEAKING || Sound.busy() || SAY.who && NOW() < SAY.until || actor.switching || (actor.hidden && !BATH.has(actor.action)) || actor.loc === 'offscreen' || studioOn || showOn || callOn) return;
     sfxDone = slot;
     const dogHere = UNLOCKED.has('dog') && dog.loc === actor.loc && actor.action !== 'sleeping';
-    const HOME_SFX = {keys:['keys'], sweep:['sweep'], wipe:['wipe'], dishes:['splash','clink'], snack:['sizzle'], laundry:['page'], scroll:['mouse'], bedphone:['mouse'], read:['page'], kettle:['clink']};
+    const HOME_SFX = {'c-chop':['chop'], 'c-stir':['bubble','clink'], 'c-fry':['sizzle'], 'c-whisk':['whisk'], 'c-knead':['page'], 'c-pour':['splash','bubble'], 'c-taste':['sip'], 'c-plate':['clink'], oven:['ovendoor'], cook:['steps'], keys:['keys'], sweep:['sweep'], wipe:['wipe'], dishes:['splash','clink'], snack:['sizzle'], laundry:['page'], scroll:['mouse'], bedphone:['mouse'], read:['page'], kettle:['clink']};
     let list = actor.travelling ? ['steps'] : actor.err && HOME_SFX[actor.err.tag] ? HOME_SFX[actor.err.tag] : (SFX[actor.action] || []);
     if (actor.loc === 'bar') list = list.concat(['clink']);
     if (dogHere && hash(slot * 11 + 2) < .25) list = ['bark'];
@@ -6499,7 +6658,12 @@
       poll(o){ const t = NOW(), id = 'sb-poll-' + (++n); POLL = {id, sandbox: true, question: o.question || 'How will Avi make Ishai\'s next falafel?', options: o.options || ['Extremely spicy', 'Drowning in tahini', 'Just the usual'],
         opensAt: t + (o.inSec ?? 5) * 1000, closesAt: t + ((o.inSec ?? 5) + 600) * 1000, result: null}; if (o.result){ POLL.opensAt = t - 610000; POLL.closesAt = t - 10000; POLL.result = pollFake(POLL); } pollSig = ''; },
       fillLine: slot => hostFillLine(slot), sfx: (k, o) => Sound.sfx(k, o || {}), sfxKinds: () => Sound.kinds,
-      home: (k, skip) => { actor.homeTest = k ? {k, t0: NOW() - (skip || 0) * 1000} : null; },   // play one home activity now, from its start (or `skip` seconds in)
+      home: (k, skip) => { actor.homeTest = k ? {k, t0: NOW() - (skip || 0) * 1000} : null; },
+      cook: (sub) => {   // the kitchen: '' off, 'full' the whole routine from the apron, one thing ('chop', 'oven'...) after the apron, 'off' hanging the apron up
+        if (!sub){ actor.cookTest = null; actor.cookSes = null; return; }
+        const now = NOW(); actor.cookSes = null;
+        actor.cookTest = sub === 'full' ? {sub:'full', t0: now} : sub === 'off' ? {sub:'stir', t0: now, skip: 14, off: 17} : {sub, t0: now, skip: 14};
+      },   // play one home activity now, from its start (or `skip` seconds in)
       homeNow: () => actor.err ? {home: actor.err.home, pose: actor.err.pose, seat: actor.err.seat, tag: actor.err.tag, x: Math.round(actor.x)} : null,
       recap(lines){ if (!studioOn) playStudio({id: 'sb-st' + (++n), t: NOW(), lines}, NOW()); },
       show(lines){ if (showOn) return; SHOW = {id: 'sb-sh' + (++n), t: NOW(), lines}; playShow(); SHOW = null; },
@@ -7255,7 +7419,7 @@
       if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;
       if (s.course) COURSE = s.course;
-      ARENA = s.arena || null; CIN_PUB = s.cinema || null; GUIDE = s.guide || null; if (s.voices && JSON.stringify(s.voices) !== JSON.stringify(Voices.config())) Voices.setConfig(s.voices); arenaPreload(); pokerSync(s.poker); triviaSync(s.trivia); PROMOS = s.promos || []; renderPromos();
+      ARENA = s.arena || null; CIN_PUB = s.cinema || null; KITCHEN_PUB = s.kitchen || null; GUIDE = s.guide || null; if (s.voices && JSON.stringify(s.voices) !== JSON.stringify(Voices.config())) Voices.setConfig(s.voices); arenaPreload(); pokerSync(s.poker); triviaSync(s.trivia); PROMOS = s.promos || []; renderPromos();
       if ('poll' in s) setPoll(s.poll);
       if (s.summary) SUMMARY = s.summary;
       if (s.summary || s.course) renderSummary();

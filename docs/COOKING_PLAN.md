@@ -1,6 +1,6 @@
 # Ishai Cooks: plan
 
-Proposed 2026-11-14, updated the same day with the director's answers (end of this file). **Step 1 built 2026-11-14 (v243)**: the pick, the time, the pantry, the slot, the shopping and cooking goals (written by the AI for now) and a guest every time; the director's Kitchen box. Two-day dishes (away over 5 hours) are skipped for now.
+Proposed 2026-11-14, updated the same day with the director's answers (end of this file). **Step 1 built 2026-11-14 (v243)**: the pick, the time, the pantry, the slot, the shopping and cooking goals (written by the AI for now) and a guest every time; the director's Kitchen box. Two-day dishes (away over 5 hours) are skipped for now. **Step 2 built (v244)**: the kitchen art, the apron and recipe book, the cooking poses and sounds; the hob is set into the island (he cooks facing the camera) and the oven is in the wall counter behind him.
 
 ## The idea
 Cooking is Ishai's hobby. About once a day he picks a recipe, checks what he has at home, takes the bus to Shuk Shalom for what's missing, carries the bags home, puts the shopping on the counter and cooks it, step by step. Then he eats it, sometimes with a friend.
