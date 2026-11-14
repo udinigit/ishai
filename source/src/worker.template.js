@@ -327,6 +327,12 @@ export default {
     if (url.pathname === "/api/voices") { const s = await loadState(env); return json(s.voiceCfg || {}, { "cache-control": "public, max-age=60" }); }   // the director's voice settings (the trailer reads them)
     // the show's history: the short version of each day and each week (public); a whole archived day for the director
     if (url.pathname === "/api/history") return json(await historyGet(env), { "cache-control": "public, max-age=300" });
+    // 8bitTV+: the recap episodes (docs/STUDIO_PLAN.md)
+    if (url.pathname === "/api/episodes") return json(await episodesList(env, await loadState(env), Date.now()), { "cache-control": "public, max-age=120" });
+    if (url.pathname === "/api/episode") {
+      const ep = await episodeGet(env, await loadState(env), String(url.searchParams.get("id") || ""), Date.now());
+      return ep ? json(ep, { "cache-control": ep.live ? "public, max-age=60" : "public, max-age=3600" }) : json({ error: "no such episode" }, {}, 404);
+    }
     if (url.pathname === "/api/day") {
       if (!(await isDirector(req, env))) return json({ error: "director only" }, {}, 403);
       const date = String(url.searchParams.get("date") || "");
@@ -3748,34 +3754,130 @@ async function archiveDay(env, s, log) {
   s.lastArchived = date;
   if (weekdayOf(date) === 6) s.weekDue = { from: isoAdd(date, -6), to: date, tries: 0 };   // Saturday closes the week
 }
+// ================= 8bitTV+ episodes (docs/STUDIO_PLAN.md) =================
+// A chapter = one moment (time, place, who, the spoken line = the clip) with a host line before it and 0-2 after.
+const EP_HOSTS = ["zohar", "oren"];
+function epLines(arr, max) {
+  return (Array.isArray(arr) ? arr : arr && typeof arr === "object" ? [arr] : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 240) }))
+    .filter(l => EP_HOSTS.includes(l.who) && l.say.length > 3).slice(0, max);
+}
+const placeOf = loc => PLACE_NAME[loc] || String(loc || "somewhere");
+const dayLong = d => new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(d + "T12:00:00Z"));
+function chapterIntro(h, i) { return { who: EP_HOSTS[i % 2], say: `${h.date ? new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: "UTC" }).format(new Date(h.date + "T12:00:00Z")) + ", " : ""}${h.t}, ${placeOf(h.loc)}${h.with ? (h.action === "phoning" ? ". Ishai on the phone with " : ". Ishai and ") + h.with : ""}.` }; }
+function chapterOf(h, before, after, i) {
+  return { date: h.date || null, t: h.t, loc: h.loc, action: h.action, with: h.with, line: h.line || null,
+    before: before && before.length ? before : [chapterIntro(h, i)], after: after || [] };
+}
+function mainPlace(chapters) { const n = {}; chapters.forEach(c => { if (c.loc) n[c.loc] = (n[c.loc] || 0) + 1; }); return Object.entries(n).sort((a, b) => b[1] - a[1])[0]?.[0] || "apartment"; }
+function epCard(ep) { return { id: ep.id, kind: ep.kind, date: ep.date, from: ep.from || null, to: ep.to || null, title: ep.title, desc: ep.desc, n: ep.chapters.length, loc: mainPlace(ep.chapters), ai: !!ep.ai }; }
+function sentences(t) { return (String(t || "").match(/[^.!?]+[.!?]+/g) || [String(t || "")]).map(x => x.trim()).filter(Boolean); }
+// no AI: the summary read out between the highlights
+function basicDayEpisode(day) {
+  const hs = (day.highlights || []).filter(h => h.line).slice(0, 6), ss = sentences(day.sum);
+  const chapters = hs.map((h, i) => chapterOf(h, null, ss[i + 1] ? [{ who: EP_HOSTS[(i + 1) % 2], say: ss[i + 1] }] : [], i));
+  return { id: "day-" + day.date, kind: "day", date: day.date, title: dayLong(day.date), desc: ss.slice(0, 2).join(" ") || "A quiet day on Herzl Street.",
+    intro: [{ who: "zohar", say: `Welcome to 8bitTV+. This is ${dayLong(day.date)}.` }, ...(ss[0] ? [{ who: "oren", say: ss[0] }] : [])],
+    chapters, outro: [{ who: "oren", say: "That was the day. More on 8bitTV+." }], ai: false };
+}
+async function writeDayEpisode(env, s, day) {
+  const hs = (day.highlights || []).filter(h => h.line);
+  if (hs.length < 2 || Date.now() < (s.aiOutUntil || 0)) return basicDayEpisode(day);
+  const list = hs.map((h, i) => `${i + 1}. ${h.t} ${placeOf(h.loc)} (${h.action})${h.with ? " with " + h.with : ""}: ${h.line.who}: "${h.line.say}"`).join("\n");
+  const msgs = [
+    { role: "system", content: `You write one recap episode of "Watching Ishai" for the show's streaming channel 8bitTV+, hosted by Zohar and Oren (warm, witty, a little dramatic). Ishai never knows he is filmed. Reply with JSON only:
+{"title": "3-6 catchy words", "desc": "1-2 sentences for the episode's info panel", "intro": [2-3 lines], "chapters": [{"n": <number from the MOMENTS list>, "before": <1 line that sets the moment up>, "after": [1-2 lines reacting to it]}], "outro": [1-2 lines]}
+Every line is {"who": "zohar" or "oren", "say": "..."}. Pick 4-8 moments from the list, in time order. Each moment's quoted line plays as a clip between "before" and "after", so never repeat it. Never invent anything that is not in the notes.` },
+    { role: "user", content: `DAY: ${dayLong(day.date)}\nSUMMARY: ${day.sum}\n${day.life && day.life.length ? "EVENING: " + day.life.map(l => l.text || l).join(" / ") + "\n" : ""}MOMENTS:\n${list}`.slice(0, 7000) }];
+  try {
+    const o = parseAI(await runModel(env, msgs, 1500, "hosts"));
+    if (o && Array.isArray(o.chapters)) {
+      const used = new Set(), chapters = [];
+      o.chapters.forEach(c => { const k = Math.round(Number(c?.n)) - 1; if (!hs[k] || used.has(k)) return; used.add(k); chapters.push([k, chapterOf(hs[k], epLines(c.before, 1), epLines(c.after, 2), chapters.length)]); });
+      const intro = epLines(o.intro, 3), title = String(o.title || "").replace(/\s+/g, " ").trim().slice(0, 60);
+      if (chapters.length >= 2 && intro.length && title) return { id: "day-" + day.date, kind: "day", date: day.date, title, desc: String(o.desc || "").replace(/\s+/g, " ").trim().slice(0, 300) || sentences(day.sum).slice(0, 2).join(" "),
+        intro, chapters: chapters.sort((a, b) => a[0] - b[0]).map(x => x[1]).slice(0, 8), outro: epLines(o.outro, 2), ai: true };
+    }
+  } catch (e) { s.historyErr = { at: Date.now(), msg: "episode: " + String(e && e.message || e).slice(0, 140) }; }
+  return basicDayEpisode(day);
+}
+// a day's best clip for the weekly episode
+const bestClip = d => (d.highlights || []).find(h => h.line && h.with) || (d.highlights || []).find(h => h.line) || null;
+function basicWeekEpisode(wk, days, text) {
+  const chapters = days.map((d, i) => { const h = bestClip(d); return h ? chapterOf({ ...h, date: d.date }, null, sentences(d.sum)[0] ? [{ who: EP_HOSTS[(i + 1) % 2], say: sentences(d.sum)[0] }] : [], i) : null; }).filter(Boolean);
+  return { id: "week-" + wk.from, kind: "week", date: wk.to, from: wk.from, to: wk.to, title: `The week of ${dayLong(wk.from).replace(/^\w+ /, "")}`, desc: sentences(text).slice(0, 2).join(" "),
+    intro: [{ who: "zohar", say: "Welcome to 8bitTV+. This is the week on Herzl Street." }, ...sentences(text).slice(0, 2).map((x, i) => ({ who: EP_HOSTS[(i + 1) % 2], say: x }))],
+    chapters, outro: [{ who: "oren", say: "That was the week. See you next Saturday." }], ai: false };
+}
 async function writeWeek(env, s, wk) {
   const h = await historyGet(env), days = h.days.filter(d => d.date >= wk.from && d.date <= wk.to);
   if (!days.length) return true;   // nothing archived that week
   const dayName = d => new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: "UTC" }).format(new Date(d + "T12:00:00Z"));
-  let text = null, highlights = [];
+  let text = null, highlights = [], ep = null;
   if ((wk.tries || 0) < 3 && Date.now() >= (s.aiOutUntil || 0)) {
     const msgs = [
-      { role: "system", content: `You write the weekly recap of "Watching Ishai", a reality show about Ishai's ordinary life (he does not know he is filmed). Reply with JSON only: {"text": "...", "highlights": ["...", ...]}. "text": 90-160 words, warm and a little dramatic like a TV recap: what happened this week and which story lines are still open; never invent anything that is not in the notes. "highlights": the 3-5 biggest moments of the week, one short line each, starting with the day.` },
-      { role: "user", content: days.map(d => `${dayName(d.date)} ${d.date}: ${d.sum}${d.life && d.life.length ? " | Evening: " + d.life.join(" / ") : ""}`).join("\n").slice(0, 6000) }];
+      { role: "system", content: `You write the weekly recap of "Watching Ishai", a reality show about Ishai's ordinary life (he does not know he is filmed), for the show's streaming channel 8bitTV+, hosted by Zohar and Oren. Reply with JSON only:
+{"text": "...", "highlights": ["...", ...], "title": "3-6 catchy words", "desc": "1-2 sentences for the episode's info panel", "intro": [2-3 lines], "chapters": [{"day": "YYYY-MM-DD", "before": <1 line that sets the day's clip up>, "after": [1-2 lines about that day]}], "outro": [1-2 lines]}
+"text": 90-160 words, warm and a little dramatic like a TV recap: what happened this week and which story lines are still open. "highlights": the 3-5 biggest moments, one short line each, starting with the day. Every line in intro/chapters/outro is {"who": "zohar" or "oren", "say": "..."}; one chapter per day listed, in order; each day's CLIP plays between "before" and "after", so never repeat it. Never invent anything that is not in the notes.` },
+      { role: "user", content: days.map(d => { const c = bestClip(d); return `${dayName(d.date)} ${d.date}: ${d.sum}${d.life && d.life.length ? " | Evening: " + d.life.join(" / ") : ""}${c ? ` | CLIP ${c.t} ${placeOf(c.loc)}${c.with ? " with " + c.with : ""}: ${c.line.who}: "${c.line.say}"` : ""}`; }).join("\n").slice(0, 8000) }];
     try {
-      const o = parseAI(await runModel(env, msgs, 700, "hosts"));
+      const o = parseAI(await runModel(env, msgs, 1800, "hosts"));
       if (o && typeof o.text === "string" && o.text.trim().length > 40) {
         text = o.text.replace(/\s+/g, " ").trim().slice(0, 1400);
         highlights = (Array.isArray(o.highlights) ? o.highlights : []).map(x => String(x).replace(/\s+/g, " ").trim().slice(0, 200)).filter(x => x.length > 5).slice(0, 5);
+        const byDay = {}; (Array.isArray(o.chapters) ? o.chapters : []).forEach(c => { if (c && c.day) byDay[String(c.day)] = c; });
+        const chapters = days.map((d, i) => { const c = bestClip(d); if (!c) return null; const a = byDay[d.date] || {}; return chapterOf({ ...c, date: d.date }, epLines(a.before, 1), epLines(a.after, 2), i); }).filter(Boolean);
+        const intro = epLines(o.intro, 3), title = String(o.title || "").replace(/\s+/g, " ").trim().slice(0, 60);
+        if (intro.length && title && chapters.length) ep = { id: "week-" + wk.from, kind: "week", date: wk.to, from: wk.from, to: wk.to, title,
+          desc: String(o.desc || "").replace(/\s+/g, " ").trim().slice(0, 300) || sentences(text).slice(0, 2).join(" "), intro, chapters, outro: epLines(o.outro, 2), ai: true };
       }
     } catch (e) { s.historyErr = { at: Date.now(), msg: "week: " + String(e && e.message || e).slice(0, 140) }; }
     if (!text) { wk.tries = (wk.tries || 0) + 1; if (wk.tries < 3) return false; }   // try again on a later tick
   }
   if (!text) text = days.map(d => `${dayName(d.date)}: ${String(d.sum).split(/(?<=[.!?])\s/)[0]}`).join(" ");   // no AI: the first sentence of each day
-  h.weeks = [...(h.weeks || []).filter(w => w.from !== wk.from), { from: wk.from, to: wk.to, text, highlights, days: days.length, at: Date.now() }]
+  if (!ep) ep = basicWeekEpisode(wk, days, text);
+  await env.ISHAI.put("week:" + wk.from, JSON.stringify(ep));
+  h.weeks = [...(h.weeks || []).filter(w => w.from !== wk.from), { from: wk.from, to: wk.to, text, highlights, days: days.length, at: Date.now(), ep: epCard(ep) }]
     .sort((a, b) => a.from < b.from ? -1 : 1).slice(-HIST_WEEKS);
   await env.ISHAI.put("history", JSON.stringify(h));
   s.lastWeek = wk.from;
   return true;
 }
+// one missing daily episode per tick (days archived before episodes existed, or a day whose episode was just archived)
+async function episodeTick(env, s) {
+  const h = await historyGet(env), d = [...h.days].reverse().find(x => !x.ep); if (!d) return false;
+  const full = JSON.parse(await env.ISHAI.get("day:" + d.date) || "null"); if (!full) { d.ep = { none: true }; await env.ISHAI.put("history", JSON.stringify(h)); return true; }
+  const ep = await writeDayEpisode(env, s, full);
+  full.episode = ep; await env.ISHAI.put("day:" + d.date, JSON.stringify(full));
+  d.ep = epCard(ep); await env.ISHAI.put("history", JSON.stringify(h));
+  return true;
+}
+// Today (so far): no AI, from the latest hourly recap and today's highlights
+function todayEpisode(s, now) {
+  const date = dayOfMs(now), log = s.log && s.log.date === date ? s.log : null;
+  const sum = s.daySum && s.daySum.date === date ? s.daySum.text : "";
+  const hs = dayHighlights(log ? log.lines : []).filter(h => h.line).slice(-8);
+  const show = s.show && s.show.lines && s.daySum && s.daySum.date === date ? epLines(s.show.lines, 12) : [];
+  const ss = sentences(sum);
+  return { id: "today", kind: "today", date, live: true, title: "Today (so far)", desc: ss.slice(0, 2).join(" ") || "The day is just getting started on Herzl Street.",
+    intro: show.length ? show : [{ who: "zohar", say: "Welcome to 8bitTV+. Here is today so far." }, ...(ss[0] ? [{ who: "oren", say: ss[0] }] : [])],
+    chapters: hs.map((h, i) => chapterOf(h, null, [], i)), outro: [{ who: "oren", say: "And it's still going. Back to the cameras." }], ai: false };
+}
+async function episodesList(env, s, now) {
+  const h = await historyGet(env), t = todayEpisode(s, now);
+  const rest = [...h.days.filter(d => d.ep && !d.ep.none).map(d => d.ep), ...(h.weeks || []).filter(w => w.ep).map(w => w.ep)]
+    .sort((a, b) => a.date !== b.date ? (a.date < b.date ? 1 : -1) : (a.kind === "week" ? -1 : 1));   // newest first; on a Saturday the week comes before the day
+  return { channel: "8bitTV+", episodes: [epCard(t), ...rest] };
+}
+async function episodeGet(env, s, id, now) {
+  if (id === "today") return todayEpisode(s, now);
+  let m = /^day-(\d{4}-\d{2}-\d{2})$/.exec(id); if (m) { const d = JSON.parse(await env.ISHAI.get("day:" + m[1]) || "null"); return d && d.episode || null; }
+  m = /^week-(\d{4}-\d{2}-\d{2})$/.exec(id); if (m) return JSON.parse(await env.ISHAI.get("week:" + m[1]) || "null");
+  return null;
+}
 async function historyTick(env, s, now) {
   // yesterday's log, once (this also saves the day already sitting in prevLog when this went live)
   if (s.prevLog && s.prevLog.date && (!s.lastArchived || s.lastArchived < s.prevLog.date)) { await archiveDay(env, s, s.prevLog); return; }
+  if (await episodeTick(env, s)) return;   // the day's 8bitTV+ episode on the next tick
   if (s.weekDue && await writeWeek(env, s, s.weekDue)) s.weekDue = null;
 }
 function addLife(s, at, kind, text) { s.life = [...lifeOf(s), { at, kind, text: String(text).slice(0, 260), offered: 0 }].slice(-12); }
