@@ -76,12 +76,34 @@ Which pose plays comes from each step's verbs (`STEP_POSE`: "chop/slice/dice" â†
 2. one moment per 1-2 steps: the pose, what's in the pan, and a line or two from Ishai reading the step half aloud, muttering at it or humming (from the step's own text, shortened, plus `COOK_SAY` pools: "Medium heat. What is medium, really?");
 3. passive steps: he does other home things (`HOME` activities) and comes back when the timer rings;
 4. plating and the first taste: a nod, a face, or now and then a small disaster (too salty, a little burnt, the cake sinking): `cookLuck()`, seeded by the date, maybe 1 time in 6. Nothing dangerous: a smoke alarm beeping at most;
-5. **the meal**: the only moment the AI writes. It gets the dish's name, how it came out and who is there. With a friend (Noa, Tomer, Mrs. Levi, sometimes invited ahead: `with` 30%), the friend arrives at the end and they eat at the island. The friend's memory gets an `update` ("ate Ishai's shakshuka; it was good").
+5. **the meal**: the only moment the AI writes. It gets the dish's name, how it came out, the wine and who is there. A guest comes whenever there's food (see "Inviting someone over"); they eat at the island, and the guest's memory gets an `update` ("ate Ishai's shakshuka; it was good").
 
 The hosts comment from line pools (`COOK_HOSTS`) and name the dish, and the page's silence fill gets a `FILL_DO.cooking` list that knows the recipe ("Step 4 of 7. The onions are winning.").
 
 ### Leftovers
-A dish for 4 leaves leftovers in the fridge (`s.kitchen.leftovers`, 2 days). The story prompt is told, so tomorrow's lunch or a guest can eat them. A cake can be brought to Mrs. Levi.
+A dish for 4 leaves leftovers in the fridge (`s.kitchen.leftovers`, 2 days). Leftovers are food too, so they bring a guest as well (see below): the next day he warms them up for whoever comes. A cake can also be taken to Mrs. Levi.
+
+## Inviting someone over (the director's rule: whenever there's food)
+- **Every cooked dish, and every round of leftovers, gets a guest.** He eats alone only when nobody can come.
+- **Who:** a friend from a list in `kitchen.json` (Noa, Tomer, Avi, Mrs. Levi, Dana after work, Boaz...), weighted. Not anyone he saw in the last 4 hours (`pickPerson()`), not anyone at work then (`OUTING_AT_WORK`), and not the same guest twice in a row. Mrs. Levi gets more weight for cakes and soups; Shabbat dinner can have two guests.
+- **The invitation (no AI):** when he starts cooking, or after the shopping, he phones or texts them (a short planned `phoning` moment or a `message` with `via: 'text'`, from line pools: "I'm making fajitas, too much for one person. Come at seven?"). A friend who can't come says so ("Can't tonight, next time!") and he asks the next one, at most 3 tries. All of it is decided by the seed, so every isolate gets the same.
+- **The arrival:** the guest leaves from wherever they are in time to arrive as he plates, using the `WALK` times. They knock (`knock`, `knocklevi`), come in, and maybe bring something: a bottle of wine, bread, or a dessert.
+- **The meal** is the AI's moment, as above. The guest stays for the meal and a drink, then leaves with the usual goodbye (v232). Someone who came also gets a memory and a little more friendship.
+- `homeLifeTick()`'s drop-in visits leave a cooking day's evening alone, so no second visitor turns up in the middle.
+
+## Drinks: red wine, white wine and glasses
+- **Wine at home:** a small **wine rack** on the kitchen shelf holds bottles of red (dark bottle, red label), with the white in the fridge door (pale bottle, cream label). Fictional brands only: **Herzl Hills Red** and **Herzl Hills White**, with **Kfar Kofi** cold coffee and **Cooola** for anyone who doesn't drink. **Wine glasses** hang upside down under the shelf.
+- **Buying:** a wine stall at Shuk Shalom (the bottles go in the bag, sticking out of the top), or a guest brings one. `s.kitchen.pantry` counts the bottles; when they run out, the next shopping list adds one.
+- **Which wine:** from the recipe's category (`WINE`): red with beef, lamb and goat; white with fish, chicken, pasta and vegetarian dishes; none with breakfast. Cooola or juice for desserts and for a guest who doesn't drink (`kitchen.json`: `noWine`). On Friday the kiddush cup (already drawn) comes first, then the wine with dinner.
+- **Glasses animations (new poses and props):**
+  - `pour`: he takes the bottle, the cork comes out with a small pop (`Sound.sfx('cork')`), then the wine pours in a thin stream and the glass fills up with a red or pale yellow level (`glassFill()`), first the guest's, then his own (`glug`);
+  - `cheers`: both lift their glasses and they touch over the island, with a small sparkle and the `clink` sound ("L'chaim!");
+  - `sip`: the glass to the mouth and the level drops a pixel each time; the glass stays on the island between sips, with the bottle beside it;
+  - a white wine glass shows a little condensation; a red one leaves a drop at the rim;
+  - after the meal the empty glasses and the bottle stay on the island until he washes up (`dishes`, already there), then the glasses go back on the rail.
+- **How much:** one or two glasses each, and never drunk. The story writer is told it's wine with dinner, nothing more.
+- The hosts get a few lines about it (`COOK_HOSTS.wine`: "Red with the beef. Someone has read a magazine."), and the recipe card shows the wine under the dish.
+
 
 ## What viewers see: the recipe card
 A card under the picture like the trivia card (`#recipe`), from the moment he picks it until he eats:
@@ -108,6 +130,7 @@ Also: the TV guide's TODAY lists "Ishai cooks: Chicken Fajitas, 18:30" (`guideDa
 2. **The kitchen art:** the hob, the oven, the shelf, the recipe book, the rail, the board, the closet's apron, glove and pots, and the new poses. Sandbox: a "Kitchen" menu with every pose and the dish in each state.
 3. **Shopping:** the trip, the market moments, the bags (one or two hands, on the bus, on the stairs) and unpacking at home onto the counter and into the fridge.
 4. **The cooking moments, the recipe card and the meal**, plus the leftovers, the hosts, the TV guide, the episodes and memories.
+5. **Guests and wine:** the invitation, the arrival, the wine rack, the glasses and the pour, cheers and sip animations.
 
 ## The director's answers (2026-11-14)
 1. **Kosher:** only no pork and no shellfish. Meat with milk is fine.
@@ -115,4 +138,7 @@ Also: the TV guide's TODAY lists "Ishai cooks: Chicken Fajitas, 18:30" (`guideDa
 3. **How often:** about 6 days in 7. On Friday it's the Shabbat dinner, finished an hour before the candles.
 4. **Storage:** the apron, the oven glove and the big pots go in the bedroom closet.
 
-Still open, with the plan's defaults until the director says otherwise: a friend joins the meal 30% of the time, and about 1 dish in 6 comes out wrong (burnt, too salty, sunk).
+5. **Guests:** he invites someone whenever there's food, for a cooked dish or the leftovers.
+6. **Drinks:** red and white wine (fictional brands), with glasses, pouring, cheers and sipping animations.
+
+Still open, with the plan's default until the director says otherwise: about 1 dish in 6 comes out wrong (burnt, too salty, sunk).
