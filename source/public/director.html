@@ -117,6 +117,19 @@
     <div class="box"><div style="font-size:24px">AI checks (last moments)</div><div id="diag" class="muted" style="white-space:pre-line;font-size:16px"></div></div>
 
     <div class="box">
+      <div style="font-size:24px">Kitchen: what Ishai cooks today</div>
+      <div id="kitInfo" style="font-size:17px"></div>
+      <label for="kitName">A recipe by name (searched on TheMealDB; empty = a new random one)</label>
+      <input id="kitName" style="width:100%" placeholder="e.g. shakshuka, beef stew, apple crumble">
+      <div class="bar" style="margin-top:8px">
+        <button id="kitPick">Cook this today</button>
+        <button id="kitSkip" class="ghost">Skip today</button>
+        <button id="kitOff" class="ghost">Cooking on / off</button>
+        <span id="kitMsg"></span>
+      </div>
+    </div>
+
+    <div class="box">
       <div style="font-size:24px">Cinema: Saturday night at the PixelPlex</div>
       <div id="cinInfo" style="font-size:17px"></div>
       <label for="cinTitle">Title for this Saturday (from story/films.json; empty = the next in turn)</label>
@@ -182,6 +195,25 @@
       q.moments.forEach(m => (m.lines || []).forEach(l => { const r = document.createElement('div'); r.textContent = `${/^student/.test(l.who) ? 'Student' : l.who === 'sasson' ? 'Dr. Sasson' : 'Ishai'}: ${l.say}`; pv.appendChild(r); })); });
     const mm = $('courseMemory'); mm.textContent = c.memory.length ? '' : 'Nothing yet.';
     c.memory.forEach(m => { const r = document.createElement('div'); r.textContent = `${m.title}: ${m.note}`; mm.appendChild(r); });
+  }
+  function renderKitchen(k){
+    const el = $('kitInfo'); if (!el) return; el.textContent = '';
+    const line = (t, c) => { const d = document.createElement('div'); d.textContent = t; if (c) d.className = c; el.appendChild(d); };
+    if (!k){ line('Nothing yet: the day\'s recipe is picked from 07:00.'); return; }
+    if (k.off) line('Cooking is off.');
+    const t = k.today;
+    if (t && t.name) line(`Today: ${t.name} (${t.cat}), ${t.time.active} min at the counter, ${t.time.passive} min cooking by itself${t.time.away ? ', ' + t.time.away + ' min in the fridge' : ''}.`);
+    if (t && t.cookAt) line(`Cooking from ${t.cookAt}${t.shop ? ', after shopping at Shuk Shalom' : ''}${t.guest ? ', with a guest: ' + t.guest : ''}.`);
+    if (t && t.missing && t.missing.length) line('To buy: ' + t.missing.join(', '));
+    if (t && t.skip) line('Not cooking today: ' + t.skip);
+    if (k.next) line('Waiting for tomorrow: ' + k.next);
+    line(`Cooked so far: ${k.cooked || 0}. In the fridge and cupboard: ${k.pantry} things.`);
+    (k.log || []).slice().reverse().forEach(x => line(`${x.date}: ${x.name}${x.guest ? ' with ' + x.guest : ''} (${x.how})`, 'muted'));
+    if (k.err) line('Last error: ' + k.err.msg, 'err');
+  }
+  async function kitchenDo(body, busy){
+    const msg = $('kitMsg'); msg.className = ''; msg.textContent = busy;
+    try { render(await api(body)); msg.textContent = 'Done.'; } catch(e){ msg.className = 'err'; msg.textContent = e.message; }
   }
   function renderCinema(c){
     if (!c) return; const el = $('cinInfo'); el.textContent = '';
@@ -297,7 +329,7 @@
   $('vSave').onclick = async () => { $('vMsg').textContent = 'Saving…'; try { const v = await api({action: 'voicesSave', voices: vDraft || {}}); vBuilt = ''; render(v); $('vMsg').textContent = 'Saved. Open pages pick it up within a minute.'; } catch(e){ $('vMsg').textContent = e.message; } };
   $('vReset').onclick = () => { if (!confirm('Set every voice back to automatic? (Save to keep it.)')) return; vDraft = {}; Voices.setConfig(vDraft); vBuilt = 'reset'; renderVoices({cfg: {}, cast: Object.values(vCast)}); $('vMsg').textContent = 'Not saved yet.'; };
   function render(v){
-    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderPolls(v.polls); renderSurveys(v.surveys);
+    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('last').textContent = v.last ? `${fmt(v.last.created)} (${v.last.location}/${v.last.action}) ${v.last.text}` : '—';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';
@@ -361,6 +393,9 @@
   }
   $('pollSkip').onclick = async () => { if (!confirm('Skip the coming poll? This hour will have none.')) return; render(await api({action:'pollSkip'})); };
   $('pollBank').onclick = async () => render(await api({action:'pollBank'}));
+  $('kitPick').onclick = () => { const n = $('kitName').value.trim(); kitchenDo(n ? {action:'kitchenPick', name:n} : {action:'kitchenNew'}, n ? 'Looking it up...' : 'Picking one...'); };
+  $('kitSkip').onclick = () => kitchenDo({action:'kitchenSkip'}, 'Changing...');
+  $('kitOff').onclick = () => kitchenDo({action:'kitchenOff'}, 'Changing...');
   $('cinPick').onclick = () => cinemaDo({action:'cinemaPick', title:$('cinTitle').value}, 'Choosing...');
   // one part per request (each is one AI call, up to a minute or so); the page asks again until every part is written
   $('cinWrite').onclick = async () => {

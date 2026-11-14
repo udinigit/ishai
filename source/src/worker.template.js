@@ -291,7 +291,7 @@ export default {
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
-        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), life: (s.life || []).slice(-6),
+        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
         polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3), pushes: (s.pollPushes || []).map(j => ({ kind: j.kind, poll: j.poll, at: j.at, sent: j.sent, done: j.done })) },
@@ -420,6 +420,9 @@ export default {
       const f = src && await filmFull(env, src); if (!f) return json({ error: "no film for that date yet" }, {}, 404);
       return json({ ...f, at: fl.at, title: fl.title }, { "cache-control": "public, max-age=600" });
     }
+    if (url.pathname === "/api/kitchen") {   // today's recipe, as the recipe card will show it (null when he isn't cooking today)
+      const s = await loadState(env); return json({ today: kitchenPublic(s), credit: "Recipes from TheMealDB (themealdb.com)" }, { "cache-control": "public, max-age=60" });
+    }
     if (url.pathname === "/api/trivia") {   // a trivia night as the page plays it; ?sample=1 (director) a short one starting now, for the sandbox
       if (url.searchParams.get("sample")) {
         if (!await isDev(req, env)) return json({ error: "director only" }, {}, 403);
@@ -542,7 +545,7 @@ function publicState(s, dev) {
     studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
     dream: (s.hl || []).filter(h => h.t > Date.now() - 20 * 3600000).slice(-10),
-    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()), trivia: triviaPublic(s, Date.now()), cinema: cinemaPublic(s, Date.now()), promos: promosPublic(s, Date.now()), guide: guideToday(s, Date.now()), voices: s.voiceCfg || {},
+    unlocked: s.unlocked, course: coursePublic(s), arena: arenaPublic(s, Date.now()), poker: pokerPublic(s, Date.now()), trivia: triviaPublic(s, Date.now()), kitchen: kitchenPublic(s), cinema: cinemaPublic(s, Date.now()), promos: promosPublic(s, Date.now()), guide: guideToday(s, Date.now()), voices: s.voiceCfg || {},
     world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: (s.world.headlines || []).slice(0, 8).map(h => h.title), stations: s.world.stations || [], barStations: s.world.barStations || [], cafeStations: s.world.cafeStations || [] } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
@@ -643,6 +646,7 @@ async function tick(env, force) {
   if (!force) try { arenaTick(s, now); } catch (e) { arenaOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   if (!force) try { await filmTick(env, s, now); } catch (e) { cinemaOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   if (!force) try { await triviaTick(env, s, now); } catch (e) { triviaOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
+  if (!force) try { await cookTick(env, s, now); } catch (e) { kitchenOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }   // Ishai cooks: the day's recipe and its slot
   geminiOutUntil = Math.max(geminiOutUntil, s.geminiOutUntil || 0);   // a pause set by another isolate still counts
   TALK = talkLevel(s, env, now);
   // director: activate the next goal, or force it if its deadline passed
@@ -3978,7 +3982,7 @@ const ceil15 = ms => Math.ceil(ms / 900000) * 900000;
 function comingUp(s, now, hours = 6) {
   const nm = id => (s.cast[id] && s.cast[id].name) || null;
   const planTeaser = id => { const b = ((PLAN && PLAN.beats) || []).find(x => x.id === id); return b && b.teaser ? String(b.teaser).replace(/\s+/g, " ").trim().slice(0, 120) : null; };
-  return (s.director || []).filter(g => g.status === "waiting" && !g.poll && !/^(walk|visit|poll|outing)-/.test(g.id))
+  return (s.director || []).filter(g => g.status === "waiting" && !g.poll && !/^(walk|visit|poll|outing|shop)-/.test(g.id))
     .map(g => {
       const at = ceil15(g.sceneAt ? g.sceneAt : g.startAfter);
       let what = g.teaser || planTeaser(g.id);
@@ -4012,7 +4016,7 @@ function guideDay(s, day, keyOnly) {
     const fm = s.cinema && !s.cinema.off && nextFilmAt(s, atLocal(day, 0)); if (fm && dayOfTZ(fm) === day) { const fl = s.cinema.films[day]; if (!fl || !fl.skip) items.push({ at: fm, what: fl && fl.title ? `PixelPlex: "${fl.title}"` : "Saturday night at the PixelPlex" }); }
   }
   if (!keyOnly) for (const g of s.director || []) {
-    if (g.poll || g.course || g.fixed || /^(walk|visit|poll|lecture|outing)-/.test(g.id) || g.how === "cancelled") continue;
+    if (g.poll || g.course || g.fixed || /^(walk|visit|poll|lecture|outing|shop)-/.test(g.id) || g.how === "cancelled") continue;
     const at = ceil15(g.sceneAt || g.startAfter); if (dayOfTZ(at) !== day) continue;
     const c = comingUp(s, at - 11 * 60000, 1).find(x => x.at === at); if (c) items.push({ at, what: c.what.slice(0, 70) });
   }
@@ -4037,6 +4041,8 @@ function eventNote(s, now, company) {
   const recent = lifeOf(s).filter(m => now - m.at < 10 * 86400000 && (m.offered || 0) < 3);
   if (recent.length && Math.random() < (company ? .3 : .15)) { const m = recent[recent.length - 1 - Math.floor(Math.random() * Math.min(2, recent.length))]; m.offered = (m.offered || 0) + 1;
     out += ` From the last few days he remembers: ${m.text} If, and only if, it fits naturally, he brings it up${company ? " with the person he is with" : " to himself (a muttered line, or to Falafel)"}, in his own words; otherwise ignore it.`; }
+  const KT = s.kitchen && s.kitchen.today;
+  if (KT && KT.r && KT.cookAt && KT.cookAt > now && dayOfTZ(KT.cookAt) === dayOfTZ(now)) out += ` Today he plans to cook ${KT.r.name} around ${storyClock(KT.cookAt).label.slice(-5)}${KT.missing && KT.missing.length ? ` (he still needs to buy ${kList(KT.missing.slice(0, 4))} at the market)` : ""}${KT.guest && s.cast[KT.guest] ? ` and invite ${s.cast[KT.guest].name} to eat` : ""}; he may mention it.`;
   return out ? `\nIshai's evenings:${out}` : "";
 }
 // the hosts' line for a window of the night: they can see Ishai's cards
@@ -4291,6 +4297,223 @@ function triviaPublic(s, now) {
 }
 const triviaHealth = s => { const T = s.trivia; if (!T) return null; return { nights: T.nights, pool: T.pool.length, seen: T.seen.length, off: !!T.off,
   ready: Object.values(T.ready).map(R => ({ id: R.id, place: R.place, score: R.score, of: R.of, goal: R.goalId || null, remembered: !!R.remembered })), err: T.err }; };
+// ---------- Ishai cooks (docs/COOKING_PLAN.md, step 1: the worker) ----------
+// Most days he picks a recipe from TheMealDB (free; the test key 1 unless the MEALDB_KEY secret is set), works out how long it takes from
+// its own instructions (no AI), checks what he has at home, and books a free slot: a shopping trip to Shuk Shalom when something is missing
+// (an outing goal: outingStep() takes him there with no AI), then the cooking at home, then the meal with a friend he invites.
+// Everything lives in the state (s.kitchen); no KV writes. Rules and word lists: story/kitchen.json (KITCHEN).
+const KITCHEN = __KITCHEN__;
+const MEALDB = key => `https://www.themealdb.com/api/json/v1/${key || "1"}/`;
+const COOK_V = 1;
+function kitchenOf(s) { return s.kitchen || (s.kitchen = { date: null, today: null, next: null, pantry: {}, seen: [], log: [], err: null, n: 0 }); }
+const kNorm = t => String(t || "").toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-z\s-]/g, " ").replace(/\s+/g, " ").trim();
+const kWordRe = w => new RegExp("\\b" + w.replace(/[-]/g, "\\-") + (w.length > 4 ? "\\w*" : "") + "\\b");
+const K_BANNED = (KITCHEN.bannedWords || []).map(w => [w, kWordRe(kNorm(w))]);
+const kGroup = name => { const n = kNorm(name); for (const [g, ws] of Object.entries(KITCHEN.groups || {})) if (ws.some(w => n.includes(w))) return g; return "dry"; };
+const kStaple = name => { const n = kNorm(name); return (KITCHEN.staples || []).some(w => n === w || n === w + "s"); };
+// a TheMealDB meal → our recipe: ingredients with amounts, steps, and the time each step takes
+function kRecipe(m) {
+  const ing = [];
+  for (let i = 1; i <= 20; i++) { const n = String(m["strIngredient" + i] || "").trim(); if (n) ing.push({ name: n.slice(0, 40), amount: String(m["strMeasure" + i] || "").trim().slice(0, 30) }); }
+  const steps = kSteps(m.strInstructions);
+  return { id: String(m.idMeal), name: String(m.strMeal || "").slice(0, 60), cat: String(m.strCategory || ""), area: String(m.strArea || ""), thumb: String(m.strMealThumb || "").slice(0, 200),
+    url: "https://www.themealdb.com/meal/" + m.idMeal, ing, steps, time: cookTime(steps, ing.length) };
+}
+// the instructions as steps: one per line (or "STEP n"), long paragraphs cut into sentences two at a time
+function kSteps(text) {
+  let parts = String(text || "").replace(/\r/g, "").split(/\n+|\bSTEP\s*\d+\b[:.]?/i).map(x => x.replace(/^\s*(\d+[.)]|[-•▢])\s*/, "").trim()).filter(x => x.length > 3 && !/^step\s*\d*$/i.test(x));
+  const out = [];
+  for (const p of parts) {
+    if (p.length < 260) { out.push(p); continue; }
+    const sent = p.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) || [p];
+    for (let i = 0; i < sent.length; i += 2) out.push(sent.slice(i, i + 2).join(" ").trim());
+  }
+  return out.filter(Boolean).slice(0, 24).map(t => ({ t: t.slice(0, 300) }));
+}
+const K_NUM = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12, fifteen: 15, twenty: 20, "twenty-five": 25, thirty: 30, forty: 40, "forty-five": 45, fifty: 50, sixty: 60, ninety: 90, few: 4, couple: 2, several: 5 };
+// minutes named in a step: "10 minutes", "1-2 hours", "half an hour", "a few minutes", "1 hr 15 mins"; overnight = 8 hours
+function kMinutes(t) {
+  t = String(t).toLowerCase().replace(/–|—/g, "-").replace(/(\d+)\s*(?:1\/2|½)/g, "$1.5").replace(/\b1\/2\b|½/g, "0.5").replace(/(\d+)\s*(?:1\/4|¼)/g, "$1.25"); let m = 0;
+  if (/overnight/.test(t)) m += 480;
+  if (/half an? hour|half-hour|30 mins?\b/.test(t) && !/\d+\s*(?:-|to)?\s*30 mins?/.test(t)) { m += 30; t = t.replace(/half an? hour|half-hour/g, " "); }
+  const re = /(?<![\w.])(\d+(?:\.\d+)?|[a-z]+(?:-[a-z]+)?)\s*(?:(?:-|\bto\b|\bor\b)\s*(\d+(?:\.\d+)?)\s*)?(?:more\s+|further\s+|additional\s+|extra\s+)?(hours?|hrs?|minutes?|mins?)\b/g;
+  let x; while ((x = re.exec(t))) {
+    const a = isFinite(+x[1]) ? +x[1] : K_NUM[x[1]]; if (a == null) continue;
+    const b = x[2] ? +x[2] : a, v = (a + b) / 2;
+    m += /^h/.test(x[3]) ? v * 60 : v;
+  }
+  return Math.round(Math.min(m, 24 * 60));
+}
+const K_AWAY = /overnight|refrigerat|fridge|chill|marinat|freez|leave to (?:rest|set|prove|rise|cool)|until set|prove|to rise|rise for|soak/;
+const K_PASSIVE = /bake|roast|simmer|oven|slow cook|stew|braise|steam|boil|rest|cool|grill|poach|cook (?:for|until)|cover and cook|reduce/;
+// each step: how long, and whether he must be at the counter (active), at home but free (passive) or can go out (away)
+function cookTime(steps, nIng) {
+  let active = Math.min(25, 4 + nIng), passive = 0, away = 0;   // getting it all out, washing, chopping and measuring
+  for (const st of steps) {
+    const m = kMinutes(st.t), low = st.t.toLowerCase();
+    if (m >= 20 && K_AWAY.test(low)) { st.kind = "away"; st.min = m; away += m; }
+    else if (m >= 10 && K_PASSIVE.test(low)) { st.kind = "passive"; st.min = m; active += 2; passive += m - 2; }
+    else { st.kind = "active"; st.min = Math.max(2, Math.min(m || 3, 30)); active += st.min; }
+  }
+  return { active: Math.round(active), passive: Math.round(passive), away: Math.round(away), total: Math.round(active + passive + away) };
+}
+// why a recipe isn't for Ishai (null = fine)
+function kWhyNot(r, K) {
+  if ((KITCHEN.bannedCategories || []).includes(r.cat)) return "category " + r.cat;
+  const hay = kNorm(r.name + " " + r.ing.map(i => i.name).join(" ")); const b = K_BANNED.find(([, re]) => re.test(hay)); if (b) return "has " + b[0];
+  if (r.ing.length > (KITCHEN.maxIngredients || 14)) return r.ing.length + " ingredients";
+  if (r.ing.length < 3 || r.steps.length < 2) return "too thin";
+  if (r.time.active > (KITCHEN.maxActiveMin || 150)) return "too long at the counter";
+  if (r.time.passive > (KITCHEN.maxPassiveMin || 210)) return "too long in the oven";
+  if (r.time.away > (KITCHEN.maxAwayMin || 300)) return "two-day dish";
+  if ((K.seen || []).includes(r.id)) return "made it lately";
+  return null;
+}
+// what he has at home (staples always; bought things for their keepDays) and what he must buy
+function kMissing(K, r, ms) {
+  const kd = KITCHEN.keepDays || {};
+  return r.ing.filter(i => { if (kStaple(i.name)) return false; const p = K.pantry[kNorm(i.name)]; return !(p && ms - p < (kd[kGroup(i.name)] ?? 4) * 86400000); }).map(i => i.name);
+}
+async function mealGet(env, path) {
+  const res = await fetch(MEALDB(env.MEALDB_KEY) + path, { headers: { "user-agent": "WatchingIshai/1.0" } });
+  if (!res.ok) throw new Error("TheMealDB " + res.status);
+  const j = await res.json(); return (j && j.meals) || [];
+}
+// one recipe for the day: a category by weight, then a random recipe in it (up to 4 lookups a tick)
+async function kPick(env, K, seed, byName) {
+  if (byName) { const m = (await mealGet(env, "search.php?s=" + encodeURIComponent(byName)))[0]; if (!m) return { why: "no recipe called " + byName };
+    const r = kRecipe(m), why = kWhyNot(r, { seen: [] }); return why ? { why: `${r.name}: ${why}` } : { r }; }
+  const rng = seedRng(seed), cats = Object.entries(KITCHEN.categories || { Vegetarian: 1 }), why = [];
+  for (let tries = 0; tries < 4; tries++) {
+    let x = rng() * cats.reduce((n, [, w]) => n + w, 0), cat = cats[cats.length - 1][0]; for (const [c, w] of cats) { x -= w; if (x < 0) { cat = c; break; } }
+    const list = (await mealGet(env, "filter.php?c=" + encodeURIComponent(cat))).filter(m => !(K.seen || []).includes(String(m.idMeal)));
+    if (!list.length) { why.push(cat + ": none left"); continue; }
+    const pick = list[Math.floor(rng() * list.length)], m = (await mealGet(env, "lookup.php?i=" + pick.idMeal))[0]; if (!m) continue;
+    const r = kRecipe(m), w = kWhyNot(r, K); if (!w) return { r, why };
+    why.push(`${r.name}: ${w}`);
+  }
+  return { why };
+}
+const kShabbat = (s, a, b) => { const sh = s.world && s.world.shabbat; if (!sh) return false; const end = sh.end || sh.start + 26 * 3600000; return a < end && b > sh.start - 60 * 60000; };
+const kAwake = (ms, endMs) => dayOfTZ(ms) === dayOfTZ(endMs) && storyClock(ms).hour >= (KITCHEN.earliest || 9) && endMs <= atLocal(dayOfTZ(ms), KITCHEN.doneBy || 21);
+// a start time today when the whole thing fits: the shopping trip (the market open), then the cooking with every active and passive minute free;
+// the away steps (the fridge, marinating) may overlap anything. Prefers the dish ready by lunch or dinner time (on Friday, before Shabbat).
+function cookSlot(s, r, shopMin, from, ms) {
+  const segs = []; let cur = null;
+  for (const st of r.steps) { const k = st.kind === "away" ? "away" : "home"; if (!cur || cur.k !== k) segs.push(cur = { k, min: 0 }); cur.min += st.min; }
+  const lead = Math.min(25, 4 + r.ing.length); if (segs[0] && segs[0].k === "home") segs[0].min += lead; else segs.unshift({ k: "home", min: lead });
+  const day = dayOfTZ(ms), meal = KITCHEN.mealAt[r.cat] || KITCHEN.mealAt.default, sh = s.world && s.world.shabbat;
+  const friday = sh && dayOfTZ(sh.start) === day, pickH = meal.length > 1 && seedRng("meal-" + day)() < .6 ? meal[meal.length - 1] : meal[0];
+  const want = friday ? [sh.start - 2 * 3600000] : [atLocal(day, pickH)];   // lunch or (more often) dinner; the closest free time to it
+  const fits = t => {
+    if (shopMin) { const e = t + shopMin * 60000; if (!placeOpen("market", t + 25 * 60000) || !placeOpen("market", e - 25 * 60000) || !pollFree(s, t, e)) return null; t = e; }
+    let at = t;
+    for (const g of segs) { const e = at + g.min * 60000; if (g.k === "home" && (!pollFree(s, at, e) || kShabbat(s, at, e))) return null; at = e; }
+    return kAwake(t - (shopMin || 0) * 60000, at) ? { start: t - (shopMin || 0) * 60000, cookAt: t, doneAt: at } : null;
+  };
+  let best = null;
+  for (let t = ceil15(Math.max(from, atLocal(day, KITCHEN.earliest || 9))); dayOfTZ(t) === day && storyClock(t).hour < (KITCHEN.doneBy || 21); t += 15 * 60000) {
+    const f = fits(t); if (!f) continue;
+    const off = Math.min(...want.map(w => Math.abs(f.doneAt - w)));
+    if (!best || off < best.off) best = { ...f, off };
+  }
+  return best;
+}
+// who comes over to eat: a friend he hasn't seen in the last 4 hours, not the last guest
+function kGuest(s, K, now, seed) {
+  if (Math.random() * 100 >= (KITCHEN.guestPct ?? 100)) return null;
+  const seen = new Set(s.events.filter(e => e.with && now - (e.created || e.t) < 4 * 3600000).map(e => e.with));
+  const list = Object.entries(KITCHEN.guests || {}).filter(([id]) => s.cast[id] && !s.cast[id].phoneOnly && !seen.has(id) && id !== K.lastGuest);
+  const rng = seedRng(seed); let x = rng() * list.reduce((n, [, w]) => n + w, 0);
+  for (const [id, w] of list) { x -= w; if (x < 0) return id; }
+  return list.length ? list[list.length - 1][0] : null;
+}
+const kList = a => a.length <= 1 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
+// the cooking goal's direction (newGoal keeps 600 characters): what, how long, the guest, then as many of the recipe's steps as fit
+function kCookText(r, len, friday, gName) {
+  const head = `Ishai cooks ${r.name} (${r.area ? r.area + " " : ""}${r.cat.toLowerCase()}) at home from his recipe book${friday ? " for Shabbat dinner, done before the candles" : ""}, about ${len} min: apron on, step by step, muttering and tasting${r.time.passive ? "; while it cooks he tidies or does something else at home" : ""}${r.time.away ? "; it rests in the fridge a while (he may pop out)" : ""}; then he plates it.`;
+  const tail = gName ? ` Early on he calls ${gName} to come and eat; ${gName} knocks as he plates and they eat at the kitchen island with ${/beef|lamb|goat/i.test(r.cat) ? "red" : "white"} wine or Cooola, talking about the food.` : " He eats it at the kitchen island.";
+  let steps = " Steps:"; for (const [i, x] of r.steps.entries()) { const add = ` ${i + 1}. ${clip(x.t, 70)}`; if ((head + steps + add + tail).length > 595) break; steps += add; }
+  return head + (steps.length > 7 ? steps : "") + tail;
+}
+// the day's goals: shopping (an outing to the market, no AI to get there) and the cooking at home (the story writes it, with the recipe as the direction)
+function cookBook(s, K, r, slot, missing, guest, now) {
+  const day = dayOfTZ(slot.cookAt), id = "cook-" + day.slice(5), sh = s.world && s.world.shabbat, friday = sh && dayOfTZ(sh.start) === day;
+  const g0 = guest && s.cast[guest], gName = g0 ? g0.name : null;
+  let shopId = null;
+  if (missing.length) {
+    shopId = "shop-" + day.slice(5);
+    const g = newGoal({ id: shopId, startAt: new Date(slot.start).toISOString(), deadlineAt: new Date(slot.cookAt - 10 * 60000).toISOString(), location: "market", forceAction: "walking",
+      goal: `Ishai is cooking ${r.name} today and is missing ${kList(missing.slice(0, 8))}${missing.length > 8 ? " and a few more things" : ""}. He takes the bus to Shuk Shalom, checks his list on his phone and buys them stall by stall (the vendors shout prices), then carries the bags home on the bus. Small talk with a vendor is fine.`,
+      forceText: `Ishai takes the bus to Shuk Shalom with a shopping list for ${r.name}.` }, now);
+    g.outing = { where: "market", mode: null, who: null, local: "local-vendor", chain: CHAIN_MAX }; g.cook = { day, role: "shop" }; s.director.push(g);
+  }
+  const len = Math.round((slot.doneAt - slot.cookAt) / 60000);
+  const g = newGoal({ id, startAt: new Date(slot.cookAt).toISOString(), deadlineAt: new Date(slot.doneAt + 20 * 60000).toISOString(), location: "apartment", forceAction: "eating",
+    with: gName, forceWith: g0 ? guest : null,
+    teaser: `Ishai cooks ${r.name}${gName ? ` for ${gName}` : ""}`,
+    goal: kCookText(r, len, friday, gName),
+    forceText: `Ishai plates the ${r.name} he cooked and sits down to eat at the kitchen island${gName ? " with " + gName : ""}.` }, now);
+  g.cook = { day, role: "cook", recipe: r.id, guest: guest || null };
+  s.director.push(g);
+  return { shopId, cookId: id };
+}
+async function cookTick(env, s, now) {
+  const K = kitchenOf(s); if (K.off || KITCHEN.on === false) return;
+  const ms = now + DELAY_MIN * 60000, day = dayOfTZ(ms), h = storyClock(ms).hour;
+  // the shopping is done: what he bought is at home now
+  for (const d of s.director || []) if (d.cook && d.cook.role === "shop" && d.status === "done" && !d.cook.stocked && d.arrivedAt) {
+    d.cook.stocked = true; const T = K.today; if (T && T.missing) T.missing.forEach(n => { K.pantry[kNorm(n)] = ms; }); }
+  { const kd = KITCHEN.keepDays || {}; for (const [n, t] of Object.entries(K.pantry)) if (ms - t > (kd[kGroup(n)] ?? 4) * 86400000 + 86400000) delete K.pantry[n]; }
+  // the meal is over: a memory, and the guest's
+  const T = K.today;
+  if (T && T.cookId && !T.remembered) { const g = s.director.find(x => x.id === T.cookId);
+    if (g && g.status === "done") { T.remembered = true; K.n++; K.lastGuest = T.guest || K.lastGuest;
+      addLife(s, now, "cooking", `Cooked ${T.r.name}${T.guest && s.cast[T.guest] ? ` and ${s.cast[T.guest].name} came over to eat` : ""}.`);
+      K.log = [...(K.log || []), { date: T.date, name: T.r.name, guest: T.guest, how: g.how }].slice(-14); } }
+  if (K.date === day || h < 7) return;
+  // a new day: pick (or take the dish that didn't fit yesterday), then find the time
+  const wd = weekday(ms);
+  if ((KITCHEN.noCookDays || []).includes(wd)) { K.date = day; K.today = { date: day, skip: "no cooking on " + wd }; return; }
+  let r = K.next && K.next.v === COOK_V ? K.next.r : null, why = [];
+  if (!r) { const p = await kPick(env, K, "cook-" + day + "-" + (K.tries || 0)); r = p.r; why = p.why || []; }
+  if (!r) { K.tries = (K.tries || 0) + 1; K.err = { at: now, msg: "nothing suitable: " + why.slice(-3).join("; ") }; if (K.tries >= 3) { K.date = day; K.today = { date: day, skip: "no suitable recipe" }; K.tries = 0; } return; }
+  K.tries = 0; K.err = null;
+  await kPlan(s, K, r, now, ms, why);
+}
+async function kPlan(s, K, r, now, ms, why) {
+  const day = dayOfTZ(ms), missing = kMissing(K, r, ms), shopMin = missing.length ? Math.ceil((((WALK.apartment || {}).market ?? 20) * 2 + ((PR.market && PR.market.stay) || [20])[0] + 10) / 15) * 15 : 0;
+  const slot = cookSlot(s, r, shopMin, ms + 20 * 60000, ms);
+  K.date = day;
+  if (!slot) { K.next = { v: COOK_V, r }; K.today = { date: day, r, missing, skip: "no free time today: tomorrow", why }; return; }
+  K.next = null; K.seen = [...(K.seen || []), r.id].slice(-60);
+  const guest = kGuest(s, K, now, "guest-" + day);
+  const ids = cookBook(s, K, r, slot, missing, guest, now);
+  K.today = { date: day, r, missing, shopMin, guest, start: slot.start, cookAt: slot.cookAt, doneAt: slot.doneAt, ...ids, why };
+}
+// the director's kitchen box: pick a recipe by name, a new random one, skip today, on/off
+async function kitchenAction(env, s, b, now) {
+  const K = kitchenOf(s), ms = now + DELAY_MIN * 60000, day = dayOfTZ(ms);
+  const drop = () => { s.director = s.director.filter(d => !(d.cook && d.cook.day === day && d.status === "waiting")); K.today = null; };
+  if (b.action === "kitchenOff") { K.off = !K.off; if (K.off) drop(); return null; }
+  if (b.action === "kitchenSkip") { drop(); K.date = day; K.today = { date: day, skip: "skipped by the director" }; return null; }
+  if (b.action === "kitchenNew" || b.action === "kitchenPick") {
+    if ((s.director || []).some(d => d.cook && d.cook.day === day && d.status === "active")) return "he is already shopping or cooking today";
+    const p = await kPick(env, K, "cook-" + day + "-dir-" + now, b.action === "kitchenPick" ? String(b.name || "").trim().slice(0, 60) : null);
+    if (!p.r) return [].concat(p.why || "nothing suitable").slice(-3).join("; ");
+    drop(); K.next = null; await kPlan(s, K, p.r, now, ms, p.why || []); return null;
+  }
+  return "unknown kitchen action";
+}
+function kitchenPublic(s) {
+  const T = s.kitchen && s.kitchen.today; if (!T || !T.r || !T.cookId) return null;
+  const r = T.r; return { date: T.date, id: r.id, name: r.name, cat: r.cat, area: r.area, thumb: r.thumb, url: r.url, time: r.time, at: T.cookAt, start: T.start, done: T.doneAt,
+    ing: r.ing.map(i => ({ name: i.name, amount: i.amount, buy: (T.missing || []).includes(i.name) })), steps: r.steps.map(x => ({ t: x.t, kind: x.kind, min: x.min })),
+    guest: T.guest && s.cast[T.guest] ? s.cast[T.guest].name : null, credit: "Recipe: TheMealDB" };
+}
+const kitchenHealth = s => { const K = s.kitchen; if (!K) return null; const T = K.today || {};
+  return { off: !!K.off, cooked: K.n, date: K.date, today: T.r ? { name: T.r.name, cat: T.r.cat, time: T.r.time, missing: T.missing, guest: T.guest, cookAt: T.cookAt ? storyClock(T.cookAt).label : null, shop: T.shopId || null, skip: T.skip || null } : T.skip ? { skip: T.skip } : null,
+    next: K.next ? K.next.r.name : null, pantry: Object.keys(K.pantry).length, log: (K.log || []).slice(-7), err: K.err }; };
 // ---------- the director's bands, concerts and promotions (/events) ----------
 // Bands live in s.bands, the director's nights in s.arena.custom[date] (they take the place of that week's gallery night), promotions in s.promos.
 // Uploaded files (songs, logos, posters) are KV values "asset:<id>" served from /asset/<id>; each song's beat map is "beats:<id>".
@@ -4522,6 +4745,8 @@ async function directorApi(req, env) {
       const r = await courseAction(env, s, b, now); if (r) return json({ error: r }, {}, 400);
     } else if (String(b.action || "").startsWith("cinema")) {
       const r = await cinemaAction(env, s, b, now); if (r) return json({ error: r }, {}, 400);
+    } else if (/^kitchen/.test(String(b.action || ""))) {
+      const r = await kitchenAction(env, s, b, now); if (r) return json({ error: r }, {}, 400);
     } else if (/^surve/.test(String(b.action || ""))) {
       const r = await surveyAction(env, s, b, now); if (r) return json({ error: r }, {}, 400);
     } else if (b.action === "pollSkip") {   // drop the coming poll (this hour has none)
@@ -4557,7 +4782,7 @@ function cleanVoices(v) {
 }
 function directorView(s, bugs) {
   const last = s.events[s.events.length - 1];
-  return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
+  return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), kitchen: kitchenHealth(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse(), lastError: s.lastError || null,
     polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },

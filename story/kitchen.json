@@ -1,0 +1,31 @@
+{
+  "about": "Ishai cooks (docs/COOKING_PLAN.md). Recipes from TheMealDB (free test key 1, or the MEALDB_KEY secret). Edit this file, bump VERSION, push.",
+  "on": true,
+  "noCookDays": ["Sat"],
+  "categories": { "Vegetarian": 5, "Chicken": 5, "Pasta": 4, "Beef": 3, "Side": 2, "Breakfast": 2, "Lamb": 2, "Seafood": 2, "Starter": 2, "Vegan": 2, "Dessert": 2, "Miscellaneous": 1 },
+  "bannedCategories": ["Pork"],
+  "bannedWords": ["pork", "bacon", "ham", "hams", "gammon", "prosciutto", "pancetta", "chorizo", "lard", "salami", "pepperoni", "guanciale", "speck", "pork sausage", "black pudding",
+    "shrimp", "shrimps", "prawn", "prawns", "mussel", "mussels", "clam", "clams", "crab", "crabs", "lobster", "scallop", "scallops", "squid", "calamari", "oyster", "oysters", "octopus", "crayfish", "langoustine", "langoustines", "cockle", "cockles", "whelk", "whelks"],
+  "maxIngredients": 14,
+  "maxActiveMin": 150,
+  "maxPassiveMin": 210,
+  "maxAwayMin": 300,
+  "earliest": 9,
+  "doneBy": 21,
+  "mealAt": { "Breakfast": [10], "default": [13, 19] },
+  "guestPct": 100,
+  "guests": { "noa": 3, "tomer": 3, "levi": 2, "avi": 1, "dana": 1, "boaz": 1 },
+  "staples": ["salt", "sea salt", "pepper", "black pepper", "white pepper", "water", "ice", "oil", "olive oil", "extra virgin olive oil", "vegetable oil", "sunflower oil", "rapeseed oil", "canola oil",
+    "sugar", "caster sugar", "brown sugar", "plain flour", "flour", "self-raising flour", "baking powder", "bicarbonate of soda", "baking soda", "rice", "basmati rice", "white rice",
+    "cumin", "paprika", "smoked paprika", "turmeric", "cinnamon", "oregano", "dried oregano", "thyme", "dried thyme", "chilli powder", "chili powder", "cayenne pepper", "ground cumin", "ground coriander", "garam masala", "curry powder", "bay leaf", "bay leaves", "nutmeg",
+    "vinegar", "white vinegar", "soy sauce", "honey", "stock cube", "vegetable stock cube", "chicken stock cube", "tomato puree", "vanilla extract"],
+  "keepDays": { "meat": 2, "fish": 1, "dairy": 5, "veg": 5, "herbs": 3, "bread": 2, "dry": 60 },
+  "groups": {
+    "meat": ["chicken", "beef", "lamb", "mince", "veal", "turkey", "duck", "goat", "steak", "sausage", "liver"],
+    "fish": ["fish", "salmon", "tuna", "cod", "haddock", "sardine", "mackerel", "trout", "sea bass", "tilapia", "anchov", "halibut"],
+    "dairy": ["milk", "butter", "cheese", "cream", "yogurt", "yoghurt", "egg", "eggs", "mozzarella", "parmesan", "feta", "ricotta", "creme fraiche", "mascarpone", "cheddar"],
+    "herbs": ["parsley", "coriander", "cilantro", "basil", "mint", "dill", "chives", "rosemary", "sage", "spring onion", "scallion"],
+    "bread": ["bread", "baguette", "pita", "tortilla", "bun", "naan", "brioche"],
+    "veg": ["tomato", "onion", "garlic", "potato", "carrot", "pepper", "courgette", "zucchini", "aubergine", "eggplant", "mushroom", "lettuce", "cucumber", "spinach", "cabbage", "broccoli", "cauliflower", "lemon", "lime", "apple", "banana", "orange", "ginger", "celery", "leek", "pea", "bean", "corn", "avocado", "chilli", "chili", "squash", "pumpkin", "berries", "strawberr", "kale", "beetroot", "fennel"]
+  }
+}
