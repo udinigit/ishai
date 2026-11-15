@@ -2661,17 +2661,25 @@
     R(fx-2,70,12,3,'#5a6068'); R(fx-62,8,12,4,'#5a6068');
     word('UP', fx + 12, 58, '#3a7a3a');
   }
-  // the top of the escalator coming up from the floor below: an opening with a glass rail
+  // the top of the escalator coming up from the floor below (v251): it rises out of the atrium at the front of the picture, through a gap
+  // in the balustrade, so the floor everyone walks on stays whole (before, its opening lay across the walkway and people walked over it)
   function escalatorArrive(cx, t){
-    R(cx-22,74,44,14,'#9aa4ae'); R(cx-20,76,40,12,'#5a6068');
-    for (let i=0;i<10;i++) R(cx-8,76+i,16,1,(Math.floor(i/2) + Math.floor(t/180)) % 2 ? '#7a8088' : '#8e949c');
-    R(cx-22,72,44,2,'#dfeef6'); R(cx-22,72,1,16,'#c8d4dc'); R(cx+21,72,1,16,'#c8d4dc');
+    R(cx-22,89,44,19,'#e6e2da'); R(cx-20,90,40,18,'#3a3f46');                                   // the gap in the balustrade, the well below
+    for (let i=0;i<9;i++) R(cx-9,91+i*2,18,2,(i + Math.floor(t/180)) % 2 ? '#7a8088' : '#8e949c');   // the steps, moving up towards the floor
+    R(cx-10,89,20,2,'#c8ccd0');                                                                   // the comb plate where you step off
+    alpha(.5, () => { R(cx-20,90,9,18,'#dfeef6'); R(cx+11,90,9,18,'#dfeef6'); });                  // glass sides
+    R(cx-12,88,2,20,'#2a2a2a'); R(cx+10,88,2,20,'#2a2a2a');                                     // the black handrails
+    R(cx-22,88,1,20,'#c8cdd2'); R(cx+21,88,1,20,'#c8cdd2');
   }
   // floors 2 and 3: the glass balustrade along the front, the atrium and the floor below through it
   function balustrade(){ R(0,98,W,10,'#a8a49c'); for (let x=0;x<W;x+=16) R(x+4,100,8,8,'#bdb8ae'); alpha(.45, () => R(0,92,W,16,'#dfeef6')); R(0,91,W,2,'#c8cdd2'); for (let x=8;x<W;x+=24) R(x,92,1,16,'#c8cdd2'); }
   function bigS(x, y){ R(x+2,y,7,1,'#ffd23f'); R(x+1,y+1,9,9,'#ffd23f'); R(x+3,y+2,5,1,'#1a1a2a'); R(x+3,y+3,1,2,'#1a1a2a'); R(x+3,y+5,5,1,'#1a1a2a'); R(x+7,y+6,1,2,'#1a1a2a'); R(x+3,y+8,5,1,'#1a1a2a'); R(x+2,y+10,7,1,'#ffd23f'); }
+  // where he stands to look into a store (v251): in front of the windows and counters, never a column, the restrooms or an escalator.
+  // The mall's errands, his walking spots and where he stands come from these (x = the left of his sprite).
+  const MALL_SPOTS = {mall1a: [62, 128, 156], mall1b: [18, 44, 66], mall1c: [22, 78, 150], mall2a: [26, 96, 158], mall2b: [20, 72], mall2c: [22, 82, 150], mall3a: [78, 122, 164], mall3b: [16, 60, 100, 148]};
   const MALL_CROWD = seed => [[seed, 26000, 61, 1], [seed+3, 33000, 63, -1], [seed+5, 41000, 67, 1]];
   const mallScene = (id, cam, place, floor, seed, fronts, o = {}) => block(Object.assign({id, ground:'indoor', seed, amb:'mall', crowd: MALL_CROWD(seed),
+    stand: {idle: MALL_SPOTS[id][Math.min(1, MALL_SPOTS[id].length - 1)], walking: MALL_SPOTS[id][0]},   // standing about: in front of a store
     room(t){ mallWall(t, floor); fronts(t); },
     floor(y0, y1, sd){ mallFloor(y0, y1, sd); if (floor > 1) balustrade(); },
     exitX: nearX => nearX > W/2 ? W+8 : -18}, o), cam, place);
@@ -4502,7 +4510,7 @@
       const armK = mode === 'clap' ? Math.floor(NOW() / 150) % 2 : mode === 'arms' ? Math.floor(NOW() / 1400) % 2 : (kb >> 1) % 2;
       drawIshai('back', X, Y, t, {armPose, armK});
       return; }
-    if (a==='walking' && actor.pacePause && !actor.travelling && !actor.pending) drawIshai(OUTSIDE.has(actor.loc) && !actor.with && hash(Math.floor(NOW()/32000) * 3 + 7) < .45 ? 'back' : 'idle', actor.x, y, t);   // stops to look at a window, a poster, the sea
+    if (a==='walking' && actor.pacePause && !actor.travelling && !actor.pending) drawIshai(((OUTSIDE.has(actor.loc) && !actor.with && hash(Math.floor(NOW()/32000) * 3 + 7) < .45) || (MALL_SPOTS[actor.loc] && hash(Math.floor(NOW()/32000) * 3 + 7) < (actor.with ? .4 : .85))) ? 'back' : 'idle', actor.x, y, t);   // stops to look at a window, a poster, the sea; in The Big S nearly always into the store
     else if (actor.travelling || a==='walking') drawIshai('walk', actor.x, y, t);
     else if (actor.dressTo) drawIshai(actor.dressBath ? 'back' : 'idle', actor.x, y, t);   // at the closet: changing (under the bar), or taking clothes out with his back to us
     else if (!settled) return;
@@ -4572,10 +4580,19 @@
     bar:    { posters: {alone:2, company:0, steps:[{to:30},{pose:'back',dur:4}]},
               phone:   {alone:3, company:1, steps:[{pose:'idle',dur:5,o:{fidget:'phone'}}]} }
   };
+  // The Big S: he browses the stores (looks into one window, or walks on to the next and looks there), never at a wall or an escalator
+  Object.entries(MALL_SPOTS).forEach(([id, sp]) => {
+    const list = {};
+    // long looks: a block is 45 s, so he spends most of it facing a window, not the camera
+    sp.forEach((x, i) => { list['window' + i] = {again: true, alone: 2, company: 1, steps: [{to: x}, {pose: 'back', dur: 22}]};
+      const y = sp[(i + 1) % sp.length]; if (y !== x) list['browse' + i] = {again: true, alone: 3, company: 0, steps: [{to: x}, {pose: 'back', dur: 12}, {to: y}, {pose: 'back', dur: 14}]}; });
+    list.phone = {alone: 1, company: 1, steps: [{pose: 'idle', dur: 4, o: {fidget: 'phone'}}]};
+    ERRANDS[id] = list;
+  });
   // which actions can be interrupted, and how often (share of 45 s blocks that get a routine), alone / with company
-  const SEATED_AT = { cinema:['film','idle','talking','eating','drinking','phoning'], cafe:['eating','drinking','working','reading','talking','trivia'], bar:['eating','drinking','talking'], park:['eating','reading'], apt2:['poker'], classroom:['lecture','idle','talking'] };
+  const SEATED_AT = { cinema:['film','idle','talking','eating','drinking','phoning'], cafe:['eating','drinking','working','reading','talking','trivia'], bar:['eating','drinking','talking'], park:['eating','reading'], apt2:['poker'], classroom:['lecture','idle','talking'], mall3a: FOOD_ACTS, mall3b: FOOD_ACTS };
   const ERR_CHANCE = { idle:[.45,.3], talking:[0,.2], eating:[0,.12], drinking:[0,.12] };
-  const ERR_OUT = [.8, .3];   // out on the street (or the promenade, The Big S) alone he hardly ever just stands: most blocks he strolls   // seated activities fidget in the seat instead (seatFid)
+  const ERR_OUT = [.8, .3], ERR_MALL = [.95, .35];   // The Big S: he is there to look at the stores   // out on the street (or the promenade, The Big S) alone he hardly ever just stands: most blocks he strolls   // seated activities fidget in the seat instead (seatFid)
   const hash = n => { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4); n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; };
   function errandNow(){
     const a = actor.action, list = ERRANDS[actor.loc] || ((KIT.has(actor.loc) || OUTSIDE.has(actor.loc)) && !SEATED_AT[actor.loc] ? ERRANDS._out : null), co = actor.with ? 1 : 0;
@@ -4584,7 +4601,7 @@
     if (co && (SPEAKING === 'ishai' || actor.action === 'phoning')) return null;   // not in the middle of his own line
     const now = NOW(), block = Math.floor(now / ERR_BLOCK), start = block * ERR_BLOCK + 4000;
     if (now < start || actor.settledAt == null || actor.settledAt > start) return null;
-    if (hash(block * 7 + 1) > (a === 'idle' && (KIT.has(actor.loc) || OUTSIDE.has(actor.loc)) ? ERR_OUT : ERR_CHANCE[a])[co]) return null;
+    if (hash(block * 7 + 1) > (a === 'idle' && MALL_SPOTS[actor.loc] ? ERR_MALL : a === 'idle' && (KIT.has(actor.loc) || OUTSIDE.has(actor.loc)) ? ERR_OUT : ERR_CHANCE[a])[co]) return null;
     // weighted pick, never the same routine as the block before (no drink-drink-drink loops)
     const pick = b => { const ks = Object.keys(list).filter(k => list[k][co ? 'company' : 'alone'] > 0); if (!ks.length) return null;
       const tot = ks.reduce((n, k) => n + list[k][co ? 'company' : 'alone'], 0); let r = hash(b * 13 + 5) * tot;
@@ -5129,7 +5146,9 @@
       const lo = actor.loc==='street'?40:actor.loc==='park'?40:actor.loc==='shops'||actor.loc==='market'||actor.loc==='campus'?36:out?24:52, hi = actor.loc==='street'?146:actor.loc==='shops'?150:actor.loc==='cafe'?110:out?164:124;
       // every ~2 minutes he walks to a new spot somewhere in the room, then stands there (clock-driven, same for everyone)
       const span = hi - lo, D = OUTSIDE.has(actor.loc) || KIT.has(actor.loc) ? 32 : 120, now = NOW()/1000, k = Math.floor(now / D), e = now % D;   // outdoors a new spot every ~half minute: he strolls, stops at a window, strolls on
-      const spot = n => { const a = lo + hash(n*7 + 3) * span, b = lo + hash((n-1)*7 + 3) * span; return Math.abs(a - b) < 18 ? (a + span/2 - lo) % span + lo : a; };
+      const ms = MALL_SPOTS[actor.loc];   // The Big S: from one store window to another (never onto an escalator)
+      const spot = ms ? n => { let i = Math.floor(hash(n*7 + 3) * ms.length); if (i === Math.floor(hash((n-1)*7 + 3) * ms.length)) i = (i + 1) % ms.length; return ms[i]; }
+        : n => { const a = lo + hash(n*7 + 3) * span, b = lo + hash((n-1)*7 + 3) * span; return Math.abs(a - b) < 18 ? (a + span/2 - lo) % span + lo : a; };
       const from = spot(k - 1), to = spot(k), wt = Math.abs(to - from) / 14;
       actor.paceDir = Math.sign(to - from) || 1;
       const want = e < wt ? from + (to - from) * (e / wt) : to;
