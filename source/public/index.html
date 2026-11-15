@@ -623,7 +623,8 @@
   function bubble(){} // speech is shown in a real bubble above the speaker (see showSay)
   // where each visible character's head is this frame (for placing speech bubbles)
   let HEADS = {};
-  const markHead = (id, x, y) => { if (id && !DREAMING) HEADS[id] = {x: x + 5, y}; };
+  const markHead = (id, x, y) => { if (id && !DREAMING){ HEADS[id] = {x: x + 5, y}; MARK_ID = id; } };
+  let MARK_ID = null, HEADS_PREV = {};   // the last id marked (the person drawn next is usually them); last frame's heads, to look at whoever talks
 
   // ================= Ishai (and NPCs) =================
   // figure box: 10 wide x 22 tall, (x,y) = top-left
@@ -774,14 +775,19 @@
         if (o.mug){ R(x+8,y+10,3,3,'#e8e4d8'); R(x+11,y+11,1,1,'#e8e4d8'); if (Math.floor(t/700)%2) R(x+9,y+8,1,1,'#f2f2f2'); else R(x+10,y+7,1,1,'#f2f2f2'); }
         break; }
       case 'idle': {
-        const k = o.fidget || (o.still ? 'none' : fid(11, t, false, !!o.seated)); if (k==='shift' && !o.seated) x += Math.floor(t/2000)%2;   // seated: facing front, no look back
-        head(x,y,{closed:blinkOn(t), look: lookFid(t, k, (Math.floor(t/4000)%3)-1)}); if (k==='turn') backHair(x,y,C.hair);
+        const bl = !o.fidget && !o.still ? body('ishai', x) : null;   // someone talking near him: he looks at them and reacts
+        const k = o.fidget || (o.still ? 'none' : bl && bl.kind ? bl.kind : fid(11, t, false, !!o.seated)); if (k==='shift' && !o.seated) x += Math.floor(t/2000)%2;   // seated: facing front, no look back
+        const hm = headMove(k, t);
+        head(x + (hm.dx||0), y + (hm.dy||0),{closed: hm.closed || blinkOn(t), down: hm.down, talk: hm.open, look: bl && bl.look != null && k !== 'turn' ? bl.look : lookFid(t, k, (Math.floor(t/4000)%3)-1)}); if (k==='turn') backHair(x,y,C.hair);
+        if (bl && bl.mark) emote(x, y, bl.mark, t);
         torso(x,y); armsFid(x,y,t,k); legs(x,y,legsFid(t,k)); break; }
       case 'talking': {
-        const mine = SPEAKING==='ishai';
-        head(x,y,{closed:blinkOn(t), look:o.face||1, talk: mine && Math.floor(t/160)%2}); torso(x,y);
-        const k = fid(11, t, true, !!o.seated);
-        if (mine && f2){ R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10,1,2,C.skin); }
+        const mine = SPEAKING==='ishai', bl = body('ishai', x);
+        const k = bl && bl.kind ? bl.kind : fid(11, t, true, !!o.seated), hm = headMove(k, t);
+        head(x + (hm.dx||0), y + (hm.dy||0),{closed: hm.closed || blinkOn(t), down: hm.down, look: bl && bl.look != null ? bl.look : o.face||1, talk: hm.open || (mine && Math.floor(t/160)%2)}); torso(x,y);
+        if (bl && bl.mark) emote(x, y, bl.mark, t);
+        if (bl && bl.kind) armsFid(x,y,t,k);
+        else if (mine && f2){ R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10,1,2,C.skin); }
         else armsFid(x,y,t, mine ? 'gesture' : (k==='gesture' ? 'cross' : k));
         legs(x,y,legsFid(t,k));
         if (mine) bubble(x+8,y-7,t);
@@ -982,9 +988,84 @@
     if (!seated && !talking && hash(w*29 + seed) < .04) return 'stretch';   // a real stretch, rarely
     return list[Math.floor(r*list.length)];
   }
+  // ---- body language (v250, no AI): the one talking gestures to suit the line (a shrug on a question, open hands when it's big news,
+  // shaking with laughter, a nod on "yes", a shake on "no"), and everyone else in the picture looks at them, nods along, and reacts
+  // when the line ends (laughs at a joke, starts at big news, a hand to the chin at a question, eyes down at bad news).
+  // All from the timeline's clock (TL), so every viewer sees the same; nothing is said or written.
+  let BL = {t: -1};
+  function talkNow(){
+    const now = NOW(); if (BL.t === now) return BL;
+    BL = {t: now, cur: null, prev: null};
+    const c = tlNow(); if (!c || !c.e.plan) return BL;
+    for (const p of c.e.plan){ if (p.host) continue; const a = c.e.start + p.at, b = a + p.ms;
+      const it = () => ({who: p.l.who, at: a, end: b, mood: lineMood(p.l.say), id: c.e.ev.id + ':' + (p.x ? 'x' : '') + p.i});
+      if (now >= a && now < b) BL.cur = it(); else if (b <= now) BL.prev = it(); else break; }
+    return BL;
+  }
+  const lookTo = (hx, who) => { const h = HEADS_PREV[who]; if (!h) return null; const d = h.x - (hx + 5); return Math.abs(d) < 3 ? 0 : d > 0 ? 1 : -1; };
+  function body(id, hx){
+    if (!id || DREAMING || BUILDER || (g !== ctx && g !== lctx)) return null;
+    const T = talkNow(), now = NOW(), c = T.cur, p = T.prev;
+    if (c && c.who === id){   // talking: hands to suit the line, eyes on the one they talk to
+      const since = now - c.at, r = hash(strHash(c.id) + Math.floor(since / 650) * 13), m = c.mood;
+      const to = p && p.who !== id ? p.who : id === 'ishai' ? actor.with : 'ishai';
+      let kind;
+      if (m === 'laugh') kind = since < 1800 ? 'laugh' : r < .5 ? 'gesture' : 'none';
+      else if (m === 'ask') kind = c.end - now < 1500 ? 'shrug' : r < .35 ? 'gesture' : r < .6 ? 'open' : 'none';
+      else if (m === 'wow' || m === 'excl') kind = r < .45 ? 'open' : r < .8 ? 'gesture' : 'nod';
+      else if (m === 'low') kind = r < .6 ? 'down' : 'none';
+      else if (m === 'yes') kind = since < 1300 ? 'nod' : r < .4 ? 'gesture' : 'none';
+      else if (m === 'no') kind = since < 1200 ? 'shake' : r < .4 ? 'gesture' : 'none';
+      else kind = ['gesture','gesture','nod','open','none','none','tap','gesture'][Math.floor(r * 8)];
+      if (p && p.who !== id && since < 900 && c.at - p.end < 1500){ if (p.mood === 'laugh') kind = 'laugh'; else if (p.mood === 'wow') kind = 'open'; }   // still laughing at the last line, or still amazed, as they start
+      const look = lookTo(hx, to);
+      if (kind === 'gesture' && look === -1) kind = 'gestureL';   // the hand goes out towards the one they talk to
+      return {kind, look, talk: true};
+    }
+    if (c && HEADS_PREV[c.who]){   // someone else is talking here: look at them, nod now and then
+      const since = now - c.at, r = hash(strHash(c.id + id) + Math.floor(since / 2400) * 7);
+      return {kind: c.mood !== 'low' && r < .3 && since % 2400 < 1100 ? 'nod' : 'none', look: lookTo(hx, c.who)};
+    }
+    if (!c && p && p.who !== id && HEADS_PREV[p.who]){
+      const e = now - p.end, r = hash(strHash(p.id + id));
+      if (e < 2200){   // the line just ended: react to it
+        let kind = null, mark = null;
+        if (p.mood === 'laugh' && r < .75){ kind = 'laugh'; mark = 'ha'; }
+        else if (p.mood === 'wow' && r < .8){ kind = e < 500 ? 'startle' : 'none'; mark = '!'; }
+        else if (p.mood === 'ask' && r < .6){ kind = 'chin'; mark = '?'; }
+        else if (p.mood === 'low' && r < .7) kind = 'down';
+        else if (p.mood === 'no' && r < .4) kind = 'shake';
+        else if ((p.mood === 'yes' || p.mood === 'excl' || p.mood === 'say') && r < .35) kind = 'nod';
+        if (kind) return {kind, look: lookTo(hx, p.who), mark: e < 1400 ? mark : null};
+      }
+      if (e < 9000) return {kind: null, look: lookTo(hx, p.who)};   // a quiet spell in the talk: still looking at the one who spoke last
+    }
+    return null;
+  }
+  // how a reaction moves the head: a nod, laughing, a shake, a start, looking down
+  function headMove(kind, t){
+    if (kind === 'nod') return {dy: Math.floor(t/260)%2};
+    if (kind === 'laugh') return {dy: Math.floor(t/140)%2, closed: true, open: true};
+    if (kind === 'shake') return {dx: Math.floor(t/180)%2 ? 1 : -1};
+    if (kind === 'startle') return {dy: -1};
+    if (kind === 'down') return {down: true};
+    return {};
+  }
+  // a small mark beside the head as someone reacts: ! (big news), ? (a question to think about), laugh lines
+  function emote(x, y, mark, t){
+    const c = '#ffe066';
+    if (mark === '!'){ R(x+10,y-6,1,3,c); R(x+10,y-2,1,1,c); }
+    else if (mark === '?'){ R(x+10,y-7,2,1,c); R(x+12,y-6,1,1,c); R(x+11,y-5,1,1,c); R(x+11,y-3,1,1,c); }
+    else if (mark === 'ha' && Math.floor(t/200)%2){ R(x-1,y+2,1,1,c); R(x-2,y+1,1,1,c); R(x+10,y+2,1,1,c); R(x+11,y+1,1,1,c); }
+  }
   function armsFid(x,y,t,kind){
     const ph = Math.floor(t/400)%2;
     switch(kind){
+      case 'gestureL': R(x+8,y+9,1,4,C.shirt); R(x+8,y+13,1,2,C.skin); R(x+1,y+9,1,2,C.shirt); R(x-1,y+10-ph,2,1,C.shirt); R(x-2,y+10-ph,1,1,C.skin); break;   // the gesture with the other hand, towards someone on the left
+      case 'open': R(x+1,y+9,1,3,C.shirt); R(x,y+12,1,1,C.shirt); R(x-1,y+12,1,1,C.skin); R(x+8,y+9,1,3,C.shirt); R(x+9,y+12,1,1,C.shirt); R(x+10,y+12,1,1,C.skin); break;   // open hands
+      case 'chin': R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+7,y+9,1,1,C.shirt); R(x+6,y+8,2,1,C.skin); break;                          // a hand to the chin
+      case 'laugh': R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,3,C.shirt); R(x+6,y+12+ph,2,1,C.skin); break;                                               // a hand on the belly
+      case 'startle': R(x+1,y+9,1,2,C.shirt); R(x,y+10,1,1,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10,1,1,C.skin); break;
       case 'stretch': if (Math.floor(t/1300)%3 !== 2) armsUp(x,y); else armsDown(x,y); break;
       case 'scratch': R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+7,1,3,C.shirt); R(x+8,y+4+ph,1,3,C.skin); break;
       case 'gesture': R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10-ph,2,1,C.shirt); R(x+11,y+10-ph,1,1,C.skin); break;
@@ -1044,14 +1125,17 @@
     const fit = L._fit; C.inner = null; C.pjs = false; C.towel = false; C.bottom = (fit && fit.pants) || L.top === 'dress' ? null : L.bottom || null;
     if (fit && !o.muted){ if (fit.inner) pal.inner = pal.shirt; pal.shirt = fit.shirt; pal.shirtShade = shade(fit.shirt, .82); if (fit.pants) pal.pants = fit.pants; }
     Object.assign(C, pal);
-    const theirs = o.talkPhase && !!SPEAKING && SPEAKING!=='ishai' && !(SPEAKING in {zohar:1,oren:1});
+    // who is this? the id marked just before (markHead), when its head is where we draw: then they talk, look and react as themselves
+    const mid = !o.muted && MARK_ID && MARK_ID !== 'ishai' && HEADS[MARK_ID] && Math.abs(HEADS[MARK_ID].x - (x + 5)) <= 6 && Math.abs(HEADS[MARK_ID].y - y) <= 4 ? MARK_ID : null; MARK_ID = null;
+    const theirs = mid ? SPEAKING === mid : o.talkPhase && !!SPEAKING && SPEAKING!=='ishai' && !(SPEAKING in {zohar:1,oren:1});
     const fw = o.walk ? Math.floor(t/220)%4 : 0, bob = o.walk && fw%2 ? -1 : 0;
     y += bob;
     const seated = o.legs==='sit' || o.legs===false;
-    const kind = o.fid ? o.fid : (!o.walk && !o.muted && !o.still) ? fid(o.seed ?? strHash(L.hair + L.shirt + L.skin + L.pants), t, theirs || !!o.talkPhase, seated) : 'none';
+    const bl = mid && !o.fid && !o.walk && !o.still && !o.armPose ? body(mid, x) : null;
+    const kind = o.fid ? o.fid : bl && bl.kind ? bl.kind : (!o.walk && !o.muted && !o.still) ? fid(o.seed ?? strHash(L.hair + L.shirt + L.skin + L.pants), t, theirs || !!o.talkPhase, seated) : 'none';
     if (kind==='shift') x += Math.floor(t/2000)%2;
-    const y0 = y; if (kind==='nod') y += Math.floor(t/260)%2;
-    head(x,y,{closed:blinkOn(t,o.seed??1700), look: lookFid(t, kind, o.face??-1), down: !!o.down, talk: (theirs || o.talking) && Math.floor(t/170)%2});
+    const y0 = y, x0 = x, hm = headMove(kind, t); y += hm.dy || 0; x += hm.dx || 0;
+    head(x,y,{closed: hm.closed || blinkOn(t,o.seed??1700), look: bl && bl.look != null && kind !== 'turn' && kind !== 'look' ? bl.look : lookFid(t, kind, o.face??-1), down: !!o.down || !!hm.down, talk: hm.open || ((theirs || o.talking) && Math.floor(t/170)%2)});
     // hair styles
     const h = pal.hair;
     if (L.hair==='bald'){ R(x+2,y,6,3,pal.skin); R(x+3,y,2,1,tint(pal.skin,.3)); }
@@ -1082,7 +1166,8 @@
     if (kind==='turn') backHair(x,y,h,L.hair,pal.skin);
     hat(x, y, L, kind === 'turn', o.muted);                                           // a hat goes over the hair, from the front or the back
     if (kind==='turn' && ex.includes('headphones')) R(x+1,y-1,8,1,'#222');
-    y = y0;
+    if (bl && bl.mark) emote(x, y, bl.mark, t);
+    y = y0; x = x0;
     torso(x,y); top(x, y, L.top, kind === 'turn');
     if (ex.includes('necklace') && kind !== 'turn') R(x+3,y+9,4,1,'#d4af37');
     if (ex.includes('tie') && kind !== 'turn'){ R(x+4,y+9,2,1,'#8a2a2a'); R(x+4,y+10,2,4,'#a83232'); R(x+4,y+14,2,1,'#8a2a2a'); }
@@ -1317,7 +1402,7 @@
     if (!id || POST[actor.loc] === id) return false;                 // at work here (Dana at the counter): back to the post, not out of the door
     const c = tlNow(); if (!c) return false; const e = c.e, ev = e.ev;
     if (!ev || ev.with !== id || ev.action === 'phoning') return false;
-    const talk = e.plan.filter(x => !x.host), mine = talk.filter(x => x.l.who === id);
+    const talk = e.plan.filter(x => !x.host), mine = talk.filter(x => x.l.who === id && !x.x);
     if (!mine.length || !BYE_RE.test(mine[mine.length - 1].l.say)) return false;
     if (NOW() < e.start + Math.max(...talk.map(x => x.at + x.ms)) + 2500) return false;
     let after = false;
@@ -5057,7 +5142,7 @@
 
   let drawLater = null;
   function render(t){
-    HEADS = {};
+    if (Object.keys(HEADS).length) HEADS_PREV = HEADS; HEADS = {}; MARK_ID = null;
     const hf = hourNow();
     if (TUNING){ drawStatic(1); $('nosig').style.display='flex'; $('nosigText').textContent = '[ TUNING IN ]'; return; }   // no picture until we know where he really is
     if (actor.switching){
@@ -5671,7 +5756,7 @@
     // the Conversation tab already gives each line its voice, blips and bubble at its time
     const entry = animate ? TL.get(ev.id) : null;
     for (const [k, l] of (ev.lines||[]).entries()){
-      const slot = entry && entry.plan.find(x => !x.host && x.i === k);
+      const slot = entry && entry.plan.find(x => !x.host && !x.x && x.i === k);
       if (slot){ await untilT(entry.start + slot.at); if (entry.dead) return; }
       const sp = speaker(l.who), q = newLine('say');
       const nm = document.createElement('span'); nm.style.color = sp.color; nm.textContent = sp.name + ': ';
@@ -5717,13 +5802,75 @@
     const r = prevLoc && !PREVIEW && prevLoc !== (ev.location || 'apartment') ? route(prevLoc, ev.location || 'apartment') : [], onBoard = r.some(x => VEH.has(x)) && !VEH.has(prevLoc) && !VEH.has(ev.location);
     // a gallery night: after the break the curtain rises first (CURTAIN_MS), then a few seconds of looking before anyone speaks or a picture is shown
     const afterCurtain = ev.art && !ev.art.curtain && prevEv && prevEv.art && prevEv.art.curtain ? CURTAIN_MS + CURTAIN_PAUSE : 0;
-    const lead = onBoard ? RIDE_LEAD + RIDE_MS + RIDE_LAND : afterCurtain; let t = lead;
-    lines.forEach((l, i) => { if (i) t += linePause(lines[i-1].say) + gap; const ms = lineMs(l.say); plan.push({at: t, ms, l, i}); t += ms; });
+    const lead = onBoard ? RIDE_LEAD + RIDE_MS + RIDE_LAND : afterCurtain; let t = lead, tail = 0;
+    if (PREVIEW || lines.length < 2) lines.forEach((l, i) => { if (i) t += linePause(lines[i-1].say) + gap; const ms = lineMs(l.say); plan.push({at: t, ms, l, i}); t += ms; });
+    else { const lp = livePlan(ev, lines, gap, plan, t); t = lp.t; tail = lp.tail; }   // quick turns, cut-ins and short "Ha!"s, the rest of the time as pauses between exchanges
     if (hosts.length){   // the hosts react to what viewers can SEE: after Ishai has got there, then a short beat
       t = Math.max(t + (lines.length ? 1200 : 0), lead + (prevLoc && prevLoc !== (ev.location || 'apartment') ? 17500 : 5000));
       hosts.forEach((c, i) => { if (i) t += linePause(hosts[i-1].say); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i, host: true}); t += ms; });
     }
-    return {plan, ms: t, ride: onBoard ? r : null};
+    return {plan, ms: t + tail, ride: onBoard ? r : null};
+  }
+  // ---- live talk (v250, no AI): real people answer quickly, cut in, laugh or say "Right." while the other goes on, then fall quiet for a while.
+  // The old way spread every line evenly over the moment (up to 12 s of silence between each). Now the same total time is used,
+  // but as quick turns inside an exchange and longer beats between exchanges. Seeded by the moment's id, so every page gets the same plan.
+  const CUT_IN = /^(wait|hold on|hang on|no,? no|whoa|hey,? hey|but\b)/i, TRAIL = /(—|--|\s-|\.\.\.|…)\s*$/, THINK = /^(hmm+|um+|uh+|well\b|so\.\.\.|i mean|let me think)/i;
+  const NO_LIVE = new Set(['lecture','film','trivia','concert','gallery','poker','improv']);   // planned nights keep their own pace
+  const BACKCH = {laugh: ['Ha!', 'Haha.', 'Ha, yes.'], wow: ['Wow.', 'No way.', 'Really?'], low: ['Oh no.', 'Aw.', 'Mm.'], excl: ['Ha.', 'Right!', 'Yeah!'], say: ['Right.', 'Yeah.', 'Mm.', 'Sure.']};
+  function lineMood(s){
+    s = String(s || '');
+    if (/\b(ha(ha)+|hah|heh|lol)\b|\bha!/i.test(s)) return 'laugh';
+    if (/!!|\?!|!\?|\b(no way|wow|whoa|seriously|you're kidding|oh my god)\b/i.test(s)) return 'wow';
+    if (/\b(sorry|sad|miss (him|her|you|them)|tired|ugh|sigh|lonely|hurts?|sick|awful|terrible)\b/i.test(s)) return 'low';
+    if (/\?\s*["']?\s*$/.test(s)) return 'ask';
+    if (/^(yes|yeah|yep|sure|right|exactly|ok(ay)?|totally|of course|definitely)\b/i.test(s)) return 'yes';
+    if (/^(no|nope|nah)\b/i.test(s)) return 'no';
+    if (/!\s*["']?\s*$/.test(s)) return 'excl';
+    return 'say';
+  }
+  function livePlan(ev, lines, gap, plan, t0){
+    const seed = strHash(ev.id), n = lines.length;
+    // the time the old even spread would have used between lines: the new plan uses exactly that, so the moment ends when it did
+    let budget = 0; for (let i = 1; i < n; i++) budget += linePause(lines[i-1].say) + gap;
+    const ms = lines.map(l => lineMs(l.say)), pre = [0], cut = [];
+    for (let i = 1; i < n; i++){
+      const p = lines[i-1], l = lines[i], r = hash(seed + i * 31);
+      if (TRAIL.test(p.say) || CUT_IN.test(l.say)){ cut[i-1] = true; const typed = Math.max(typeMs('"' + p.say + '"'), Math.round(ms[i-1] * .8)); budget += ms[i-1] - typed; ms[i-1] = typed; pre.push(0); continue; }   // cut in as soon as the last word is out (the voice stops there)
+      pre.push(THINK.test(l.say) ? 1400 + r * 1000 : p.who === l.who ? 1100 + r * 900 : /\?\s*["']?\s*$/.test(p.say) ? 300 + r * 400 : l.say.length < 28 ? 250 + r * 450 : 450 + r * 700);
+    }
+    // a short "Ha!" / "Right." from the other one while someone goes on talking (only in a talk between two, never on a big night)
+    const who = new Set(lines.map(l => l.who)), two = who.size === 2 && who.has('ishai') && ![...who].some(w => w === 'radio' || w === 'tv' || HOSTS[w]);
+    const back = new Map();
+    if (two && !NO_LIVE.has(ev.action) && !ev.art) for (let i = 1; i < n; i++){
+      const p = lines[i-1]; if (p.who !== lines[i].who || cut[i-1]) continue;
+      const m = lineMood(p.say), r = hash(seed + i * 53);
+      if (m === 'ask' || m === 'yes' || m === 'no' || (m === 'say' && p.say.length < 60) || r > .45) continue;
+      const list = BACKCH[m] || BACKCH.say, say = list[Math.floor(hash(seed + i * 7) * list.length)], other = [...who].find(w => w !== p.who);
+      back.set(i, {who: other, say});
+    }
+    let quick = 0; for (let i = 1; i < n; i++) quick += pre[i] + (back.has(i) ? 200 + lineMs(back.get(i).say) : 0);
+    let spare = Math.max(0, budget - quick);
+    // where the longer pauses go: between exchanges of 2-3 lines, never right after a question or before a cut-in
+    const beats = []; let run = 0, want = 2 + Math.floor(hash(seed + 5) * 2);
+    for (let i = 1; i < n; i++){ run++;
+      const ok = pre[i] > 0 && !/\?\s*["']?\s*$/.test(lines[i-1].say) && !back.has(i);
+      if (ok && run >= want){ beats.push(i); run = 0; want = 2 + Math.floor(hash(seed + i * 11) * 2); } }
+    if (!beats.length) for (let i = 1; i < n; i++) if (pre[i] > 0 && !back.has(i)) beats.push(i);
+    const extra = new Map(), BEAT_MAX = 28000;
+    if (beats.length && spare > 0){
+      const w = beats.map(i => .6 + hash(seed + i * 17)), tot = w.reduce((a, b) => a + b, 0);
+      beats.forEach((i, k) => { const add = Math.min(BEAT_MAX, spare * w[k] / tot); extra.set(i, add); });
+      spare -= [...extra.values()].reduce((a, b) => a + b, 0);
+    }
+    let t = t0;
+    lines.forEach((l, i) => {
+      if (i){
+        if (back.has(i)){ const b = back.get(i), bm = lineMs(b.say); t += 200; plan.push({at: t, ms: bm, l: b, i: i - 1, x: true}); t += bm; }
+        t += pre[i] + (extra.get(i) || 0);
+      }
+      plan.push({at: t, ms: ms[i], l, i}); t += ms[i];
+    });
+    return {t, tail: spare};   // what the beats couldn't take (each at most 28 s) stays quiet at the end of the moment
   }
   function schedule(events){
     [...events].sort((a,b)=>a.t-b.t).forEach(e => {
@@ -5896,7 +6043,7 @@
       if (!past) setSpeaking(l.who);
       const air = l.who==='radio' || l.who==='tv';   // a live line from the radio / TV the story reacts to
       if (air){ MEDIA_UNTIL = at + 240000; if (l.who==='radio' && !past) Sound.duck(true); }
-      await addMsg({id: ev.id + ':' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, via: l.via}, true, {at, ms: p.ms});
+      await addMsg({id: ev.id + ':' + (p.x ? 'x' : '') + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, via: l.via}, true, {at, ms: p.ms});
       await untilT(at + p.ms); if (entry.dead) break;
       if (air && l.who==='radio' && !past) Sound.duck(false);
     }
@@ -6865,6 +7012,7 @@
       locals: () => LOCAL,
       cast: () => Object.values(CAST), setCast: list => setCast([...base, ...list]), reset,
       play(m){ const e = event(m); ingest([e], false); },
+      talk: () => tlLast ? {start: tlLast.start, end: tlLast.end, now: NOW(), speaking: SPEAKING, line: talkNow(), heads: HEADS, plan: tlLast.plan.map(p => ({at: p.at, ms: p.ms, who: p.l.who, say: p.l.say, x: !!p.x, host: !!p.host}))} : null,   // the live talk's plan (v250): turns, cut-ins, short reactions
       arena(a){ ARENA = a || null; arenaPreload(); },
       promos(list){ PROMOS = list || []; renderPromos(); },
       poker(d, minAgo){ POKER = d ? {...d, at: NOW() - (minAgo || 0) * 60000} : null; },
