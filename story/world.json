@@ -347,8 +347,8 @@
   },
   "bar": {
    "kind": "story",
-   "desc": "The Black Candle, a small dark rock bar on Herzl Street next to his building: black brick, red neon, candles on the tables, band posters, a bearded bartender, rock and alternative music on the radio all night. He sits at a candle-lit table (drinking a beer, eating bar snacks). Opens 17:00, closes 02:00",
-   "actions": ["idle", "drinking", "eating", "talking", "phoning", "improv"],
+   "desc": "The Black Candle, a small dark rock bar on Herzl Street next to his building: black brick, red neon, candles on the tables, band posters, a bearded bartender, rock and alternative music on the radio all night. He sits at a candle-lit table (drinking a beer, eating bar snacks). A toilet at the back, under the posters (action bathroom). Opens 17:00, closes 02:00",
+   "actions": ["idle", "drinking", "eating", "talking", "phoning", "improv", "bathroom"],
    "links": {
     "street": {"exit": 4, "entry": 4}
    },
@@ -357,8 +357,8 @@
   },
   "market": {
    "kind": "story",
-   "desc": "Shuk Shalom, an open-air food market a short bus ride away (bus or taxi from the stop on Herzl Street; it has its own bus stop): stalls of tomatoes, cucumbers, oranges, bananas, spices, fresh pita, olives and fresh juice, vendors calling out prices, crowds. Food only. He can eat a snack or drink a fresh juice there. Open 07:00-19:00 (Friday until 14:00, closed on Shabbat). Its vendors also deliver through ateBite",
-   "actions": ["walking", "idle", "talking", "eating", "drinking", "phoning"],
+   "desc": "Shuk Shalom, an open-air food market a short bus ride away (bus or taxi from the stop on Herzl Street; it has its own bus stop): stalls of tomatoes, cucumbers, oranges, bananas, spices, fresh pita, olives and fresh juice, vendors calling out prices, crowds. Food only. He can eat a snack or drink a fresh juice there. A green public toilet cabin at the end of the stalls (action bathroom). Open 07:00-19:00 (Friday until 14:00, closed on Shabbat). Its vendors also deliver through ateBite",
+   "actions": ["walking", "idle", "talking", "eating", "drinking", "phoning", "bathroom"],
    "links": {
     "street": {"exit": 128, "entry": 128, "ride": true},
     "store": {"exit": 4, "entry": 4}

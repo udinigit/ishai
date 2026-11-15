@@ -1023,7 +1023,7 @@ function buildMessages(s, clock, now, goal, opt = {}) {
       ? (hrs("bathroom") > NEED_H.bathroom * 1.5 && need.includes("needs the bathroom") ? (hasWC(last.location) ? ` In this moment he says "one sec" and goes to the bathroom (action "bathroom"); ${name(last.with)} waits. No jokes about it.` : wcNote(last.location, now + DELAY_MIN * 60000)) : "")
       : ` He is ${need.join(" and ")} — let that show soon, naturally.` + (need.includes("needs the bathroom") ? wcNote(last.location, now + DELAY_MIN * 60000) : "")) : "") +
     (last.bathFrom ? ` He just used the toilet at ${placeName(last.location)}; now he walks back to ${placeName(last.bathFrom)}${s.events[s.events.length - 2]?.with ? ` where ${name(s.events[s.events.length - 2].with)} is waiting` : ""} (location "${last.bathFrom}"), unless he has a reason to go elsewhere.` : "") +
-    (last.holdIt ? ` He needs the toilet but there is none here: he holds it, and heads somewhere with one soon (home, Herzl Gym, Café Nahat, The Big S).` : "");
+    (last.holdIt ? ` He needs the toilet but there is none here: he holds it, and heads somewhere with one soon (${wcList()}).` : "");
   // pacing: keep the show moving
   const evs = s.events, hourNow = clock.hour;
   let sinceMove = 0; for (let i = evs.length - 1; i >= 0 && evs[i].location === last.location; i--) sinceMove = (now - (evs[i].created || evs[i].t)) / 60000;
@@ -1075,7 +1075,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - "walking" means walking somewhere or a stroll outside; for chatting use "talking", for hanging around use "idle".
 - The camera shows only "action": pick the action that matches what happens (a drink = drinking, a snack = eating); the hosts describe only what the picture can show.
 - Respect the clock: he sleeps at night (roughly 00:00-07:30), eats at mealtimes, works on weekdays (Sunday-Thursday in Israel).
-- He is a real person: he drinks, eats, uses the bathroom and showers. Bathroom and shower happen behind a closed door; keep them brief and tasteful. Showers only at home; toilets only at home, Herzl Gym, Café Nahat and The Big S (floor 1 and the food court). Anywhere else he holds it or walks to the nearest one and comes back.
+- He is a real person: he drinks, eats, uses the bathroom and showers. Bathroom and shower happen behind a closed door; keep them brief and tasteful. Showers only at home; toilets only at home, Herzl Gym, Café Nahat, The Black Candle, The Big S (floor 1 and the food court) and the public toilet at Shuk Shalom. Anywhere else he holds it or walks to the nearest one and comes back.
 - THE REAL WORLD is real: use the real weather and the Jewish calendar (e.g. Friday-night Shabbat dinner) naturally. If any real news sounds sad or serious, he reacts briefly and respectfully, never jokes about it, or changes the channel.
 - Location must be one of: ${Object.keys(LOCATIONS).join(", ")}. Action must be allowed in that location.
 - He can only move to a neighboring location: ${Object.entries(NEXT).map(([k, v]) => `${k} -> ${v.join("/")}`).join("; ")}.
@@ -2489,10 +2489,11 @@ function lastWith(s, id) {
   return null;
 }
 function awayMins(from, to) { if (from === to) return 0; return Math.max(AWAY_MIN, (WALK[from] || {})[to] ?? 20); }
-// toilets: only the places whose actions in story/world.json include "bathroom" (home, Herzl Gym, Café Nahat, The Big S and its food court).
+// toilets: only the places whose actions in story/world.json include "bathroom" (home, Herzl Gym, Café Nahat, The Black Candle, The Big S and its food court, Shuk Shalom's public toilet).
 // Anywhere else he nips to the nearest one within WC_NEAR minutes' walk (validate() turns the moment into that trip, no retry) or holds it.
 const WC_NEAR = 12, FOOT = __WORLD_FOOT__;   // FOOT: minutes on foot between story places (no rides), from story/world.json
 const hasWC = loc => !!(LOCATIONS[loc] && LOCATIONS[loc].includes("bathroom"));
+const wcList = () => Object.keys(LOCATIONS).filter(hasWC).map(k => k === "apartment" ? "home" : k === "mall" ? "The Big S" : k === "foodcourt" ? "the food court" : k === "market" ? "the public toilet at Shuk Shalom" : placeName(k)).join(", ");
 function nearestWC(loc, ms) {
   if (hasWC(loc)) return { loc, min: 0 };
   let best = null;
@@ -2507,7 +2508,7 @@ function nearestWC(loc, ms) {
 function wcNote(loc, ms) {
   if (hasWC(loc)) return "";
   const n = nearestWC(loc, ms);
-  return ` There is no toilet at ${placeName(loc)} (toilets: home, Herzl Gym, Café Nahat, The Big S).` + (n && n.min <= WC_NEAR
+  return ` There is no toilet at ${placeName(loc)} (toilets: ${wcList()}).` + (n && n.min <= WC_NEAR
     ? ` If he needs one, he nips to ${placeName(n.loc)} (about ${n.min} min away: location "${n.loc}", action "bathroom") and then comes back, or he holds it until he gets somewhere with one.`
     : ` If he needs one, he holds it until he gets somewhere with one.`);
 }
