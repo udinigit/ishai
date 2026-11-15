@@ -474,8 +474,10 @@
   const STORE_AT = [[/yalla yoga|sportswear/i,'mall1a'],[/picsell|poster|print/i,'mall1a'],[/everything else/i,'mall1b'],[/kfar kofi|coffee|8 ?bit games|video game|fluffnap|pillow|bedding|duvet/i,'mall1c'],
     [/threadbare|sole mates|shoes|clothes|jeans|shirt/i,'mall2a'],[/pixel phones|phone case|charger|glasses|optician/i,'mall2b'],[/brrr|ice.?cream|page turner|book/i,'mall2c'],
     [/hummus|wok|noodle|pizza/i,'mall3a'],[/salad|schnitzel|kfar kofi/i,'mall3b']];
+  const WC_AT = { gym: 181, cafe: 105, mall1c: 113, mall3a: 5 };   // the WC doors out and about (wcNow())
   function screenFor(ev){
     const loc = (ev && ev.location) || 'apartment', list = PLACE_SCREENS[loc]; if (!list) return loc;
+    if (ev.action === 'bathroom'){ const wc = list.find(sc => sc in WC_AT); if (wc) return wc; }   // the restrooms are on one screen
     const named = STORE_AT.find(([re, sc]) => list.includes(sc) && re.test((ev.text || '') + ' ' + (ev.lines || []).map(l => l.say).join(' ')));
     if (named) return named[1];
     return list[Math.floor(hash(Math.floor((ev.t || 0) / 1200000) * 7 + list.length) * list.length)];
@@ -2600,7 +2602,8 @@
   }, {exitX: nearX => nearX > 150 ? W+8 : -18});
   SCENES.mall1c = mallScene('mall1c', 'CAM-32', 'THE BIG S // FLOOR 1', 1, 23, t => {
     mallStore(0,64,{name:'KFAR KOFI',band:'#6b3f22',sign:'#ffd9a0',type:'open',goods:['#c98a3a','#e8e4d8','#6b3f22']},t); mallCols([64,128]);
-    mallStore(68,60,{name:'8BIT GAMES',band:'#1b1464',sign:'#ffd23f',goods:['#3bceac','#ff4f79','#ffd23f']},t);
+    mallStore(68,40,{name:'8BIT GAMES',band:'#1b1464',sign:'#ffd23f',goods:['#3bceac','#ff4f79','#ffd23f']},t);
+    R(108,18,20,54,'#d8d4cc'); wcDoor(112, 32, 72, '#9aa4ae', '#c8d0d8');   // the restrooms
     mallStore(132,60,{name:'FLUFFNAP',band:'#9fc3e6',sign:'#2a3a5a',goods:['#f4f4f4','#9fc3e6','#f0d0e0']},t);
   });
   SCENES.mall2a = mallScene('mall2a', 'CAM-33', 'THE BIG S // FLOOR 2', 2, 24, t => {
@@ -2645,6 +2648,7 @@
     mallStore(110,38,{name:'WOK',band:'#c23b3b',sign:'#ffd23f',type:'food',goods:['#e0b04a','#7fbf6a','#c23b3b']},t);
     mallStore(152,40,{name:'PIZZA PI',band:'#2f7d3a',sign:'#ffffff',type:'food',goods:['#e0605a','#ffd36a','#f4f4f4']},t);
     R(0,12,60,60,'#e9e6df'); R(4,16,52,10,'#1a1a2a'); bigS(6,15); word('FOOD',20,18,'#ffd23f');
+    wcDoor(4, 38, 72, '#9aa4ae', '#c8d0d8');   // the restrooms
   }, [[134, [[2,4],[20,8]]], [8, []]], {exitX: nearX => nearX > 150 ? W+8 : nearX < 60 ? 40 : -18, props(t){ zAdd(80, () => escalatorArrive(40, t)); }});
   SCENES.mall3b = foodScene('mall3b', 'CAM-37', 28, t => {
     mallStore(0,44,{name:'SALAD DAYS',band:'#7fbf6a',sign:'#1a3a1a',type:'food',goods:['#7fbf6a','#e0605a','#ffd36a']},t); mallCols([44,86]);
@@ -3836,6 +3840,7 @@
       // the left table: behind anyone walking the aisle (96), in front of the customer sitting at it (88)
       zAdd(95, () => { R(20,80,34,2,'#9a7048'); R(35,82,4,16,'#5e4027'); R(30,79,3,3,'#e8e4d8'); R(44,79,3,3,'#e8e4d8'); });
       if (Math.floor(t/70000) % 2) crowdVisit(t, 70000, 6, 100, 74, 4, 74);
+      wcDoor(104, 46, 80, '#4a3220', '#6a4e38');   // the customer toilet
       // plant & lamp
       R(100,8,1,14,'#222'); R(96,22,9,4,'#e0b04a'); alpha(.12,()=>R(86,26,30,50,'#ffe8a0'));
       // table (Ishai sits behind it)
@@ -3843,12 +3848,13 @@
       // trivia night: Noa and Tomer at the corner table with him (walking in from the door, out after the final score)
       const mates = tv ? Object.keys(TRIV_SEATX).map(id => [id, triviaSeat(id, tvT), lookOf(id)]).filter(([, s, L]) => s && L) : [];
       mates.filter(([, s]) => s.walk).forEach(([id, s, L]) => zAdd(72, () => { const X = Math.round(s.x); markHead(id, X, this.walkY); person(L, X, this.walkY, t, {walk: true, face: s.dir}); }));
-      const cl = atTable && companionLook(a), seated = cl && wantComp({id: actor.with || 'stranger', look: cl, x: 90, kind:'seat'});
+      const waits = !atTable && a === 'bathroom' && actor.guestWaits && lookOf(actor.guestWaits) ? actor.guestWaits : null;   // he is in the toilet: the friend keeps the table
+      const cl = (atTable && companionLook(a)) || (waits && lookOf(waits)), seated = cl && wantComp({id: waits || actor.with || 'stranger', look: cl, x: 90, kind:'seat'});
       zAdd(102, () => {
       R(66,60,22,14,'#3a3a46'); // chair back
       mates.filter(([, s]) => s.seated).forEach(([id, s, L]) => { const X = s.x; if (id === 'tomer') R(48,60,14,14,'#3a3a46');
         markHead(id, X, 68); person(L, X, 68, t + strHash(id) % 900, {legs: false, face: TRIV_FACE[id], talkPhase: SAY.who === id}); });
-      if (seated){ markHead(actor.with, 90, 68); person(cl,90,68,t,{legs:false,face:-1,talkPhase:true}); }
+      if (seated){ markHead(waits || actor.with, 90, 68); person(cl,90,68,t,{legs:false,face:-1,talkPhase:!waits}); }
       if (atTable){
         if (a==='trivia') drawIshai(SAY.who === 'ishai' ? 'talking' : 'idle',72,68,t,{seated:true});
         else if (a==='talking') drawIshai('talking',72,68,t,{face:1, seated:true});
@@ -3948,7 +3954,8 @@
       // changing room (right edge): a door with a hanger sign; it opens when he goes in or comes out
       R(178,38,14,40,'#3a4450'); R(180,40,12,38,'#8fa3b5'); R(181,41,10,36,'#9db1c2'); R(181,60,1,3,'#e8e8e8');
       R(183,44,6,6,'#2b2f36'); R(185,45,2,1,'#e8e8e8'); R(184,46,4,1,'#e8e8e8'); R(183,47,1,1,'#e8e8e8'); R(188,47,1,1,'#e8e8e8');   // hanger
-      if ((actor.loc === 'gym' && !actor.hidden && actor.dressDoor === GYM_LOCKER_X && Math.abs(actor.x - GYM_LOCKER_X) < 6) || actor.dressBath === 'in' && NOW() > actor.dressUntil - 600) { R(180,40,12,38,'#14100c'); R(180,40,2,38,'#8fa3b5'); }
+      if ((actor.loc === 'gym' && !actor.hidden && actor.dressDoor === GYM_LOCKER_X && Math.abs(actor.x - GYM_LOCKER_X) < 6) || actor.dressBath === 'in' && NOW() > actor.dressUntil - 600 || (actor.loc === 'gym' && actor.wcDoor && !DREAMING)) { R(180,40,12,38,'#14100c'); R(180,40,2,38,'#8fa3b5'); }
+      wcSign(180,30);   // the toilets are through the changing room
       // someone at the mirror now and then
       if (!regular('michal', 30, 74, t, {face:-1, talking: SAY.who === 'michal'}) && Math.floor(t/80000) % 2) crowdVisit(t, 80000, 5, 40, 74, 4, 74, {face:-1});
       // treadmill 1 (Ishai's, right under the TV) and treadmill 2
@@ -4374,9 +4381,10 @@
   function drawFloor(t,a,settled,actor,scene){ zAdd(scene.walkY + 22, () => drawFloorNow(t,a,settled,actor,scene)); }
   function drawFloorNow(t,a,settled,actor,scene){
     if (actor.hidden) return;
+    if (a === 'bathroom' && actor.loc !== 'bathroom') a = 'idle';   // back from a WC out and about
     const y = scene.walkY;
     if (actor.wash > 1){ drawIshai('idle', actor.x, y, t); return; }
-    if (actor.err && !DREAMING){ if (actor.err.seat) return; drawIshai(actor.err.pose, actor.x, y + (actor.err.dy || 0), t, actor.err.o); return; }   // a seat: the scene draws him in it
+    if (actor.err && !DREAMING){ if (actor.err.seat || actor.err.away) return; drawIshai(actor.err.pose, actor.x, y + (actor.err.dy || 0), t, actor.err.o); return; }   // a seat: the scene draws him in it
     if (actor.viaUntil && !DREAMING){ drawIshai('back', actor.x, y, t); return; }
     // companion standing / walking next to Ishai
     let face = 0;
@@ -4509,6 +4517,35 @@
     }
     return null;
   }
+
+  // ================= toilets out and about (the gym, the café, The Big S) =================
+  // A moment with action 'bathroom' at a place with a WC: from the moment's start he walks to the WC door, goes in for WC_IN,
+  // comes out and walks back to his spot (then just stands about until the next moment). From the timeline, so everyone sees the same.
+  // The door is drawn by each scene with wcDoor(); actor.x values here are the door's middle - 5. The shower stays a home thing.
+  const WC_IN = 100000;   // WC_AT: next to screenFor()
+  function wcNow(){
+    actor.wcDoor = false;
+    const dx = WC_AT[actor.loc];
+    if (dx == null || actor.action !== 'bathroom' || actor.travelling || actor.hidden || actor.pending || actor.switching || actor.dressTo || actor.viaUntil || actor.settledAt == null) return null;
+    const n = tlNow(), now = NOW(), start = Math.max(actor.settledAt, n && n.e.ev.action === 'bathroom' ? n.e.start : 0) + 1500;
+    const x0 = standX(actor.loc, 'idle', null), dir = Math.sign(dx - x0) || 1, walk = Math.abs(dx - x0) / 24 * 1000;
+    let e = now - start; if (e < 0) return null;
+    if (e < walk) return {x: x0 + dir * e / 1000 * 24, pose:'walk', o:{}, walking:true, dir, label:'TO THE RESTROOM'};
+    e -= walk;
+    if (e < WC_IN){ actor.wcDoor = e < 1200 || e > WC_IN - 1200; return {x: dx, away:true, pose:'idle', o:{}, label:'IN THE RESTROOM'}; }
+    e -= WC_IN;
+    if (e < walk){ actor.wcDoor = e < 900; return {x: dx - dir * e / 1000 * 24, pose:'walk', o:{}, walking:true, dir: -dir, label:'WASHED HIS HANDS'}; }
+    return null;
+  }
+  // the WC door: 12 wide from x, between y0 and the floor y1, with its sign; open while he goes in or comes out
+  function wcDoor(x, y0, y1, frame, panel){
+    const open = actor.wcDoor && !DREAMING && Math.abs(actor.x + 5 - (x + 6)) < 8;
+    R(x-1,y0-1,14,y1-y0+1,frame); R(x,y0,12,y1-y0, open ? '#14100c' : panel);
+    if (open) R(x,y0,2,y1-y0,panel); else R(x+9,y0+Math.floor((y1-y0)/2),2,2,'#e8e8e8');
+    wcSign(x+1, y0-9);
+  }
+  // the blue WC sign, 11 x 7 (a wide W of its own: the font's W reads as an H)
+  function wcSign(x, y){ R(x,y,11,7,'#2f6fb5'); ['10001','10001','10101','10101','01010'].forEach((row,j) => [...row].forEach((b,i) => { if (b === '1') R(x+1+i, y+1+j, 1, 1, '#ffffff'); })); word('C', x+7, y+1, '#ffffff'); }
 
   // ================= home life: longer things he does in the flat when he is alone with nothing on =================
   // Every 150 s block may hold one activity (most do): he walks there, does it for a minute or so, and walks back to his spot.
@@ -4731,13 +4768,14 @@
     if (!SCENES[loc]) loc = 'offscreen';
     actor.viaFinal = null; actor.viaUntil = 0; actor.err = null;           // any running detour or errand ends
     if (loc==='apartment' && BATH.has(a)){ loc = 'bathroom'; if (actor.with) actor.guestWaits = actor.with; }
+    else if (a === 'bathroom' && loc in WC_AT && actor.with && actor.loc === loc){ actor.guestWaits = actor.with; }   // the friend keeps the table
     else if (!instant) actor.guestWaits = (w && w === actor.guestWaits) ? w : null;
     a = fixAction(loc, a);
     if (actor.dressTo){ if (actor.dressUntil) WEAR = actor.dressTo; actor.dressTo = null; actor.dressUntil = 0; actor.dressFinal = null;   // a new plan: a change under way finishes
       if (actor.dressBath === 'in'){ actor.hidden = false; actor.x = actor.dressDoor ?? BATH_DOOR_X; } }
     actor.dressBath = null; actor.dressDoor = null;
     if (instant){
-      Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, dressTo:null, dressUntil:0, dressBath:null, dressFinal:null, dressDoor:null, hidden: loc==='offscreen' || BATH.has(a), with:w, ride:null, rideUntil:0, rideInfo:null});
+      Object.assign(actor,{loc, action:a, pending:null, travelling:false, switching:0, dressTo:null, dressUntil:0, dressBath:null, dressFinal:null, dressDoor:null, hidden: loc==='offscreen' || (loc==='bathroom' && BATH.has(a)), with:w, ride:null, rideUntil:0, rideInfo:null});
       WEAR = loc === 'gym' ? 'gym' : (loc === 'apartment' || loc === 'bathroom') ? homeWear(a) : outWear(null);
       actor.x = standX(loc,a,w); actor.settledAt = NOW(); comp.settleUntil = NOW() + 2500; updateLabels(); return;
     }
@@ -4969,7 +5007,7 @@
 
   function update(dt, now){
     if (actor.switching){ if (now >= actor.switching) finishSwitch(); return; }
-    { const was = actor.err; actor.err = unpackNow() || homeNow() || cookNow() || errandNow();
+    { const was = actor.err; actor.err = wcNow() || unpackNow() || homeNow() || cookNow() || errandNow();
       { const lab = actor.err && actor.err.label || null, hud = $('hudAction');   // the corner label says what he is doing at home
         if (lab && !actor.dressTo && !actor.dressUntil && hud.textContent !== lab) hud.textContent = lab; else if (!lab && actor.homeLab) updateLabels(); actor.homeLab = lab; }
       if (actor.err) actor.x = actor.err.x;
@@ -4990,7 +5028,7 @@
         if (actor.loc !== 'bathroom') actor.fromLoc = null;
         actor.settledAt = NOW();
         if (actor.pending && actor.pending.route.length){ if (actor.pending.ride && (actor.loc==='street' || actor.loc==='market' || actor.loc==='campus' || actor.loc==='promenade')) startRide('depart', VEH.has(actor.pending.route[0]) ? actor.pending.route[0] : null); else beginSwitch(); }
-        else if (BATH.has(actor.action)){ actor.hidden = true; actor.hiddenAt = now; actor.leftBath = null; }
+        else if (BATH.has(actor.action) && actor.loc === 'bathroom'){ actor.hidden = true; actor.hiddenAt = now; actor.leftBath = null; }
       }
     } else if (actor.action==='gallery' && !actor.pending && actor.loc==='arena'){
       const gs = galleryNow();

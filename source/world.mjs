@@ -86,6 +86,18 @@ export function loadWorld(root = '..'){
     WALK[a] = {};
     for (const b of story) if (b !== a && P[b].kind !== 'vehicle'){ const m = Math.min(...startOf(b).map(x => x in d ? d[x] : Infinity)); WALK[a][b] = Math.max(AWAY_MIN, isFinite(m) ? m : 20); }
   }
+  // ---- FOOT: minutes between story places on foot only (no bus or taxi; places only a ride away are left out). The worker's toilet trips (nearestWC()) ----
+  const FOOT = {};
+  for (const a of story){ if (P[a].kind === 'vehicle') continue;
+    const d = Object.fromEntries(startOf(a).map(x => [x, 0])), done = new Set();
+    for (;;){
+      let n = null; for (const k in d) if (!done.has(k) && (n === null || d[k] < d[n])) n = k;
+      if (n === null) break; done.add(n);
+      for (const [m, l] of Object.entries(P[n].links || {})){ if (l.ride || P[m].kind === 'vehicle' || P[m].rideOnly) continue; const c = d[n] + cost(m); if (!(m in d) || c < d[m]) d[m] = c; }
+    }
+    FOOT[a] = {};
+    for (const b of story) if (b !== a && P[b].kind !== 'vehicle'){ const m = Math.min(...startOf(b).map(x => x in d ? d[x] : Infinity)); if (isFinite(m)) FOOT[a][b] = m; }
+  }
 
   // ---- the page's MAP, as JS (W+8 for "R") ----
   const xs = v => v === 'R' ? 'W+8' : String(v);
@@ -98,14 +110,14 @@ export function loadWorld(root = '..'){
   // the page's actions: every place, pass-through ones too (page only; default walking and idle)
   const pageActions = Object.fromEntries(ids.map(id => [id, P[id].actions || (P[id].of && P[P[id].of].actions) || ['walking', 'idle']]));
   const SCREENS = Object.fromEntries(ids.filter(id => P[id].screens).map(id => [id, P[id].screens]));
-  return { mapJs, NEXT, PLACES: pick('desc'), LOCATIONS: pick('actions'), pageActions, SCREENS, WALK, AWAY_MIN };
+  return { mapJs, NEXT, PLACES: pick('desc'), LOCATIONS: pick('actions'), pageActions, SCREENS, WALK, FOOT, AWAY_MIN };
 }
 
 // put the world into the page and the worker at their markers (each must be there exactly once)
 export function withWorld(src, name, w, kind){
   const marks = kind === 'page'
     ? { '/*__WORLD_MAP__*/{}': w.mapJs, '/*__WORLD_WALK__*/{}': JSON.stringify(w.WALK), '/*__WORLD_ACTIONS__*/{}': JSON.stringify(w.pageActions), '/*__WORLD_SCREENS__*/{}': JSON.stringify(w.SCREENS) }
-    : { '__WORLD_NEXT__': JSON.stringify(w.NEXT, null, 1), '__WORLD_PLACES__': JSON.stringify(w.PLACES, null, 1), '__WORLD_LOCATIONS__': JSON.stringify(w.LOCATIONS, null, 1), '__WORLD_WALK__': JSON.stringify(w.WALK) };
+    : { '__WORLD_NEXT__': JSON.stringify(w.NEXT, null, 1), '__WORLD_PLACES__': JSON.stringify(w.PLACES, null, 1), '__WORLD_LOCATIONS__': JSON.stringify(w.LOCATIONS, null, 1), '__WORLD_WALK__': JSON.stringify(w.WALK), '__WORLD_FOOT__': JSON.stringify(w.FOOT) };
   for (const [m, v] of Object.entries(marks)){
     if (src.split(m).length !== 2) throw new Error(`${name} needs ${m} exactly once`);
     src = src.replace(m, () => v);

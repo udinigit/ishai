@@ -717,7 +717,7 @@ async function tick(env, force) {
     c.lastSeen = storyMs; c.scenes = (c.scenes || 0) + 1;
   }
   s.events.push({ id: s.nextId++, t: storyMs, created: now, location: ev.location, action: ev.action, delivery: ev.delivery || undefined,
-    text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null, art: ev.art || undefined, then: ev.then || undefined });
+    text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null, art: ev.art || undefined, then: ev.then || undefined, bathFrom: ev.bathFrom || undefined, holdIt: ev.holdIt || undefined });
   // the day's highlights, replayed in Ishai's dreams at night
   { const prevEv = s.events[s.events.length - 2], hl = s.hl || (s.hl = []), lastHl = hl[hl.length - 1];
     const notable = !["sleeping", "waking", "bathroom", "showering"].includes(ev.action) && ev.location !== "offscreen" &&
@@ -1009,7 +1009,7 @@ function buildMessages(s, clock, now, goal, opt = {}) {
   const sc = s.scene && cw && s.scene.w === cw ? s.scene : null;
   const sceneBrief = sc ? `\nSCENE BRIEF (this conversation with ${name(sc.w)}): type: ${sc.type}. Why they are talking: ${sc.why}. Ishai wants: ${sc.ishaiWants}. ${name(sc.w)} wants: ${sc.theyWant}. ` +
     `Beats: ${sc.beats}. Planned ending: ${sc.ending}. Progress: ${sc.lines} of about ${sc.target} lines.` +
-    (!last.with ? ` Ishai just came back from the bathroom; ${name(sc.w)} waited in the apartment and is still there.` : "") +
+    (!last.with ? ` Ishai just came back from the bathroom; ${name(sc.w)} waited for him and is still there.` : "") +
     (sceneOverdue(sc, now + DELAY_MIN * 60000, s.stuck) ? ` THE SCENE ENDS IN THIS MOMENT: they wrap up and say goodbye (2-4 lines) and ${name(sc.w)} leaves (walks out / hangs up). After this moment ${name(sc.w)} is gone.`
       : sc.lines >= sc.target ? ` It is time to reach the planned ending now, naturally (a reason to leave, hang up, or move on).` : ` Keep both people pursuing what they want; move to the next beat when the current one is done.`) + "\n" : "";
   const allowNew = canAddPerson(s, now);
@@ -1020,8 +1020,10 @@ function buildMessages(s, clock, now, goal, opt = {}) {
   const need = Object.entries(NEED_H).filter(([k, h]) => hrs(k) > h).map(([k]) => ({ eat: "hungry", drink: "thirsty", bathroom: "needs the bathroom", shower: "needs a shower" })[k]);
   const body = `Body: last ate ${hrs("eat").toFixed(1)}h ago, last drink ${hrs("drink").toFixed(1)}h ago, bathroom ${hrs("bathroom").toFixed(1)}h ago, shower ${hrs("shower").toFixed(0)}h ago.` +
     (need.length ? (last.with
-      ? (hrs("bathroom") > NEED_H.bathroom * 1.5 && need.includes("needs the bathroom") ? ` In this moment he says "one sec" and goes to the bathroom (action "bathroom"); ${name(last.with)} waits. No jokes about it.` : "")
-      : ` He is ${need.join(" and ")} — let that show soon, naturally.`) : "");
+      ? (hrs("bathroom") > NEED_H.bathroom * 1.5 && need.includes("needs the bathroom") ? (hasWC(last.location) ? ` In this moment he says "one sec" and goes to the bathroom (action "bathroom"); ${name(last.with)} waits. No jokes about it.` : wcNote(last.location, now + DELAY_MIN * 60000)) : "")
+      : ` He is ${need.join(" and ")} — let that show soon, naturally.` + (need.includes("needs the bathroom") ? wcNote(last.location, now + DELAY_MIN * 60000) : "")) : "") +
+    (last.bathFrom ? ` He just used the toilet at ${placeName(last.location)}; now he walks back to ${placeName(last.bathFrom)}${s.events[s.events.length - 2]?.with ? ` where ${name(s.events[s.events.length - 2].with)} is waiting` : ""} (location "${last.bathFrom}"), unless he has a reason to go elsewhere.` : "") +
+    (last.holdIt ? ` He needs the toilet but there is none here: he holds it, and heads somewhere with one soon (home, Herzl Gym, Café Nahat, The Big S).` : "");
   // pacing: keep the show moving
   const evs = s.events, hourNow = clock.hour;
   let sinceMove = 0; for (let i = evs.length - 1; i >= 0 && evs[i].location === last.location; i--) sinceMove = (now - (evs[i].created || evs[i].t)) / 60000;
@@ -1073,7 +1075,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - "walking" means walking somewhere or a stroll outside; for chatting use "talking", for hanging around use "idle".
 - The camera shows only "action": pick the action that matches what happens (a drink = drinking, a snack = eating); the hosts describe only what the picture can show.
 - Respect the clock: he sleeps at night (roughly 00:00-07:30), eats at mealtimes, works on weekdays (Sunday-Thursday in Israel).
-- He is a real person: he drinks, eats, uses the bathroom and showers. Bathroom and shower happen behind the closed bathroom door; keep them brief and tasteful.
+- He is a real person: he drinks, eats, uses the bathroom and showers. Bathroom and shower happen behind a closed door; keep them brief and tasteful. Showers only at home; toilets only at home, Herzl Gym, Café Nahat and The Big S (floor 1 and the food court). Anywhere else he holds it or walks to the nearest one and comes back.
 - THE REAL WORLD is real: use the real weather and the Jewish calendar (e.g. Friday-night Shabbat dinner) naturally. If any real news sounds sad or serious, he reacts briefly and respectfully, never jokes about it, or changes the channel.
 - Location must be one of: ${Object.keys(LOCATIONS).join(", ")}. Action must be allowed in that location.
 - He can only move to a neighboring location: ${Object.entries(NEXT).map(([k, v]) => `${k} -> ${v.join("/")}`).join("; ")}.
@@ -1430,6 +1432,14 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
     const a2 = A[ev.action.replace(/\s+/g, "_")];
     if (a2) ev.action = LOCATIONS[ev.location].includes(a2) ? a2 : (ev.with && LOCATIONS[ev.location].includes("talking") ? "talking" : LOCATIONS[ev.location].includes("idle") ? "idle" : ev.action);
   }
+  // the bathroom where there is none: a quick trip to the nearest toilet (and back next moment), else he holds it. Never a retry.
+  if (ev.action === "bathroom" && !hasWC(ev.location) && !planned) {
+    const ms = Date.now() + DELAY_MIN * 60000, n = nearestWC(ev.location, ms), here = ev.location;
+    const reach = n && n.min <= WC_NEAR && (n.loc === last.location || NEXT[last.location]?.includes(n.loc) || nextPath(last.location, n.loc));   // (n is on foot from here)
+    if (reach) { ev.bathFrom = here; ev.location = n.loc; ev.with = null; ev.lines = (ev.lines || []).filter(l => l.who === "ishai").slice(0, 2); ev.then = null; }
+    else { const keep = LOCATIONS[here].includes(last.action) && !BATH_ACTIONS.includes(last.action) && last.location === here ? last.action : null;
+      ev.action = keep || (ev.with && LOCATIONS[here].includes("talking") ? "talking" : LOCATIONS[here].includes("idle") ? "idle" : LOCATIONS[here][0]); ev.holdIt = true; }
+  }
   if (!LOCATIONS[ev.location].includes(ev.action))
     return { ev, problem: `"${ev.action}" is not possible in ${ev.location} (allowed: ${allowed(ev.location, s.unlocked).join(", ")})` };
   if (NEEDS[ev.action] && !s.unlocked.includes(NEEDS[ev.action]) && !(goal && goal.unlock === NEEDS[ev.action] && ev.complete))
@@ -1438,7 +1448,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
     return { ev, problem: `he cannot go directly from ${last.location} to ${ev.location}; next place must be one of ${NEXT[last.location].join(", ")}` };
   // how long he stays (story/places.json "stay"): not one minute at the gym, not three hours
   { const ms = Date.now() + DELAY_MIN * 60000, r = stayRule(last.location), n = stayMins(s, last.location, ms);
-    if (r && !planned && !(goal && (goal.course || goal.fixed)) && !stayFree(s, goal, last.location, ms)) {
+    if (r && !planned && !ev.bathFrom && !last.bathFrom && !(goal && (goal.course || goal.fixed)) && !stayFree(s, goal, last.location, ms)) {
       if (ev.location !== last.location && n < r[0]) {
         if (!allowNoHosts) return { ev, problem: `he got to ${placeName(last.location)} only ${n} minutes ago and a visit there lasts at least ${r[0]} minutes: he stays ("location": "${last.location}") and does something there` };
         if (!ev.with || ev.with === last.with) { ev.location = last.location; ev.action = LOCATIONS[last.location].includes(last.action) ? last.action : LOCATIONS[last.location].includes("idle") ? "idle" : LOCATIONS[last.location][0]; ev.with = ev.with || null; }
@@ -1482,8 +1492,8 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
     ev.with = null; ev.lines = ev.lines.filter(l => l.who === "ishai").slice(0, 1); if (ev.action === "talking") ev.action = "idle";
   }
   // "heads to the bathroom" must actually take him there, or the story loops on it forever
-  if (!BATH_ACTIONS.includes(ev.action) && ev.location === "apartment" && /\b(goes|go|heads?|walks?|gets up to go|disappears|steps)\b[^.]{0,30}\b(bathroom|toilet|loo)\b/i.test(ev.text) && !/\b(back|returns?|comes out|out of)\b/i.test(ev.text)) {
-    ev.action = /shower/i.test(ev.text) ? "showering" : "bathroom"; ev.with = null;
+  if (!BATH_ACTIONS.includes(ev.action) && hasWC(ev.location) && /\b(goes|go|heads?|walks?|gets up to go|disappears|steps|nips|excuses himself)\b[^.]{0,30}\b(bathroom|toilet|loo|restroom|wc)\b/i.test(ev.text) && !/\b(back|returns?|comes out|out of)\b/i.test(ev.text)) {
+    ev.action = /shower/i.test(ev.text) && ev.location === "apartment" ? "showering" : "bathroom"; ev.with = null;
   }
   // the story must move: a moment that retells one of the last few is sent back
   if (!inClass && !planned && !(ev.action === "sleeping" && last.action === "sleeping")) { const prevTexts = s.events.slice(-4).map(e => e.text);
@@ -2479,6 +2489,28 @@ function lastWith(s, id) {
   return null;
 }
 function awayMins(from, to) { if (from === to) return 0; return Math.max(AWAY_MIN, (WALK[from] || {})[to] ?? 20); }
+// toilets: only the places whose actions in story/world.json include "bathroom" (home, Herzl Gym, Café Nahat, The Big S and its food court).
+// Anywhere else he nips to the nearest one within WC_NEAR minutes' walk (validate() turns the moment into that trip, no retry) or holds it.
+const WC_NEAR = 12, FOOT = __WORLD_FOOT__;   // FOOT: minutes on foot between story places (no rides), from story/world.json
+const hasWC = loc => !!(LOCATIONS[loc] && LOCATIONS[loc].includes("bathroom"));
+function nearestWC(loc, ms) {
+  if (hasWC(loc)) return { loc, min: 0 };
+  let best = null;
+  for (const k of Object.keys(LOCATIONS)) {
+    if (!hasWC(k)) continue;
+    const m = (FOOT[loc] || {})[k]; if (m == null) continue;   // on foot only, never a bus ride to a toilet
+    if (ms && !placeOpen(k, ms)) continue;
+    if (!best || m < best.min) best = { loc: k, min: m };
+  }
+  return best;
+}
+function wcNote(loc, ms) {
+  if (hasWC(loc)) return "";
+  const n = nearestWC(loc, ms);
+  return ` There is no toilet at ${placeName(loc)} (toilets: home, Herzl Gym, Café Nahat, The Big S).` + (n && n.min <= WC_NEAR
+    ? ` If he needs one, he nips to ${placeName(n.loc)} (about ${n.min} min away: location "${n.loc}", action "bathroom") and then comes back, or he holds it until he gets somewhere with one.`
+    : ` If he needs one, he holds it until he gets somewhere with one.`);
+}
 // for the story prompt: how long he has been here, and who has just left him somewhere and can't be elsewhere yet
 function stayNote(s, ms, goal) {
   const last = s.events[s.events.length - 1]; if (!last) return "";

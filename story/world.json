@@ -138,15 +138,15 @@
   "mall": {
    "kind": "story",
    "screens": ["mall1a", "mall1b", "mall1c", "mall2a", "mall2b", "mall2c"],
-   "desc": "The Big S, the big mall at the west end of the promenade (walk along the promenade, or the bus or taxi to the promenade's stop): floors 1 and 2, shops along tiled walkways, escalators in the middle, air conditioning. Shops: Yalla Yoga (sportswear), PicSell (posters and prints), Everything Else Express, FluffNap (bedding), Kfar Kofi (coffee), 8bit Games, Threadbare (clothes), Sole Mates (shoes), Toy Box, Pixel Phones, an optician, BRRR! (ice cream), Page Turner (books), a Tahini Tower Savings Bank branch. He browses ('idle'), buys, meets someone. Open 09:00-22:00, Friday until 16:00, closed on Saturday. The food court is upstairs (foodcourt)",
-   "actions": ["walking", "idle", "talking", "drinking", "eating", "phoning"],
+   "desc": "The Big S, the big mall at the west end of the promenade (walk along the promenade, or the bus or taxi to the promenade's stop): floors 1 and 2, shops along tiled walkways, escalators in the middle, air conditioning. Shops: Yalla Yoga (sportswear), PicSell (posters and prints), Everything Else Express, FluffNap (bedding), Kfar Kofi (coffee), 8bit Games, Threadbare (clothes), Sole Mates (shoes), Toy Box, Pixel Phones, an optician, BRRR! (ice cream), Page Turner (books), a Tahini Tower Savings Bank branch. He browses ('idle'), buys, meets someone. Open 09:00-22:00, Friday until 16:00, closed on Saturday. The food court is upstairs (foodcourt). Restrooms on floor 1 past 8bit Games (action bathroom)",
+   "actions": ["walking", "idle", "talking", "drinking", "eating", "phoning", "bathroom"],
    "notes": ["The Big S, floors 1-2 (story place made of six screens; the page picks the screen he goes to and walks him there)"]
   },
   "foodcourt": {
    "kind": "story",
    "screens": ["mall3a", "mall3b"],
-   "desc": "the food court on the top floor of The Big S, under a glass roof (up the escalators from the mall): counters of HummusPrime, Wok This Way, Pizza Pi, Salad Days, Schnitzel Schtick and Kfar Kofi around tables and chairs; he eats or drinks sitting at a table. Open 09:00-22:00, Friday until 16:00, closed on Saturday",
-   "actions": ["idle", "talking", "eating", "drinking", "phoning", "reading"],
+   "desc": "the food court on the top floor of The Big S, under a glass roof (up the escalators from the mall): counters of HummusPrime, Wok This Way, Pizza Pi, Salad Days, Schnitzel Schtick and Kfar Kofi around tables and chairs; he eats or drinks sitting at a table. Restrooms by the escalator (action bathroom). Open 09:00-22:00, Friday until 16:00, closed on Saturday",
+   "actions": ["idle", "talking", "eating", "drinking", "phoning", "reading", "bathroom"],
    "notes": ["The Big S, floor 3 (story place made of two screens)"]
   },
   "mall1a": {
@@ -288,8 +288,8 @@
   },
   "cafe": {
    "kind": "story",
-   "desc": "Cafe Nahat, a corner cafe (soft pop and soft rock on the radio, quietly)",
-   "actions": ["idle", "eating", "drinking", "working", "reading", "talking", "phoning", "trivia"],
+   "desc": "Cafe Nahat, a corner cafe (soft pop and soft rock on the radio, quietly); a customer toilet at the back (action bathroom: a quick visit, whoever is with him keeps the table)",
+   "actions": ["idle", "eating", "drinking", "working", "reading", "talking", "phoning", "trivia", "bathroom"],
    "links": {
     "shops": {"exit": 4, "entry": 4}
    },
@@ -337,8 +337,8 @@
   },
   "gym": {
    "kind": "story",
-   "desc": "Herzl Gym, a small neighborhood gym on Herzl Street, two doors from his building: treadmills facing two wall screens, Channel 9 with the sound on and 8bitTV, NESflicks or RGBeat next to it, a mirror wall with dumbbells, a water cooler. Here \"exercising\" means he walks or jogs on the treadmill watching the TV. Open 06:00-23:00",
-   "actions": ["exercising", "idle", "talking", "drinking", "phoning"],
+   "desc": "Herzl Gym, a small neighborhood gym on Herzl Street, two doors from his building: treadmills facing two wall screens, Channel 9 with the sound on and 8bitTV, NESflicks or RGBeat next to it, a mirror wall with dumbbells, a water cooler. Here \"exercising\" means he walks or jogs on the treadmill watching the TV. Toilets in the changing room (action bathroom: a quick visit, he comes back out). Open 06:00-23:00",
+   "actions": ["exercising", "idle", "talking", "drinking", "phoning", "bathroom"],
    "links": {
     "street": {"exit": 4, "entry": 4}
    },
