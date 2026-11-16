@@ -5580,7 +5580,9 @@ async function castReview(env, s, list, by, now) {
       const t = it.text;
       if (r.kind === "history") change = { ...change, history: castStr(t, 900) };
       else if (r.kind === "growth") change = { ...change, value: castStr(t, 240) };
-      else { let o = t; if (typeof o === "string") try { o = JSON.parse(o); } catch (e) { out.push({ n, error: "a card edit is the card as JSON" }); continue; } change = o; }
+      else { let o = t; if (typeof o === "string") try { o = JSON.parse(o); } catch (e) { out.push({ n, error: "a card edit is the card as JSON" }); continue; }
+        if (o && typeof o === "object") { delete o.hasSecrets; if (!Array.isArray(o.secrets) && change && change.secrets) o.secrets = change.secrets; }   // the director page never sees the secrets: keep the draft's
+        change = o; }
     }
     if (r.kind === "history") {
       const p = castPair(change.a, change.b); if (!p) { out.push({ n, error: "no such pair" }); continue; }
@@ -5689,8 +5691,12 @@ async function castApi(req, env, url) {
       if (Object.keys(extra).length) return json(extra, { "cache-control": "no-store" });
     }
     const queue = (await env.DB.prepare("SELECT n, at, tries, scene FROM cast_queue ORDER BY n").all()).results || [];
-    return json({ cards: CASTD.cards, notes: CASTD.notes, archived: CASTD.archived.slice(0, 80), facts: CASTD.facts, pairs: Object.values(CASTD.pairs), moods: CASTD.moods,
-      pending: await castPendingView(env, s, false), reviewed: (await castPendingView(env, s, true)).filter(x => x.state !== "pending"),
+    // no secrets on the director page (docs/DIRECTOR_UI_PLAN.md): a card's secrets stay in the store (cardSave and a card edit keep them) but are not sent
+    const noSec = c => { if (!c || typeof c !== "object" || !c.secrets) return c; const o = { ...c }; delete o.secrets; o.hasSecrets = true; return o; };
+    const pendNoSec = list => list.map(p => p.kind === "card" ? { ...p, change: noSec(p.change) } : p);
+    return json({ cards: Object.fromEntries(Object.entries(CASTD.cards).map(([k, c]) => [k, noSec(c)])), notes: CASTD.notes, archived: CASTD.archived.slice(0, 80), facts: CASTD.facts, pairs: Object.values(CASTD.pairs), moods: CASTD.moods,
+      looks: Object.fromEntries(Object.values(s.cast || {}).filter(c => c && c.look).map(c => [c.id, c.look])), ink: Object.fromEntries(Object.values(s.cast || {}).filter(c => c && c.ink).map(c => [c.id, c.ink])),
+      pending: pendNoSec(await castPendingView(env, s, false)), reviewed: pendNoSec((await castPendingView(env, s, true)).filter(x => x.state !== "pending")),
       queue: queue.map(r => { let w = "?"; try { w = JSON.parse(r.scene).w; } catch (e) {} return { n: r.n, at: r.at, tries: r.tries, w }; }), errors: s.castErrs || [], log: s.castLog || [],
       names: Object.fromEntries(["ishai", ...Object.keys(s.cast)].filter(id => castKnown(s, id)).map(id => [id, castName(s, id)])), moods_list: CAST_MOODS, labels: CAST_LABELS }, { "cache-control": "no-store" });
   }

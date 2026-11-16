@@ -49,6 +49,13 @@
   .sec.sx{cursor:pointer;user-select:none;font-size:17px;padding:4px 0} .sx-body[hidden]{display:none}
   .chips{display:flex;gap:6px;flex-wrap:wrap} .chips button{padding:3px 10px;background:transparent} .chips button.on{background:var(--faint);border-color:var(--phos)}
   .pb{border-top:1px dashed var(--faint);padding:6px 0} .pb .t{color:var(--amber)} .pl{margin:4px 0}
+  .cxgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-top:8px}
+  .cxc{border:1px solid var(--faint);border-left:4px solid var(--ink,#2a9a4c);border-radius:8px;padding:4px;text-align:center;cursor:pointer;background:#030803;font-size:15px;line-height:1.1}
+  .cxc.on{border-color:var(--phos);background:#0b200f} .cxc canvas{width:48px;height:64px;image-rendering:pixelated;display:block;margin:0 auto 2px}
+  .cxc .nm{font-size:17px;color:var(--phos)} .cxc .lb{color:var(--dim)} .cxc .md{color:var(--amber)}
+  .wbar{height:4px;background:#123d20;border-radius:2px;margin:3px 4px 0;position:relative} .wbar i{position:absolute;top:0;bottom:0;border-radius:2px}
+  .rv{border-top:1px dashed var(--faint);padding:6px 0} .rv .ed{margin-top:6px} .rv .ed textarea{min-height:70px}
+  .fl{border-top:1px dashed var(--faint);padding:3px 0} .fl button{padding:1px 8px;margin-left:6px}
   .tab{display:flex;flex-direction:column;gap:14px} .tab[hidden]{display:none}
   .tools{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:6px}
   .tools a{display:block;text-align:center;padding:10px;border:1px solid var(--dim);border-radius:8px;background:var(--faint);color:var(--phos);text-decoration:none}
@@ -126,32 +133,47 @@
       <div id="wish"></div></div>
     </section>
     <section class="tab" data-tab="cast" hidden>
-    <div class="box" id="castBox">
-      <div style="font-size:24px">Cast: cards, memories, feelings</div>
+    <div class="box" id="cxRevBox"><div style="font-size:24px" id="cxRevT">Waiting for review</div>
+      <div class="muted" style="font-size:16px">Claude reviews these every week; you can do it here first. Approve, edit or reject each, with a one-line reason.</div>
+      <div id="cxPend" style="font-size:17px"></div><div id="cxMsg" class="muted" style="font-size:16px"></div></div>
+    <div class="box" id="castBox"><div style="font-size:24px">People</div>
       <div id="cxSum" class="muted" style="font-size:16px"></div>
-      <details open style="margin-top:6px"><summary>Waiting for review (Claude's weekly review, or you)</summary><div id="cxPend" style="font-size:16px"></div></details>
-      <details style="margin-top:6px"><summary>Reviewed (undo)</summary><div id="cxRev" style="font-size:16px"></div></details>
-      <details style="margin-top:6px"><summary>A person: card, notes, facts</summary>
-        <select id="cxWho" style="margin-top:6px"></select>
-        <label>Card (JSON, saved as a new version)</label><textarea id="cxCard" style="min-height:180px;font-size:15px"></textarea>
-        <div class="bar"><button id="cxCardSave">Save card</button><button id="cxRedraft" class="ghost" title="Ask for a new AI draft of the full card (it goes to the review)">New AI draft</button><span id="cxMsg"></span></div>
-        <div id="cxNotes" style="font-size:16px;margin-top:8px"></div>
-        <div class="bar" style="margin-top:6px"><input id="cxNoteT" placeholder="add a note in their voice" style="flex:1"><select id="cxNoteAbout" style="width:auto"></select><select id="cxNoteImp" style="width:auto"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select><button id="cxNoteAdd">Add</button></div>
-        <div id="cxFacts" style="font-size:16px;margin-top:8px"></div>
-        <div class="bar" style="margin-top:6px"><input id="cxFk" placeholder="fact key" style="width:35%"><input id="cxFv" placeholder="value (empty clears)" style="flex:1"><button id="cxFset">Set</button></div>
-      </details>
-      <details style="margin-top:6px"><summary>Pairs: who feels what (tap a row to edit)</summary>
-        <canvas id="cxMap" width="320" height="320" style="width:100%;max-width:320px;display:block;margin:6px auto;background:#020502"></canvas>
-        <div id="cxPairs" style="font-size:15px"></div>
-        <div id="cxPairEd" hidden style="margin-top:6px">
-          <div id="cxPairName"></div>
-          <div class="row"><input id="cxPw" type="number" min="-5" max="5" title="warmth"><input id="cxPt" type="number" min="-5" max="5" title="trust"><input id="cxPx" type="number" min="-5" max="5" title="tension"></div>
-          <select id="cxPl"></select><textarea id="cxPh" placeholder="history" style="min-height:60px"></textarea><input id="cxPth" placeholder="what's open between them">
-          <div class="bar"><button id="cxPsave">Save pair</button></div>
+      <div id="cxGrid" class="cxgrid"></div>
+      <div id="cxSheet" hidden>
+        <div class="bar" style="justify-content:space-between;margin-top:10px"><span id="cxSheetName" style="font-size:22px"></span><button id="cxSheetX" class="ghost" style="padding:2px 10px">✕</button></div>
+        <div class="chips" id="cxSub"><button data-s="card" class="on">Card</button><button data-s="notes">Notes</button><button data-s="facts">Facts</button><button data-s="pairs">Pairs</button></div>
+        <div data-sub="card">
+          <div id="cxForm"></div>
+          <div class="bar" style="margin-top:8px"><button id="cxFormSave">Save card</button><button id="cxRedraft" class="ghost" title="Ask for a new AI draft of the full card (it goes to the review)">New AI draft</button><span id="cxFormMsg" class="muted" style="font-size:16px"></span></div>
+          <details style="margin-top:8px"><summary>Advanced: the card as JSON</summary>
+            <textarea id="cxCard" style="min-height:180px;font-size:15px"></textarea>
+            <div class="bar"><button id="cxCardSave" class="ghost">Save JSON</button></div></details>
+          <div id="cxSecNote" class="muted" style="font-size:15px;margin-top:4px"></div>
         </div>
-      </details>
-      <details style="margin-top:6px"><summary>Moods now, the keeper's queue and errors</summary><div id="cxMoods" style="font-size:16px"></div><div id="cxQueue" style="font-size:16px;margin-top:6px"></div><div class="bar"><button id="cxQclear" class="ghost">Clear the queue</button></div></details>
+        <div data-sub="notes" hidden>
+          <div id="cxNotes" style="font-size:16px"></div>
+          <div class="bar" style="margin-top:6px"><input id="cxNoteT" placeholder="add a note in their voice" style="flex:1;min-width:180px"><select id="cxNoteAbout" style="width:auto"></select><select id="cxNoteImp" style="width:auto" title="importance"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select><button id="cxNoteAdd">Add</button></div>
+        </div>
+        <div data-sub="facts" hidden>
+          <div id="cxFacts" style="font-size:16px"></div>
+          <div class="bar" style="margin-top:6px"><input id="cxFk" placeholder="fact key" style="width:35%"><input id="cxFv" placeholder="value" style="flex:1"><button id="cxFset">Set</button></div>
+        </div>
+        <div data-sub="pairs" hidden><div id="cxPPairs" style="font-size:16px"></div></div>
+      </div>
     </div>
+    <div class="box"><div style="font-size:24px">Who feels what</div>
+      <canvas id="cxMap" width="480" height="480" style="width:100%;max-width:480px;display:block;margin:6px auto;background:#020502"></canvas>
+      <div class="muted" style="font-size:15px;text-align:center">green warm · red cold · amber tension · Ishai in the middle</div>
+      <details style="margin-top:6px"><summary>Every pair (tap to edit)</summary><div id="cxPairs" style="font-size:15px"></div></details>
+      <div id="cxPairEd" hidden style="margin-top:8px;border-top:1px solid var(--faint);padding-top:6px">
+        <div id="cxPairName" style="font-size:19px"></div>
+        <div class="row"><label>warmth<input id="cxPw" type="number" min="-5" max="5"></label><label>trust<input id="cxPt" type="number" min="-5" max="5"></label><label>tension<input id="cxPx" type="number" min="-5" max="5"></label></div>
+        <label>what they are</label><select id="cxPl"></select><label>history</label><textarea id="cxPh" style="min-height:60px"></textarea><label>what's open between them</label><input id="cxPth">
+        <div class="bar" style="margin-top:6px"><button id="cxPsave">Save pair</button><button id="cxPclose" class="ghost">Close</button></div>
+      </div>
+    </div>
+    <div class="box"><div style="font-size:24px">Moods, the keeper and errors</div><div id="cxMoods" style="font-size:16px"></div><div id="cxQueue" style="font-size:16px;margin-top:6px"></div><div class="bar"><button id="cxQclear" class="ghost">Clear the queue</button></div></div>
+    <div class="box"><div style="font-size:24px" id="cxRevdT">Reviewed (undo)</div><div id="cxRev" style="font-size:16px"></div></div>
     </section>
     <section class="tab" data-tab="week" hidden>
     <div class="box">
@@ -245,50 +267,98 @@
     if (!r.ok){ const e = new Error(j.error || ('error '+r.status)); e.google = j.google; throw e; }
     return j;
   }
-  // ---- the Cast box (docs/CAST_PLAN.md): /api/cast/dir ----
-  let CX = null, cxPair = null;
+  // ---- the CAST tab (docs/CAST_PLAN.md, docs/DIRECTOR_UI_PLAN.md step 4): /api/cast/dir ----
+  // Never a secret: the worker sends cards without their secrets (and keeps them on every save).
+  let CX = null, cxPair = null, cxWho = null, cxSubK = 'card';
   async function cxApi(body){
     const r = await fetch('/api/cast/dir', {method: body ? 'POST' : 'GET', headers: {'x-admin-key': KEY, 'content-type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
     const j = await r.json().catch(() => ({error: 'bad response (' + r.status + ')'})); if (!r.ok) throw new Error(j.error || 'error ' + r.status); return j;
   }
   const cxEl = (tag, txt, st) => { const e = document.createElement(tag); if (txt != null) e.textContent = txt; if (st) e.style.cssText = st; return e; };
   const cxBtn = (txt, fn, ghost) => { const b = cxEl('button', txt); if (ghost) b.className = 'ghost'; b.style.padding = '2px 8px'; b.onclick = fn; return b; };
-  async function cxDo(body, msg){ try { const r = await cxApi(body); if (r.results && r.results.some(x => x.error)) alert(r.results.map(x => x.n + ': ' + (x.error || 'ok')).join('\n')); await cxLoad(); if (msg) $('cxMsg').textContent = msg; } catch (e) { alert(e.message); } }
+  async function cxDo(body, msg, where = 'cxMsg'){
+    const m = $(where); if (m) { m.className = 'muted'; m.textContent = 'Saving…'; }
+    try { const r = await cxApi(body); const bad = (r.results || []).filter(x => x.error); await cxLoad();
+      if (m) { if (bad.length) { m.className = 'err'; m.textContent = bad.map(x => '#' + x.n + ': ' + x.error).join(' · '); } else { m.className = 'ok'; m.textContent = msg || 'Done.'; } } }
+    catch (e) { if (m) { m.className = 'err'; m.textContent = e.message; } else alert(e.message); }
+  }
   function cxChange(p){
     const c = p.change || {};
     if (p.kind === 'history') return 'History of ' + p.names.join(' & ') + ': ' + c.history;
     if (p.kind === 'growth') return `${p.names[0]}: ${c.field} ${c.op} "${c.value}"`;
     return `${p.names[0]}: full card. ${c.backstory || ''} ${c.inside ? 'Wants: ' + (c.inside.wantsWeek || c.inside.wantsLong || '') : ''}`;
   }
-  function cxReviewBar(p){   // Approve / Edit / Reject for one proposal (the Cast box and the NOW inbox)
-    const bar = cxEl('div'); bar.className = 'bar';
-    bar.append(cxBtn('Approve', () => cxDo({action: 'review', reviews: [{n: p.n, verdict: 'approve', reason: prompt('Why? (one line)', 'fits the card') || 'approved'}]})),
-      cxBtn('Edit', () => { const cur = p.kind === 'history' ? p.change.history : p.kind === 'growth' ? p.change.value : JSON.stringify(p.change); const tx = prompt('Your wording' + (p.kind === 'card' ? ' (the card as JSON)' : ''), cur); if (tx) cxDo({action: 'review', reviews: [{n: p.n, verdict: 'edit', text: tx, reason: prompt('Why? (one line)', 'reworded') || 'edited'}]}); }, true),
-      cxBtn('Reject', () => cxDo({action: 'review', reviews: [{n: p.n, verdict: 'reject', reason: prompt('Why? (one line)', 'does not fit') || 'rejected'}]}), true));
-    return bar;
+  // Approve / Edit / Reject for one proposal (the CAST tab and the NOW inbox): each opens a small form in place, never a pop-up
+  function cxReviewBar(p){
+    const wrap = cxEl('div'), bar = cxEl('div'), ed = cxEl('div'); bar.className = 'bar'; ed.className = 'ed'; ed.hidden = true;
+    const DONE = {approve: 'approved', edit: 'edited', reject: 'rejected'}, GO = {approve: 'Approve', edit: 'Save my wording', reject: 'Reject'}, WHY = {approve: 'fits the card', edit: 'reworded', reject: 'does not fit'};
+    const open = verdict => {
+      ed.textContent = ''; ed.hidden = false; bar.hidden = true; let ta = null;
+      if (verdict === 'edit') { ed.appendChild(cxEl('label', p.kind === 'card' ? 'The card as JSON (its secrets, if any, are kept)' : 'Your wording'));
+        ta = cxEl('textarea'); ta.value = p.kind === 'history' ? p.change.history : p.kind === 'growth' ? p.change.value : JSON.stringify(p.change, null, 1); ed.appendChild(ta); }
+      ed.appendChild(cxEl('label', 'Why (one line)')); const why = cxEl('input'); why.value = WHY[verdict]; ed.appendChild(why);
+      const b2 = cxEl('div'); b2.className = 'bar'; b2.style.marginTop = '6px';
+      b2.append(cxBtn(GO[verdict], () => { const r = {n: p.n, verdict, reason: why.value.trim() || DONE[verdict]}; if (ta) r.text = ta.value; cxDo({action: 'review', reviews: [r]}, `#${p.n} ${DONE[verdict]}.`); }, verdict !== 'approve'),
+        cxBtn('Cancel', () => { ed.hidden = true; bar.hidden = false; }, true));
+      ed.appendChild(b2); (ta || why).focus(); };
+    bar.append(cxBtn('Approve', () => open('approve')), cxBtn('Edit', () => open('edit'), true), cxBtn('Reject', () => open('reject'), true));
+    wrap.append(bar, ed); return wrap;
   }
+  // portraits, drawn by the show's own code in a hidden /?builder page (loaded the first time the CAST tab opens)
+  const INK_DIR = {ishai:'#24998a', noa:'#d0479a', levi:'#8a4fd0', avi:'#e07b1f', dana:'#c99a12', tomer:'#2f6fd6', gadi:'#5f7088', michal:'#d23c3c', sivan:'#2f9e4a', zelig:'#8a6a3a', kobi:'#a8306a', lior:'#3f8fae', yael:'#e0603a', sasson:'#5a5ad0', hagit:'#4f8a8b', boaz:'#7d8f2a', ronit:'#ff6f61', moti:'#c47b9a', yossi:'#9acd32', shmulik:'#1c2a5a'};
+  const INK_MORE = ['#b5523b','#2c8c6e','#7a5fc0','#c07a1a','#3b7bc2','#a83f8f','#5c8a2a','#c04848'];
+  const inkOf = id => (CX && CX.ink && CX.ink[id]) || INK_DIR[id] || INK_MORE[[...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % INK_MORE.length];
+  let ART = null, artP = null; const PORTRAIT = {};
+  function cxArt(){
+    if (artP) return artP;
+    const f = document.createElement('iframe'); f.src = '/?builder'; f.title = 'art'; f.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;border:0'; document.body.appendChild(f);
+    return artP = new Promise(res => { let n = 0; const w = () => { try { if (f.contentWindow.__builder) { ART = f.contentWindow.__builder; return res(ART); } } catch (e) {} if (++n < 120) setTimeout(w, 300); else res(null); }; w(); });
+  }
+  function portrait(cv, id){
+    const paint = () => { const s = PORTRAIT[id]; if (!s) return; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.clearRect(0, 0, cv.width, cv.height);
+      const k = Math.max(1, Math.min(Math.floor(cv.width / s.w), Math.floor(cv.height / s.h))); x.drawImage(s.canvas, Math.floor((cv.width - s.w * k) / 2), cv.height - s.h * k, s.w * k, s.h * k); };
+    if (PORTRAIT[id]) return paint();
+    cxArt().then(B => { if (!B) return; try { const look = CX && CX.looks && CX.looks[id];
+      const s = id === 'ishai' ? B.sprite({kind: 'ishai', pose: 'idle', frame: 0}) : look ? B.sprite({kind: 'person', look, pose: 'stand', face: 'ahead', frame: 0}) : null;
+      if (s) { const c = document.createElement('canvas'); c.width = s.w; c.height = s.h; c.getContext('2d').drawImage(s.canvas, 0, 0); PORTRAIT[id] = {canvas: c, w: s.w, h: s.h}; paint(); } } catch (e) {} });
+  }
+  const pairOf = (v, a, b) => v.pairs.find(p => (p.a === a && p.b === b) || (p.a === b && p.b === a));
   async function cxLoad(){
     let v; try { v = await cxApi(); } catch (e) { $('cxSum').textContent = 'Cast: ' + e.message; return; }
     CX = v; const N = id => v.names[id] || id; if (V) renderInbox(V);
     const cards = Object.values(v.cards);
-    $('cxSum').textContent = `${cards.length} cards (${cards.filter(c => c.backstory).length} full), ${v.notes.length} live notes, ${v.archived.length}+ archived, ${v.pairs.length} pairs, ${v.pending.length} waiting for review, ${v.queue.length} scene(s) waiting for the keeper.` + (v.errors.length ? ` Last error: ${v.errors[v.errors.length - 1].msg}` : '');
+    $('cxSum').textContent = `${cards.length} cards (${cards.filter(c => c.backstory).length} full), ${v.notes.length} live notes, ${v.archived.length}+ archived, ${v.pairs.length} pairs, ${v.queue.length} scene(s) waiting for the keeper. Tap someone to open their card.` + (v.errors.length ? ` Last error: ${v.errors[v.errors.length - 1].msg}` : '');
+    // review
+    $('cxRevT').textContent = 'Waiting for review' + (v.pending.length ? ` (${v.pending.length})` : ' · nothing');
     const pd = $('cxPend'); pd.textContent = v.pending.length ? '' : 'Nothing waiting.';
-    v.pending.forEach(p => { const d = cxEl('div', null, 'border-top:1px dashed #123d20;padding:6px 0');
-      d.appendChild(cxEl('div', `#${p.n} ${p.kind} · ${fmt(p.at)} · ${cxChange(p)}`)); d.appendChild(cxEl('div', 'Why: ' + (p.why || '—'), 'color:#2a9a4c'));
+    v.pending.forEach(p => { const d = cxEl('div'); d.className = 'rv';
+      d.appendChild(cxEl('div', `#${p.n} ${p.kind} · ${fmt(p.at)}`, 'color:var(--amber)')); d.appendChild(cxEl('div', cxChange(p)));
+      d.appendChild(cxEl('div', 'Why: ' + (p.why || '—'), 'color:var(--dim);font-size:16px'));
       if (p.kind === 'card'){ const det = cxEl('details'); det.appendChild(cxEl('summary', 'the whole card')); det.appendChild(cxEl('pre', JSON.stringify(p.change, null, 1), 'white-space:pre-wrap;font-size:13px')); d.appendChild(det); }
       d.appendChild(cxReviewBar(p)); pd.appendChild(d); });
+    $('cxRevdT').textContent = `Reviewed (undo)` + (v.reviewed.length ? ` (${Math.min(30, v.reviewed.length)})` : '');
     const rv = $('cxRev'); rv.textContent = v.reviewed.length ? '' : 'Nothing yet.';
-    v.reviewed.slice(0, 30).forEach(p => { const d = cxEl('div', `#${p.n} ${p.state} by ${p.review ? p.review.by : '—'} (${p.review ? fmt(p.review.at) : ''}): ${cxChange(p).slice(0, 160)}${p.review && p.review.reason ? ' — ' + p.review.reason : ''} `, 'border-top:1px dashed #123d20;padding:4px 0');
-      if (p.state === 'approved' || p.state === 'edited') d.appendChild(cxBtn('Undo', () => { if (confirm('Undo #' + p.n + '?')) cxDo({action: 'undo', n: p.n}); }, true)); rv.appendChild(d); });
-    const sel = $('cxWho'), cur = sel.value || 'ishai'; sel.textContent = '';
-    Object.keys(v.names).forEach(id => { const o = cxEl('option', v.names[id]); o.value = id; sel.appendChild(o); }); sel.value = v.names[cur] ? cur : 'ishai';
+    v.reviewed.slice(0, 30).forEach(p => { const d = cxEl('div', `#${p.n} ${p.state} by ${p.review ? p.review.by : '—'} (${p.review ? fmt(p.review.at) : ''}): ${cxChange(p).slice(0, 160)}${p.review && p.review.reason ? ' — ' + p.review.reason : ''} `); d.className = 'fl';
+      if (p.state === 'approved' || p.state === 'edited') d.appendChild(cxBtn('Undo', () => { if (confirm('Undo #' + p.n + '?')) cxDo({action: 'undo', n: p.n}, `#${p.n} undone.`); }, true)); rv.appendChild(d); });
+    // people
+    const ids = Object.keys(v.names).sort((a, b) => a === 'ishai' ? -1 : b === 'ishai' ? 1 : ((pairOf(v, 'ishai', b) || {}).warmth || 0) - ((pairOf(v, 'ishai', a) || {}).warmth || 0) || N(a).localeCompare(N(b)));
+    const gr = $('cxGrid'); gr.textContent = '';
+    ids.forEach(id => { const c = cxEl('div'); c.className = 'cxc' + (id === cxWho ? ' on' : ''); c.dataset.id = id; c.style.setProperty('--ink', inkOf(id));
+      const cv = cxEl('canvas'); cv.width = 48; cv.height = 64; c.appendChild(cv); portrait(cv, id);
+      c.appendChild(cxEl('div', N(id), null)).className = 'nm';
+      const p = id === 'ishai' ? null : pairOf(v, 'ishai', id), m = v.moods[id];
+      if (p) { c.appendChild(cxEl('div', p.label || '—')).className = 'lb';
+        const wb = cxEl('div'); wb.className = 'wbar'; wb.title = 'warmth with Ishai ' + p.warmth; const i = cxEl('i'); const w = Math.abs(p.warmth) * 10;
+        i.style.cssText = `left:${p.warmth >= 0 ? 50 : 50 - w}%;width:${w}%;background:${p.warmth >= 0 ? '#4dff7a' : '#ff6b6b'}`; wb.appendChild(i); c.appendChild(wb); }
+      else if (id === 'ishai') c.appendChild(cxEl('div', 'the one')).className = 'lb';
+      if (m) c.appendChild(cxEl('div', m.mood)).className = 'md';
+      c.onclick = () => cxOpen(cxWho === id ? null : id); gr.appendChild(c); });
     const ab = $('cxNoteAbout'); if (!ab.children.length){ ab.appendChild(Object.assign(cxEl('option', 'about nobody'), {value: ''})); Object.keys(v.names).forEach(id => { const o = cxEl('option', 'about ' + v.names[id]); o.value = id; ab.appendChild(o); }); ab.value = 'ishai'; }
-    cxPerson();
+    if (cxWho && v.names[cxWho]) cxPerson(); else cxOpen(null);
+    // pairs and the map
     const pl = $('cxPl'); if (!pl.children.length) v.labels.forEach(l => pl.appendChild(Object.assign(cxEl('option', l), {value: l})));
     const pr = $('cxPairs'); pr.textContent = '';
-    [...v.pairs].sort((a, b) => Math.abs(b.warmth) + b.tension - Math.abs(a.warmth) - a.tension).forEach(p => { const d = cxEl('div', `${N(p.a)} & ${N(p.b)}: ${p.label || '?'} · warmth ${p.warmth} trust ${p.trust} tension ${p.tension}${p.thread ? ' · open: ' + p.thread : ''}`, 'cursor:pointer;border-top:1px dashed #123d20;padding:3px 0');
-      d.onclick = () => { cxPair = p; $('cxPairEd').hidden = false; $('cxPairName').textContent = N(p.a) + ' & ' + N(p.b) + ' (warmth, trust, tension)'; $('cxPw').value = p.warmth; $('cxPt').value = p.trust; $('cxPx').value = p.tension; $('cxPl').value = p.label || 'acquaintances'; $('cxPh').value = p.history || ''; $('cxPth').value = p.thread || ''; };
-      pr.appendChild(d); });
+    [...v.pairs].sort((a, b) => Math.abs(b.warmth) + b.tension - Math.abs(a.warmth) - a.tension).forEach(p => pr.appendChild(pairRow(p)));
     cxMap(v);
     const md = $('cxMoods'); md.textContent = Object.keys(v.moods).length ? '' : 'No moods right now.';
     Object.values(v.moods).forEach(m => md.appendChild(cxEl('div', `${N(m.who)}: ${m.mood} (${m.why || '—'}) until ${fmt(m.until)}`)));
@@ -296,33 +366,88 @@
     v.log.slice(-6).reverse().forEach(l => q.appendChild(cxEl('div', `${fmt(l.at)} ${N(l.w)}: ${(l.did || []).join(', ')}${l.dropped && l.dropped.length ? ' · dropped: ' + l.dropped.join(' | ') : ''}`, 'color:#2a9a4c')));
     v.errors.slice(-4).reverse().forEach(e => q.appendChild(cxEl('div', `${fmt(e.at)} ${e.msg}`, 'color:#ff9a7a')));
   }
-  function cxPerson(){
-    if (!CX) return; const id = $('cxWho').value, v = CX, N = x => v.names[x] || x || '-';
-    const c = Object.assign({}, v.cards[id] || {}); delete c.v; $('cxCard').value = JSON.stringify(c, null, 1);
-    const nt = $('cxNotes'); nt.textContent = '';
-    v.notes.filter(x => x.who === id).sort((a, b) => b.at - a.at).forEach(x => { const d = cxEl('div', `${x.pin ? '📌 ' : ''}[${x.imp}] about ${N(x.about)} · ${fmt(x.at)}: ${x.text} `, 'border-top:1px dashed #123d20;padding:3px 0');
-      d.append(cxBtn(x.pin ? 'Unpin' : 'Pin', () => cxDo({action: 'notePin', n: x.n}), true), cxBtn('Drop', () => cxDo({action: 'noteDrop', n: x.n}), true)); nt.appendChild(d); });
-    v.archived.filter(x => x.who === id).slice(0, 10).forEach(x => { const d = cxEl('div', `(archived) [${x.imp}] ${x.text} `, 'color:#2a9a4c;padding:2px 0'); d.append(cxBtn('Live again', () => cxDo({action: 'noteLive', n: x.n}), true)); nt.appendChild(d); });
-    if (!nt.children.length) nt.textContent = 'No notes yet.';
-    const fc = $('cxFacts'), f = v.facts[id] || {}; fc.textContent = Object.keys(f).length ? 'Facts: ' + Object.entries(f).map(([k, x]) => k + ': ' + x).join(' · ') : 'No facts yet.';
+  function pairRow(p){
+    const N = id => CX.names[id] || id;
+    const d = cxEl('div', `${N(p.a)} & ${N(p.b)}: ${p.label || '?'} · warmth ${p.warmth} trust ${p.trust} tension ${p.tension}${p.thread ? ' · open: ' + p.thread : ''}`, 'cursor:pointer'); d.className = 'fl';
+    d.onclick = () => pairOpen(p); return d;
   }
-  function cxMap(v){   // who is close to whom: everyone on a circle, a line per pair (green warm, red cold, amber tension)
-    const cv = $('cxMap'), g = cv.getContext('2d'), ids = Object.keys(v.names), n = ids.length, P = {};
-    const ring = ids.filter(id => id !== 'ishai'); g.clearRect(0, 0, 320, 320); P.ishai = [160, 160];   // Ishai in the middle, everyone else on a circle
-    ring.forEach((id, i) => { const a = i / ring.length * Math.PI * 2 - Math.PI / 2; P[id] = [160 + Math.cos(a) * 128, 160 + Math.sin(a) * 128]; });
+  function pairOpen(p){
+    const N = id => CX.names[id] || id; cxPair = p;
+    const box = $('cxPairEd').closest('.box'); box.classList.remove('shut'); $('cxPairEd').hidden = false;
+    $('cxPairName').textContent = N(p.a) + ' & ' + N(p.b); $('cxPw').value = p.warmth; $('cxPt').value = p.trust; $('cxPx').value = p.tension;
+    $('cxPl').value = p.label || 'acquaintances'; $('cxPh').value = p.history || ''; $('cxPth').value = p.thread || '';
+    setTimeout(() => $('cxPairEd').scrollIntoView({behavior: 'smooth', block: 'center'}), 30);
+  }
+  // the person sheet: Card (a form, JSON as an advanced fold), Notes, Facts, Pairs
+  const CF = [['role', 'Role', 'in'], ['age', 'Age', 'num'], ['personality', 'Personality', 'ta'], ['speech', 'How they speak', 'ta'], ['lives', 'Lives', 'in'], ['works', 'Works', 'in'],
+    ['hangouts', 'Hangouts (place ids, comma)', 'list'], ['aliases', 'Also called (comma)', 'list'], ['backstory', 'Backstory', 'ta'],
+    ['inside.wantsLong', 'Wants, long term', 'in'], ['inside.wantsWeek', 'Wants this week', 'in'], ['inside.fears', 'Fears', 'in'], ['inside.proud', 'Proud of', 'in'], ['inside.ashamed', 'Ashamed of', 'in'],
+    ['habits', 'Habits (one per line)', 'lines'], ['talk.how', 'How they talk', 'in'], ['talk.samples', 'Sample lines (one per line)', 'lines'], ['talk.loves', 'Loves to talk about (comma)', 'list'], ['talk.avoids', 'Avoids (comma)', 'list']];
+  const getP = (o, k) => k.split('.').reduce((x, y) => x == null ? undefined : x[y], o);
+  const setP = (o, k, val) => { const ks = k.split('.'), last = ks.pop(); let x = o; ks.forEach(y => { x = x[y] = (x[y] && typeof x[y] === 'object') ? x[y] : {}; });
+    if (val === undefined || val === '' || (Array.isArray(val) && !val.length)) delete x[last]; else x[last] = val; };
+  function cxOpen(id){
+    cxWho = id; document.querySelectorAll('#cxGrid .cxc').forEach(c => c.classList.toggle('on', c.dataset.id === id));
+    $('cxSheet').hidden = !id; if (!id) return; cxPerson(); setTimeout(() => $('cxSheet').scrollIntoView({behavior: 'smooth', block: 'nearest'}), 30);
+  }
+  function cxPerson(){
+    if (!CX || !cxWho) return; const id = cxWho, v = CX, N = x => v.names[x] || x || '-';
+    $('cxSheetName').textContent = N(id); $('cxSheetName').style.color = inkOf(id);
+    const card = v.cards[id] || {};
+    // the form
+    const f = $('cxForm'); f.textContent = '';
+    CF.forEach(([k, label, kind]) => { f.appendChild(cxEl('label', label)); const cur = getP(card, k);
+      const inp = cxEl(kind === 'ta' || kind === 'lines' ? 'textarea' : 'input'); inp.dataset.k = k; inp.dataset.kind = kind; if (kind === 'num') inp.type = 'number';
+      if (kind === 'ta' || kind === 'lines') inp.style.minHeight = '60px';
+      inp.value = cur == null ? '' : kind === 'list' ? [].concat(cur).join(', ') : kind === 'lines' ? [].concat(cur).join('\n') : cur; f.appendChild(inp); });
+    f.appendChild(cxEl('label', 'In a mood: what they say (body language stays as it is)'));
+    (v.moods_list || []).forEach(m => { const row = cxEl('div', null, 'display:flex;gap:6px;align-items:center;margin:3px 0');
+      row.appendChild(cxEl('span', m, 'width:90px;color:var(--amber);font-size:16px')); const inp = cxEl('input'); inp.dataset.mood = m; inp.value = (card.moods && card.moods[m] && card.moods[m].say) || ''; row.appendChild(inp); f.appendChild(row); });
+    const c = Object.assign({}, card); delete c.v; delete c.hasSecrets; $('cxCard').value = JSON.stringify(c, null, 1);
+    $('cxSecNote').textContent = card.hasSecrets ? 'This card also has secrets. They are kept with every save and never shown here.' : '';
+    // notes
+    const nt = $('cxNotes'); nt.textContent = '';
+    v.notes.filter(x => x.who === id).sort((a, b) => b.at - a.at).forEach(x => { const d = cxEl('div', `${x.pin ? '📌 ' : ''}[${x.imp}] about ${N(x.about)} · ${fmt(x.at)}: ${x.text} `); d.className = 'fl';
+      d.append(cxBtn(x.pin ? 'Unpin' : 'Pin', () => cxDo({action: 'notePin', n: x.n}, 'Done.', 'cxFormMsg'), true), cxBtn('Drop', () => cxDo({action: 'noteDrop', n: x.n}, 'Dropped.', 'cxFormMsg'), true)); nt.appendChild(d); });
+    v.archived.filter(x => x.who === id).slice(0, 10).forEach(x => { const d = cxEl('div', `(archived) [${x.imp}] ${x.text} `, 'color:#2a9a4c'); d.className = 'fl'; d.append(cxBtn('Live again', () => cxDo({action: 'noteLive', n: x.n}, 'Live again.', 'cxFormMsg'), true)); nt.appendChild(d); });
+    if (!nt.children.length) nt.textContent = 'No notes yet.';
+    // facts
+    const fc = $('cxFacts'), fx = v.facts[id] || {}; fc.textContent = Object.keys(fx).length ? '' : 'No facts yet.';
+    Object.entries(fx).forEach(([k, x]) => { const d = cxEl('div', `${k}: ${x} `); d.className = 'fl'; d.appendChild(cxBtn('✕', () => { if (confirm('Remove the fact "' + k + '"?')) cxDo({action: 'factSet', who: id, k, v: ''}, 'Removed.', 'cxFormMsg'); }, true)); fc.appendChild(d); });
+    // pairs
+    const pp = $('cxPPairs'); pp.textContent = '';
+    v.pairs.filter(p => p.a === id || p.b === id).sort((a, b) => (b.a === 'ishai' || b.b === 'ishai') - (a.a === 'ishai' || a.b === 'ishai') || Math.abs(b.warmth) - Math.abs(a.warmth)).forEach(p => pp.appendChild(pairRow(p)));
+    if (!pp.children.length) pp.textContent = 'No pairs yet.';
+  }
+  function cxSub(k){ cxSubK = k; $('cxSub').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.s === k)); document.querySelectorAll('#cxSheet [data-sub]').forEach(d => d.hidden = d.dataset.sub !== k); }
+  $('cxSub').querySelectorAll('button').forEach(b => b.onclick = () => cxSub(b.dataset.s));
+  $('cxSheetX').onclick = () => cxOpen(null);
+  $('cxFormSave').onclick = () => {
+    if (!cxWho) return; const o = JSON.parse(JSON.stringify(CX.cards[cxWho] || {})); delete o.v; delete o.hasSecrets;
+    $('cxForm').querySelectorAll('[data-k]').forEach(inp => { const k = inp.dataset.k, kind = inp.dataset.kind, t = inp.value.trim();
+      setP(o, k, kind === 'list' ? t.split(',').map(x => x.trim()).filter(Boolean) : kind === 'lines' ? t.split('\n').map(x => x.trim()).filter(Boolean) : kind === 'num' ? (t ? Number(t) : undefined) : t); });
+    $('cxForm').querySelectorAll('[data-mood]').forEach(inp => { const m = inp.dataset.mood, t = inp.value.trim();
+      if (t) { o.moods = o.moods || {}; o.moods[m] = Object.assign({body: []}, o.moods[m] || {}, {say: t}); } else if (o.moods && o.moods[m]) o.moods[m].say = ''; });
+    cxDo({action: 'cardSave', id: cxWho, card: o}, 'Saved as a new version.', 'cxFormMsg');
+  };
+  $('cxCardSave').onclick = () => { if (cxWho) cxDo({action: 'cardSave', id: cxWho, card: $('cxCard').value}, 'Saved as a new version.', 'cxFormMsg'); };
+  $('cxRedraft').onclick = () => { if (cxWho && confirm('Ask for a new AI draft of this card? It goes to the review first.')) cxDo({action: 'redraft', id: cxWho}, 'A new draft comes on one of the next ticks.', 'cxFormMsg'); };
+  $('cxNoteAdd').onclick = () => { const tx = $('cxNoteT').value.trim(); if (tx && cxWho) cxDo({action: 'noteAdd', who: cxWho, about: $('cxNoteAbout').value, imp: +$('cxNoteImp').value, text: tx}, 'Note added.', 'cxFormMsg').then(() => { $('cxNoteT').value = ''; }); };
+  $('cxFset').onclick = () => { const k = $('cxFk').value.trim(); if (k && cxWho) cxDo({action: 'factSet', who: cxWho, k, v: $('cxFv').value.trim()}, 'Fact set.', 'cxFormMsg').then(() => { $('cxFk').value = ''; $('cxFv').value = ''; }); };
+  function cxMap(v){   // who is close to whom: Ishai in the middle, everyone else on a circle, a line per pair (green warm, red cold, amber tension)
+    const cv = $('cxMap'), g = cv.getContext('2d'), W = cv.width, C0 = W / 2, R = W / 2 - 40, ids = Object.keys(v.names), P = {};
+    const ring = ids.filter(id => id !== 'ishai'); g.clearRect(0, 0, W, W); P.ishai = [C0, C0];
+    ring.forEach((id, i) => { const a = i / ring.length * Math.PI * 2 - Math.PI / 2; P[id] = [C0 + Math.cos(a) * R, C0 + Math.sin(a) * R]; });
     v.pairs.forEach(p => { const A = P[p.a], B = P[p.b]; if (!A || !B || (Math.abs(p.warmth) < 2 && p.tension < 2)) return;
       g.strokeStyle = p.tension >= 3 ? '#ffb84d' : p.warmth > 0 ? '#4dff7a' : '#ff6b6b'; g.globalAlpha = Math.min(1, .25 + Math.abs(p.warmth) / 6); g.lineWidth = 1 + Math.abs(p.warmth) / 2;
       g.beginPath(); g.moveTo(A[0], A[1]); g.lineTo(B[0], B[1]); g.stroke(); });
-    g.globalAlpha = 1; g.font = '13px VT323, monospace'; g.textAlign = 'center';
-    ids.forEach(id => { g.fillStyle = '#0b200f'; g.fillRect(P[id][0] - 22, P[id][1] - 7, 44, 13); g.fillStyle = id === 'ishai' ? '#ffb84d' : '#4dff7a'; g.fillText(v.names[id].replace(/^(Mrs?|Dr)\. /, '').slice(0, 8), P[id][0], P[id][1] + 4); });
+    g.globalAlpha = 1; g.font = '16px VT323, monospace'; g.textAlign = 'center';
+    ids.forEach(id => { const nm = v.names[id].replace(/^(Mrs?|Dr)\. /, '').slice(0, 9); g.fillStyle = '#0b200f'; g.fillRect(P[id][0] - 30, P[id][1] - 9, 60, 17);
+      g.strokeStyle = inkOf(id); g.lineWidth = 1; g.strokeRect(P[id][0] - 30, P[id][1] - 9, 60, 17); g.fillStyle = id === 'ishai' ? '#ffb84d' : '#4dff7a'; g.fillText(nm, P[id][0], P[id][1] + 5); });
   }
-  $('cxWho').onchange = cxPerson;
-  $('cxCardSave').onclick = () => cxDo({action: 'cardSave', id: $('cxWho').value, card: $('cxCard').value}, 'Saved.');
-  $('cxRedraft').onclick = () => { if (confirm('Ask for a new AI draft of this card? It goes to the review first.')) cxDo({action: 'redraft', id: $('cxWho').value}, 'A new draft comes on one of the next ticks.'); };
-  $('cxNoteAdd').onclick = () => { const tx = $('cxNoteT').value.trim(); if (tx) cxDo({action: 'noteAdd', who: $('cxWho').value, about: $('cxNoteAbout').value, imp: +$('cxNoteImp').value, text: tx}).then(() => { $('cxNoteT').value = ''; }); };
-  $('cxFset').onclick = () => cxDo({action: 'factSet', who: $('cxWho').value, k: $('cxFk').value.trim(), v: $('cxFv').value.trim()});
-  $('cxPsave').onclick = () => { if (cxPair) cxDo({action: 'pairSet', a: cxPair.a, b: cxPair.b, warmth: +$('cxPw').value, trust: +$('cxPt').value, tension: +$('cxPx').value, label: $('cxPl').value, history: $('cxPh').value, thread: $('cxPth').value}); };
-  $('cxQclear').onclick = () => { if (confirm('Drop every scene waiting for the keeper?')) cxDo({action: 'queueClear'}); };
+  $('cxPsave').onclick = () => { if (cxPair) cxDo({action: 'pairSet', a: cxPair.a, b: cxPair.b, warmth: +$('cxPw').value, trust: +$('cxPt').value, tension: +$('cxPx').value, label: $('cxPl').value, history: $('cxPh').value, thread: $('cxPth').value}, 'Pair saved.'); };
+  $('cxPclose').onclick = () => { $('cxPairEd').hidden = true; cxPair = null; };
+  $('cxQclear').onclick = () => { if (confirm('Drop every scene waiting for the keeper?')) cxDo({action: 'queueClear'}, 'Queue cleared.'); };
   function renderCourse(c){
     if (!c) return;
     const when = c.at ? new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Jerusalem', weekday:'long', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', hour12:false}).format(new Date(c.at)) : 'not set yet';
@@ -547,7 +672,7 @@
   collapsible();
   // ---- tabs and the once-a-minute refresh (docs/DIRECTOR_UI_PLAN.md, step 1) ----
   const TAB_KEYS = ['now', 'story', 'cast', 'week', 'more'];
-  DirBar.onTab = k => document.querySelectorAll('#main .tab').forEach(t => t.hidden = t.dataset.tab !== k);
+  DirBar.onTab = k => { document.querySelectorAll('#main .tab').forEach(t => t.hidden = t.dataset.tab !== k); if (k === 'cast') { cxArt(); if (CX) cxLoad(); } };
   const hashTab = () => { const h = location.hash.slice(1); return TAB_KEYS.includes(h) ? h : 'now'; };
   window.addEventListener('hashchange', () => { if (!$('main').hidden) DirBar.tab(hashTab()); });
   let refreshing = false;
