@@ -69,6 +69,14 @@ One agenda for the next 7 days, built like the TV guide (`guideDay()`): lectures
 - **Tools**: big buttons for the live page, sandbox, builder, events, map.
 - Sign out.
 
+## The sub pages (sandbox, builder, events, map)
+
+Today each is its own page with only a link back to `/director`, and the director page reaches them through a sentence of links.
+- **One shared top bar on all five pages**: the director tabs and the tools in one row, `NOW · STORY · CAST · WEEK · MORE │ Sandbox · Builder · Events · Map`, the current one lit. On a tool page the director tabs open `/director#<tab>`. Written once and put into every page by the build at a marker, like `/*__VOICES_JS__*/` (`/*__DIR_BAR__*/`; the build fails without it).
+- **The status line** (where Ishai is, the AI chips, the ⚠ count) shows on the tools too, from the same once-a-minute refresh.
+- **Links from inside the director tabs**: a Wednesday on WEEK opens that night on `/events`; a place named on NOW or STORY opens its card on `/map`; the film, trivia and poker nights get "preview in sandbox".
+- **The tools' insides stay as they are.** The sandbox and the builder are work screens best used on a computer; only fix what breaks on a phone. The events page may get the same treatment later, outside this plan.
+
 ## How to build it
 
 All in `director.html`; nothing changes for viewers.
@@ -84,7 +92,7 @@ Worker (small):
 - No new KV writes, no AI calls.
 
 ## Steps
-1. Shell: status bar, tabs on top, routing, the once-a-minute refresh, Tools; move the boxes into tabs unchanged.
+1. Shell: status bar, tabs on top, routing, the once-a-minute refresh, Tools, and the shared bar on the sandbox, builder, events and map pages; move the boxes into tabs unchanged.
 2. NOW: inbox, scene + recent moments, quick actions (`fix`), coming up.
 3. STORY: the short goal form, today's plan.
 4. CAST: inline review, people grid with portraits, person sheet with a card form.
@@ -99,3 +107,4 @@ Each step ships on its own (bump `VERSION`), and nothing is removed until its ne
 - No live picture on the director page.
 - Plan secrets stay off the director page entirely.
 - No extra quick actions on NOW for now: Run next moment, End this scene, Give a note, Unstick.
+- The sub pages get the shared top bar and status line in step 1; their insides stay as they are.
