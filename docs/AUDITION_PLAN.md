@@ -14,6 +14,7 @@ The viewer is told when and how their character will first appear and accepts. F
 - **Yes to a "from the audience" tag** on a member character's Cast card.
 - **No arcs or secrets** for member characters for now.
 - **Follow-up questions:** every specific answer about hobbies, education, work and the like opens follow-up questions about it, so no two characters come out the same (see "Follow-ups").
+- **A table read before the debut:** after Accept, the viewer rehearses the first scene with a stand-in for Ishai, picking their character's lines from choices on a timer; what they pick fine-tunes the character (see "The table read").
 - **At most 6 member characters at once** (`MEMBER_MAX` = 6) to start; approved Auditions past that wait in line.
 - **One or two wild cards:** odd, random-feeling questions with many possible answers, which may be written by the AI, to give each character something nobody else has (see "Wild cards").
 
@@ -29,6 +30,7 @@ The button's state is kept in D1 (`member.state`) and moves in this order:
 | `interview` | **Continue your Audition** | Answers are saved one by one. Open for 7 days from the start. |
 | `submitted` | **In review** (disabled) | The card is being written, reviewed by Claude, then approved by the director. |
 | `offered` | **See your role** | The role and the first appearance. **Accept** or **Decline** within 7 days. |
+| `reading` | **Table read** | Accepted. The rehearsal of the first scene is ready (see "The table read"); open until 2 hours before the debut. |
 | `on` | **Quit show** | The character is in the show. |
 | `leaving` | **Leaving the show** (disabled) | The last appearance is booked within 7 days, with its time. |
 | `left` | **Request an Audition** (disabled until 30 days after leaving) | |
@@ -145,7 +147,33 @@ The bank is written once by Claude in the build step. The director can edit it, 
   - The role page shows the card's public side and the look.
   - It also explains what they don't control: what happens, who the character becomes, when they appear. The show writes all of it and Claude reviews any growth.
   - **Accept** / **Decline** within 7 days.
-- **On Accept** the character joins the cast (`cast_card` with `owner` = the member, plus `SEED_CAST`-like hangouts, voice gender from the answers, an `INK` colour from `INK_MORE`). The first scene is booked as a goal (`aud-<id>`, like a survey winner's `surveyGoal()`, in the next free gap within 14 days). The viewer gets the exact time the day before and again 10 minutes before (push).
+- **On Accept** the character joins the cast (`cast_card` with `owner` = the member, plus `SEED_CAST`-like hangouts, voice gender from the answers, an `INK` colour from `INK_MORE`). The first scene is booked as a goal (`aud-<id>`, like a survey winner's `surveyGoal()`, in the next free gap within 14 days). The viewer gets the exact time the day before and again 10 minutes before (push). Before the debut comes the table read (next section); the button reads **Table read** until then.
+
+## The table read (after Accept, before the debut)
+A rehearsal of the character's first scene, on the real set, with a stand-in playing Ishai. The viewer plays their character by picking lines. It gives them a first taste of their character in the show, and it tells us how they see the character, which fine-tunes the card before the real scene.
+
+- **When:** from Accept until 2 hours before the booked debut (`reading`). Once only. It takes about 5-8 minutes. The page says so before it starts, and that it can't be repeated.
+- **The script:** one Gemini call writes it when the viewer accepts.
+  - It gets the character's card, Ishai's card, the chosen way in and the planned first scene (where, who introduces them, what's going on).
+  - It writes about 8 turns. The stand-in says what Ishai would most likely say, from his card. At each of the character's 6-8 turns it gives **3-4 choices**, each in a different spirit: warm, guarded, funny, blunt... Each choice is a line, and sometimes a small action ("hands him the menu", "laughs too loud").
+  - After each choice the stand-in has his own short answer to it, and the scene then comes back to the same next beat, so the script stays one small tree.
+  - The script is checked like the card (`cleanCard()` rules: short, in the world, no real people or brands).
+- **The stage:** the real place, drawn by the show's own code in a private rehearsal view (`/?read`, only for that member; no live feed, nothing saved to the show; built on the sandbox's `ingest()`).
+  - A **TABLE READ** banner and a director's chair in the corner.
+  - The stand-in looks like Ishai but in a grey hoodie with a **STAND-IN** tag over his head, so nobody mistakes him for Ishai.
+  - The scene plays with the live-talk timing, body language and device voices.
+- **Choosing:** at the character's turn the choices appear under the picture with a countdown, **20 seconds** (`READ_SEC`).
+  - The picked line is said in the character's voice, with the matching body language.
+  - **No pick in time: the character chooses for themselves:** the choice the script marked as most like them (`self`). It is shown as "MAYA CHOSE".
+  - The viewer can't go back; there is a ⏸ pause (once, up to 2 minutes).
+- **Fine-tuning:** at the end, one Gemini call reads the picks: the spirit of each, which were chosen and which were left to the character, and how fast.
+  - It proposes small changes to the card: sample lines, how they treat Ishai at first, mood tendencies, a habit seen in the actions.
+  - It also writes 1-2 starting notes in the character's voice ("Rehearsed meeting him. I was too blunt. Let's see.").
+  - The changes go to `cast_pending` and through Claude's review like any growth. The director isn't asked again, but sees them in the Auditions box.
+  - A viewer who lets every turn time out tunes nothing: the card stays as approved.
+- **The real debut** is not the rehearsal. Ishai is the real Ishai, and the story writer writes the scene live as always (users never affect Ishai). The table read only reaches the writer as the character's own intentions for this first meeting ("Maya plans to be a little guarded, offers him the menu, jokes about the rain"), through `castContext()` for that scene.
+- **Skipped** (the viewer never opens it): the debut goes ahead with the approved card. The inbox says the table read was missed.
+- **Afterwards:** the viewer can replay their table read (read only) from the role page, and after the debut a line under it: "How the real scene went", linking the moment in 8bitTV+.
 
 ## On the show
 - **How often:** a member character is a regular in their place and appears like any regular, plus a booked scene with Ishai about every 4-7 days. `MEMBER_MAX` (start with 6) member characters at once; past it, approved Auditions wait in line, and the viewer sees their place.
@@ -166,6 +194,7 @@ The bank is written once by Claude in the build step. The director can edit it, 
 - `aud (n INTEGER PRIMARY KEY, member TEXT, state TEXT, name TEXT, bank_v INTEGER, picked TEXT, card TEXT, ways TEXT, review TEXT, director TEXT, cast_id TEXT, at INTEGER)`: one per Audition.
 - `aud_answer (aud INTEGER, q TEXT, a TEXT, at INTEGER, PRIMARY KEY (aud, q))`.
 - `member_inbox (n INTEGER PRIMARY KEY, member TEXT, at INTEGER, kind TEXT, text TEXT, read INTEGER)`.
+- `aud_read (aud INTEGER PRIMARY KEY, script TEXT, picks TEXT, started INTEGER, done INTEGER, tuned INTEGER)`: the table read's script, each pick ({turn, choice, ms, self}) and whether the tune was proposed.
 
 No KV writes. A whole interview is about 80 small D1 writes.
 
@@ -187,7 +216,7 @@ No KV writes. A whole interview is about 80 small D1 writes.
 - **Banned accounts.**
 
 ## Cost
-- **Per Audition:** 1 Gemini call (the card and the three ways in), at most 1 small one for the wild cards, and one item in Claude's review.
+- **Per Audition:** 1 Gemini call (the card and the three ways in), at most 1 small one for the wild cards, 2 for the table read (the script and the tune), and two items in Claude's review.
 - **Writing the bank:** done once at build time; no running cost.
 - **On the show:** member characters cost what any cast member costs (their scenes go through the scene keeper of `CAST_PLAN.md`). `MEMBER_MAX` keeps the total small.
 - **Push:** uses the existing system and its per-run batch.
@@ -199,6 +228,7 @@ No KV writes. A whole interview is about 80 small D1 writes.
 3. **The interview:** `story/audition.json` (the bank, its follow-up sets and the wild cards, written by Claude), the AI wild cards, naming, the start screen, the interview page with saving, branching and the 7-day window.
 4. **The character:** the card and three ways in from one Gemini call, Claude's review, the director's To approve box.
 5. **The offer and the debut:** the role page, Accept/Decline, joining the cast, the booked first scene, the reminders.
+5b. **The table read:** the script call, the `/?read` stage with the stand-in, the timed choices and "chose for themselves", the tune call through Claude's review, the intentions in the debut's `castContext()`, the replay.
 6. **On the show and quitting:** regular appearances, ★ MY CHARACTER, "on now" pushes, Quit show, the goodbye scene, archiving, deleting answers, the 30-day rule, the director's end and ban.
 
 ## Open questions
