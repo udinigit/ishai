@@ -13,7 +13,9 @@ The plan: keep a lot more about every person and every pair, change it after eac
 - **One AI call after each scene** (the scene keeper) instead of piggybacking everything on the story call.
 - **Memory can be added to, edited and removed from.** Unimportant notes expire. Important old ones are archived and fetched again when the talk makes them relevant.
 - **More updates per scene**: feelings, mood, facts, open threads, and links between other characters.
-- **Viewers see it in the Cast tab, never as a card over the picture.**
+- **Viewers see it in the Cast tab, never as a card over the picture.** Ishai's own card shows to the developer only (`DEV`) for now.
+- **The hosts set up and wrap up each scene** with what they know of the history (see "The hosts before and after a scene").
+- **Gemini's limit isn't tight** for this project: no second project, no separate model for the keeper for now.
 
 ## What we keep (D1, the `ishai-polls` database, binding `DB`)
 KV stays as it is (1,000 writes a day). D1's free daily write limit is far higher, and the main state (`s`) stays small. Tables are made with `CREATE TABLE IF NOT EXISTS` on first use, like `pushTables()`.
@@ -129,7 +131,18 @@ The hosts' call gets the pair row (label, feelings, thread) for the people on sc
   - **Lately:** the 3 newest important notes (importance ≥ 3), in plain words. Low-importance notes are never shown.
 - **When both of a pair are on camera,** both cards are already open at the top (`settledOnCamera()`). Their shared section is shown first, highlighted.
 - **Never shown:** secrets, anything an arc keeps hidden until `revealOn`, Ishai's own private notes.
+- **Ishai's card** (his card, notes, moods) is shown only with `DEV` for now.
 - `/api/cast` (public, cached a minute) serves this.
+
+## The hosts before and after a scene
+Like a reality show's narrator: the hosts tell viewers what's at stake before two people meet, and what it meant after.
+- **Before (the setup):** when a moment starts a scene (someone joins Ishai, or he walks in on them), the hosts' call for that block gets a short scene brief from `castContext()`: the pair's label, feelings and `thread`, both moods with their reasons, the last important notes between them, and any open arc that touches them. It writes one or two `pre` host lines that play **before** the first spoken line ("Dana's still hurt about the missed birthday. First time they've met since. Let's see if he brings it up."). This adds no AI call; it only makes the hosts' prompt bigger.
+  - Page: `talkPlan()` puts `pre` host lines first in the moment (after the arrival, before the talk) instead of after it; the talk starts once they are said.
+  - The setup asks a question and never answers it. The hosts' call already sees the whole block, so the prompt says plainly not to give away what happens next. They never say an unrevealed secret (`secretsNow()` rules as now).
+- **After (the verdict):** the scene keeper (one call after each scene) also returns 1-2 host lines, `wrap`, on what changed between them ("Well, that went better than expected. I think she'll forgive him now that he's apologised."), from the pair moves it just made. They play in the next moment that has room, before its other host lines. This adds no extra call either.
+  - If the keeper is late (Gemini busy), a no-AI line is built from the pair moves instead ("Warmer between those two now." / "That didn't help."), so the scene never ends without a word.
+  - Not after a planned night that has its own ending (lecture, film, trivia, concert, poker), nor after a scene of fewer than 2 moments.
+- The setup and the verdict are saved with the moment like other host lines, so 8bitTV+ episodes and the studio recaps can use them.
 
 ## Director page
 A Cast box with:
@@ -156,11 +169,10 @@ The sandbox gets a "pretend scene" button that runs `castApply()` on sample chan
 ## Steps
 1. **Storage and notes:** the D1 tables, the start-up from `SEED_CAST` and today's memories, the queue, and the scene keeper writing notes and facts. Old notes expire and get archived. The worker still feeds the old `memory` line until step 2.
 2. **What the writer gets:** `castContext()` (people in the scene, people mentioned, topics, the archive), the size cap and the brake.
-3. **Pairs and moods:** the pair table and its moves (other pairs included), `cast_mood`, the `feel` field, mood in the hosts' call, body language and voice by mood on the page.
+3. **Pairs and moods:** the pair table and its moves (other pairs included), `cast_mood`, the `feel` field, mood in the hosts' call, body language and voice by mood on the page, and the hosts' setup before a scene and verdict after it.
 4. **Full cards:** the AI drafts, Claude's review of them, the director's card editor.
 5. **Growth:** the weekly history and growth proposals, the review link and token, the scheduled Claude review, undo on the director page.
 6. **Viewers:** the Cast tab sections and `/api/cast`.
 
 ## Open questions
-- The real daily limit for gemini-3.5-flash-lite (AI Studio). If it is close to what the show uses, the keeper runs only for scenes of 3 moments or more.
-- Should Ishai's own card show in the Cast tab, or stay private?
+- None for now. If Gemini's daily limit ever gets close, the keeper runs only for scenes of 3 moments or more.
