@@ -215,7 +215,12 @@
   .card.fold{cursor:pointer} .card.fold .nm::before{content:"▾ ";color:var(--phos-dim)}
   .card.closed{grid-template-columns:28px 1fr;align-items:center;padding-bottom:8px}
   .card.closed canvas{width:28px} .card.closed .nm::before{content:"▸ "}
-  .card.closed .meta,.card.closed .rel,.card.closed .mem{display:none}
+  .card.closed .meta,.card.closed .rel,.card.closed .mem,.card.closed .cx{display:none}
+  /* cast tab (v252): what they feel about Ishai, who they are close to, what is lately on their mind */
+  .card .cx{font-size:.85em;margin-top:5px;line-height:1.15;border-left:2px solid var(--phos-faint);padding-left:6px}
+  .card .cx b{font-weight:normal;color:var(--phos-dim);letter-spacing:1px}
+  .card .cx.shared{border-left-color:var(--amber);background:rgba(255,184,77,.06)}
+  .card .cx .bars{letter-spacing:1px;font-size:.92em}
   .card.fold:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
   [hidden]{display:none !important}
   .snd{font:inherit;font-size:clamp(15px,3.8vw,20px);background:transparent;color:var(--phos);border:1px solid var(--phos-faint);
@@ -636,6 +641,7 @@
     const lx = o.look||0, ey = o.down ? 5 : 4;   // down: eyes a pixel lower (at the guitar, the keys, the mic)
     if (o.closed){ R(x+3+lx,y+ey,2,1,C.skinShade); R(x+5+lx,y+ey,2,1,C.skinShade); }
     else { R(x+3+lx,y+ey,1,1,C.eye); R(x+6+lx,y+ey,1,1,C.eye); }
+    if (o.frown && !o.closed){ R(x+3+lx,y+ey-1,1,1,C.hair); R(x+6+lx,y+ey-1,1,1,C.hair); }   // brows down (angry)
     if (o.yawn) R(x+4,y+6,2,2,C.mouth);
     else if (o.talk) R(x+4,y+6,2,1,C.mouth);
     else R(x+4,y+6,2,1,C.skinShade);
@@ -777,14 +783,14 @@
       case 'idle': {
         const bl = !o.fidget && !o.still ? body('ishai', x) : null;   // someone talking near him: he looks at them and reacts
         const k = o.fidget || (o.still ? 'none' : bl && bl.kind ? bl.kind : fid(11, t, false, !!o.seated)); if (k==='shift' && !o.seated) x += Math.floor(t/2000)%2;   // seated: facing front, no look back
-        const hm = headMove(k, t);
-        head(x + (hm.dx||0), y + (hm.dy||0),{closed: hm.closed || blinkOn(t), down: hm.down, talk: hm.open, look: bl && bl.look != null && k !== 'turn' ? bl.look : lookFid(t, k, (Math.floor(t/4000)%3)-1)}); if (k==='turn') backHair(x,y,C.hair);
+        const hm = headMove(k, t); if (bl && bl.sway) x += bl.sway;
+        head(x + (hm.dx||0), y + (hm.dy||0),{closed: hm.closed || blinkOn(t), down: hm.down, talk: hm.open, yawn: hm.yawn, frown: bl && bl.frown, look: bl && bl.look != null && k !== 'turn' ? bl.look : lookFid(t, k, (Math.floor(t/4000)%3)-1)}); if (k==='turn') backHair(x,y,C.hair);
         if (bl && bl.mark) emote(x, y, bl.mark, t);
         torso(x,y); armsFid(x,y,t,k); legs(x,y,legsFid(t,k)); break; }
       case 'talking': {
         const mine = SPEAKING==='ishai', bl = body('ishai', x);
-        const k = bl && bl.kind ? bl.kind : fid(11, t, true, !!o.seated), hm = headMove(k, t);
-        head(x + (hm.dx||0), y + (hm.dy||0),{closed: hm.closed || blinkOn(t), down: hm.down, look: bl && bl.look != null ? bl.look : o.face||1, talk: hm.open || (mine && Math.floor(t/160)%2)}); torso(x,y);
+        const k = bl && bl.kind ? bl.kind : fid(11, t, true, !!o.seated), hm = headMove(k, t); if (bl && bl.sway) x += bl.sway;
+        head(x + (hm.dx||0), y + (hm.dy||0),{closed: hm.closed || blinkOn(t), down: hm.down, yawn: hm.yawn, frown: bl && bl.frown, look: bl && bl.look != null ? bl.look : o.face||1, talk: hm.open || (mine && Math.floor(t/160)%2)}); torso(x,y);
         if (bl && bl.mark) emote(x, y, bl.mark, t);
         if (bl && bl.kind) armsFid(x,y,t,k);
         else if (mine && f2){ R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10,1,2,C.skin); }
@@ -993,6 +999,40 @@
   // when the line ends (laughs at a joke, starts at big news, a hand to the chin at a question, eyes down at bad news).
   // All from the timeline's clock (TL), so every viewer sees the same; nothing is said or written.
   let BL = {t: -1};
+  // ---- moods (v252, docs/CAST_PLAN.md): how each person feels now (publicState.moods, set after a scene by the scene keeper) and a mood the
+  // story set in this moment ("feel"); body() picks gestures by it, the voice changes a little, and the person's small "tell" shows now and then
+  let MOODS = {};
+  function moodOf(id){
+    const c = tlNow(), f = c && c.e.ev && c.e.ev.feel; if (f && f.who === id) return {mood: f.mood, tell: (MOODS[id] || {}).tell};
+    return MOODS[id] || null;
+  }
+  // per mood: what the hands do while talking and while listening (indexes picked from the clock), plus face and sway
+  const MOOD_BODY = {
+    angry: {talk: ['cross','gesture','cross','none','shake'], hear: ['cross','cross','none'], frown: true, noNod: true},
+    sad: {talk: ['down','none','down','none'], hear: ['down','none','none'], slow: true, noNod: true},
+    happy: {talk: ['open','gesture','laugh','open','nod'], hear: ['nod','none','laugh'], laughs: true},
+    nervous: {talk: ['neck','gesture','tap','neck','none'], hear: ['neck','tap','none'], away: true},
+    tired: {talk: ['none','gesture','yawn','none'], hear: ['none','yawn','none','none'], slow: true},
+    tipsy: {talk: ['open','gesture','laugh','open'], hear: ['nod','none','laugh'], sway: true},
+    embarrassed: {talk: ['face','down','gesture','none'], hear: ['face','down','none'], away: true}};
+  const tellKind = s => /glass|face|eye|cheek/i.test(s) ? 'face' : /neck|collar/i.test(s) ? 'neck' : /knuckle|fist|arms/i.test(s) ? 'cross' : /hair|head|ear/i.test(s) ? 'scratch' : /tap|foot|drum|finger/i.test(s) ? 'tap' : /sigh|look(s)? down|floor/i.test(s) ? 'down' : 'chin';
+  // the voice follows the mood a little (device voices): angry a little faster and flatter, sad slower and lower
+  const MOOD_VOICE = {angry: [1.08, .94], sad: [.88, .9], happy: [1.04, 1.05], nervous: [1.07, 1.04], tired: [.86, .93], tipsy: [.92, .97], embarrassed: [.95, 1.03]};
+  function moodVoice(id){ const m = typeof MOODS !== 'undefined' && moodOf(id); return m && MOOD_VOICE[m.mood] || [1, 1]; }
+  function moodBody(id, b, talking, now){
+    const m = moodOf(id); if (!m || !MOOD_BODY[m.mood]) return b;
+    const M = MOOD_BODY[m.mood], slot = Math.floor(now / (M.slow ? 1600 : 900)), r = hash(strHash(id + m.mood) + slot * 17);
+    const out = Object.assign({look: null}, b || {});
+    const list = (m.body && m.body.length ? m.body : null) || (talking ? M.talk : M.hear);
+    const keep = b && b.kind && (b.kind === 'laugh' ? !M.noNod && M.laughs !== false : ['shrug','startle','chin'].includes(b.kind));
+    if (!keep && r < (talking ? .55 : .45)) out.kind = list[Math.floor(hash(slot * 31 + strHash(id)) * list.length)];
+    if (M.noNod && (out.kind === 'nod' || out.kind === 'laugh')) out.kind = 'none';
+    if (M.frown) out.frown = true;
+    if (M.away && out.look != null && r > .7) out.look = -out.look;
+    if (M.sway) out.sway = Math.floor(now / 700) % 4 === 1 ? 1 : Math.floor(now / 700) % 4 === 3 ? -1 : 0;
+    if (m.tell && Math.floor(now / 8000) % 5 === 0 && !talking) out.kind = tellKind(m.tell);   // the person's own small sign, now and then
+    return out;
+  }
   function talkNow(){
     const now = NOW(); if (BL.t === now) return BL;
     BL = {t: now, cur: null, prev: null};
@@ -1005,6 +1045,10 @@
   const lookTo = (hx, who) => { const h = HEADS_PREV[who]; if (!h) return null; const d = h.x - (hx + 5); return Math.abs(d) < 3 ? 0 : d > 0 ? 1 : -1; };
   function body(id, hx){
     if (!id || DREAMING || BUILDER || (g !== ctx && g !== lctx)) return null;
+    const b = body0(id, hx), T = talkNow();
+    return moodBody(id, b, !!(T.cur && T.cur.who === id), NOW());
+  }
+  function body0(id, hx){
     const T = talkNow(), now = NOW(), c = T.cur, p = T.prev;
     if (c && c.who === id){   // talking: hands to suit the line, eyes on the one they talk to
       const since = now - c.at, r = hash(strHash(c.id) + Math.floor(since / 650) * 13), m = c.mood;
@@ -1048,7 +1092,8 @@
     if (kind === 'laugh') return {dy: Math.floor(t/140)%2, closed: true, open: true};
     if (kind === 'shake') return {dx: Math.floor(t/180)%2 ? 1 : -1};
     if (kind === 'startle') return {dy: -1};
-    if (kind === 'down') return {down: true};
+    if (kind === 'down' || kind === 'face') return {down: true};
+    if (kind === 'yawn') return {yawn: Math.floor(t/1800)%3 === 0, closed: Math.floor(t/1800)%3 === 0};
     return {};
   }
   // a small mark beside the head as someone reacts: ! (big news), ? (a question to think about), laugh lines
@@ -1071,6 +1116,9 @@
       case 'gesture': R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10-ph,2,1,C.shirt); R(x+11,y+10-ph,1,1,C.skin); break;
       case 'shrug': if (ph){ R(x+1,y+9,1,2,C.shirt); R(x,y+10,1,1,C.shirt); R(x-1,y+9,1,1,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10,1,1,C.shirt); R(x+10,y+9,1,1,C.skin); } else armsDown(x,y); break;
       case 'cross': armsFront(x,y); R(x+2,y+12,6,1,C.shirtShade); R(x+2,y+12,1,1,C.skin); R(x+7,y+12,1,1,C.skin); break;
+      case 'neck': R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,1,C.shirt); R(x+9,y+7,1,2,C.shirt); R(x+8,y+6,1,1,C.skin); break;   // a hand on the back of the neck (nervous)
+      case 'face': R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+7,y+8,1,1,C.shirt); R(x+6,y+5,2,2,C.skin); break;     // a hand over the face (embarrassed)
+      case 'yawn': R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+7,y+8,1,1,C.shirt); R(x+5,y+7,2,1,C.skin); break;     // a hand to the mouth
       case 'phone': armsFront(x,y); R(x+3,y+12,4,1,C.skin); R(x+4,y+10,2,3,'#2a2a2a'); R(x+4,y+10,2,1,'#7fd0ff'); break;
       default: armsDown(x,y);
     }
@@ -1134,8 +1182,8 @@
     const bl = mid && !o.fid && !o.walk && !o.still && !o.armPose ? body(mid, x) : null;
     const kind = o.fid ? o.fid : bl && bl.kind ? bl.kind : (!o.walk && !o.muted && !o.still) ? fid(o.seed ?? strHash(L.hair + L.shirt + L.skin + L.pants), t, theirs || !!o.talkPhase, seated) : 'none';
     if (kind==='shift') x += Math.floor(t/2000)%2;
-    const y0 = y, x0 = x, hm = headMove(kind, t); y += hm.dy || 0; x += hm.dx || 0;
-    head(x,y,{closed: hm.closed || blinkOn(t,o.seed??1700), look: bl && bl.look != null && kind !== 'turn' && kind !== 'look' ? bl.look : lookFid(t, kind, o.face??-1), down: !!o.down || !!hm.down, talk: hm.open || ((theirs || o.talking) && Math.floor(t/170)%2)});
+    const y0 = y, x0 = x, hm = headMove(kind, t); y += hm.dy || 0; x += (hm.dx || 0) + (bl && bl.sway || 0);
+    head(x,y,{frown: bl && bl.frown, yawn: hm.yawn, closed: hm.closed || blinkOn(t,o.seed??1700), look: bl && bl.look != null && kind !== 'turn' && kind !== 'look' ? bl.look : lookFid(t, kind, o.face??-1), down: !!o.down || !!hm.down, talk: hm.open || ((theirs || o.talking) && Math.floor(t/170)%2)});
     // hair styles
     const h = pal.hair;
     if (L.hair==='bald'){ R(x+2,y,6,3,pal.skin); R(x+3,y,2,1,tint(pal.skin,.3)); }
@@ -5351,7 +5399,7 @@
         const speak = (own) => {
           const u = new SpeechSynthesisUtterance(text); let started = false;
           const pv = own ? Voices.pickVoice(id) : null, gv = Voices.tone(id, v); if (pv) u.voice = pv;
-          u.pitch = gv.pitch; u.rate = gv.rate; u.volume = .9;
+          const mv = moodVoice(id); u.pitch = Math.max(.1, Math.min(2, gv.pitch * mv[1])); u.rate = Math.max(.5, Math.min(2, gv.rate * mv[0])); u.volume = .9;
           const fallback = () => { u.onerror = u.onend = null; try { speechSynthesis.cancel(); } catch(e){} speak(false); };
           u.onstart = () => { started = true; voiceState = own ? 'speaking' : 'speaking (default voice)'; };
           u.onend = fin;
@@ -5822,11 +5870,15 @@
     // a gallery night: after the break the curtain rises first (CURTAIN_MS), then a few seconds of looking before anyone speaks or a picture is shown
     const afterCurtain = ev.art && !ev.art.curtain && prevEv && prevEv.art && prevEv.art.curtain ? CURTAIN_MS + CURTAIN_PAUSE : 0;
     const lead = onBoard ? RIDE_LEAD + RIDE_MS + RIDE_LAND : afterCurtain; let t = lead, tail = 0;
+    // the hosts' setup before a scene (v252): "pre" lines play after the arrival and before the first spoken line; the talk starts once they are said
+    const pre = hosts.filter(c => c.pre), post = hosts.filter(c => !c.pre), hi = c => hosts.indexOf(c);
+    if (pre.length && !PREVIEW){ t = lead + (prevLoc && prevLoc !== (ev.location || 'apartment') ? 9000 : 1500);
+      pre.forEach((c, i) => { if (i) t += linePause(pre[i-1].say); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i: hi(c), host: true, pre: true}); t += ms; }); t += 1400; }
     if (PREVIEW || lines.length < 2) lines.forEach((l, i) => { if (i) t += linePause(lines[i-1].say) + gap; const ms = lineMs(l.say); plan.push({at: t, ms, l, i}); t += ms; });
     else { const lp = livePlan(ev, lines, gap, plan, t); t = lp.t; tail = lp.tail; }   // quick turns, cut-ins and short "Ha!"s, the rest of the time as pauses between exchanges
-    if (hosts.length){   // the hosts react to what viewers can SEE: after Ishai has got there, then a short beat
+    if (post.length){   // the hosts react to what viewers can SEE: after Ishai has got there, then a short beat
       t = Math.max(t + (lines.length ? 1200 : 0), lead + (prevLoc && prevLoc !== (ev.location || 'apartment') ? 17500 : 5000));
-      hosts.forEach((c, i) => { if (i) t += linePause(hosts[i-1].say); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i, host: true}); t += ms; });
+      post.forEach((c, i) => { if (i) t += linePause(post[i-1].say); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i: hi(c), host: true}); t += ms; });
     }
     return {plan, ms: t + tail, ride: onBoard ? r : null};
   }
@@ -6075,6 +6127,33 @@
 
   // ================= cast tab =================
   let NOTES = '';
+  // the deeper cast (v252): /api/cast, cached a minute by the worker; fetched while the Cast tab is open
+  let CASTX = {}, castXAt = 0;
+  async function castXFetch(force){
+    if (!force && Date.now() - castXAt < 110000) return; castXAt = Date.now();
+    try { const r = await fetch('/api/cast', {cache: 'no-store'}); if (!r.ok) return; const j = await r.json(); const nx = j.people || {};
+      if (JSON.stringify(nx) !== JSON.stringify(CASTX)){ CASTX = nx; if (!$('castPanel').hidden) renderCast(); } } catch(e){}
+  }
+  const bar5 = (v, ch) => { const n = Math.max(0, Math.min(10, (v||0) + 5)); return ch.repeat(n) + '·'.repeat(10 - n); };
+  function castExtra(d, id, live){
+    const x = CASTX[id], b = d.lastChild; if (!x || !b) return;
+    const sec = (title, html, shared) => { const e = document.createElement('div'); e.className = 'cx' + (shared ? ' shared' : ''); e.innerHTML = '<b>' + title + '</b> ' + html; return e; };
+    const esc = s => String(s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+    const out = [];
+    if (x.with){ const w = x.with;
+      out.push(sec('WITH ISHAI:', esc(w.label ? w.label.toUpperCase() : '') +
+        `<div class="bars">WARMTH ${bar5(w.warmth, '■')}<br>TRUST&nbsp; ${bar5(w.trust, '■')}<br>TENSION ${bar5(w.tension, '▲')}</div>` +
+        (w.history ? '<div>' + esc(w.history) + '</div>' : '') + (w.thread ? '<div>OPEN: ' + esc(w.thread) + '</div>' : '') +
+        (x.mood ? '<div>NOW: ' + esc(x.mood.mood) + (x.mood.why ? ': ' + esc(x.mood.why) : '') + '</div>' : ''), live)); }
+    else if (x.mood) out.push(sec('NOW:', esc(x.mood.mood) + (x.mood.why ? ': ' + esc(x.mood.why) : ''), live));
+    if (x.close && x.close.length){ const vis = settledOnCamera();
+      out.push(sec('CLOSE TO:', x.close.map(c => esc(c.name) + ' ' + (c.w >= 3 ? '♥' : c.w <= -3 ? '✕' : '') + (c.x >= 3 ? '⚡' : '') + (c.label ? ' (' + esc(c.label) + ')' : '')).join(' · '), live && x.close.some(c => vis.has(c.id)))); }
+    if (x.lately && x.lately.length) out.push(sec('LATELY:', x.lately.map(n => '“' + esc(n.text) + '”').join(' ')));
+    if (x.card && DEV){ const c = x.card, tx = [c.backstory, c.inside && c.inside.wantsWeek && 'Wants: ' + c.inside.wantsWeek, c.habits && c.habits.join('; ')].filter(Boolean).join(' · '); if (tx) out.push(sec('CARD (DEV):', esc(tx))); }
+    if (x.lately && x.lately.length){ const mem = b.querySelector('.mem'); if (mem) mem.remove(); }   // the newest notes say more than the old one-line memory
+    const after = b.querySelector('.rel'); if (after && x.with) after.remove();                       // the bars above replace the old closeness bar
+    out.forEach(e => b.appendChild(e));
+  }
   function setCast(list){
     const next = {}; (list||[]).forEach(c=>{ next[c.id]=c; });
     const changed = JSON.stringify(next) !== JSON.stringify(CAST);
@@ -6118,7 +6197,9 @@
       d.onclick = flip; d.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } };
       rows.push([1, d]);
     };
+    castXFetch();
     const ishai = card(ISHAI_LOOK,'ISHAI',tint(CLOTH.teal,.45),'The subject. 31, freelance designer, apartment 4.' + (onCam ? NOW_TAG : ''),null,'STORY SO FAR: ' + (NOTES||'—'), true);
+    if (DEV) castExtra(ishai, 'ishai', onCam);   // his own card, notes and mood: the developer only, for now
     ishai.dataset.id = 'ishai'; fold(ishai, 'ishai', onCam);
     if (UNLOCKED.has('dog')){
       const c = document.createElement('canvas'); c.width = 14; c.height = 12; const pc = c.getContext('2d'); const prev = g; g = pc;
@@ -6131,10 +6212,12 @@
       const d = card(c.look, c.name.toUpperCase(), tint(CLOTH[c.look?.shirt]||CLOTH.gray,.45),
         `${c.role.charAt(0).toUpperCase()+c.role.slice(1)}. ${c.personality ? c.personality.charAt(0).toUpperCase()+c.personality.slice(1)+'.' : ''}${live ? NOW_TAG : ''}`,
         c.relationship||0, 'MEMORY: ' + (c.memory||'—'));
+      castExtra(d, c.id, live);
       d.dataset.id = c.id; fold(d, c.id, live);
     });
     if (!rows.some(r => r[0] === 0)){ const p = document.createElement('div'); p.className='meta'; p.textContent = 'Nobody on camera right now.'; el.appendChild(p); }
     rows.sort((a, b) => a[0] - b[0]).forEach(r => el.appendChild(r[1]));
+    el.querySelectorAll('.card').forEach(cd => { const sh = cd.querySelector('.cx.shared'); if (sh && sh.parentNode.children[2] !== sh) sh.parentNode.insertBefore(sh, sh.parentNode.children[2] || null); });   // both of a pair on camera: their shared part first
   }
   function settledOnCamera(){
     const v = new Set();
@@ -7025,7 +7108,7 @@
     setState('apartment', 'idle', true);
     let n = 0;
     const reset = () => { TL.forEach(e => { e.dead = true; }); TL.clear(); tlLast = null; held.clear(); queue.length = 0; [...WAITS].forEach(f => f()); setSpeaking(null); SAY.who = null; Sound.hush(); if (SHOW_STOP) SHOW_STOP(); };
-    const event = m => ({id: 'sb-' + (++n), t: NOW(), location: m.location, action: m.action, with: m.with || null, ride: m.ride || undefined, delivery: m.delivery || undefined, media: m.media || undefined, art: m.art || undefined, text: '', lines: m.lines || [], commentary: m.commentary || []});
+    const event = m => ({id: 'sb-' + (++n), t: NOW(), location: m.location, action: m.action, with: m.with || null, ride: m.ride || undefined, delivery: m.delivery || undefined, media: m.media || undefined, art: m.art || undefined, feel: m.feel || undefined, text: '', lines: m.lines || [], commentary: m.commentary || []});
     window.__sandbox = {
       menus: () => ({locations: Object.fromEntries(Object.entries(LOCATIONS).filter(([k]) => k !== 'bathroom')), hair: LOOK_OPTS.hair, hairColor: Object.keys(HAIRC), skin: Object.keys(SKINC), cloth: Object.keys(CLOTH), hat: LOOK_OPTS.hat, top: LOOK_OPTS.top, bottom: LOOK_OPTS.bottom, extras: LOOK_OPTS.extras}),
       locals: () => LOCAL,
@@ -7033,6 +7116,7 @@
       play(m){ const e = event(m); ingest([e], false); },
       talk: () => tlLast ? {start: tlLast.start, end: tlLast.end, now: NOW(), speaking: SPEAKING, line: talkNow(), heads: HEADS, plan: tlLast.plan.map(p => ({at: p.at, ms: p.ms, who: p.l.who, say: p.l.say, x: !!p.x, host: !!p.host}))} : null,   // the live talk's plan (v250): turns, cut-ins, short reactions
       arena(a){ ARENA = a || null; arenaPreload(); },
+      moods(o){ MOODS = o || {}; return MOODS; },   // v252: pretend moods (body language, voices)
       promos(list){ PROMOS = list || []; renderPromos(); },
       poker(d, minAgo){ POKER = d ? {...d, at: NOW() - (minAgo || 0) * 60000} : null; },
       trivia(d, inSec){ if (!d){ TRIVIA = null; return; } d.at = NOW() + (inSec || 0) * 1000; TRIVIA = d; trivKey = ''; },   // the sandbox's trivia night, starting in inSec seconds
@@ -7841,7 +7925,7 @@
       if (s.build && !BUILD.startsWith('__') && s.build !== BUILD) offerUpdate();
       if (s.dev) enableDev();
       if (!loaded) TALK_HISTORY = s.talk || [];
-      NOTES = s.notes || ''; setCast(s.cast);
+      NOTES = s.notes || ''; setCast(s.cast); MOODS = s.moods || {};
       if (s.studio) STUDIO = s.studio;
       if (s.call && s.call.lines) CALL = s.call;
       if (s.show && s.show.lines) SHOW = s.show;

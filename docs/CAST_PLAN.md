@@ -1,6 +1,16 @@
 # Deeper characters: plan
 
-Proposed 2026-11-16 with the director's answers (see "Decisions"). Nothing built yet.
+Proposed 2026-11-16 with the director's answers (see "Decisions"). **Built in v252 (all six steps), 2026-11-16.**
+
+### As built (differences from the plan)
+- `cast_note` has two more columns: `upd` (last change, for deleting gone notes 30 days after they went) and `pin` (the director's pin: never expires or archived).
+- The scene keeper, the card drafts and the weekly growth call Gemini directly (`runGemini()`), never Cloudflare. Card drafts: one a tick, at most 6 a day, only while the keeper queue is empty.
+- The keeper's "edit"/"drop" only works on notes it was shown (by `n`); "others" need an exact quote from the scene's lines; anything that mentions cameras, viewers or the show, or shares most long words of a live arc secret (`castLeaks()`), is dropped. Every drop is logged (`s.castLog`, the director's Cast box).
+- The hosts' setup (`pre`) comes from the hosts' call (`addHosts()`), so it is written only while Gemini writes the story (`HOSTS_APART`). Without a Gemini key the story writes its own host lines, as before, with no setup.
+- The verdict waits for the next moment with room (not a planned night, not asleep), at most 40 minutes. If the keeper hasn't answered by then, a no-AI line is built from the scene's `update.mood` sum.
+- Voice by mood: device voices only (HD voices are cached by text and speed, so they keep the director's settings).
+- With the cast store on, `c.memory` and `c.relationship` (the old one-line memory and closeness) follow it: the newest note about Ishai, and the pair's warmth.
+- The review token: only its SHA-256 is in the code (`CAST_HASH`); the token is in the scheduled review task's prompt.
 
 ## The idea
 Today each person has a fixed one-line personality, one memory sentence (at most 180 characters, overwritten after every scene) and one closeness number (-5 to +5, most friends already at 5). Ishai has no card, and nothing records how the other characters feel about each other. The long story lives only in the plan's arcs and the daily summaries.

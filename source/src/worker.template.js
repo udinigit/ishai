@@ -291,7 +291,7 @@ export default {
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
-        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), life: (s.life || []).slice(-6),
+        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
         polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3), pushes: (s.pollPushes || []).map(j => ({ kind: j.kind, poll: j.poll, at: j.at, sent: j.sent, done: j.done })) },
@@ -323,6 +323,7 @@ export default {
       if (!result && Date.now() > p.closesAt + 5000 && env.DB) try { result = await pollResult(env, p); } catch (e) { return json({ error: "counting failed, try again" }, {}, 503); }
       return json({ poll: { ...pollPublic(p), result } }, { "cache-control": "no-store" });
     }
+    if (url.pathname === "/api/cast" || url.pathname.startsWith("/api/cast/")) return castApi(req, env, url);   // deeper characters (docs/CAST_PLAN.md)
     if (url.pathname === "/api/ambient") return json({ city: CITY, texture: PLAN.texture || null });
     if (url.pathname === "/api/voices") { const s = await loadState(env); return json(s.voiceCfg || {}, { "cache-control": "public, max-age=60" }); }   // the director's voice settings (the trailer reads them)
     // the show's history: the short version of each day and each week (public); a whole archived day for the director
@@ -540,7 +541,8 @@ function publicState(s, dev) {
   return {
     day: showDay(s.startedAt, Date.now()),
     build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
-    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined, art: e.art || undefined, then: e.then ? { action: e.then.action, text: dev ? e.then.text : "" } : undefined })),
+    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined, art: e.art || undefined, feel: e.feel || undefined, then: e.then ? { action: e.then.action, text: dev ? e.then.text : "" } : undefined })),
+    moods: Object.fromEntries(Object.entries(s.castMoods || {}).filter(([, m]) => m.until > Date.now()).map(([id, m]) => [id, { mood: m.mood, tell: m.tell, body: m.body }])),
     talk: (s.talk || []).slice(-80), dev: !!dev,
     studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
     summary: { today: s.daySum || null, yesterday: s.yesterdaySum || null },
@@ -648,6 +650,10 @@ async function tick(env, force) {
   if (!force) try { await triviaTick(env, s, now); } catch (e) { triviaOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
   if (!force) try { await cookTick(env, s, now); } catch (e) { kitchenOf(s).err = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }   // Ishai cooks: the day's recipe and its slot
   geminiOutUntil = Math.max(geminiOutUntil, s.geminiOutUntil || 0);   // a pause set by another isolate still counts
+  // deeper characters: read the store, then the scene keeper (one call per ended scene), the daily expiry, card drafts and the weekly growth
+  try { await castLoad(env, s, true);
+    if (!force) { await castKeeperTick(env, s, now); await castMaintain(env, s, now); if (CASTD && !CASTD.queue) { await castWeekTick(env, s, now); await castDraftTick(env, s, now); } }
+  } catch (e) { castErr(s, "tick: " + String(e && e.message || e)); }
   TALK = talkLevel(s, env, now);
   // director: activate the next goal, or force it if its deadline passed
   let goal = activeGoal(s, now);
@@ -691,6 +697,7 @@ async function tick(env, force) {
   }
   { const q = quietHosts(s, ev, s.nextId); if (q.length) ev.commentary = q; }   // nobody speaks: the hosts fill the silence
   { const u = unseenHosts(s, ev, s.nextId); if (u) ev.commentary = [...(ev.commentary || []), u]; }   // something only the narration says: a host names it
+  try { castAttachWrap(s, ev, now); } catch (e) {}   // the hosts' verdict on the scene that just ended
   if (!force) try { await pollTick(env, s, ev, now, last); } catch (e) { s.pollErr = { at: now, why: [String(e && e.message || e).slice(0, 160)] }; }
   if (!force) try { await surveyTick(env, s, ev, now); } catch (e) { s.surveyErr = { at: now, msg: String(e && e.message || e).slice(0, 160) }; }
   try { surveyHosts(s, ev, now); } catch (e) {}
@@ -712,22 +719,24 @@ async function tick(env, force) {
   }
   if (ev.with && s.cast[ev.with]) {
     const c = s.cast[ev.with];
-    if (ev.update?.memory) c.memory = ev.update.memory;
-    c.relationship = clamp((c.relationship || 0) + clamp(Math.round(Number(ev.update?.mood) || 0), -1, 1), -5, 5);
+    if (ev.update?.memory && !CASTD) c.memory = ev.update.memory;   // with the cast store, the scene keeper keeps these
+    if (!CASTD) c.relationship = clamp((c.relationship || 0) + clamp(Math.round(Number(ev.update?.mood) || 0), -1, 1), -5, 5);
     c.lastSeen = storyMs; c.scenes = (c.scenes || 0) + 1;
   }
   s.events.push({ id: s.nextId++, t: storyMs, created: now, location: ev.location, action: ev.action, delivery: ev.delivery || undefined,
-    text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null, art: ev.art || undefined, then: ev.then || undefined, bathFrom: ev.bathFrom || undefined, holdIt: ev.holdIt || undefined });
+    text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null, art: ev.art || undefined, feel: ev.feel || undefined, then: ev.then || undefined, bathFrom: ev.bathFrom || undefined, holdIt: ev.holdIt || undefined });
   // the day's highlights, replayed in Ishai's dreams at night
   { const prevEv = s.events[s.events.length - 2], hl = s.hl || (s.hl = []), lastHl = hl[hl.length - 1];
     const notable = !["sleeping", "waking", "bathroom", "showering"].includes(ev.action) && ev.location !== "offscreen" &&
       (ev.with || ev.complete || ev.unlocks || (prevEv && prevEv.location !== ev.location && !["corridor", "street", "shops"].includes(ev.location)));
     if (notable && !(lastHl && lastHl.loc === ev.location && lastHl.w === (ev.with || null)))
       { hl.push({ t: storyMs, loc: ev.location, a: ev.action, w: ev.with || null }); s.hl = hl.slice(-20); } }
-  if (!ev.with && !BATH_ACTIONS.includes(ev.action)){ if (s.scene && s.scene.w) s.gone = { w: s.scene.w, until: storyMs + 90 * 60000 }; s.scene = null; }
-  else if (s.scene && s.scene.w === ev.with){ s.scene.lines += (ev.lines || []).length; if ((ev.lines || []).some(l => FAREWELL.test(l.say))) s.scene.leaving = true; }
-  else s.scene = { w: ev.with, loc: ev.location, startedAt: storyMs, lines: (ev.lines || []).length,
-    ...(ev.scene || { type: "small talk", why: "they ran into each other", ishaiWants: "a pleasant chat", theyWant: "a pleasant chat", beats: "greet, catch up, part", ending: "a natural goodbye", target: 14 }) };
+  const evMood = Math.round(Number(ev.update?.mood) || 0);
+  if (!ev.with && !BATH_ACTIONS.includes(ev.action)){ if (s.scene && s.scene.w) { s.gone = { w: s.scene.w, until: storyMs + 90 * 60000 }; castSceneEnd(s, s.scene, storyMs); } s.scene = null; }
+  else if (s.scene && s.scene.w === ev.with){ s.scene.lines += (ev.lines || []).length; s.scene.mood = (s.scene.mood || 0) + evMood; if ((ev.lines || []).some(l => FAREWELL.test(l.say))) s.scene.leaving = true; }
+  else { if (s.scene && s.scene.w) castSceneEnd(s, s.scene, storyMs);   // someone else: the last scene is over
+    s.scene = { w: ev.with, loc: ev.location, startedAt: storyMs, lines: (ev.lines || []).length, mood: evMood,
+    ...(ev.scene || { type: "small talk", why: "they ran into each other", ishaiWants: "a pleasant chat", theyWant: "a pleasant chat", beats: "greet, catch up, part", ending: "a natural goodbye", target: 14 }) }; }
   s.stuck = ev.stuck ? (s.stuck || 0) + 1 : 0;
   try { if (autoFix(s, ev, goal, now, storyMs)) dropQueue(s, "automatic loop fix"); } catch (e) { s.autoFixErr = { at: now, msg: String(e && e.message || e).slice(0, 160) }; }   // the story went in circles: end the scene and move the plot on
   if (ev.notes) s.notes = ev.notes;
@@ -775,6 +784,7 @@ async function tick(env, force) {
   let pushed = 0;   // vote pushes first (the vote is only 10 minutes long), then the key-moment alert, within one batch of requests
   try { if (!force) { remindTick(s, now); pickTick(s, ev, now); } pushed = await sendPollPushes(env, s); } catch (e) { console.log("vote push", e && e.message); }
   try { maybeAlert(s, ev, last, clock.hour, now); await sendAlerts(env, s, PUSH_BATCH - pushed); } catch (e) { console.log("alert", e && e.message); }   // never let an alert stop the show
+  try { await castAfterTick(env, s, ev, now); } catch (e) { castErr(s, "after tick: " + String(e && e.message || e)); }   // queue ended scenes for the keeper; planned memory changes; a mood set mid-scene
   await saveState(env, s);
   return s;
 }
@@ -1013,6 +1023,14 @@ function buildMessages(s, clock, now, goal, opt = {}) {
     (sceneOverdue(sc, now + DELAY_MIN * 60000, s.stuck) ? ` THE SCENE ENDS IN THIS MOMENT: they wrap up and say goodbye (2-4 lines) and ${name(sc.w)} leaves (walks out / hangs up). After this moment ${name(sc.w)} is gone.`
       : sc.lines >= sc.target ? ` It is time to reach the planned ending now, naturally (a reason to leave, hang up, or move on).` : ` Keep both people pursuing what they want; move to the next beat when the current one is done.`) + "\n" : "";
   const allowNew = canAddPerson(s, now);
+  // what the people in the scene (and the people the talk is about) know and feel: from the cast store, no AI (castContext)
+  const castCtx = (() => { try {
+    const people = [cw, goal && goal.forceWith, s.scene && s.scene.w].filter(Boolean);
+    const about = [...s.events.slice(-2).map(e => e.text + " " + (e.lines || []).map(l => l.say).join(" ")), goal ? goal.goal : "", s.fixNote && now < s.fixNote.until ? s.fixNote.text : "", planFor("hook", now),
+      ...(PLAN.arcs || []).filter(a => a && people.some(p => JSON.stringify(a).toLowerCase().includes(String(s.cast[p]?.name || p).toLowerCase().split(" ").pop()))).map(a => a.title + " " + a.stage),
+      ...(s.queue ? s.queue.items.map(m => String(m.text || "")) : [])].join(" ");
+    return castContext(s, people, about, { brake: TALK.brake });
+  } catch (e) { return ""; } })();
   // now and then, ask the hosts for an obvious "secret" sponsor plug
   const sponsor = now - (s.lastAd || 0) > AD_EVERY_MIN * 60000 && Math.random() < 0.35
     ? SPONSORS[Math.floor(Math.random() * SPONSORS.length)] : null;
@@ -1091,6 +1109,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
   {"type":"small talk"|"practical"|"plot","why":"the real reason they are talking now (who started it and why)","ishaiWants":"...","theyWant":"...","beats":"3-5 short steps the conversation goes through","ending":"how it ends","lines":12-60 total lines across moments}
   Ground it in the place, the time of day, both characters' personalities, memories and relationship, and ongoing plot threads. Small talk is fine but still has a reason (bored, lonely, being polite, avoiding work). Plot scenes move an arc forward. Otherwise "scene": null.
   While a scene runs, every line serves it: people pursue what they want, dodge, change the subject, give in or push back, like real people.
+- "feel" (optional): when someone's mood clearly turns in this moment (a fight, bad news, a laugh that changes everything), {"who": "ishai" or the "with" id, "mood": "angry"|"sad"|"happy"|"nervous"|"tired"|"tipsy"|"embarrassed", "why": "a few words"}; otherwise null. Their body language changes at once.
 - When "with" is set, "update" holds that person's updated memory of Ishai (max 25 words, keep old facts that still matter) and "mood": -1, 0 or 1 for how this moment changed their feelings.
 - ${allowNew
   ? `You MAY introduce one new person, only if the story really needs someone new. Describe them in "newCharacter" and use their name as "with". Look options: hair ${LOOK.hair.join("/")}; hairColor ${LOOK.hairColor.join("/")}; skin ${LOOK.skin.join("/")}; shirt and pants ${LOOK.cloth.join("/")}; hat ${LOOK.hat.join("/")} with hatColor from the same colours; top ${LOOK.top.join("/")}; bottom ${LOOK.bottom.join("/")}; extras up to 3 of ${LOOK.extras.join("/")}.`
@@ -1106,7 +1125,7 @@ ${(() => { const r = recentHostLines(s, 8); return r.length ? `- The hosts ALREA
 - ${block ? "IN ONE OF THESE MOMENTS" : "THIS MOMENT"}: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
 
 ${block ? `Reply with ONLY this JSON, nothing else: {"moments":[ ...exactly ${block} moments in order... ]}, where EACH moment looks like this:` : "Reply with ONLY this JSON, nothing else:"}
-{${cue && cue.onAir && !cue.onAir.say ? '"onAir":"...",' : ""}"location":"...","action":"...","text":"...","with":null,"delivery":false,"lines":[{"who":"ishai","say":"..."},{"who":"<the with id>","say":"..."}],"commentary":[],"scene":null,"update":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
+{${cue && cue.onAir && !cue.onAir.say ? '"onAir":"...",' : ""}"location":"...","action":"...","text":"...","with":null,"delivery":false,"lines":[{"who":"ishai","say":"..."},{"who":"<the with id>","say":"..."}],"commentary":[],"scene":null,"update":null,"feel":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
 "missing": if this moment features an object, animal or place the camera cannot show (not listed above), name it in 1-3 words (e.g. "bicycle", "puppy"); otherwise null.
 newCharacter format: {"name":"...","role":"...","personality":"...","speech":"...","hangouts":["..."],"look":{"hair":"...","hairColor":"...","skin":"...","shirt":"...","pants":"...","extras":[]}}`;
   const user =
@@ -1116,7 +1135,7 @@ Plot notes: ${s.notes || "none"}${storySoFar(s)}${cityNote(now, s.world && s.wor
 ${body}
 ${real}${media}${placesNote(now + DELAY_MIN * 60000)}${stayNote(s, now + DELAY_MIN * 60000, goal)}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${backupPush(s, now, clock, last)}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
-${recent}${gap}${goneNote}${s.recoverUntil && now < s.recoverUntil ? "\nNOTE: Earlier Ishai felt unwell and rested at home. He feels better now, still a little slow; let that show naturally (and he may mention it to someone)." : ""}${convo}${sceneBrief}
+${recent}${castCtx}${gap}${goneNote}${s.recoverUntil && now < s.recoverUntil ? "\nNOTE: Earlier Ishai felt unwell and rested at home. He feels better now, still a little slow; let that show naturally (and he may mention it to someone)." : ""}${convo}${sceneBrief}
 ${cue ? "\n" + liveText(cue, s, last) : ""}
 
 ${block ? `What happens in the next ${block} moments?` : "What happens next?"}`;
@@ -1140,8 +1159,14 @@ async function addHosts(env, s, moments, clock, now) {
     if (secrets.length) s.lastHint = now;
     const hintNow = secrets.length ? `WHAT ISHAI DOESN'T KNOW (the producers' secrets): ${secrets.map(x => `${x.title}: ${x.secret} [${x.told ? "may be told plainly to the viewers" : "hint only"}]`).join(" | ")}\nIn ONE moment at most, and only where it fits what is on screen, ONE line lets the viewers in on one of these: "hint only" = a knowing tease that never states it ("someone at the cafe is keeping something from him..."); "may be told plainly" = say it to the viewers ("what Ishai doesn't know..."). Ishai never hears the hosts.\n\n` : "";
     const sponsor = now - (s.lastAd || 0) > AD_EVERY_MIN * 60000 && Math.random() < 0.35 ? SPONSORS[Math.floor(Math.random() * SPONSORS.length)] : null;
+    // a moment that starts a scene (someone joins him, or he walks in on them) gets the pair's brief for the hosts' setup ("pre")
+    const prevW = i => i ? (moments[i - 1].with ? String(moments[i - 1].with).toLowerCase() : null) : (s.events[s.events.length - 1] || {}).with || null;
+    const briefs = moments.map((m, i) => { const w = m.with ? String(m.with).toLowerCase() : null, act = String(m.action || "").toLowerCase();
+      if (!w || w === prevW(i) || act === "phoning" || CAST_NO_KEEP.has(act) || act === "sleeping") return "";
+      try { return castBrief(s, w); } catch (e) { return ""; } });
     const list = moments.map((m, i) => { const loc = String(m.location || "").toLowerCase(), act = String(m.action || "").toLowerCase(), w = m.with ? String(m.with).toLowerCase() : null;
-      return `#${i + 1} ${storyClock(now + DELAY_MIN * 60000 + i * INTERVAL_MIN * 60000).label.slice(-5)} CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}${dogInMoment(s, m) ? " | Falafel the dog is here" : ""}\n   what happens: ${String(m.text || "").slice(0, 220)}${m.then && m.then.action ? ` | about 3 minutes in he switches to ${m.then.action}` : ""}` +
+      const pl = w && !briefs[i] ? (() => { const p = castPair("ishai", w), md = castMoodLine(w).split(";")[0]; return (p ? ` | between them: ${p.label || "?"}${p.thread ? ", open: " + clip(p.thread, 90) : ""}` : "") + (md ? ` | ${nm(w)} is ${md}` : ""); })() : "";
+      return (briefs[i] ? `   SCENE STARTS (write "pre"): ${briefs[i]}\n` : "") + `#${i + 1} ${storyClock(now + DELAY_MIN * 60000 + i * INTERVAL_MIN * 60000).label.slice(-5)} CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}${dogInMoment(s, m) ? " | Falafel the dog is here" : ""}${pl}\n   what happens: ${String(m.text || "").slice(0, 220)}${m.then && m.then.action ? ` | about 3 minutes in he switches to ${m.then.action}` : ""}` +
         (Array.isArray(m.lines) && m.lines.length ? "\n   they say: " + m.lines.slice(0, 14).map(l => `${nm(String(l.who || "").toLowerCase())}: "${String(l.say || "").slice(0, 120)}"`).join(" / ") : ""); }).join("\n");
     const msgs = [{ role: "system", content:
 `You write the two hosts of a live reality show that secretly films Ishai, a man in Tel Aviv.
@@ -1149,8 +1174,9 @@ async function addHosts(env, s, moments, clock, now) {
 - ${HOSTS.oren}
 - ${HOSTS.rules}
 For EACH moment below write 0-2 short lines (max 20 words each). The viewers see only the picture (the camera and what Ishai is doing) and hear the spoken lines; they cannot read "what happens", so usually one line says plainly what is going on, then a joke, an opinion or a guess. React only to what is visible or said: never invent drinks, food, objects, visitors, calls or plans. When "what happens" has a detail the picture can't show and nobody says it (an object someone brings, holds or hands over, wet clothes, a smell, a sound), one line names it plainly, for example: Dana's at the door with a wet coat and a little pot of basil. If the CAMERA is STATIC, they cannot see him: they wonder where he is, guess, or joke about losing him. Fresh every time: never repeat the lines below, their jokes, openings or catchphrases.${sponsor ? `\nIN ONE OF THESE MOMENTS one host slips in an obvious, cheesy "secret" plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending with a wink like "...not sponsored, by the way"; the other host reacts.` : ""}
-Mention Falafel the dog only in a moment marked "Falafel the dog is here": anywhere else (a concert, a lecture, poker at Boaz's) he is at home and not in the picture.
-Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..."}]}]} with exactly ${moments.length} entries, in order.` },
+Mention Falafel the dog only in a moment marked "Falafel the dog is here": anywhere else (a concert, a lecture, poker at Boaz's) he is at home and not in the picture.${briefs.some(Boolean) ? `
+A moment marked SCENE STARTS also gets "pre": 1-2 lines played BEFORE anyone speaks, like a reality show's narrator setting up what's at stake, from that brief (e.g. "Dana's still hurt about the missed birthday. First time they've met since. Let's see if he brings it up."). The setup asks a question and never answers it: do not give away anything that happens in that moment or later. Never say a secret.` : ""}
+Reply with ONLY JSON: {"moments":[{${briefs.some(Boolean) ? '"pre":[{"who":"zohar"|"oren","say":"..."}],' : ""}"commentary":[{"who":"zohar"|"oren","say":"..."}]}]} with exactly ${moments.length} entries, in order.` },
       { role: "user", content: `${hintNow}${teaseNow ? `COMING UP LATER (the producers' plan for today; Ishai has no idea): ${teaseNow}\nIn ONE moment only (the quietest one), ONE line teases the next of these: name the time and the hook and urge viewers to stay tuned or be back then ("...at 20:00, don't miss it"). Never say how it turns out.\n\n` : ""}${s.daySum ? `TODAY SO FAR (to connect with earlier moments): ${clip(s.daySum.text, 300)}\n\n` : ""}ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
     // read whatever came back, even a cut-off or slightly broken reply: every {"commentary":[...]} found, in order
     const readHosts = raw => { const o = parseAI(raw); if (o && Array.isArray(o.moments)) return o.moments;
@@ -1168,7 +1194,10 @@ Reply with ONLY JSON: {"moments":[{"commentary":[{"who":"zohar"|"oren","say":"..
         .filter(x => (x.who === "zohar" || x.who === "oren") && x.say.length > 3 && !isRepeat(x.say, used) && (!DOG_WORDS.test(x.say) || dogInMoment(s, m))).slice(0, 2);
       c.forEach(x => used.push(x.say));
       if (teaseNow && c.some(x => TEASE_RE.test(x.say))) s.lastTease = now;
-      if (c.length) m.commentary = c;
+      const pre = briefs[i] ? (Array.isArray(arr[i]?.pre) ? arr[i].pre : []).map(x => ({ who: String(x?.who || "").toLowerCase().trim(), say: String(x?.say || "").replace(/\s+/g, " ").trim().replace(/^["']|["']$/g, "").slice(0, 170), pre: true }))
+        .filter(x => (x.who === "zohar" || x.who === "oren") && x.say.length > 6 && !isRepeat(x.say, used) && !castLeaks(x.say, now)).slice(0, 2) : [];
+      pre.forEach(x => used.push(x.say));
+      if (c.length || pre.length) m.commentary = [...pre, ...c];
     });
     s.hostsBy = lastWriter; if (arr.some(x => (x.commentary || []).length)) s.hostsErr = null;   // the error shown is a current one
   } catch (e) { s.hostsErr = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }
@@ -1385,9 +1414,12 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   // a text or an email: read out first, then he reacts in "lines"
   if (o.message && typeof o.message === "object") { const id = str(o.message.from, 20).toLowerCase(), say = str(o.message.say, 160), via = str(o.message.kind, 10).toLowerCase() === "email" ? "email" : "text";
     if (s.cast[id] && say) ev.lines.unshift({ who: id, say, via }); }
-  ev.commentary = (Array.isArray(o.commentary) ? o.commentary : [])
-    .map(c => ({ who: str(c?.who, 10).toLowerCase(), say: str(c?.say, 160).replace(/^["']|["']$/g, "") }))
-    .filter(c => (c.who === "zohar" || c.who === "oren") && c.say).slice(0, 2);
+  { const cm = (Array.isArray(o.commentary) ? o.commentary : [])
+      .map(c => ({ who: str(c?.who, 10).toLowerCase(), say: str(c?.say, 160).replace(/^["']|["']$/g, ""), ...(c?.pre === true ? { pre: true } : {}) }))
+      .filter(c => (c.who === "zohar" || c.who === "oren") && c.say);
+    ev.commentary = [...cm.filter(c => c.pre).slice(0, 2), ...cm.filter(c => !c.pre).slice(0, 2)]; }   // "pre": the hosts' setup before a scene's first line
+  if (o.feel && typeof o.feel === "object") { const fw = str(o.feel.who, 30).toLowerCase(), fm = str(o.feel.mood, 14).toLowerCase();   // a mood the story sets mid-scene (body language at once)
+    if ((fw === "ishai" || fw === ev.with) && CAST_MOODS.includes(fm) && !LOCALS[fw]) ev.feel = { who: fw, mood: fm, why: str(o.feel.why, 100) }; }
   if (o.scene && typeof o.scene === "object" && ev.with) ev.scene = {
     type: str(o.scene.type, 20) || "small talk", why: str(o.scene.why, 200), ishaiWants: str(o.scene.ishaiWants, 150), theyWant: str(o.scene.theyWant, 150),
     beats: str(o.scene.beats, 300), ending: str(o.scene.ending, 150), target: clamp(Math.round(Number(o.scene.lines) || 16), 8, 80) };
@@ -4953,4 +4985,653 @@ function nextPath(from, to) {
   if (!(to in prev)) return null;
   const p = []; for (let n = to; n !== null; n = prev[n]) p.unshift(n);
   return p.length <= 5 ? p : null;
+}
+
+// ============================================================
+// ---------- deeper characters (docs/CAST_PLAN.md) ----------
+// D1 keeps each person's card, notes (memory lines), facts, pairs (who feels what about whom), moods, the growth waiting for review,
+// and the scenes waiting for the scene keeper. The worker reads it all once a tick into CASTD (castLoad) and builds the story writer's
+// and the hosts' context from it with no AI (castContext, castBrief). One Gemini call after each scene (castKeeperTick) writes the changes.
+const CAST_MOODS = ["angry", "sad", "happy", "nervous", "tired", "tipsy", "embarrassed"];
+const CAST_LABELS = ["old friends", "close friends", "friends", "best friends", "crush", "dating", "partners", "exes", "rivals", "family", "neighbours", "colleagues", "boss", "acquaintances", "regulars", "strangers"];
+const CAST_BODY = ["gesture", "gestureL", "open", "shrug", "laugh", "nod", "shake", "down", "chin", "startle", "tap", "cross", "frown", "neck", "yawn", "away", "sway", "face", "none"];
+const CAST_CTX_MAX = 4000;          // characters of cast context in the story prompt (~1,000 tokens); halved while the talk is braked
+const CAST_LIVE_MAX = 30;           // live notes per person before the oldest, least important are archived
+const CAST_NO_KEEP = new Set(["lecture", "film", "trivia", "concert", "gallery", "poker", "improv"]);   // planned nights with their own ending
+const CAST_META = /\b(cameras?|filmed|filming|viewers?|broadcast|the producers?|on air|reality show|zohar|oren|watching ishai)\b/i;
+// sha-256 of the scheduled Claude review's token (the token itself is only in that task's prompt)
+const CAST_HASH = "57fe84eaca8b63babc09c189e8691a4d9cd9bd8712526074f4d542d379fbf1d9";
+let CASTD = null, castTablesOk = false;
+
+async function castTables(env) {
+  if (castTablesOk || !env.DB) return;
+  await env.DB.batch([
+    "CREATE TABLE IF NOT EXISTS cast_card (id TEXT PRIMARY KEY, card TEXT NOT NULL, v INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS cast_note (n INTEGER PRIMARY KEY, who TEXT NOT NULL, about TEXT, at INTEGER NOT NULL, imp INTEGER NOT NULL, text TEXT NOT NULL, tags TEXT, state TEXT NOT NULL, upd INTEGER, pin INTEGER DEFAULT 0)",
+    "CREATE INDEX IF NOT EXISTS cast_note_ws ON cast_note (who, state)",
+    "CREATE TABLE IF NOT EXISTS cast_fact (who TEXT NOT NULL, k TEXT NOT NULL, v TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (who, k))",
+    "CREATE TABLE IF NOT EXISTS cast_pair (a TEXT NOT NULL, b TEXT NOT NULL, warmth INTEGER NOT NULL DEFAULT 0, trust INTEGER NOT NULL DEFAULT 0, tension INTEGER NOT NULL DEFAULT 0, label TEXT, history TEXT, thread TEXT, at INTEGER NOT NULL, PRIMARY KEY (a, b))",
+    "CREATE TABLE IF NOT EXISTS cast_mood (who TEXT PRIMARY KEY, mood TEXT NOT NULL, why TEXT, since INTEGER NOT NULL, until INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS cast_pending (n INTEGER PRIMARY KEY, who TEXT NOT NULL, kind TEXT NOT NULL, change TEXT NOT NULL, why TEXT, at INTEGER NOT NULL, state TEXT NOT NULL, review TEXT)",
+    "CREATE TABLE IF NOT EXISTS cast_queue (n INTEGER PRIMARY KEY, scene TEXT NOT NULL, at INTEGER NOT NULL, tries INTEGER NOT NULL DEFAULT 0)"
+  ].map(q => env.DB.prepare(q)));
+  castTablesOk = true;
+}
+const castKey = (a, b) => a < b ? [a, b] : [b, a];
+const castName = (s, id) => id === "ishai" ? "Ishai" : s.cast[id]?.name || id;
+const castKnown = (s, id) => id === "ishai" || !!(s.cast[id] && !LOCALS[id]);
+const castStr = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+const castInt = (v, lo, hi) => clamp(Math.round(Number(v) || 0), lo, hi);
+// a line that would give away a secret before its day: shares most of the secret's long words
+const CAST_STOP = new Set(["about", "their", "there", "which", "would", "could", "should", "being", "after", "before", "where", "while", "thinks", "knows", "doesn't", "isn't", "ishai", "still", "other", "every"]);
+function castLeaks(text, now) {
+  const t = String(text || "").toLowerCase();
+  return secretsNow(now).some(x => { const ws = [...new Set((x.secret.toLowerCase().match(/[a-z']{5,}/g) || []).filter(w => !CAST_STOP.has(w)))];
+    return ws.length >= 3 && ws.filter(w => t.includes(w)).length >= Math.max(3, Math.ceil(ws.length * .45)); });
+}
+
+// ---- the cards ----
+function castSeedCard(c) {
+  if (c.id === "ishai") return { id: "ishai", name: "Ishai", age: 31, role: "freelance graphic designer living alone in apartment 4 of an old building on Herzl Street, Tel Aviv",
+    personality: "kind, a bit lazy, overthinks small things, loves falafel and old video games; owns a stubborn basil plant named Moshe", speech: "self-deprecating, polite, rambles when nervous",
+    hangouts: ["apartment", "street", "cafe"], aliases: ["Ishai", "Ishush"] };
+  const first = String(c.name).replace(/^(Mrs?\.|Dr\.)\s*/, "").split(" ")[0];
+  const age = (String(c.role).match(/\b(\d{2})\b/) || [])[1];
+  return { id: c.id, name: c.name, ...(age ? { age: +age } : {}), role: c.role, personality: c.personality || "", speech: c.speech || "", hangouts: c.hangouts || [],
+    aliases: [...new Set([c.name, first].filter(x => x && x.length > 2))] };
+}
+// keeps only known fields, in known sizes (AI drafts, the review's edits and the director's editor all go through here)
+function castCardClean(o, base) {
+  o = o && typeof o === "object" ? o : {}; base = base || {};
+  const S = castStr, arr = (a, n, m) => (Array.isArray(a) ? a : []).map(x => S(x, m)).filter(Boolean).slice(0, n);
+  const c = { id: base.id, name: base.name || S(o.name, 40) };
+  for (const k of ["role", "personality", "speech", "lives", "works"]) { const v = S(o[k] ?? base[k], k === "role" ? 220 : 260); if (v) c[k] = v; }
+  const age = Math.round(Number(o.age ?? base.age)); if (age > 0 && age < 110) c.age = age;
+  c.hangouts = arr(o.hangouts || base.hangouts, 6, 20).filter(h => LOCATIONS[h]);
+  c.aliases = arr(o.aliases || base.aliases, 8, 30);
+  const bs = S(o.backstory ?? base.backstory, 700); if (bs) c.backstory = bs;
+  const ins = o.inside && typeof o.inside === "object" ? o.inside : base.inside || {};
+  const inside = {}; for (const k of ["wantsLong", "wantsWeek", "fears", "proud", "ashamed"]) { const v = S(ins[k], 200); if (v) inside[k] = v; }
+  if (Object.keys(inside).length) c.inside = inside;
+  const h = arr(o.habits || base.habits, 6, 120); if (h.length) c.habits = h;
+  const tk = o.talk && typeof o.talk === "object" ? o.talk : base.talk || {};
+  const talk = { how: S(tk.how, 200), samples: arr(tk.samples, 4, 140), loves: arr(tk.loves, 6, 60), avoids: arr(tk.avoids, 6, 60) };
+  if (talk.how || talk.samples.length || talk.loves.length) c.talk = talk;
+  const md = o.moods && typeof o.moods === "object" ? o.moods : base.moods || {}, moods = {};
+  for (const m of CAST_MOODS) { const x = md[m]; if (!x || typeof x !== "object") continue;
+    const say = S(x.say, 160), body = arr(x.body, 4, 12).filter(b => CAST_BODY.includes(b)), tell = S(x.tell, 80);
+    if (say || body.length) moods[m] = { say, body, ...(tell ? { tell } : {}) }; }
+  if (Object.keys(moods).length) c.moods = moods;
+  const sec = (Array.isArray(o.secrets) ? o.secrets : base.secrets || []).map(x => x && typeof x === "object" ? { text: S(x.text, 240), knows: arr(x.knows, 6, 20) } : null).filter(x => x && x.text).slice(0, 4);
+  if (sec.length) c.secrets = sec;
+  if (base.look) c.look = base.look;
+  return c;
+}
+// the card in a few lines, for prompts
+function castShort(card, full) {
+  if (!card) return "";
+  const p = [card.role, card.age ? card.age + " years old" : "", card.personality ? "Personality: " + card.personality : "", card.speech ? "Speech: " + card.speech : ""];
+  if (card.backstory) p.push("Backstory: " + clip(card.backstory, full ? 400 : 200));
+  const i = card.inside || {};
+  if (i.wantsWeek || i.wantsLong) p.push("Wants: " + [i.wantsWeek, i.wantsLong].filter(Boolean).join("; "));
+  if (full && i.fears) p.push("Fears: " + i.fears);
+  if (card.habits && card.habits.length) p.push("Habits: " + card.habits.slice(0, full ? 6 : 3).join("; "));
+  if (full && card.talk && card.talk.how) p.push("Talks: " + card.talk.how + (card.talk.avoids && card.talk.avoids.length ? " (avoids: " + card.talk.avoids.join(", ") + ")" : ""));
+  return p.filter(Boolean).join(". ").replace(/\.\./g, ".");
+}
+
+// ---- reading it all (once a tick; the public /api/cast and the hosts use the same snapshot) ----
+async function castLoad(env, s, force) {
+  if (!env.DB) return null;
+  const now = Date.now();
+  if (!force && CASTD && now - CASTD.at < 60000) return CASTD;
+  await castTables(env);
+  await castSeed(env, s, now);
+  const q = sql => env.DB.prepare(sql);
+  const [cards, live, arch, facts, pairs, moods, cnt] = await env.DB.batch([
+    q("SELECT id, card, v FROM cast_card"), q("SELECT n, who, about, at, imp, text, tags, pin FROM cast_note WHERE state = 'live'"),
+    q("SELECT n, who, about, at, imp, text, tags FROM cast_note WHERE state = 'archived' ORDER BY at DESC LIMIT 400"),
+    q("SELECT who, k, v, at FROM cast_fact"), q("SELECT * FROM cast_pair"), q("SELECT * FROM cast_mood"),
+    q("SELECT (SELECT COUNT(*) FROM cast_pending WHERE state = 'pending') AS pend, (SELECT COUNT(*) FROM cast_queue) AS queue")]);
+  const D = { at: now, cards: {}, notes: live.results || [], archived: arch.results || [], facts: {}, pairs: {}, moods: {}, pending: cnt.results?.[0]?.pend || 0, queue: cnt.results?.[0]?.queue || 0 };
+  for (const r of cards.results || []) try { D.cards[r.id] = { ...JSON.parse(r.card), v: r.v }; } catch (e) {}
+  for (const r of facts.results || []) (D.facts[r.who] ||= {})[r.k] = r.v;
+  for (const r of pairs.results || []) D.pairs[r.a + "|" + r.b] = r;
+  for (const r of moods.results || []) if (r.until > now) D.moods[r.who] = r;
+  CASTD = D; castMirror(s, D, now);
+  return D;
+}
+// what the page needs in the main state (moods for body language and voices); the rest stays in D1
+function castMirror(s, D, now) {
+  const m = {};
+  for (const [id, r] of Object.entries(D.moods)) { const md = D.cards[id]?.moods?.[r.mood] || {};
+    m[id] = { mood: r.mood, why: clip(r.why || "", 60), until: r.until, ...(md.tell ? { tell: md.tell } : {}), ...(md.body && md.body.length ? { body: md.body } : {}) }; }
+  s.castMoods = m;
+}
+const castPair = (a, b) => CASTD && CASTD.pairs[castKey(a, b).join("|")] || null;
+const castNotes = (who, about, n) => !CASTD ? [] : CASTD.notes.filter(x => x.who === who && (about === undefined || x.about === about))
+  .sort((x, y) => (y.pin || 0) - (x.pin || 0) || y.imp - x.imp || y.at - x.at).slice(0, n);
+const castNewest = (who, about, n) => !CASTD ? [] : CASTD.notes.filter(x => x.who === who && (about === undefined || x.about === about)).sort((x, y) => y.at - x.at).slice(0, n);
+
+// start-up: every person (and Ishai) gets a card, their current memory as a first note, and a pair row with Ishai
+async function castSeed(env, s, now) {
+  const want = ["ishai", ...Object.keys(s.cast).filter(id => s.cast[id] && !LOCALS[id])], done = new Set(s.castSeeded || []);
+  if (want.every(id => done.has(id))) return;
+  const have = new Set(((await env.DB.prepare("SELECT id FROM cast_card").all()).results || []).map(r => r.id));   // the store decides: a card already there is never seeded twice
+  const todo = want.filter(id => !have.has(id));
+  s.castSeeded = want; if (!todo.length) return;
+  const st = [];
+  for (const id of todo) {
+    const c = id === "ishai" ? { id: "ishai", name: "Ishai" } : s.cast[id];
+    st.push(env.DB.prepare("INSERT OR IGNORE INTO cast_card (id, card, v, at) VALUES (?, ?, 0, ?)").bind(id, JSON.stringify(castCardClean(castSeedCard(c), { ...castSeedCard(c), look: c.look })), now));
+    if (id === "ishai") continue;
+    if (c.memory) st.push(env.DB.prepare("INSERT INTO cast_note (who, about, at, imp, text, tags, state, upd) VALUES (?, 'ishai', ?, 3, ?, '', 'live', ?)").bind(id, now, String(c.memory).slice(0, 200), now));
+    const rel = Math.round(Number(c.relationship) || 0), role = String(c.role || "").toLowerCase();
+    const label = /best friend|friend since/.test(role) ? "old friends" : /neighbo/.test(role) ? "neighbours" : /boss|agency/.test(role) ? "colleagues" : c.regular ? "regulars" : rel > 0 ? "acquaintances" : "strangers";
+    const [a, b] = castKey("ishai", id);
+    st.push(env.DB.prepare("INSERT OR IGNORE INTO cast_pair (a, b, warmth, trust, tension, label, history, thread, at) VALUES (?, ?, ?, ?, 0, ?, '', '', ?)")
+      .bind(a, b, rel >= 5 ? 3 : clamp(rel, -5, 5), rel >= 3 ? 2 : 0, label, now));
+  }
+  for (let i = 0; i < st.length; i += 50) await env.DB.batch(st.slice(i, i + 50));
+}
+
+// ---- what the story writer gets (no AI): the people in the scene, the people mentioned, the topics, the rest by name ----
+function castAliases(id) { const c = CASTD && CASTD.cards[id]; return (c && c.aliases && c.aliases.length ? c.aliases : [c ? c.name : id]).filter(a => a && a.length > 2); }
+function castMentioned(s, text, skip) {
+  const t = " " + String(text || "").toLowerCase() + " ", out = [];
+  for (const id of Object.keys(s.cast)) { if (skip.has(id) || LOCALS[id]) continue;
+    if (castAliases(id).some(a => new RegExp("[^a-z]" + a.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[^a-z]").test(t))) out.push(id); }
+  return out;
+}
+function castMoodLine(id) {
+  const r = CASTD && CASTD.moods[id]; if (!r) return "";
+  const say = CASTD.cards[id]?.moods?.[r.mood]?.say;
+  return `${r.mood}${r.why ? " (" + clip(r.why, 80) + ")" : ""}${say ? "; when " + r.mood + ": " + say : ""}`;
+}
+function castPairLine(s, a, b) {
+  const p = castPair(a, b); if (!p) return "";
+  return `${castName(s, a)} & ${castName(s, b)}: ${p.label || "?"}, warmth ${p.warmth}, trust ${p.trust}, tension ${p.tension}.` + (p.history ? ` History: ${clip(p.history, 260)}` : "") + (p.thread ? ` Open between them now: ${clip(p.thread, 160)}` : "");
+}
+const castNoteList = ns => ns.map(x => `"${clip(x.text, 160)}"`).join("; ");
+function castFactsLine(id) { const f = CASTD && CASTD.facts[id]; return f ? Object.entries(f).slice(0, 8).map(([k, v]) => `${k}: ${v}`).join("; ") : ""; }
+function castPersonBlock(s, id, others, full) {
+  const c = CASTD.cards[id] || castSeedCard(s.cast[id] || { id, name: id });
+  const out = [`- ${castName(s, id)} ("${id}"): ${castShort(c, full)}`];
+  const md = castMoodLine(id); if (md) out.push(`  Mood now: ${md}`);
+  for (const o of others) {
+    const pl = castPairLine(s, id, o); if (pl) out.push("  " + pl);
+    const mine = castNotes(id, o, 8), theirs = castNotes(o, id, 5);
+    if (mine.length) out.push(`  ${castName(s, id)} remembers about ${castName(s, o)}: ${castNoteList(mine)}`);
+    if (theirs.length) out.push(`  ${castName(s, o)} remembers about ${castName(s, id)}: ${castNoteList(theirs)}`);
+  }
+  const f = castFactsLine(id); if (f) out.push(`  Facts: ${f}`);
+  return out.join("\n");
+}
+// people: who is in the scene (besides Ishai); text: what the talk is about now (lines, goal, hook, notes)
+function castContext(s, people, text, opt = {}) {
+  if (!CASTD) return "";
+  const brake = !!opt.brake, cap = brake ? CAST_CTX_MAX / 2 : CAST_CTX_MAX, parts = [];
+  const scene = [...new Set(people.filter(id => castKnown(s, id) && id !== "ishai"))];
+  const ishaiMood = castMoodLine("ishai");
+  if (ishaiMood) parts.push(`- Ishai's mood now: ${ishaiMood}`);
+  for (const id of scene) parts.push(castPersonBlock(s, id, ["ishai", ...scene.filter(x => x !== id)], true));
+  const skip = new Set(["ishai", ...scene]), men = castMentioned(s, text, skip).slice(0, 4);
+  for (const id of men) {
+    const p = [`- ${castName(s, id)} (mentioned): ${CASTD.cards[id]?.role || s.cast[id]?.role || ""}`];
+    for (const o of scene.length ? scene : ["ishai"]) { const pl = castPairLine(s, id, o); if (pl) p.push("  " + pl); }
+    if (scene.length) { const pl = castPair(id, "ishai"); if (pl && pl.thread) p.push(`  With Ishai, open: ${clip(pl.thread, 140)}`); }
+    const md = castMoodLine(id); if (md) p.push(`  Mood: ${md}`);
+    const nn = castNewest(id, undefined, 3); if (nn.length) p.push(`  Lately: ${castNoteList(nn)}`);
+    for (const o of scene) { const kn = castNotes(o, id, 3); if (kn.length) p.push(`  What ${castName(s, o)} knows and feels about ${castName(s, id)}: ${castNoteList(kn)}`); }
+    parts.push(p.join("\n"));
+  }
+  if (!brake) {   // topics: facts and archived notes whose words come up now
+    const words = new Set((String(text || "").toLowerCase().match(/[a-z\u0590-\u05ff']{4,}/g) || []).filter(w => !CAST_STOP.has(w)));
+    const hitTags = x => String(x.tags || "").toLowerCase().split(/[,\s]+/).some(t => t.length > 3 && words.has(t));
+    const facts = [];
+    for (const [who, f] of Object.entries(CASTD.facts)) for (const [k, v] of Object.entries(f)) if (k.toLowerCase().split(/\s+/).some(w => words.has(w)) && !scene.includes(who)) facts.push(`${castName(s, who)}: ${k}: ${v}`);
+    const arch = CASTD.archived.filter(x => (skip.has(x.who) || men.includes(x.who)) && hitTags(x)).slice(0, 3);
+    if (facts.length) parts.push(`- Related facts: ${facts.slice(0, 5).join("; ")}`);
+    if (arch.length) parts.push(`- Older memories this brings back: ${arch.map(x => `${castName(s, x.who)}: "${clip(x.text, 140)}"`).join("; ")}`);
+  }
+  let out = "", i = 0;
+  for (; i < parts.length && out.length + parts[i].length < cap; i++) out += (out ? "\n" : "") + parts[i];
+  if (!out && parts.length) out = parts[0].slice(0, cap);
+  return out ? `\nWHAT THEY KNOW AND FEEL (each person's own memories and feelings; stay true to them, let them come up when they fit, never recite them):\n${out}` : "";
+}
+// the hosts' brief for a scene that starts: the pair, both moods, the last important notes, an open arc
+function castBrief(s, id) {
+  if (!CASTD || !castKnown(s, id)) return "";
+  const p = castPair("ishai", id), out = [];
+  if (p) out.push(`${p.label || "?"}; warmth ${p.warmth}, trust ${p.trust}, tension ${p.tension}${p.thread ? `; open between them: ${clip(p.thread, 140)}` : ""}`);
+  const mi = castMoodLine("ishai"), mt = castMoodLine(id);
+  if (mt) out.push(`${castName(s, id)} is ${mt.split(";")[0]}`); if (mi) out.push(`Ishai is ${mi.split(";")[0]}`);
+  const ns = [...castNotes(id, "ishai", 2), ...castNotes("ishai", id, 1)].filter(x => x.imp >= 3);
+  if (ns.length) out.push("lately: " + ns.map(x => `${castName(s, x.who)}: "${clip(x.text, 110)}"`).join("; "));
+  const nm = castAliases(id).map(a => a.toLowerCase());
+  const arc = (PLAN.arcs || []).find(a => a && a.title && nm.some(n => (String(a.title) + " " + String(a.stage || "")).toLowerCase().includes(n)));
+  if (arc) out.push(`arc: ${clip(arc.title, 60)}: ${clip(arc.stage, 120)}`);
+  const txt = out.join(" | ");
+  return castLeaks(txt, Date.now()) ? "" : txt;
+}
+
+// ---- the scene keeper: one call after each scene ----
+// tick() marks the end of a scene (castSceneEnd); castAfterTick() queues it; the next tick's castKeeperTick() writes the changes.
+function castSceneEnd(s, sc, storyMs) {
+  if (!sc || !sc.w || !castKnown(s, sc.w)) return;
+  const evs = s.events.filter(e => e.t >= (sc.startedAt || 0) && (e.with === sc.w || BATH_ACTIONS.includes(e.action)));
+  const lines = evs.reduce((n, e) => n + (e.lines || []).length, 0);
+  if (!evs.length || lines < 4 || evs.every(e => CAST_NO_KEEP.has(e.action))) return;
+  const nm = id => id === "ishai" ? "Ishai" : castName(s, id);
+  const text = evs.map(e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}: ${e.text}` + (e.lines || []).map(l => `\n  ${nm(l.who)}: "${l.say}"`).join("")).join("\n").slice(-6000);
+  const talking = evs.filter(e => e.with === sc.w).length, night = evs.some(e => CAST_NO_KEEP.has(e.action));
+  const rec = { id: "sc-" + storyMs.toString(36), w: sc.w, loc: sc.loc, from: sc.startedAt, to: storyMs, n: talking, text, mood: sc.mood || 0, wrap: talking >= 2 && !night };
+  s.castOut = [...(s.castOut || []), rec].slice(-4);
+  if (rec.wrap) s.castWrapDue = { id: rec.id, w: sc.w, mood: rec.mood, at: Date.now() };
+}
+const CAST_SYS = `You keep the memory of the people in "Watching Ishai", a realistic slice of life in Tel Aviv. After each scene you write only WHAT CHANGED, as small edits, never a new text. Reply with JSON only:
+{"notes":[{"op":"add","who":"<id>","about":"<id or null>","imp":1-5,"text":"...","tags":["..."]},{"op":"edit","n":<number>,"text":"...","imp":1-5,"live":true},{"op":"drop","n":<number>}],
+ "facts":[{"who":"<id>","k":"<short key>","v":"<value, or null to clear>"}],
+ "pair":{"warmth":-2..2,"trust":-2..2,"tension":-2..2,"why":"...","label":null,"labelWhy":null,"thread":"what is open between them now, or empty"},
+ "mood":[{"who":"<id>","mood":"angry|sad|happy|nervous|tired|tipsy|embarrassed|calm","why":"...","hours":1-24}],
+ "others":[{"a":"<id>","b":"<id>","warmth":-1..1,"trust":-1..1,"tension":-1..1,"thread":"...","quote":"the exact words from the lines that show it"}],
+ "wrap":[{"who":"zohar"|"oren","say":"..."}]}
+Rules:
+- notes: each side remembers in their own voice and from their own view (Ishai too: "who":"ishai"). Max 30 words, concrete (what was said or done, a promise, a hurt, a joke they share). imp: 1 trivial (forgotten in days), 2 small, 3 matters, 4 big, 5 life-changing. Add 1-4 notes; edit or drop ONLY notes listed below with their n (an outdated note: edit it; a resolved one: drop it; an archived one that matters again: edit it with "live":true).
+- facts: concrete things that stay true (owes Ishai 40 shekels, sister: Ruti, cough since October). Only what the scene says.
+- pair: how this scene moved the two (mostly 0 or 1 step; 2 only for something big). A new label only for a real change, with labelWhy. thread: what is still open.
+- mood: only a mood the scene clearly shows; "calm" clears it.
+- others: only feelings between OTHER people that the lines reveal, with an exact quote. Usually [].
+- Nobody knows about cameras, viewers or a show. Ishai never learns a SECRET listed below. Drama limits: people can be sick, hurt, sad or angry; nobody dies.
+- wrap: 1-2 lines for the show's two hosts (Zohar and Oren, talking to the viewers, max 22 words each) on what this scene changed between them: honest, warm, a little cheeky ("Well, that went better than expected. I think she'll forgive him now that he's apologised."). Never tell a secret.`;
+function castKeeperMsgs(s, rec, now) {
+  const a = "ishai", b = rec.w, both = [a, b];
+  const D = CASTD, card = id => castShort(D.cards[id] || castSeedCard(id === "ishai" ? { id } : s.cast[id]), false);
+  const noteRows = id => [...D.notes.filter(x => x.who === id && (x.about === (id === a ? b : a) || x.about === null)).sort((x, y) => y.imp - x.imp || y.at - x.at).slice(0, 15)];
+  const words = new Set((rec.text.toLowerCase().match(/[a-z']{4,}/g) || []).filter(w => !CAST_STOP.has(w)));
+  const arch = D.archived.filter(x => both.includes(x.who) && String(x.tags || "").toLowerCase().split(/[,\s]+/).some(t => t.length > 3 && words.has(t))).slice(0, 3);
+  const allowed = new Set([...both.flatMap(noteRows), ...arch].map(x => x.n));
+  const men = castMentioned(s, rec.text, new Set(both)).slice(0, 4);
+  const sec = secretsNow(now);
+  const u = [`SCENE (${rec.loc}, ${storyClock(rec.from).label} to ${storyClock(rec.to).label.slice(-5)}), Ishai with ${castName(s, b)}:\n${rec.text}`,
+    `\nCARDS:\n- "ishai": ${card(a)}\n- "${b}": ${card(b)}`,
+    `\nTHE PAIR NOW: ${castPairLine(s, a, b) || "(no row yet)"}`,
+    `MOODS NOW: Ishai: ${castMoodLine(a) || "none"}; ${castName(s, b)}: ${castMoodLine(b) || "none"}`,
+    `\nNOTES (live) you may edit or drop by n:\n${both.map(id => noteRows(id).map(x => `n ${x.n} [${id} about ${x.about || "-"}, imp ${x.imp}] ${x.text}`).join("\n")).filter(Boolean).join("\n") || "(none)"}`,
+    arch.length ? `ARCHIVED notes the scene touches (edit with "live":true to bring one back):\n${arch.map(x => `n ${x.n} [${x.who}, imp ${x.imp}] ${x.text}`).join("\n")}` : "",
+    `FACTS: ${both.map(id => `${id}: ${castFactsLine(id) || "-"}`).join(" | ")}`,
+    men.length ? `\nOTHER PEOPLE THE SCENE MENTIONS: ${men.map(id => `"${id}" ${castName(s, id)} (${[castPairLine(s, id, a), castPairLine(s, id, b)].filter(Boolean).join(" ")})`).join("; ")}` : "",
+    sec.length ? `\nSECRETS Ishai must not learn yet: ${sec.map(x => x.secret).join(" | ")}` : "",
+    `\nKnown ids: "ishai", "${b}"${men.length ? ", " + men.map(x => `"${x}"`).join(", ") : ""}. JSON only.`].filter(Boolean).join("\n");
+  return { msgs: [{ role: "system", content: CAST_SYS }, { role: "user", content: u }], allowed: [...allowed], men };
+}
+async function castKeeperTick(env, s, now) {
+  if (!env.DB || !CASTD) return;
+  const rows = (await env.DB.prepare("SELECT n, scene, tries FROM cast_queue ORDER BY n LIMIT 2").all()).results || [];
+  if (!rows.length || !env.GEMINI_API_KEY || Date.now() < geminiOutUntil) return;   // Gemini paused for the day: the queue waits (the story never waits for it)
+  for (const row of rows) {
+    let rec; try { rec = JSON.parse(row.scene); } catch (e) { await env.DB.prepare("DELETE FROM cast_queue WHERE n = ?").bind(row.n).run(); continue; }
+    const { msgs, allowed, men } = castKeeperMsgs(s, rec, now);
+    let o = null;
+    try {
+      for (let k = 0; k < 2 && !o; k++) {   // a bad reply is asked once more, then the scene is dropped
+        const raw = await runGemini(env, msgs, 1400);
+        o = parseAI(raw); if (o && typeof o === "object" && !Array.isArray(o)) break;
+        o = null; msgs.push({ role: "assistant", content: String(raw).slice(0, 2000) }, { role: "user", content: "That was not the JSON asked for. Reply with the JSON object only." });
+      }
+    } catch (e) {
+      noteGemini(e, "keeper");
+      const tries = (row.tries || 0) + 1;
+      if (tries >= 4) { await env.DB.prepare("DELETE FROM cast_queue WHERE n = ?").bind(row.n).run(); castErr(s, "keeper gave up after 4 tries: " + String(e && e.message || e).slice(0, 120)); }
+      else await env.DB.prepare("UPDATE cast_queue SET tries = ? WHERE n = ?").bind(tries, row.n).run();
+      return;   // Gemini is busy: try again on a later tick
+    }
+    if (!o) { await env.DB.prepare("DELETE FROM cast_queue WHERE n = ?").bind(row.n).run(); castErr(s, "keeper: no usable reply for " + rec.id); continue; }
+    const r = await castApply(env, s, rec, o, { allowed, men, now });
+    await env.DB.prepare("DELETE FROM cast_queue WHERE n = ?").bind(row.n).run();
+    s.castLog = [...(s.castLog || []), { at: now, scene: rec.id, w: rec.w, did: r.did, dropped: r.dropped.slice(0, 4) }].slice(-12);
+    if (rec.wrap && r.wrap.length) s.castWrap = { id: rec.id, w: rec.w, at: now, lines: r.wrap };
+  }
+}
+const castErr = (s, msg) => { s.castErrs = [...(s.castErrs || []), { at: Date.now(), msg: String(msg).slice(0, 200) }].slice(-8); };
+// checks every change (known ids, sizes, ranges, no secret, nothing about cameras) and writes it. dry: only says what it would do.
+async function castApply(env, s, rec, o, opt = {}) {
+  const now = opt.now || Date.now(), a = "ishai", b = rec.w, pair = [a, b], st = [], did = [], dropped = [];
+  const allowed = new Set(opt.allowed || []), known = id => castKnown(s, id), D = CASTD || { notes: [], archived: [], pairs: {} };
+  const bad = (why, x) => dropped.push(why + ": " + castStr(JSON.stringify(x), 80));
+  const ok = t => { if (CAST_META.test(t)) return "mentions the show"; if (castLeaks(t, now)) return "gives away a secret"; return null; };
+  const touched = new Set();
+  for (const x of Array.isArray(o.notes) ? o.notes.slice(0, 8) : []) {
+    if (!x || typeof x !== "object") continue;
+    const op = castStr(x.op, 6).toLowerCase() || "add";
+    if (op === "add") {
+      const who = castStr(x.who, 30).toLowerCase(), about = x.about == null || x.about === "null" ? null : castStr(x.about, 30).toLowerCase(), text = castStr(x.text, 220);
+      if (!pair.includes(who) && !opt.trusted) { bad("note by someone not in the scene", x); continue; }
+      if (about && !known(about)) { bad("note about an unknown person", x); continue; }
+      if (text.length < 6) { bad("empty note", x); continue; }
+      const w = ok(text); if (w) { bad(w, x); continue; }
+      const tags = (Array.isArray(x.tags) ? x.tags : String(x.tags || "").split(",")).map(t => castStr(t, 24).toLowerCase()).filter(Boolean).slice(0, 6).join(",");
+      st.push(["INSERT INTO cast_note (who, about, at, imp, text, tags, state, upd) VALUES (?, ?, ?, ?, ?, ?, 'live', ?)", who, about, rec.to || now, castInt(x.imp || 2, 1, 5), text, tags, now]);
+      did.push("note+ " + who); if (who !== "ishai" && about === "ishai") touched.add(who + "|" + text);
+    } else if (op === "edit" || op === "drop") {
+      const n = Math.round(Number(x.n)); if (!allowed.has(n)) { bad("note not offered", x); continue; }
+      if (op === "drop") { st.push(["UPDATE cast_note SET state = 'gone', upd = ? WHERE n = ?", now, n]); did.push("note- " + n); continue; }
+      const text = castStr(x.text, 220); if (text.length < 6) { bad("empty edit", x); continue; }
+      const w = ok(text); if (w) { bad(w, x); continue; }
+      st.push(["UPDATE cast_note SET text = ?, imp = ?, upd = ?" + (x.live ? ", state = 'live', at = ?" : "") + " WHERE n = ?", text, castInt(x.imp || 3, 1, 5), now, ...(x.live ? [now] : []), n]);
+      did.push("note~ " + n);
+    }
+  }
+  for (const x of Array.isArray(o.facts) ? o.facts.slice(0, 6) : []) {
+    const who = castStr(x && x.who, 30).toLowerCase(), k = castStr(x && x.k, 40); if (!pair.includes(who) || !k) { bad("fact", x); continue; }
+    if (x.v == null || x.v === "" || x.v === "null") { st.push(["DELETE FROM cast_fact WHERE who = ? AND k = ?", who, k]); did.push("fact- " + who); continue; }
+    const v = castStr(x.v, 120), w = ok(k + " " + v); if (w) { bad(w, x); continue; }
+    st.push(["INSERT INTO cast_fact (who, k, v, at) VALUES (?, ?, ?, ?) ON CONFLICT (who, k) DO UPDATE SET v = excluded.v, at = excluded.at", who, k, v, now]); did.push("fact " + who);
+  }
+  const movePair = (p, x, lim, why) => {
+    const [ka, kb] = castKey(p[0], p[1]), row = D.pairs[ka + "|" + kb] || { warmth: 0, trust: 0, tension: 0, label: "acquaintances", history: "", thread: "" };
+    const dw = castInt(x.warmth, -lim, lim), dt = castInt(x.trust, -lim, lim), dx = castInt(x.tension, -lim, lim);
+    let label = row.label; const nl = castStr(x.label, 20).toLowerCase();
+    if (nl && nl !== "null" && CAST_LABELS.includes(nl) && nl !== row.label) { if (castStr(x.labelWhy || why, 160).length > 5) label = nl; else bad("label without a reason", x); }
+    let thread = row.thread || ""; if (typeof x.thread === "string") { const t = castStr(x.thread, 180); if (!ok(t)) thread = t; else bad("thread", x); }
+    if (!(dw || dt || dx || label !== row.label || thread !== row.thread)) return null;
+    const nr = { ...row, a: ka, b: kb, warmth: clamp(row.warmth + dw, -5, 5), trust: clamp(row.trust + dt, -5, 5), tension: clamp(row.tension + dx, -5, 5), label, thread };
+    st.push(["INSERT INTO cast_pair (a, b, warmth, trust, tension, label, history, thread, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (a, b) DO UPDATE SET warmth = excluded.warmth, trust = excluded.trust, tension = excluded.tension, label = excluded.label, thread = excluded.thread, at = excluded.at",
+      ka, kb, nr.warmth, nr.trust, nr.tension, label || null, row.history || "", thread, now]);
+    did.push(`pair ${ka}/${kb} ${dw >= 0 ? "+" : ""}${dw}/${dt >= 0 ? "+" : ""}${dt}/${dx >= 0 ? "+" : ""}${dx}`);
+    return { dw, dt, dx, nr };
+  };
+  let moved = null;
+  if (o.pair && typeof o.pair === "object") moved = movePair(pair, o.pair, 2, o.pair.why);
+  for (const x of Array.isArray(o.others) ? o.others.slice(0, 3) : []) {
+    const pa = castStr(x && x.a, 30).toLowerCase(), pb = castStr(x && x.b, 30).toLowerCase(), q = castStr(x && x.quote, 200).toLowerCase();
+    if (!known(pa) || !known(pb) || pa === pb || (pair.includes(pa) && pair.includes(pb))) { bad("others: ids", x); continue; }
+    if (q.length < 6 || !String(rec.text || "").toLowerCase().includes(q)) { bad("others: no exact quote", x); continue; }
+    movePair([pa, pb], x, 1, "said in the scene");
+  }
+  for (const x of Array.isArray(o.mood) ? o.mood.slice(0, 3) : []) {
+    const who = castStr(x && x.who, 30).toLowerCase(), m = castStr(x && x.mood, 14).toLowerCase();
+    if (!pair.includes(who)) { bad("mood", x); continue; }
+    if (m === "calm" || m === "fine" || m === "none") { st.push(["DELETE FROM cast_mood WHERE who = ?", who]); did.push("mood- " + who); continue; }
+    if (!CAST_MOODS.includes(m)) { bad("mood name", x); continue; }
+    const why = castStr(x.why, 140); if (ok(why)) { bad("mood why", x); continue; }
+    st.push(["INSERT INTO cast_mood (who, mood, why, since, until) VALUES (?, ?, ?, ?, ?) ON CONFLICT (who) DO UPDATE SET mood = excluded.mood, why = excluded.why, since = excluded.since, until = excluded.until", who, m, why, now, now + castInt(x.hours || 4, 1, 24) * 3600000]);
+    did.push("mood " + who + " " + m);
+  }
+  const wrap = (Array.isArray(o.wrap) ? o.wrap : []).map(x => ({ who: castStr(x && x.who, 8).toLowerCase(), say: castStr(x && x.say, 170).replace(/^["']|["']$/g, "") }))
+    .filter(x => (x.who === "zohar" || x.who === "oren") && x.say.length > 6 && !castLeaks(x.say, now)).slice(0, 2);
+  if (opt.dry) return { did, dropped, wrap, dry: true };
+  if (st.length && env.DB) await env.DB.batch(st.map(([q, ...v]) => env.DB.prepare(q).bind(...v)));
+  // the old one-line memory and closeness number follow the new store (the Cast tab, the hosts' fill lines and the old prompts read them)
+  const c = s.cast[b];
+  if (c) { for (const t of touched) { const [w, text] = t.split("|"); if (w === b) c.memory = text.slice(0, 180); }
+    if (moved) c.relationship = moved.nr.warmth; }
+  if (env.DB) await castLoad(env, s, true);
+  return { did, dropped, wrap, moved };
+}
+// end of tick: queue the scenes that ended, planned scenes' memory changes (no AI), and a mood the story set mid-scene ("feel")
+async function castAfterTick(env, s, ev, now) {
+  if (!env.DB || !CASTD) return;
+  const st = [];
+  for (const rec of s.castOut || []) st.push(env.DB.prepare("INSERT INTO cast_queue (scene, at, tries) VALUES (?, ?, 0)").bind(JSON.stringify(rec), now));
+  s.castOut = [];
+  if (st.length) await env.DB.batch(st);
+  if (ev.update && ev.with && castKnown(s, ev.with) && /^daily plan/.test(ev.src || "") && (ev.update.memory || ev.update.mood)) {
+    const m = Math.round(Number(ev.update.mood) || 0);
+    await castApply(env, s, { w: ev.with, to: now, text: "" }, { notes: ev.update.memory ? [{ op: "add", who: ev.with, about: "ishai", imp: 3, text: ev.update.memory, tags: [ev.location] }] : [],
+      pair: m ? { warmth: clamp(m, -1, 1), why: "a planned scene" } : null }, { now, trusted: true });
+  }
+  if (ev.feel && castKnown(s, ev.feel.who)) {
+    await env.DB.prepare("INSERT INTO cast_mood (who, mood, why, since, until) VALUES (?, ?, ?, ?, ?) ON CONFLICT (who) DO UPDATE SET mood = excluded.mood, why = excluded.why, since = excluded.since, until = excluded.until")
+      .bind(ev.feel.who, ev.feel.mood, ev.feel.why || "", now, now + 3 * 3600000).run();
+    await castLoad(env, s, true);
+  }
+}
+// the verdict after a scene: the keeper's lines, or (when it is late) one built from how the scene went, with no AI
+const CAST_WRAP_BASIC = { up: ["Warmer between those two now.", "Well, that went better than expected.", "I'd say that helped. Didn't it?"],
+  down: ["That didn't help.", "Ouch. Some ice between those two now.", "He'll be thinking about that one tonight."],
+  same: ["Hard to read that one.", "Nothing settled there. Not yet.", "Same as before, I'd say. For now."] };
+function castAttachWrap(s, ev, now) {
+  const due = s.castWrapDue; if (!due) return;
+  if (now - due.at > 40 * 60000) { s.castWrapDue = null; return; }
+  if (CAST_NO_KEEP.has(ev.action) || ev.action === "sleeping" || (ev.commentary || []).length > 2) return;   // wait for a moment with room
+  let lines = s.castWrap && s.castWrap.id === due.id ? s.castWrap.lines : null;
+  if (!lines) { const k = due.mood > 0 ? "up" : due.mood < 0 ? "down" : "same", list = CAST_WRAP_BASIC[k], r = Math.floor(pageHash(Math.floor(now / 6e4)) * list.length);
+    lines = [{ who: Math.floor(now / 6e4) % 2 ? "zohar" : "oren", say: `${castName(s, due.w)} and Ishai. ${list[r]}` }]; }
+  ev.commentary = [...lines.map(l => ({ who: l.who, say: l.say })), ...(ev.commentary || [])].slice(0, 4);
+  s.castWrapDue = null; s.castWrap = null;
+}
+
+// ---- once a day: notes expire (importance 1 after 3 days, 2 after 14), the rest are archived past 30 live or 60 days; gone notes deleted after 30 days ----
+async function castMaintain(env, s, now) {
+  if (!env.DB || !CASTD) return;
+  const day = dayOfTZ(now); if (s.castMaint === day) return; s.castMaint = day;
+  const d = 86400000, st = [
+    ["UPDATE cast_note SET state = 'gone', upd = ? WHERE state = 'live' AND pin = 0 AND ((imp = 1 AND at < ?) OR (imp = 2 AND at < ?))", now, now - 3 * d, now - 14 * d],
+    ["UPDATE cast_note SET state = 'archived', upd = ? WHERE state = 'live' AND pin = 0 AND imp >= 3 AND at < ?", now, now - 60 * d],
+    ["DELETE FROM cast_note WHERE state = 'gone' AND COALESCE(upd, at) < ?", now - 30 * d],
+    ["UPDATE cast_pending SET state = 'expired' WHERE state = 'pending' AND at < ?", now - 7 * d],
+    ["DELETE FROM cast_mood WHERE until < ?", now],
+    ["DELETE FROM cast_queue WHERE at < ?", now - 2 * d]];
+  const by = {}; for (const x of CASTD.notes) (by[x.who] ||= []).push(x);
+  for (const list of Object.values(by)) if (list.length > CAST_LIVE_MAX) {
+    const out = list.filter(x => !x.pin).sort((a, b) => a.imp - b.imp || a.at - b.at).slice(0, list.length - CAST_LIVE_MAX);
+    for (const x of out) st.push([x.imp >= 3 ? "UPDATE cast_note SET state = 'archived', upd = ? WHERE n = ?" : "UPDATE cast_note SET state = 'gone', upd = ? WHERE n = ?", now, x.n]);
+  }
+  await env.DB.batch(st.map(([q, ...v]) => env.DB.prepare(q).bind(...v)));
+  await castLoad(env, s, true);
+}
+
+// ---- full cards: one AI draft per person (Gemini), each reviewed by Claude before it changes a card ----
+const CAST_CARD_SYS = `You write the full character card of a person in "Watching Ishai", a realistic slice of life in Tel Aviv (ordinary people, no slapstick; nobody knows about any cameras). Build on the seed card and what has happened; never contradict them; keep it modest and real. Drama limits: people can be sick, hurt, sad or angry; nobody dies. Reply with JSON only:
+{"age":<number>,"lives":"...","works":"...","backstory":"3-5 sentences: family, where they come from, the big things that happened to them","inside":{"wantsLong":"...","wantsWeek":"...","fears":"...","proud":"...","ashamed":"..."},"habits":["3-6 short items"],"talk":{"how":"how they speak","samples":["3-4 sample lines"],"loves":["topics"],"avoids":["topics"]},"moods":{"angry":{"say":"one line for the writer: how they act when angry","body":["up to 3 of: ${CAST_BODY.filter(b => b !== "none").join(", ")}"],"tell":"optional small personal sign"},"sad":{...},"happy":{...},"nervous":{...},"tired":{...},"tipsy":{...},"embarrassed":{...}},"aliases":["names and words people use for them"],"secrets":[{"text":"a small secret of their own","knows":["ids who know"]}],"why":"one line: what this card is built on"}`;
+async function castDraftTick(env, s, now) {
+  if (!env.DB || !CASTD || !env.GEMINI_API_KEY || Date.now() < geminiOutUntil || CASTD.queue > 0) return;
+  const day = dayOfTZ(now), dr = s.castDrafts && s.castDrafts.date === day ? s.castDrafts : (s.castDrafts = { date: day, n: 0 });
+  if (dr.n >= 6) return;
+  const done = new Set(s.castDrafted || []), id = ["ishai", ...Object.keys(s.cast)].find(x => castKnown(s, x) && !done.has(x) && !(CASTD.cards[x] && CASTD.cards[x].backstory));
+  if (!id) return;
+  dr.n++; s.castDrafted = [...done, id];
+  const seed = id === "ishai" ? { ...castSeedCard({ id }), persona: PERSONA } : { ...castSeedCard(s.cast[id]), memory: s.cast[id].memory };
+  const notes = castNewest(id, undefined, 20).map(x => `- (${x.about || "-"}) ${x.text}`).join("\n");
+  const nm = castAliases(id).map(a => a.toLowerCase());
+  const arcs = (PLAN.arcs || []).filter(a => a && nm.some(n => JSON.stringify(a).toLowerCase().includes(n))).map(a => `- ${a.title}: ${clip(a.stage, 200)}`).join("\n");
+  const u = `SEED CARD: ${JSON.stringify(seed)}\n\nTHEIR NOTES:\n${notes || "(none)"}\n\nPAIRS: ${Object.values(CASTD.pairs).filter(p => p.a === id || p.b === id).map(p => castPairLine(s, p.a, p.b)).join(" | ") || "-"}\n\nARCS that touch them:\n${arcs || "(none)"}\n\nRECENT DAYS: ${clip((s.yesterdaySum || {}).text || "", 400)} ${clip((s.daySum || {}).text || "", 400)}${id === "ishai" ? "\n\nThis is Ishai himself: keep him exactly who he is now (the persona), only filled out. He never knows he is filmed." : ""}\n\nJSON only.`;
+  let o = null;
+  try { o = parseAI(await runGemini(env, [{ role: "system", content: CAST_CARD_SYS }, { role: "user", content: u }], 1800)); }
+  catch (e) { noteGemini(e, "cards"); s.castDrafted = [...done]; return; }   // try again later
+  if (!o || typeof o !== "object") { castErr(s, "card draft for " + id + ": no usable reply"); s.castDrafted = [...done]; return; }
+  const base = CASTD.cards[id] || castSeedCard(id === "ishai" ? { id } : s.cast[id]);
+  const card = castCardClean({ ...base, ...o, inside: o.inside, talk: o.talk, moods: o.moods, secrets: o.secrets, aliases: [...new Set([...(base.aliases || []), ...(Array.isArray(o.aliases) ? o.aliases : [])])] }, base);
+  await castPropose(env, id, "card", card, castStr(o.why, 200) || "first full card from the seed card, the notes and the arcs", now);
+}
+async function castPropose(env, who, kind, change, why, now) {
+  await env.DB.prepare("INSERT INTO cast_pending (who, kind, change, why, at, state) VALUES (?, ?, ?, ?, ?, 'pending')").bind(who, kind, JSON.stringify(change), String(why || "").slice(0, 300), now).run();
+}
+
+// ---- growth: on Saturday, after the weekly recap, each person's week becomes proposals (a new history paragraph per pair, at most one change per person) ----
+const CAST_GROW = ["inside.wantsLong", "inside.wantsWeek", "inside.fears", "inside.proud", "inside.ashamed", "backstory", "habits", "talk.loves", "talk.avoids", ...CAST_MOODS.map(m => "moods." + m + ".say")];
+async function castWeekTick(env, s, now) {
+  if (!env.DB || !CASTD || !s.lastWeek || s.castWeek === s.lastWeek || !env.GEMINI_API_KEY || Date.now() < geminiOutUntil) return;
+  const wk = now - 7 * 86400000;
+  if (!s.castWeekLeft) s.castWeekLeft = ["ishai", ...Object.keys(s.cast)].filter(id => castKnown(s, id) && CASTD.notes.some(x => x.who === id && x.at > wk));
+  const batch = s.castWeekLeft.slice(0, 8); s.castWeekLeft = s.castWeekLeft.slice(8);
+  if (batch.length) {
+    const block = batch.map(id => `"${id}" ${castName(s, id)}: ${castShort(CASTD.cards[id], false)}\n  This week: ${CASTD.notes.filter(x => x.who === id && x.at > wk).sort((a, b) => b.imp - a.imp).slice(0, 8).map(x => x.text).join(" / ")}` +
+      (id !== "ishai" ? `\n  With Ishai: ${castPairLine(s, "ishai", id)}` : "")).join("\n");
+    const others = Object.values(CASTD.pairs).filter(p => p.a !== "ishai" && p.b !== "ishai" && p.at > wk && (batch.includes(p.a) || batch.includes(p.b))).slice(0, 6);
+    const sys = `You look back on a week of "Watching Ishai" (a realistic slice of life; nobody knows about cameras; nobody dies). For each person listed, propose: "history": the new one-paragraph history of them and Ishai (3-5 sentences, what has happened between them so far, this week included), and at most ONE "growth": a small, earned change to their card from this week (a new want, a habit gained or lost, a fear eased, a backstory detail that came out in a scene, a mood tendency), or null. Fields for growth: ${CAST_GROW.join(", ")}; "op": "set" (strings), "add" or "remove" (habits, talk.loves, talk.avoids). Also a new "history" for each OTHER PAIR listed. Reply JSON only:
+{"people":[{"id":"...","history":"...","historyWhy":"...","growth":{"field":"...","op":"set|add|remove","value":"...","why":"..."}|null}],"pairs":[{"a":"...","b":"...","history":"...","why":"..."}]}`;
+    let o = null;
+    try { o = parseAI(await runGemini(env, [{ role: "system", content: sys }, { role: "user", content: `${block}${others.length ? `\n\nOTHER PAIRS:\n${others.map(p => castPairLine(s, p.a, p.b)).join("\n")}` : ""}\n\nWEEK: ${clip(((await historyGet(env)).weeks || []).slice(-1)[0]?.text || "", 600)}\n\nJSON only.` }], 2400)); }
+    catch (e) { noteGemini(e, "growth"); s.castWeekLeft = [...batch, ...s.castWeekLeft]; return; }
+    for (const p of (o && Array.isArray(o.people) ? o.people : [])) {
+      const id = castStr(p && p.id, 30).toLowerCase(); if (!batch.includes(id)) continue;
+      const h = castStr(p.history, 900);
+      if (id !== "ishai" && h.length > 30 && !CAST_META.test(h)) await castPropose(env, castKey("ishai", id).join("|"), "history", { a: castKey("ishai", id)[0], b: castKey("ishai", id)[1], history: h }, castStr(p.historyWhy, 200) || "this week", now);
+      const g = p.growth; if (!g || typeof g !== "object" || !CAST_GROW.includes(g.field)) continue;
+      const v = castStr(g.value, 240); if (v.length < 3 || CAST_META.test(v)) continue;
+      await castPropose(env, id, "growth", { field: g.field, op: ["set", "add", "remove"].includes(g.op) ? g.op : "set", value: v }, castStr(g.why, 200), now);
+    }
+    for (const p of (o && Array.isArray(o.pairs) ? o.pairs : [])) {
+      const [a, b] = castKey(castStr(p && p.a, 30).toLowerCase(), castStr(p && p.b, 30).toLowerCase()); const h = castStr(p && p.history, 900);
+      if (CASTD.pairs[a + "|" + b] && h.length > 30 && !CAST_META.test(h)) await castPropose(env, a + "|" + b, "history", { a, b, history: h }, castStr(p.why, 200) || "this week", now);
+    }
+  }
+  if (!s.castWeekLeft.length) { s.castWeek = s.lastWeek; s.castWeekLeft = null; }
+}
+
+// ---- the review: approve / edit / reject, one line why; nothing changes a card without it ----
+async function castPendingView(env, s, all) {
+  await castTables(env);
+  const rows = (await env.DB.prepare(all ? "SELECT * FROM cast_pending ORDER BY n DESC LIMIT 60" : "SELECT * FROM cast_pending WHERE state = 'pending' ORDER BY n LIMIT 40").all()).results || [];
+  return rows.map(r => { let change = null, review = null; try { change = JSON.parse(r.change); } catch (e) {} try { review = r.review ? JSON.parse(r.review) : null; } catch (e) {}
+    const who = r.kind === "history" ? r.who.split("|") : [r.who];
+    return { n: r.n, kind: r.kind, who: r.who, names: who.map(id => castName(s, id)), change, why: r.why, at: r.at, state: r.state, review: review ? { verdict: review.verdict, reason: review.reason, by: review.by, at: review.at, text: review.text } : null,
+      card: !all && r.kind !== "history" && CASTD ? CASTD.cards[r.who] || null : undefined,
+      notes: !all && r.kind !== "history" ? castNewest(r.who, undefined, 6).map(x => x.text) : undefined,
+      pair: !all && r.kind === "history" ? castPair(who[0], who[1]) : undefined }; });
+}
+function castGrowApply(card, ch) {
+  const c = JSON.parse(JSON.stringify(card)), path = String(ch.field).split("."), last = path.pop();
+  let o = c; for (const k of path) o = (o[k] ||= {});
+  if (["habits", "loves", "avoids"].includes(last)) { const a = Array.isArray(o[last]) ? o[last] : [];
+    o[last] = ch.op === "remove" ? a.filter(x => x.toLowerCase() !== String(ch.value).toLowerCase()) : [...a, String(ch.value)].slice(-6); }
+  else if (last === "backstory" && ch.op === "add") c.backstory = ((c.backstory || "") + " " + ch.value).trim().slice(0, 700);
+  else o[last] = String(ch.value).slice(0, 240);
+  return c;
+}
+async function castReview(env, s, list, by, now) {
+  await castLoad(env, s, true);
+  const out = [];
+  for (const it of (Array.isArray(list) ? list : []).slice(0, 40)) {
+    const n = Math.round(Number(it && it.n)), verdict = String(it && it.verdict || "").toLowerCase(), reason = castStr(it && it.reason, 240);
+    const r = (await env.DB.prepare("SELECT * FROM cast_pending WHERE n = ?").bind(n).all()).results?.[0];
+    if (!r || r.state !== "pending") { out.push({ n, error: "not pending" }); continue; }
+    if (!["approve", "edit", "reject"].includes(verdict)) { out.push({ n, error: "verdict: approve, edit or reject" }); continue; }
+    let change = JSON.parse(r.change), prev = null;
+    if (verdict === "reject") { await env.DB.prepare("UPDATE cast_pending SET state = 'rejected', review = ? WHERE n = ?").bind(JSON.stringify({ verdict, reason, by, at: now }), n).run(); out.push({ n, ok: true }); continue; }
+    if (verdict === "edit") {
+      const t = it.text;
+      if (r.kind === "history") change = { ...change, history: castStr(t, 900) };
+      else if (r.kind === "growth") change = { ...change, value: castStr(t, 240) };
+      else { let o = t; if (typeof o === "string") try { o = JSON.parse(o); } catch (e) { out.push({ n, error: "a card edit is the card as JSON" }); continue; } change = o; }
+    }
+    if (r.kind === "history") {
+      const p = castPair(change.a, change.b); if (!p) { out.push({ n, error: "no such pair" }); continue; }
+      prev = { history: p.history || "" };
+      await env.DB.prepare("UPDATE cast_pair SET history = ?, at = ? WHERE a = ? AND b = ?").bind(castStr(change.history, 900), now, change.a, change.b).run();
+    } else {
+      const cur = CASTD.cards[r.who]; if (!cur) { out.push({ n, error: "no card" }); continue; }
+      prev = { card: cur };
+      const next = r.kind === "growth" ? castGrowApply(cur, change) : castCardClean(change, cur);
+      await env.DB.prepare("UPDATE cast_card SET card = ?, v = v + 1, at = ? WHERE id = ?").bind(JSON.stringify(castCardClean(next, cur)), now, r.who).run();
+    }
+    await env.DB.prepare("UPDATE cast_pending SET state = ?, change = ?, review = ? WHERE n = ?").bind(verdict === "edit" ? "edited" : "approved", JSON.stringify(change), JSON.stringify({ verdict, reason, by, at: now, text: verdict === "edit" ? (typeof it.text === "string" ? it.text.slice(0, 900) : "(card)") : undefined, prev }), n).run();
+    out.push({ n, ok: true });
+  }
+  await castLoad(env, s, true);
+  return out;
+}
+async function castUndo(env, s, n, now) {
+  const r = (await env.DB.prepare("SELECT * FROM cast_pending WHERE n = ?").bind(n).all()).results?.[0];
+  if (!r || !["approved", "edited"].includes(r.state)) return "only an approved change can be undone";
+  const rv = JSON.parse(r.review || "{}"), prev = rv.prev; if (!prev) return "nothing saved to undo";
+  if (r.kind === "history") { const ch = JSON.parse(r.change); await env.DB.prepare("UPDATE cast_pair SET history = ?, at = ? WHERE a = ? AND b = ?").bind(prev.history || "", now, ch.a, ch.b).run(); }
+  else { const { v, ...card } = prev.card; await env.DB.prepare("UPDATE cast_card SET card = ?, v = v + 1, at = ? WHERE id = ?").bind(JSON.stringify(card), now, r.who).run(); }
+  await env.DB.prepare("UPDATE cast_pending SET state = 'undone', review = ? WHERE n = ?").bind(JSON.stringify({ ...rv, undoneAt: now }), n).run();
+  await castLoad(env, s, true);
+  return null;
+}
+async function castTokenOk(url, body) {
+  const tok = String(url.searchParams.get("token") || (body && body.token) || "");
+  if (!tok || CAST_HASH.length !== 64) return false;
+  return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(tok))) === CAST_HASH;
+}
+const CAST_RULES = "Non-negotiables: a realistic slice of life (The Truman Show), not a sitcom; Ishai never knows he is filmed and nobody mentions cameras, viewers or a show; fictional brands only. Drama limits: people may be sick, hurt, sad or angry, but nobody dies. Ishai's own card changes only in small ways. Approve what is earned by the notes and fits the card and the season; edit to fix wording or size; reject what contradicts the card, the season, the rules, or tells a secret before its day.";
+
+// ---- viewers: the Cast tab (what each person feels about Ishai and the others, and what's lately on their mind); never secrets ----
+function castPublic(s, dev, now) {
+  if (!CASTD) return { people: {} };
+  const out = {};
+  for (const id of ["ishai", ...Object.keys(s.cast)]) {
+    if (!castKnown(s, id) || (id === "ishai" && !dev)) continue;
+    const p = id === "ishai" ? null : castPair("ishai", id), safe = t => t && !castLeaks(t, now) ? t : "";
+    const close = Object.values(CASTD.pairs).filter(r => (r.a === id || r.b === id) && r.a !== "ishai" && r.b !== "ishai")
+      .map(r => ({ id: r.a === id ? r.b : r.a, label: r.label || "", w: r.warmth, x: r.tension })).filter(r => castKnown(s, r.id) && (Math.abs(r.w) >= 3 || r.x >= 3 || /crush|dating|partners|exes|rivals|family|best/.test(r.label)))
+      .sort((a, b) => Math.abs(b.w) + b.x - Math.abs(a.w) - a.x).slice(0, 3).map(r => ({ ...r, name: castName(s, r.id) }));
+    const m = CASTD.moods[id];
+    out[id] = { with: p ? { label: p.label || "", warmth: p.warmth, trust: p.trust, tension: p.tension, history: safe(p.history || ""), thread: safe(p.thread || "") } : null,
+      mood: m ? { mood: m.mood, why: safe(clip(m.why || "", 50)) } : null, close,
+      lately: castNewest(id, undefined, 12).filter(x => x.imp >= 3 && (id !== "ishai" || dev) && safe(x.text)).slice(0, 3).map(x => ({ text: x.text, about: x.about ? castName(s, x.about) : null, at: x.at })) };
+    if (dev && id === "ishai") out[id].card = CASTD.cards.ishai || null;
+  }
+  return { people: out, at: now };
+}
+async function castApi(req, env, url) {
+  const s = await loadState(env), now = Date.now(), dev = await isDev(req, env);
+  if (!env.DB) return json({ error: "the database is not set up" }, {}, 503);
+  if (url.pathname === "/api/cast") {
+    await castLoad(env, s, false);
+    return json(castPublic(s, dev, now), dev ? { "cache-control": "no-store" } : { "cache-control": "public, max-age=60" });
+  }
+  if (url.pathname === "/api/cast/pending") {   // the scheduled Claude review (its own token) or the director
+    if (!(await castTokenOk(url) || await isDirector(req, env))) return json({ error: "bad token" }, {}, 403);
+    await castLoad(env, s, true);
+    return json({ rules: CAST_RULES, arcs: (PLAN.arcs || []).map(a => ({ title: a.title, stage: a.stage })), secretsUntil: secretsNow(now).map(x => x.title),
+      howToAnswer: 'POST /api/cast/review {"token":"...","reviews":[{"n":12,"verdict":"approve|edit|reject","text":"(edit only: the new wording; for a card, the whole card as JSON)","reason":"one line"}]}',
+      pending: await castPendingView(env, s, false) }, { "cache-control": "no-store" });
+  }
+  if (url.pathname === "/api/cast/review" && req.method === "POST") {
+    const b = await req.json().catch(() => ({}));
+    const tok = await castTokenOk(url, b), dir = !tok && await isDirector(req, env);
+    if (!tok && !dir) return json({ error: "bad token" }, {}, 403);
+    return json({ results: await castReview(env, s, b.reviews, tok ? "claude" : "director", now) }, { "cache-control": "no-store" });
+  }
+  if (url.pathname === "/api/cast/dir") {   // the director page's Cast box
+    if (!await isDirector(req, env)) return json({ error: "director only" }, {}, 403);
+    await castLoad(env, s, true);
+    if (req.method === "POST") {
+      const b = await req.json().catch(() => ({})), q = (sql, ...v) => env.DB.prepare(sql).bind(...v).run(), n = Math.round(Number(b.n));
+      let err = null, extra = {};
+      if (b.action === "cardSave") { const id = String(b.id || ""), cur = CASTD.cards[id]; if (!cur) err = "no such card";
+        else { let o = b.card; if (typeof o === "string") try { o = JSON.parse(o); } catch (e) { err = "the card is not valid JSON"; }
+          if (!err) await q("UPDATE cast_card SET card = ?, v = v + 1, at = ? WHERE id = ?", JSON.stringify(castCardClean(o, cur)), now, id); } }
+      else if (b.action === "noteDrop") await q("UPDATE cast_note SET state = 'gone', upd = ? WHERE n = ?", now, n);
+      else if (b.action === "notePin") await q("UPDATE cast_note SET pin = 1 - COALESCE(pin, 0), state = 'live', upd = ? WHERE n = ?", now, n);
+      else if (b.action === "noteLive") await q("UPDATE cast_note SET state = 'live', at = ?, upd = ? WHERE n = ?", now, now, n);
+      else if (b.action === "noteAdd") { const who = String(b.who || ""), text = castStr(b.text, 220); if (!castKnown(s, who) || text.length < 4) err = "who and text";
+        else await q("INSERT INTO cast_note (who, about, at, imp, text, tags, state, upd) VALUES (?, ?, ?, ?, ?, ?, 'live', ?)", who, castKnown(s, b.about) ? b.about : null, now, castInt(b.imp || 3, 1, 5), text, castStr(b.tags, 120), now); }
+      else if (b.action === "factSet") { const who = String(b.who || ""), k = castStr(b.k, 40); if (!castKnown(s, who) || !k) err = "who and key";
+        else if (!castStr(b.v, 120)) await q("DELETE FROM cast_fact WHERE who = ? AND k = ?", who, k); else await q("INSERT INTO cast_fact (who, k, v, at) VALUES (?, ?, ?, ?) ON CONFLICT (who, k) DO UPDATE SET v = excluded.v, at = excluded.at", who, k, castStr(b.v, 120), now); }
+      else if (b.action === "pairSet") { const [a, c] = castKey(String(b.a || ""), String(b.b || "")); if (!castKnown(s, a) || !castKnown(s, c) || a === c) err = "two known people";
+        else await q("INSERT INTO cast_pair (a, b, warmth, trust, tension, label, history, thread, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (a, b) DO UPDATE SET warmth = excluded.warmth, trust = excluded.trust, tension = excluded.tension, label = excluded.label, history = excluded.history, thread = excluded.thread, at = excluded.at",
+          a, c, castInt(b.warmth, -5, 5), castInt(b.trust, -5, 5), castInt(b.tension, -5, 5), castStr(b.label, 20) || null, castStr(b.history, 900), castStr(b.thread, 180), now); }
+      else if (b.action === "review") extra.results = await castReview(env, s, b.reviews, "director", now);
+      else if (b.action === "undo") err = await castUndo(env, s, n, now);
+      else if (b.action === "queueClear") await q("DELETE FROM cast_queue WHERE n > ?", 0);
+      else if (b.action === "redraft") { s.castDrafted = (s.castDrafted || []).filter(x => x !== b.id); await saveState(env, s); }
+      else if (b.action === "pretend") {   // the sandbox's "pretend scene": castApply on sample changes, nothing written
+        const w = castKnown(s, b.w) && b.w !== "ishai" ? b.w : "noa";
+        const rec = { id: "pretend", w, to: now, text: `Ishai: "I'm sorry about the birthday." ${castName(s, w)}: "Okay. I mean it, okay."` };
+        extra.pretend = await castApply(env, s, rec, { notes: [{ op: "add", who: w, about: "ishai", imp: 3, text: "He finally apologised for missing my birthday. It helped.", tags: ["birthday"] }, { op: "add", who: "ishai", about: w, imp: 3, text: `${castName(s, w)} forgave me for the birthday. I think.`, tags: ["birthday"] }, { op: "drop", n: 999999 }],
+          facts: [{ who: w, k: "birthday", v: "in November" }], pair: { warmth: 1, trust: 1, tension: -1, why: "he apologised", thread: "" }, mood: [{ who: w, mood: "happy", why: "the apology", hours: 3 }],
+          wrap: [{ who: "zohar", say: "Well, that went better than expected." }, { who: "oren", say: "She'll forgive him now that he's apologised." }] }, { now, dry: true, allowed: [] });
+      }
+      else err = "unknown action";
+      if (err) return json({ error: err }, {}, 400);
+      await castLoad(env, s, true);
+      if (Object.keys(extra).length) return json(extra, { "cache-control": "no-store" });
+    }
+    const queue = (await env.DB.prepare("SELECT n, at, tries, scene FROM cast_queue ORDER BY n").all()).results || [];
+    return json({ cards: CASTD.cards, notes: CASTD.notes, archived: CASTD.archived.slice(0, 80), facts: CASTD.facts, pairs: Object.values(CASTD.pairs), moods: CASTD.moods,
+      pending: await castPendingView(env, s, false), reviewed: (await castPendingView(env, s, true)).filter(x => x.state !== "pending"),
+      queue: queue.map(r => { let w = "?"; try { w = JSON.parse(r.scene).w; } catch (e) {} return { n: r.n, at: r.at, tries: r.tries, w }; }), errors: s.castErrs || [], log: s.castLog || [],
+      names: Object.fromEntries(["ishai", ...Object.keys(s.cast)].filter(id => castKnown(s, id)).map(id => [id, castName(s, id)])), moods_list: CAST_MOODS, labels: CAST_LABELS }, { "cache-control": "no-store" });
+  }
+  return json({ error: "not found" }, {}, 404);
+}
+function castHealth(s) {
+  return CASTD ? { cards: Object.keys(CASTD.cards).length, full: Object.values(CASTD.cards).filter(c => c.backstory).length, notes: CASTD.notes.length, archived: CASTD.archived.length, pairs: Object.keys(CASTD.pairs).length,
+    moods: Object.keys(CASTD.moods).length, pending: CASTD.pending, queue: CASTD.queue, lastKeep: (s.castLog || []).slice(-1)[0] || null, errors: (s.castErrs || []).slice(-3) } : { off: true, errors: (s.castErrs || []).slice(-3) };
 }

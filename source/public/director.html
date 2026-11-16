@@ -110,6 +110,33 @@
       <div class="bar" style="margin-top:10px"><button id="add">Add goal</button><span id="addMsg"></span></div>
     </div>
 
+    <div class="box" id="castBox">
+      <div style="font-size:24px">Cast: cards, memories, feelings</div>
+      <div id="cxSum" class="muted" style="font-size:16px"></div>
+      <details open style="margin-top:6px"><summary>Waiting for review (Claude's weekly review, or you)</summary><div id="cxPend" style="font-size:16px"></div></details>
+      <details style="margin-top:6px"><summary>Reviewed (undo)</summary><div id="cxRev" style="font-size:16px"></div></details>
+      <details style="margin-top:6px"><summary>A person: card, notes, facts</summary>
+        <select id="cxWho" style="margin-top:6px"></select>
+        <label>Card (JSON, saved as a new version)</label><textarea id="cxCard" style="min-height:180px;font-size:15px"></textarea>
+        <div class="bar"><button id="cxCardSave">Save card</button><button id="cxRedraft" class="ghost" title="Ask for a new AI draft of the full card (it goes to the review)">New AI draft</button><span id="cxMsg"></span></div>
+        <div id="cxNotes" style="font-size:16px;margin-top:8px"></div>
+        <div class="bar" style="margin-top:6px"><input id="cxNoteT" placeholder="add a note in their voice" style="flex:1"><select id="cxNoteAbout" style="width:auto"></select><select id="cxNoteImp" style="width:auto"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select><button id="cxNoteAdd">Add</button></div>
+        <div id="cxFacts" style="font-size:16px;margin-top:8px"></div>
+        <div class="bar" style="margin-top:6px"><input id="cxFk" placeholder="fact key" style="width:35%"><input id="cxFv" placeholder="value (empty clears)" style="flex:1"><button id="cxFset">Set</button></div>
+      </details>
+      <details style="margin-top:6px"><summary>Pairs: who feels what (tap a row to edit)</summary>
+        <canvas id="cxMap" width="320" height="320" style="width:100%;max-width:320px;display:block;margin:6px auto;background:#020502"></canvas>
+        <div id="cxPairs" style="font-size:15px"></div>
+        <div id="cxPairEd" hidden style="margin-top:6px">
+          <div id="cxPairName"></div>
+          <div class="row"><input id="cxPw" type="number" min="-5" max="5" title="warmth"><input id="cxPt" type="number" min="-5" max="5" title="trust"><input id="cxPx" type="number" min="-5" max="5" title="tension"></div>
+          <select id="cxPl"></select><textarea id="cxPh" placeholder="history" style="min-height:60px"></textarea><input id="cxPth" placeholder="what's open between them">
+          <div class="bar"><button id="cxPsave">Save pair</button></div>
+        </div>
+      </details>
+      <details style="margin-top:6px"><summary>Moods now, the keeper's queue and errors</summary><div id="cxMoods" style="font-size:16px"></div><div id="cxQueue" style="font-size:16px;margin-top:6px"></div><div class="bar"><button id="cxQclear" class="ghost">Clear the queue</button></div></details>
+    </div>
+
     <div class="box"><div style="font-size:24px">Current scene</div><div id="scene" class="muted" style="white-space:pre-line"></div></div>
 
     <div class="box"><div style="font-size:24px">Bug reports</div><div id="bugs" class="muted" style="font-size:16px"></div></div>
@@ -181,6 +208,81 @@
     if (!r.ok){ const e = new Error(j.error || ('error '+r.status)); e.google = j.google; throw e; }
     return j;
   }
+  // ---- the Cast box (docs/CAST_PLAN.md): /api/cast/dir ----
+  let CX = null, cxPair = null;
+  async function cxApi(body){
+    const r = await fetch('/api/cast/dir', {method: body ? 'POST' : 'GET', headers: {'x-admin-key': KEY, 'content-type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
+    const j = await r.json().catch(() => ({error: 'bad response (' + r.status + ')'})); if (!r.ok) throw new Error(j.error || 'error ' + r.status); return j;
+  }
+  const cxEl = (tag, txt, st) => { const e = document.createElement(tag); if (txt != null) e.textContent = txt; if (st) e.style.cssText = st; return e; };
+  const cxBtn = (txt, fn, ghost) => { const b = cxEl('button', txt); if (ghost) b.className = 'ghost'; b.style.padding = '2px 8px'; b.onclick = fn; return b; };
+  async function cxDo(body, msg){ try { const r = await cxApi(body); if (r.results && r.results.some(x => x.error)) alert(r.results.map(x => x.n + ': ' + (x.error || 'ok')).join('\n')); await cxLoad(); if (msg) $('cxMsg').textContent = msg; } catch (e) { alert(e.message); } }
+  function cxChange(p){
+    const c = p.change || {};
+    if (p.kind === 'history') return 'History of ' + p.names.join(' & ') + ': ' + c.history;
+    if (p.kind === 'growth') return `${p.names[0]}: ${c.field} ${c.op} "${c.value}"`;
+    return `${p.names[0]}: full card. ${c.backstory || ''} ${c.inside ? 'Wants: ' + (c.inside.wantsWeek || c.inside.wantsLong || '') : ''}`;
+  }
+  async function cxLoad(){
+    let v; try { v = await cxApi(); } catch (e) { $('cxSum').textContent = 'Cast: ' + e.message; return; }
+    CX = v; const N = id => v.names[id] || id;
+    const cards = Object.values(v.cards);
+    $('cxSum').textContent = `${cards.length} cards (${cards.filter(c => c.backstory).length} full), ${v.notes.length} live notes, ${v.archived.length}+ archived, ${v.pairs.length} pairs, ${v.pending.length} waiting for review, ${v.queue.length} scene(s) waiting for the keeper.` + (v.errors.length ? ` Last error: ${v.errors[v.errors.length - 1].msg}` : '');
+    const pd = $('cxPend'); pd.textContent = v.pending.length ? '' : 'Nothing waiting.';
+    v.pending.forEach(p => { const d = cxEl('div', null, 'border-top:1px dashed #123d20;padding:6px 0');
+      d.appendChild(cxEl('div', `#${p.n} ${p.kind} · ${fmt(p.at)} · ${cxChange(p)}`)); d.appendChild(cxEl('div', 'Why: ' + (p.why || '—'), 'color:#2a9a4c'));
+      if (p.kind === 'card'){ const det = cxEl('details'); det.appendChild(cxEl('summary', 'the whole card')); det.appendChild(cxEl('pre', JSON.stringify(p.change, null, 1), 'white-space:pre-wrap;font-size:13px')); d.appendChild(det); }
+      const bar = cxEl('div'); bar.className = 'bar';
+      bar.append(cxBtn('Approve', () => cxDo({action: 'review', reviews: [{n: p.n, verdict: 'approve', reason: prompt('Why? (one line)', 'fits the card') || 'approved'}]})),
+        cxBtn('Edit', () => { const cur = p.kind === 'history' ? p.change.history : p.kind === 'growth' ? p.change.value : JSON.stringify(p.change); const tx = prompt('Your wording' + (p.kind === 'card' ? ' (the card as JSON)' : ''), cur); if (tx) cxDo({action: 'review', reviews: [{n: p.n, verdict: 'edit', text: tx, reason: prompt('Why? (one line)', 'reworded') || 'edited'}]}); }, true),
+        cxBtn('Reject', () => cxDo({action: 'review', reviews: [{n: p.n, verdict: 'reject', reason: prompt('Why? (one line)', 'does not fit') || 'rejected'}]}), true));
+      d.appendChild(bar); pd.appendChild(d); });
+    const rv = $('cxRev'); rv.textContent = v.reviewed.length ? '' : 'Nothing yet.';
+    v.reviewed.slice(0, 30).forEach(p => { const d = cxEl('div', `#${p.n} ${p.state} by ${p.review ? p.review.by : '—'} (${p.review ? fmt(p.review.at) : ''}): ${cxChange(p).slice(0, 160)}${p.review && p.review.reason ? ' — ' + p.review.reason : ''} `, 'border-top:1px dashed #123d20;padding:4px 0');
+      if (p.state === 'approved' || p.state === 'edited') d.appendChild(cxBtn('Undo', () => { if (confirm('Undo #' + p.n + '?')) cxDo({action: 'undo', n: p.n}); }, true)); rv.appendChild(d); });
+    const sel = $('cxWho'), cur = sel.value || 'ishai'; sel.textContent = '';
+    Object.keys(v.names).forEach(id => { const o = cxEl('option', v.names[id]); o.value = id; sel.appendChild(o); }); sel.value = v.names[cur] ? cur : 'ishai';
+    const ab = $('cxNoteAbout'); if (!ab.children.length){ ab.appendChild(Object.assign(cxEl('option', 'about nobody'), {value: ''})); Object.keys(v.names).forEach(id => { const o = cxEl('option', 'about ' + v.names[id]); o.value = id; ab.appendChild(o); }); ab.value = 'ishai'; }
+    cxPerson();
+    const pl = $('cxPl'); if (!pl.children.length) v.labels.forEach(l => pl.appendChild(Object.assign(cxEl('option', l), {value: l})));
+    const pr = $('cxPairs'); pr.textContent = '';
+    [...v.pairs].sort((a, b) => Math.abs(b.warmth) + b.tension - Math.abs(a.warmth) - a.tension).forEach(p => { const d = cxEl('div', `${N(p.a)} & ${N(p.b)}: ${p.label || '?'} · warmth ${p.warmth} trust ${p.trust} tension ${p.tension}${p.thread ? ' · open: ' + p.thread : ''}`, 'cursor:pointer;border-top:1px dashed #123d20;padding:3px 0');
+      d.onclick = () => { cxPair = p; $('cxPairEd').hidden = false; $('cxPairName').textContent = N(p.a) + ' & ' + N(p.b) + ' (warmth, trust, tension)'; $('cxPw').value = p.warmth; $('cxPt').value = p.trust; $('cxPx').value = p.tension; $('cxPl').value = p.label || 'acquaintances'; $('cxPh').value = p.history || ''; $('cxPth').value = p.thread || ''; };
+      pr.appendChild(d); });
+    cxMap(v);
+    const md = $('cxMoods'); md.textContent = Object.keys(v.moods).length ? '' : 'No moods right now.';
+    Object.values(v.moods).forEach(m => md.appendChild(cxEl('div', `${N(m.who)}: ${m.mood} (${m.why || '—'}) until ${fmt(m.until)}`)));
+    const q = $('cxQueue'); q.textContent = `Keeper queue: ${v.queue.map(x => N(x.w) + (x.tries ? ' (' + x.tries + ' tries)' : '')).join(', ') || 'empty'}`;
+    v.log.slice(-6).reverse().forEach(l => q.appendChild(cxEl('div', `${fmt(l.at)} ${N(l.w)}: ${(l.did || []).join(', ')}${l.dropped && l.dropped.length ? ' · dropped: ' + l.dropped.join(' | ') : ''}`, 'color:#2a9a4c')));
+    v.errors.slice(-4).reverse().forEach(e => q.appendChild(cxEl('div', `${fmt(e.at)} ${e.msg}`, 'color:#ff9a7a')));
+  }
+  function cxPerson(){
+    if (!CX) return; const id = $('cxWho').value, v = CX, N = x => v.names[x] || x || '-';
+    const c = Object.assign({}, v.cards[id] || {}); delete c.v; $('cxCard').value = JSON.stringify(c, null, 1);
+    const nt = $('cxNotes'); nt.textContent = '';
+    v.notes.filter(x => x.who === id).sort((a, b) => b.at - a.at).forEach(x => { const d = cxEl('div', `${x.pin ? '📌 ' : ''}[${x.imp}] about ${N(x.about)} · ${fmt(x.at)}: ${x.text} `, 'border-top:1px dashed #123d20;padding:3px 0');
+      d.append(cxBtn(x.pin ? 'Unpin' : 'Pin', () => cxDo({action: 'notePin', n: x.n}), true), cxBtn('Drop', () => cxDo({action: 'noteDrop', n: x.n}), true)); nt.appendChild(d); });
+    v.archived.filter(x => x.who === id).slice(0, 10).forEach(x => { const d = cxEl('div', `(archived) [${x.imp}] ${x.text} `, 'color:#2a9a4c;padding:2px 0'); d.append(cxBtn('Live again', () => cxDo({action: 'noteLive', n: x.n}), true)); nt.appendChild(d); });
+    if (!nt.children.length) nt.textContent = 'No notes yet.';
+    const fc = $('cxFacts'), f = v.facts[id] || {}; fc.textContent = Object.keys(f).length ? 'Facts: ' + Object.entries(f).map(([k, x]) => k + ': ' + x).join(' · ') : 'No facts yet.';
+  }
+  function cxMap(v){   // who is close to whom: everyone on a circle, a line per pair (green warm, red cold, amber tension)
+    const cv = $('cxMap'), g = cv.getContext('2d'), ids = Object.keys(v.names), n = ids.length, P = {};
+    const ring = ids.filter(id => id !== 'ishai'); g.clearRect(0, 0, 320, 320); P.ishai = [160, 160];   // Ishai in the middle, everyone else on a circle
+    ring.forEach((id, i) => { const a = i / ring.length * Math.PI * 2 - Math.PI / 2; P[id] = [160 + Math.cos(a) * 128, 160 + Math.sin(a) * 128]; });
+    v.pairs.forEach(p => { const A = P[p.a], B = P[p.b]; if (!A || !B || (Math.abs(p.warmth) < 2 && p.tension < 2)) return;
+      g.strokeStyle = p.tension >= 3 ? '#ffb84d' : p.warmth > 0 ? '#4dff7a' : '#ff6b6b'; g.globalAlpha = Math.min(1, .25 + Math.abs(p.warmth) / 6); g.lineWidth = 1 + Math.abs(p.warmth) / 2;
+      g.beginPath(); g.moveTo(A[0], A[1]); g.lineTo(B[0], B[1]); g.stroke(); });
+    g.globalAlpha = 1; g.font = '13px VT323, monospace'; g.textAlign = 'center';
+    ids.forEach(id => { g.fillStyle = '#0b200f'; g.fillRect(P[id][0] - 22, P[id][1] - 7, 44, 13); g.fillStyle = id === 'ishai' ? '#ffb84d' : '#4dff7a'; g.fillText(v.names[id].replace(/^(Mrs?|Dr)\. /, '').slice(0, 8), P[id][0], P[id][1] + 4); });
+  }
+  $('cxWho').onchange = cxPerson;
+  $('cxCardSave').onclick = () => cxDo({action: 'cardSave', id: $('cxWho').value, card: $('cxCard').value}, 'Saved.');
+  $('cxRedraft').onclick = () => { if (confirm('Ask for a new AI draft of this card? It goes to the review first.')) cxDo({action: 'redraft', id: $('cxWho').value}, 'A new draft comes on one of the next ticks.'); };
+  $('cxNoteAdd').onclick = () => { const tx = $('cxNoteT').value.trim(); if (tx) cxDo({action: 'noteAdd', who: $('cxWho').value, about: $('cxNoteAbout').value, imp: +$('cxNoteImp').value, text: tx}).then(() => { $('cxNoteT').value = ''; }); };
+  $('cxFset').onclick = () => cxDo({action: 'factSet', who: $('cxWho').value, k: $('cxFk').value.trim(), v: $('cxFv').value.trim()});
+  $('cxPsave').onclick = () => { if (cxPair) cxDo({action: 'pairSet', a: cxPair.a, b: cxPair.b, warmth: +$('cxPw').value, trust: +$('cxPt').value, tension: +$('cxPx').value, label: $('cxPl').value, history: $('cxPh').value, thread: $('cxPth').value}); };
+  $('cxQclear').onclick = () => { if (confirm('Drop every scene waiting for the keeper?')) cxDo({action: 'queueClear'}); };
   function renderCourse(c){
     if (!c) return;
     const when = c.at ? new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Jerusalem', weekday:'long', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', hour12:false}).format(new Date(c.at)) : 'not set yet';
@@ -329,6 +431,7 @@
   $('vSave').onclick = async () => { $('vMsg').textContent = 'Saving…'; try { const v = await api({action: 'voicesSave', voices: vDraft || {}}); vBuilt = ''; render(v); $('vMsg').textContent = 'Saved. Open pages pick it up within a minute.'; } catch(e){ $('vMsg').textContent = e.message; } };
   $('vReset').onclick = () => { if (!confirm('Set every voice back to automatic? (Save to keep it.)')) return; vDraft = {}; Voices.setConfig(vDraft); vBuilt = 'reset'; renderVoices({cfg: {}, cast: Object.values(vCast)}); $('vMsg').textContent = 'Not saved yet.'; };
   function render(v){
+    if (!CX) cxLoad();
     renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('last').textContent = v.last ? `${fmt(v.last.created)} (${v.last.location}/${v.last.action}) ${v.last.text}` : '—';
