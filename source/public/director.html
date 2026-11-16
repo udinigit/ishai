@@ -502,7 +502,6 @@
     (v.recent || []).forEach((m, i) => {
       const d = el('details', null, 'mom'); if (!i) d.open = true;
       d.appendChild(el('summary', `${m.clock.slice(-5)} · ${m.place} · ${m.action}${m.with ? ' · with ' + m.with : ''}${m.lines.length ? ' · ' + m.lines.length + ' lines' : ''}${m.src ? ' · ' + m.src : ''}`));
-      d.appendChild(el('div', m.text, 'nar'));
       m.lines.forEach(l => { const x = el('div', null, 'ln'); x.append(el('b', l.who + ': '), document.createTextNode(l.say)); d.appendChild(x); });
       m.hosts.forEach(l => d.appendChild(el('div', '🎙 ' + l.who + ': ' + l.say, 'hl')));
       rc.appendChild(d); });
@@ -583,7 +582,7 @@
       if (b.status === 'new'){ const k = document.createElement('button'); k.className = 'ghost'; k.textContent = 'Mark fixed'; k.style.marginTop = '4px'; k.onclick = async () => render(await api({action:'bugDone', id:b.id})); d.appendChild(k); }
       bl.appendChild(d); });
     const S = v.scene; $('scene').textContent = !S ? 'Ishai is not in a conversation right now.' :
-      `With ${S.name} (${S.type}) at ${S.loc} · ${S.lines} of ~${S.target} lines\nWhy: ${S.why}\nIshai wants: ${S.ishaiWants}\n${S.name} wants: ${S.theyWant}\nBeats: ${S.beats}\nEnding: ${S.ending}`;
+      `With ${S.name}${S.type ? ' (' + S.type + ')' : ''}${S.loc ? ' at ' + S.loc : ''} · ${S.lines} of ~${S.target} lines${S.leaving ? ' · wrapping up' : ''}`;
     V = v; renderNow(v);
     $('diag').textContent = (v.diag || []).slice().reverse().map(d => `${fmt(d.at)} try ${d.attempt + 1}${d.model ? ' [' + d.model + ']' : ''}: ${d.action || '?'}${d.with ? ' with ' + d.with : ''}, ${d.lines ?? '?'} lines → ${d.problem ? 'SENT BACK: ' + d.problem : 'ok'}`).join('\n') || '—';
     const wd = $('world'), W = v.world;

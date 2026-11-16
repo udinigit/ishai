@@ -4988,7 +4988,7 @@ function cleanVoices(v) {
 }
 function directorView(s, bugs) {
   const last = s.events[s.events.length - 1];
-  return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), kitchen: kitchenHealth(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
+  return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), kitchen: kitchenHealth(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { name: s.cast[s.scene.w]?.name || s.scene.w, type: s.scene.type || null, loc: s.scene.loc || null, lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse().map(dirGoal), lastError: s.lastError || null,
     polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },
@@ -5019,12 +5019,14 @@ function directorPlan(s, now) {
   return { version: P.version || null, written: P.written || null, hook: planFor("hook", now) || null, previously: planFor("previously", now) || null,
     arcs: (P.arcs || []).filter(a => a && a.title && !(a.secret && (!a.revealOn || String(a.revealOn) > today))).map(a => ({ id: a.id || null, title: a.title, stage: String(a.stage || "").slice(0, 900) })), beats };
 }
-// the NOW tab (docs/DIRECTOR_UI_PLAN.md, step 2): the last moments with their lines, what's coming, the fixes, and what needs the director
+// the NOW tab (docs/DIRECTOR_UI_PLAN.md, step 2): the last moments with their lines, what's coming, the fixes, and what needs the director.
+// Only what viewers get (who, where, the spoken lines, the hosts): the narration and the scene's why / wants / beats / ending are written by
+// a story writer that knows the season's secrets, so they never go to the director page (the scene card in directorView() is cut the same way).
 function directorNow(s, now) {
   const nm = id => id ? (s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id)) : null;
   const who = w => w === "ishai" ? "Ishai" : w === "radio" ? "Radio" : w === "tv" ? "TV" : s.cast[w] || LOCALS[w] ? nm(w) : String(w || "?").replace(/^./, c => c.toUpperCase());
   const recent = s.events.slice(-5).reverse().map(e => ({ t: e.t, created: e.created || null, clock: storyClock(e.t).label, loc: e.location, place: PLACE_NAME[e.location] || e.location,
-    action: e.action, with: nm(e.with), src: e.src || null, text: e.text, lines: (e.lines || []).map(l => ({ who: who(l.who), say: l.say })), hosts: (e.commentary || []).filter(c => !c.pre).map(c => ({ who: who(c.who), say: c.say })) }));
+    action: e.action, with: nm(e.with), src: e.src || null, lines: (e.lines || []).map(l => ({ who: who(l.who), say: l.say })), hosts: (e.commentary || []).filter(c => !c.pre).map(c => ({ who: who(c.who), say: c.say })) }));
   let filmLate = null;
   try { const at = nextFilmAt(s, now), date = at && dayOfTZ(at), f = date && s.cinema && s.cinema.films && s.cinema.films[date];
     if (f && !f.skip && !f.repeat && !(f.of && f.done >= f.of) && at - now < 33 * 3600000 && at > now) filmLate = { date, title: f.title, done: f.done || 0, of: f.of || null, at }; } catch (e) {}
