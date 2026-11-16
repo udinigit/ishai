@@ -4990,10 +4990,34 @@ function directorView(s, bugs) {
   const last = s.events[s.events.length - 1];
   return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), kitchen: kitchenHealth(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { ...s.scene, name: s.cast[s.scene.w]?.name || s.scene.w } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
-    done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse(), lastError: s.lastError || null,
+    done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse().map(dirGoal), lastError: s.lastError || null,
     polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t },
     ...directorNow(s, Date.now()) };
+}
+// a goal as the director page sees it: the planner's beats are written knowing the season's secrets, so a goal from the plan shows
+// its teaser instead of its text and never its brief, its forced ending or its scripted lines (docs/DIRECTOR_UI_PLAN.md: no secrets)
+function dirGoal(g) {
+  const out = { id: g.id, status: g.status, how: g.how || null, goal: g.goal, unlock: g.unlock || null, startAfter: g.startAfter, activatedAt: g.activatedAt || null, doneAt: g.doneAt || null,
+    deadlineH: g.deadlineH, deadlineAt: g.deadlineAt || null, with: g.with || null, brief: g.brief || null, briefLines: g.briefLines || null, art: g.art || null, fromPlan: !!g.fromPlan };
+  if (g.fromPlan) { const b = ((PLAN && PLAN.beats) || []).find(x => x.id === g.id);
+    out.goal = "Planned beat: " + (g.teaser || (b && b.teaser) || g.id); out.brief = null; out.briefLines = null; }
+  return out;
+}
+// the STORY tab's "Today's plan" (step 3): the plan's beats from today on, today's hook and "previously", the arcs.
+// Never a secret, not even a hint that one exists: the planner writes beat goals and arc titles knowing the secrets ("Dana: Haifa",
+// "nobody tells Ishai about Haifa"), so beats go out with their viewer-facing teaser only (never the goal text), and an arc whose
+// secret is still hidden (secret set, revealOn not reached) is left out whole; the rest go out as id, title and stage.
+function directorPlan(s, now) {
+  const P = PLAN || {}, today = dayOfTZ(now);
+  const beats = (P.beats || []).filter(b => b && b.id).map(b => {
+    const g = (s.director || []).find(d => d.id === b.id), at = b.sceneAt ? Date.parse(b.sceneAt) : b.startAt ? Date.parse(b.startAt) : g ? g.startAfter : null;
+    return { id: b.id, at, clock: at ? storyClock(at).label : null, until: b.deadlineAt ? Date.parse(b.deadlineAt) : null, where: b.location ? PLACE_NAME[b.location] || b.location : null,
+      with: b.with ? String(b.with).replace(/\s*\(.*\)\s*$/, "") : null, teaser: b.teaser || null,
+      status: g ? g.status : "not loaded", how: g ? g.how || null : null, scripted: !!(b.preview && b.preview.moments || b.script) };
+  }).filter(b => !b.at || dayOfTZ(b.at) >= today).sort((a, b) => (a.at || 0) - (b.at || 0));
+  return { version: P.version || null, written: P.written || null, hook: planFor("hook", now) || null, previously: planFor("previously", now) || null,
+    arcs: (P.arcs || []).filter(a => a && a.title && !(a.secret && (!a.revealOn || String(a.revealOn) > today))).map(a => ({ id: a.id || null, title: a.title, stage: String(a.stage || "").slice(0, 900) })), beats };
 }
 // the NOW tab (docs/DIRECTOR_UI_PLAN.md, step 2): the last moments with their lines, what's coming, the fixes, and what needs the director
 function directorNow(s, now) {
@@ -5005,7 +5029,7 @@ function directorNow(s, now) {
   try { const at = nextFilmAt(s, now), date = at && dayOfTZ(at), f = date && s.cinema && s.cinema.films && s.cinema.films[date];
     if (f && !f.skip && !f.repeat && !(f.of && f.done >= f.of) && at - now < 33 * 3600000 && at > now) filmLate = { date, title: f.title, done: f.done || 0, of: f.of || null, at }; } catch (e) {}
   const lastFix = (s.fixLog || []).slice(-1)[0] || null;
-  return { now, stuck: s.stuck || 0,
+  return { now, stuck: s.stuck || 0, plan: directorPlan(s, now),
     recent, coming: comingUp(s, now, 24).map(x => ({ at: x.at, clock: storyClock(x.at).label, what: x.what })),
     fixNote: s.fixNote && now < s.fixNote.until ? s.fixNote : null, fixLog: (s.fixLog || []).slice(-5).reverse(),
     autoFix: lastFix && lastFix.auto && now - lastFix.at < 3 * 3600000 ? lastFix : null, autoFixErr: s.autoFixErr || null, filmLate };

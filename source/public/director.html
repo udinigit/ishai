@@ -47,6 +47,8 @@
   .box:not(.shut) > .bx-t::before,.box:not(.shut) > .bx-h .bx-t::before,.sec.sx.open::before{content:'▾ '}
   .box.shut > .bx-body{display:none} .box.shut > .bx-h button{display:none} .box.shut{padding-bottom:10px}
   .sec.sx{cursor:pointer;user-select:none;font-size:17px;padding:4px 0} .sx-body[hidden]{display:none}
+  .chips{display:flex;gap:6px;flex-wrap:wrap} .chips button{padding:3px 10px;background:transparent} .chips button.on{background:var(--faint);border-color:var(--phos)}
+  .pb{border-top:1px dashed var(--faint);padding:6px 0} .pb .t{color:var(--amber)} .pl{margin:4px 0}
   .tab{display:flex;flex-direction:column;gap:14px} .tab[hidden]{display:none}
   .tools{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:6px}
   .tools a{display:block;text-align:center;padding:10px;border:1px solid var(--dim);border-radius:8px;background:var(--faint);color:var(--phos);text-decoration:none}
@@ -87,28 +89,38 @@
     </div>
     </section>
     <section class="tab" data-tab="story" hidden>
-    <div class="box"><div style="font-size:24px">Goals</div><div id="goals"></div></div>
+    <div class="box"><div style="font-size:24px">Goals</div><div id="goals"></div>
+      <details id="goalsDoneBox" style="margin-top:8px"><summary id="goalsDoneSum">Finished</summary><div id="goalsDone"></div></details></div>
     <div class="box">
       <div style="font-size:24px">New story goal</div>
       <label for="goal">What should happen (the AI works it in naturally)</label>
       <textarea id="goal" placeholder="Example: Mrs. Levi's cat goes missing. Ishai helps search the building and the park. They find it in the café."></textarea>
+      <label>Starts</label>
+      <div class="chips" id="startChips"><button data-h="0" class="on">Now</button><button data-h="1">In 1 hour</button><button data-h="3">In 3 hours</button><button data-at="20">Tonight 20:00</button><button data-at="33">Tomorrow 09:00</button></div>
+      <label>Has to happen within</label>
+      <div class="chips" id="dlChips"><button data-h="3">3 hours</button><button data-h="6">6 hours</button><button data-h="12" class="on">12 hours</button><button data-h="24">a day</button><button data-h="72">3 days</button></div>
+      <div id="whenSum" class="muted" style="font-size:16px;margin-top:4px"></div>
+      <details id="goalMore" style="margin-top:8px"><summary>More options</summary>
       <div class="row">
-        <div><label for="start">Start in (hours)</label><input id="start" type="number" min="0" value="0"></div>
+        <div><label for="start">Start in (hours)</label><input id="start" type="number" min="0" step="0.25" value="0"></div>
         <div><label for="deadline">Deadline (hours)</label><input id="deadline" type="number" min="1" value="12"></div>
         <div><label for="unlock">Unlocks item</label><select id="unlock"><option value="">nothing</option><option value="tv">TV</option><option value="radio">radio</option></select></div>
       </div>
-      <label for="art">Needs new graphics first? Describe them (optional). The goal waits until you press Release.</label>
-      <input id="art" placeholder="Example: a puppy that can sit, walk and sleep in Ishai's apartment">
       <div class="row" style="grid-template-columns:1fr 2fr">
-        <div><label for="with">With (name, optional)</label><input id="with" placeholder="Dana"></div>
-        <div><label for="blines">Conversation length (lines, optional)</label><input id="blines" type="number" min="0" max="80" placeholder="40"></div>
+        <div><label for="with">With (name)</label><input id="with" placeholder="Dana"></div>
+        <div><label for="blines">Conversation length (lines)</label><input id="blines" type="number" min="0" max="80" placeholder="40"></div>
       </div>
-      <label for="brief">Scene brief (optional): why they talk, what each one wants, the beats, how it ends</label>
+      <label for="brief">Scene brief: why they talk, what each one wants, the beats, how it ends</label>
       <textarea id="brief" placeholder="Dana wants to sell basil in tiny cups and needs a logo. Ishai wants to help without sounding too eager. Dana tries to get free design work; Ishai negotiates coffee for life. Ends with a handshake."></textarea>
-      <label for="force">If the deadline passes, this happens (optional)</label>
+      <label for="force">If the deadline passes, this happens</label>
       <input id="force" placeholder="Example: The cat walks back in on its own, looking smug.">
+      <label for="art">Needs new graphics first? Describe them. The goal waits until you press Release.</label>
+      <input id="art" placeholder="Example: a puppy that can sit, walk and sleep in Ishai's apartment">
+      </details>
       <div class="bar" style="margin-top:10px"><button id="add">Add goal</button><span id="addMsg"></span></div>
     </div>
+    <div class="box"><div style="font-size:24px">Today's plan</div>
+      <div id="planInfo" style="font-size:17px"></div></div>
     <div class="box"><div style="font-size:24px">Missing graphics</div>
       <div class="muted" style="font-size:16px">Things the story mentioned that the camera can't show yet. Ask Claude to draw the ones you like.</div>
       <div id="wish"></div></div>
@@ -584,9 +596,13 @@
        (W.errors||[]).length ? 'Fetch problems: ' + W.errors.join('; ') : '',
        `Updated ${fmt(W.at)}`].filter(Boolean).join('\n');
     wd.style.whiteSpace = 'pre-line';
-    const el = $('goals'); el.textContent = '';
-    if (!v.goals.length) el.textContent = 'No goals yet.';
-    v.goals.forEach(g => {
+    const el = $('goals'), elDone = $('goalsDone'); el.textContent = ''; elDone.textContent = '';
+    const RANK = {active: 0, 'needs-art': 1, waiting: 2};
+    const open = v.goals.filter(g => g.status !== 'done').sort((a, b) => (RANK[a.status] ?? 3) - (RANK[b.status] ?? 3) || (a.startAfter || 0) - (b.startAfter || 0));
+    const done = v.goals.filter(g => g.status === 'done').sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 40);
+    if (!open.length) el.textContent = 'Nothing waiting or running.';
+    $('goalsDoneSum').textContent = `Finished (${v.goals.length - open.length})`; $('goalsDoneBox').hidden = !done.length;
+    [...open, ...done].forEach(g => {
       const d = document.createElement('div'); d.className = 'goal';
       const head = document.createElement('div');
       const st = document.createElement('span'); st.className = 'st ' + g.status;
@@ -610,9 +626,37 @@
         b.onclick = async () => { if (!confirm('Cancel this goal?')) return; render(await api({action:'cancel', id:g.id})); };
         d.appendChild(b);
       }
-      el.appendChild(d);
+      (g.status === 'done' ? elDone : el).appendChild(d);
     });
+    renderPlan(v.plan);
   }
+  // ---- STORY: today's plan (no secrets: the worker sends beats with their teaser only and leaves out arcs with a hidden secret) ----
+  function renderPlan(P){
+    const box = $('planInfo'); box.textContent = ''; if (!P) { box.textContent = 'No plan.'; return; }
+    const add = (tag, txt, cls) => { const e = el(tag, txt, cls); box.appendChild(e); return e; };
+    add('div', `Plan ${P.version || '—'}${P.written ? ' · written ' + fmt(Date.parse(P.written)) : ''}`, 'muted').style.fontSize = '16px';
+    if (P.hook) { const d = add('div', null, 'pl'); d.append(el('b', 'Today\'s question: '), document.createTextNode(P.hook)); d.firstChild.style.cssText = 'font-weight:normal;color:var(--amber)'; }
+    if (P.previously) { const d = add('div', null, 'pl'); d.append(el('b', 'Previously: '), document.createTextNode(P.previously)); d.firstChild.style.cssText = 'font-weight:normal;color:var(--amber)'; }
+    const ST = {waiting: 'waiting', active: 'running', done: 'done', 'needs-art': 'needs art', 'not loaded': 'not loaded yet'};
+    if (!P.beats.length) add('div', 'No planned beats from today on.', 'muted');
+    P.beats.forEach(b => { const d = add('div', null, 'pb');
+      const h = el('div'); h.append(el('span', (b.clock ? b.clock.slice(0, 3) + ' ' + b.clock.slice(-5) : '—') + ' ', 't'),
+        el('span', (ST[b.status] || b.status).toUpperCase() + (b.how ? ' (' + b.how + ')' : ''), 'st ' + (b.status === 'not loaded' ? 'waiting' : b.status)));
+      d.appendChild(h); d.appendChild(el('div', b.teaser || '(no teaser)'));
+      d.appendChild(el('div', [b.where, b.with ? 'with ' + b.with : '', b.scripted ? 'scripted' : 'live AI', b.until ? 'until ' + hm(b.until) : ''].filter(Boolean).join(' · '), 'muted')).style.fontSize = '16px'; });
+    if (P.arcs.length) { const det = el('details'); det.style.marginTop = '8px'; det.appendChild(el('summary', `Arcs (${P.arcs.length})`));
+      P.arcs.forEach(a => { const d = el('div', null, 'pb'); d.appendChild(el('div', a.title, 't')); d.appendChild(el('div', a.stage)); d.lastChild.style.fontSize = '17px'; det.appendChild(d); });
+      box.appendChild(det); }
+  }
+  // ---- STORY: the short goal form: chips set the hours, the rest is under More options ----
+  function israelHM(){ const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).formatToParts(new Date()).map(x => [x.type, x.value])); return +p.hour + p.minute / 60; }
+  function chipHours(btn){ if (btn.dataset.h != null) return +btn.dataset.h; const at = +btn.dataset.at, now = israelHM(); return Math.max(0, Math.round((at - now) * 4) / 4); }
+  function whenSum(){ const st = +$('start').value || 0, dl = +$('deadline').value || 12;
+    $('whenSum').textContent = (st ? `Starts in ${st} h (${hm(Date.now() + st * 3600000)})` : 'Starts now') + `, has ${dl} h to happen.`; }
+  [['startChips', 'start'], ['dlChips', 'deadline']].forEach(([box, inp]) => $(box).querySelectorAll('button').forEach(b => b.onclick = () => {
+    $(box).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); $(inp).value = chipHours(b); whenSum(); }));
+  ['start', 'deadline'].forEach(id => $(id).addEventListener('input', () => { $(id === 'start' ? 'startChips' : 'dlChips').querySelectorAll('button').forEach(x => x.classList.remove('on')); whenSum(); }));
+  whenSum();
   $('pollSkip').onclick = async () => { if (!confirm('Skip the coming poll? This hour will have none.')) return; render(await api({action:'pollSkip'})); };
   $('pollBank').onclick = async () => render(await api({action:'pollBank'}));
   $('kitPick').onclick = () => { const n = $('kitName').value.trim(); kitchenDo(n ? {action:'kitchenPick', name:n} : {action:'kitchenNew'}, n ? 'Looking it up...' : 'Picking one...'); };
@@ -665,6 +709,7 @@
     $('addMsg').textContent = '';
     try {
       render(await api({action:'add', goal:$('goal').value, startAfterH:+$('start').value, deadlineH:+$('deadline').value, unlock:$('unlock').value||null, forceText:$('force').value, art:$('art').value, with:$('with').value, brief:$('brief').value, briefLines:+$('blines').value||0}));
+      $('startChips').querySelector('[data-h="0"]').click(); $('dlChips').querySelector('[data-h="12"]').click(); $('goalMore').open = false;
       $('goal').value = ''; $('force').value = ''; $('art').value = ''; $('with').value = ''; $('brief').value = ''; $('blines').value = ''; $('addMsg').className='ok'; $('addMsg').textContent = 'Added.';
     } catch(e){ $('addMsg').className='err'; $('addMsg').textContent = e.message; }
   };

@@ -112,3 +112,4 @@ Each step ships on its own (bump `VERSION`), and nothing is removed until its ne
 
 ## Built
 - Step 2 (NOW): v253. Step 1 (the shell, the shared bar, refresh, collapsing): v254.
+- Step 3 (STORY): v255. Because the planner writes beat goals and arc titles knowing the secrets, planned beats show only their teaser (in Goals too), and an arc with a hidden secret is left out whole until its reveal date.
