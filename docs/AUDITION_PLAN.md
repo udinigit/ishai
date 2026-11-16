@@ -14,6 +14,7 @@ The viewer is told when and how their character will first appear and accepts. F
 - **Yes to a "from the audience" tag** on a member character's Cast card.
 - **No arcs or secrets** for member characters for now.
 - **Follow-up questions:** every specific answer about hobbies, education, work and the like opens follow-up questions about it, so no two characters come out the same (see "Follow-ups").
+- **At most 6 member characters at once** (`MEMBER_MAX` = 6) to start; approved Auditions past that wait in line.
 - **One or two wild cards:** odd, random-feeling questions with many possible answers, which may be written by the AI, to give each character something nobody else has (see "Wild cards").
 
 ## The button (one per account, in the 👤 dialog and on the Cast tab)
@@ -201,4 +202,4 @@ No KV writes. A whole interview is about 80 small D1 writes.
 6. **On the show and quitting:** regular appearances, ★ MY CHARACTER, "on now" pushes, Quit show, the goodbye scene, archiving, deleting answers, the 30-day rule, the director's end and ban.
 
 ## Open questions
-- `MEMBER_MAX`: 6 at once to start?
+- None for now.
