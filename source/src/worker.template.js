@@ -277,6 +277,7 @@ export default {
     // compact health summary for the scheduled health check (no secrets, no narration of the future)
     if (url.pathname === "/api/health") {
       const s = await loadState(env), now = Date.now(), d = (s.diag || []).filter(x => now - (x.at || 0) < 3 * 3600000);   // recent AI calls only
+      try { await castLoad(env, s, false); } catch (e) {}   // the cast store, read in this isolate too (cached a minute)
       const moments = d.filter(x => x.attempt === 0).length, retried = d.filter(x => x.attempt === 0 && x.problem).length;
       const nm = id => id ? (s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id)) : null;
       return json({ now, build: BUILD, planVersion: PLAN.version || null,
