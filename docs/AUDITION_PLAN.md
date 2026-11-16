@@ -1,6 +1,6 @@
 # Auditions: viewers' own characters join the show (plan)
 
-Proposed 2026-11-16 from the director's idea. Nothing built yet. It builds on `docs/CAST_PLAN.md` (cards, notes and pairs in D1, the scene keeper, Claude's reviews), so it comes after that plan's steps 1-4.
+Proposed 2026-11-16 from the director's idea. Nothing built yet. It builds on `docs/CAST_PLAN.md` (cards, notes and pairs in D1, the scene keeper, Claude's reviews), which is built (v252), so this can start from its own step 1.
 
 ## The idea
 A signed-in viewer makes an avatar. They can ask for an Audition once a month. If the director agrees, they get one long interview about a character of their own: name, past, family, work, hobbies, personality, how they talk, what they want and fear.
@@ -146,7 +146,7 @@ No KV writes. A whole interview is about 80 small D1 writes.
 - **Push:** uses the existing system and its per-run batch.
 
 ## Steps
-0. **First:** `CAST_PLAN.md` steps 1-4 (cards and notes in D1, the scene keeper, what the writer gets, full cards with Claude's review).
+0. **Done:** the deeper characters of `CAST_PLAN.md` (v252): cards and notes in D1, the scene keeper, what the writer gets, full cards with Claude's review.
 1. **Members and avatars:** the `member` table, the avatar editor in the 👤 dialog, the inbox, the 18+ box.
 2. **Requests:** the button and its states, the 30-day rule, the director's Requests box, the pushes.
 3. **The interview:** `story/audition.json` (the bank, written by Claude), naming, the start screen, the interview page with saving, branching and the 7-day window.
