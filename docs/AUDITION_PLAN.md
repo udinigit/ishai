@@ -1,6 +1,6 @@
 # Auditions: viewers' own characters join the show (plan)
 
-Proposed 2026-11-16 from the director's idea. Nothing built yet. It builds on `docs/CAST_PLAN.md` (cards, notes and pairs in D1, the scene keeper, Claude's reviews), which is built (v252), so this can start from its own step 1.
+Proposed 2026-11-16 from the director's idea, updated the same day with the director's answers (see "Decisions"). Nothing built yet. It builds on `docs/CAST_PLAN.md` (cards, notes and pairs in D1, the scene keeper, Claude's reviews), which is built (v252), so this can start from its own step 1.
 
 ## The idea
 A signed-in viewer makes an avatar. They can ask for an Audition once a month. If the director agrees, they get one long interview about a character of their own: name, past, family, work, hobbies, personality, how they talk, what they want and fear.
@@ -8,6 +8,12 @@ A signed-in viewer makes an avatar. They can ask for an Audition once a month. I
 From the answers the AI writes a full character card, and Claude suggests how the character fits into Ishai's world (works at the café, studies at the university, an old friend of Tomer's...). Claude reviews the card, and the director approves it by hand.
 
 The viewer is told when and how their character will first appear and accepts. From then on the character is an actor like any other: the show writes them, the viewer watches. They can quit; the character then gets a last appearance within 7 days, and the viewer may audition again 30 days later.
+
+## Decisions (the director, 2026-11-16)
+- **No email.** Notifications are web push and the inbox only; we keep storing no addresses.
+- **Yes to a "from the audience" tag** on a member character's Cast card.
+- **No arcs or secrets** for member characters for now.
+- **Follow-up questions:** every specific answer about hobbies, education, work and the like opens follow-up questions about it, so no two characters come out the same (see "Follow-ups").
 
 ## The button (one per account, in the 👤 dialog and on the Cast tab)
 The button's state is kept in D1 (`member.state`) and moves in this order:
@@ -35,7 +41,7 @@ Ending the interview unfinished, rejection at review, or declining the role all 
 ## Signing in and contact
 - **Sign-in** is the Google sign-in we already have. The member row is keyed by the same hashed account number as the votes (`voterOf()`).
 - **Notifications** use the web push we already have (the bell), plus an inbox in the 👤 dialog that shows every message (request decided, role offered, first appearance, character on screen now, last appearance).
-- **Email:** we don't keep emails today (`/privacy`). Email notifications would mean storing the address, with a box the viewer ticks, and a sending service. Cloudflare's own email sending only reaches addresses we've verified, so it would be a third-party service with a free plan. Optional, and left for later (see "Open questions").
+- **No email** (the director's decision): we keep storing no addresses, as `/privacy` says today.
 
 ## Naming the character (safe)
 Recommended: **pick one of three, or type your own for the director to check.**
@@ -59,6 +65,7 @@ Recommended: **pick one of three, or type your own for the director to check.**
   - Back is allowed within a section.
   - Each answer is saved at once (`aud_answer`), so a closed tab or a new phone carries on where it left off.
 - **Branching:** answers open or skip questions. Age decides school vs. work-life questions. "Has children" opens the children questions. "Moved to Tel Aviv" asks from where and why.
+- **Follow-ups:** the specific answers get their own questions. They are what make a character feel like a real person and not a list of types (see "Follow-ups").
 - **Never asked:** politics, sexual content, real addresses, real names, the user's own health, anything about real people. Religion only as lightly as the show already has it (Shabbat, holidays).
 
 ### The question bank (`story/audition.json`, about 320 questions)
@@ -78,6 +85,28 @@ Each question has: `id`, `section`, `type` (`one`, `many`, `scale`, `text`), `q`
 | **Talk** | how they speak (fast, slow, formal, jokes, swears mildly...), a phrase they say a lot, topics they love and avoid | 20 |
 | **Inside** | what they want this year and in life, their biggest fear, what they're proud of, a small secret (fictional) | 25 |
 | **The world** | how they might know someone in the show (picked from the cast: "never met anyone", "a neighbour of", "studied with"...; a wish for Claude, not a promise), what they'd think of Ishai at first sight | 20 |
+
+### Follow-ups: the details that make a character their own
+A general answer ("hobbies: music") makes a general character. So every answer that names something specific opens 2-4 follow-up questions about **that thing**. They are drawn from a follow-up set for it in the bank (`follow` on the option, e.g. `music → [fu.music.*]`), and the most telling are shown first.
+
+| The answer | Follow-ups (examples) |
+|---|---|
+| **A hobby** (music, cooking, running, chess, gardening, photography, gaming, sewing, birdwatching...) | How did it start, and who got them into it? How good are they, honestly? What exactly (an instrument and a style; a dish they're known for; a distance and a best time; a favourite opening)? Where and when do they do it in town? A thing they own for it that matters to them? A small embarrassing moment with it? |
+| **Education** (a degree, a trade school, the army, self-taught, dropped out) | Which subject, and why that one? A teacher, a classmate or a moment they still think about? Did they finish? What did they really learn there? Would they go back? |
+| **Work and the job they want** | What did they do before? Their worst job ever, and what happened? What they're secretly good at? Who they look up to at work? What they'd do if money didn't matter? |
+| **Family** | Brothers and sisters: names (fictional, chosen from a list), ages, close or not? A parent they're like, and in what? A family saying or dish? An old argument that never got settled? |
+| **Love and status** | How long? How did it begin or end? What do friends say about it? Something they'd never forgive? |
+| **Where they grew up** | Their street or village? The smell or sound of it? A friend from there they still call? Why they left? |
+| **Moods** | The last time they were really angry, at what? What calms them? Who sees them cry? |
+| **Talk** | The phrase they say a lot: when, and to whom? A word they overuse? Topics they could talk about for hours? |
+| **Inside** | Why that fear? What would make them proud? The small secret: who almost found out? |
+| **The world** | Which place in town and why? What would they order at Café Nahat? Their first impression of Ishai, and what would change it? |
+
+- **Mixing:** with two hobbies, each gets at least one follow-up. Then the "chooser" picks the rest by `weight` and by what is still thin in the answers, so every interview differs.
+- **Choices first:** most follow-ups are choices, plus a "something else" with a short line. About a third of the 10 written answers are spent here, where they count most.
+- **The total stays about 80 questions** (about 50 main ones, about 30 follow-ups) and 30-40 minutes. The progress bar counts the follow-ups as they come, so it never jumps back.
+- **In the card:** follow-up answers become the card's concrete details: a fact list (`cast_fact`: "plays the oud, badly, since 14"), habits, the sample lines, and a few starting notes (importance 3, in the character's own voice), so the scene keeper and the writer have real things to use from day one.
+- **The bank:** each of the about 40 hobbies, 15 kinds of schooling, 25 kinds of work and the family / love / home answers gets a follow-up set of 4-8 questions. This adds about 200 follow-up questions to the bank's 320, all written by Claude in step 3.
 
 The bank is written once by Claude in the build step. The director can edit it, and Claude reviews any change.
 
@@ -105,7 +134,8 @@ The bank is written once by Claude in the build step. The director can edit it, 
 - **How often:** a member character is a regular in their place and appears like any regular, plus a booked scene with Ishai about every 4-7 days. `MEMBER_MAX` (start with 6) member characters at once; past it, approved Auditions wait in line, and the viewer sees their place.
 - **The owner sees** their character's card and its "With Ishai" history in the Cast tab (like everyone), plus a ★ MY CHARACTER badge. An optional push says "Maya is on now", at most twice a day.
 - **The owner can't steer it.** No editing, no lines, no requests. Growth goes through Claude's weekly review like everyone's.
-- **Viewers** see the character like any cast member. A small "from the audience" tag on their Cast card is an open question.
+- **Viewers** see the character like any cast member, with a small **FROM THE AUDIENCE** tag on their Cast card (never who the viewer is).
+- **No arcs or secrets** for member characters for now: the planner and the arcs leave them out, and they are never named in an arc's `knows`.
 
 ## Quitting
 - **Quit show** asks for confirmation, then books a last appearance within 7 days: a goodbye fitting the role (a job in another city, studying abroad, moving in with family; never a death, by the drama limits). The viewer gets its time.
@@ -149,13 +179,10 @@ No KV writes. A whole interview is about 80 small D1 writes.
 0. **Done:** the deeper characters of `CAST_PLAN.md` (v252): cards and notes in D1, the scene keeper, what the writer gets, full cards with Claude's review.
 1. **Members and avatars:** the `member` table, the avatar editor in the 👤 dialog, the inbox, the 18+ box.
 2. **Requests:** the button and its states, the 30-day rule, the director's Requests box, the pushes.
-3. **The interview:** `story/audition.json` (the bank, written by Claude), naming, the start screen, the interview page with saving, branching and the 7-day window.
+3. **The interview:** `story/audition.json` (the bank and its follow-up sets, written by Claude), naming, the start screen, the interview page with saving, branching and the 7-day window.
 4. **The character:** the card and three ways in from one Gemini call, Claude's review, the director's To approve box.
 5. **The offer and the debut:** the role page, Accept/Decline, joining the cast, the booked first scene, the reminders.
 6. **On the show and quitting:** regular appearances, ★ MY CHARACTER, "on now" pushes, Quit show, the goodbye scene, archiving, deleting answers, the 30-day rule, the director's end and ban.
 
 ## Open questions
-- Email notifications as well as push and the inbox? This means storing the address, with consent, and a third-party sending service.
 - `MEMBER_MAX`: 6 at once to start?
-- Should viewers see a "from the audience" tag on member characters?
-- May member characters ever be part of an arc or a secret, if the director chooses?
