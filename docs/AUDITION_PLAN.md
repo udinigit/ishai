@@ -14,6 +14,7 @@ The viewer is told when and how their character will first appear and accepts. F
 - **Yes to a "from the audience" tag** on a member character's Cast card.
 - **No arcs or secrets** for member characters for now.
 - **Follow-up questions:** every specific answer about hobbies, education, work and the like opens follow-up questions about it, so no two characters come out the same (see "Follow-ups").
+- **One or two wild cards:** odd, random-feeling questions with many possible answers, which may be written by the AI, to give each character something nobody else has (see "Wild cards").
 
 ## The button (one per account, in the 👤 dialog and on the Cast tab)
 The button's state is kept in D1 (`member.state`) and moves in this order:
@@ -104,9 +105,24 @@ A general answer ("hobbies: music") makes a general character. So every answer t
 
 - **Mixing:** with two hobbies, each gets at least one follow-up. Then the "chooser" picks the rest by `weight` and by what is still thin in the answers, so every interview differs.
 - **Choices first:** most follow-ups are choices, plus a "something else" with a short line. About a third of the 10 written answers are spent here, where they count most.
-- **The total stays about 80 questions** (about 50 main ones, about 30 follow-ups) and 30-40 minutes. The progress bar counts the follow-ups as they come, so it never jumps back.
+- **The total stays about 80 questions** (about 50 main ones, about 30 follow-ups, plus 1-2 wild cards) and 30-40 minutes. The progress bar counts the follow-ups as they come, so it never jumps back.
 - **In the card:** follow-up answers become the card's concrete details: a fact list (`cast_fact`: "plays the oud, badly, since 14"), habits, the sample lines, and a few starting notes (importance 3, in the character's own voice), so the scene keeper and the writer have real things to use from day one.
 - **The bank:** each of the about 40 hobbies, 15 kinds of schooling, 25 kinds of work and the family / love / home answers gets a follow-up set of 4-8 questions. This adds about 200 follow-up questions to the bank's 320, all written by Claude in step 3.
+
+### Wild cards: one or two questions out of nowhere
+Every interview gets 1 or 2 questions that feel random, with many answers to pick from. Their only job is to give the character one odd, specific thing of their own. They come at a surprising point (one in the first half, one near the end), never two in a row, and are marked with a small 🃏.
+
+- **Where they come from:**
+  - **AI-written, per interview:** when the interview starts, one small Gemini call writes 2 fresh wild cards (question plus 10-14 answers each). It sees only the character's age band and first section answers, never the free text, so it can lean on what's there ("a 60-year-old ex-sailor: what does he keep in his left pocket?"). The bank's wild cards are the fallback when Gemini is busy or a question fails the check.
+  - **The bank:** about 60 wild cards written by Claude, each with 12-16 answers, so even without AI they rarely repeat (`s.audWild` remembers the last 200 used).
+- **Examples** (each with many answers, plus "something else" with a short line):
+  - What's always in their left pocket? (a guitar pick, a bus ticket from 2009, a single dice, a lemon sweet, their grandmother's ring, a folded receipt they never throw away, a tiny screwdriver, nothing, it has a hole...)
+  - If they had to be a smell, which one? (fresh bread, rain on asphalt, a new book, a hospital, sunscreen, an old cinema, fried onions, cut grass...)
+  - What would they save first from a fire after the people? (a box of letters, the cat's bowl, a cassette, a plant called Ezra, a ruined sweater...)
+  - Which animal do strangers say they look like? · What did they collect at age 10? · The song they'd want playing in a lift with Ishai? · What do they do with the last bite of anything? · A thing they believe that has no proof?
+- **Safety:** the AI's questions and answers go through the same check as the card's text: short, no real people or brands, nothing sexual, political or about the viewer, and only from the allowed answer types (one, many, "something else"). A failed one is swapped for a bank wild card. The free-text "something else" answer is cleaned like any other.
+- **In the card:** the answer becomes a quirk, a fact (`cast_fact`, e.g. "left pocket" → "a bus ticket from 2009") and, where it fits, a small `tell` or a sample line. Claude's review checks it stays charming, not silly.
+- **Cost:** at most 1 extra small Gemini call per Audition.
 
 The bank is written once by Claude in the build step. The director can edit it, and Claude reviews any change.
 
@@ -170,7 +186,7 @@ No KV writes. A whole interview is about 80 small D1 writes.
 - **Banned accounts.**
 
 ## Cost
-- **Per Audition:** 1 Gemini call (the card and the three ways in) and one item in Claude's review.
+- **Per Audition:** 1 Gemini call (the card and the three ways in), at most 1 small one for the wild cards, and one item in Claude's review.
 - **Writing the bank:** done once at build time; no running cost.
 - **On the show:** member characters cost what any cast member costs (their scenes go through the scene keeper of `CAST_PLAN.md`). `MEMBER_MAX` keeps the total small.
 - **Push:** uses the existing system and its per-run batch.
@@ -179,7 +195,7 @@ No KV writes. A whole interview is about 80 small D1 writes.
 0. **Done:** the deeper characters of `CAST_PLAN.md` (v252): cards and notes in D1, the scene keeper, what the writer gets, full cards with Claude's review.
 1. **Members and avatars:** the `member` table, the avatar editor in the 👤 dialog, the inbox, the 18+ box.
 2. **Requests:** the button and its states, the 30-day rule, the director's Requests box, the pushes.
-3. **The interview:** `story/audition.json` (the bank and its follow-up sets, written by Claude), naming, the start screen, the interview page with saving, branching and the 7-day window.
+3. **The interview:** `story/audition.json` (the bank, its follow-up sets and the wild cards, written by Claude), the AI wild cards, naming, the start screen, the interview page with saving, branching and the 7-day window.
 4. **The character:** the card and three ways in from one Gemini call, Claude's review, the director's To approve box.
 5. **The offer and the debut:** the role page, Accept/Decline, joining the cast, the booked first scene, the reminders.
 6. **On the show and quitting:** regular appearances, ★ MY CHARACTER, "on now" pushes, Quit show, the goodbye scene, archiving, deleting answers, the 30-day rule, the director's end and ban.
