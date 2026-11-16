@@ -33,6 +33,16 @@
   .waiting{background:#2a2a10;color:var(--amber)} .needs-art{background:#2a1530;color:#e0a0ff} .active{background:#10301a;color:var(--phos)} .done{background:#1a1a1a;color:#9a9a9a}
   .muted{color:var(--dim)} .err{color:var(--red)} .ok{color:var(--phos)}
   .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .sec{font-size:15px;letter-spacing:1px;color:var(--dim);margin:12px 0 4px;border-bottom:1px solid var(--faint)}
+  .sec:first-of-type{margin-top:4px}
+  .inb{border-left:3px solid var(--amber);padding:4px 0 6px 10px;margin:6px 0;font-size:17px}
+  .inb.red{border-color:var(--red)} .inb.cast{border-color:#e0a0ff} .inb .bar{margin-top:4px;gap:6px} .inb button{padding:2px 10px}
+  .inb .why{color:var(--dim);font-size:16px}
+  .mom{border-top:1px dashed var(--faint);padding:4px 0} .mom summary{cursor:pointer;font-size:17px}
+  .mom .nar{color:#6b8a73;font-size:15px;margin:2px 0 4px} .mom .ln{font-size:17px;margin-left:8px} .mom .ln b{font-weight:normal;color:var(--amber)}
+  .mom .hl{font-size:15px;color:#7fb8ff;margin-left:8px}
+  .cu{font-size:17px} .cu b{font-weight:normal;color:var(--amber)}
+  .qa .bar{gap:8px} .qa select{width:auto}
 </style>
 </head>
 <body>
@@ -50,16 +60,25 @@
   </div>
 
   <div id="main" hidden>
-    <div class="box">
-      <div class="bar" style="justify-content:space-between">
-        <span>Unlocked items: <b id="unlocked">—</b></span>
-        <button id="tick">Run next moment now</button>
-        <button id="testAlert" class="ghost">Send test alert</button>
+    <div class="box" id="nowBox">
+      <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Now</span>
+        <span class="muted" style="font-size:16px"><span id="nowAt"></span> <button id="nowRefresh" class="ghost" style="padding:2px 10px">↻</button></span></div>
+      <div class="sec">WAITING FOR YOU</div><div id="nowInbox"></div>
+      <div class="sec">THE SCENE NOW</div><div id="scene" style="white-space:pre-line;font-size:17px"></div>
+      <div id="nowRecent" style="margin-top:6px"></div>
+      <div class="sec">QUICK BUTTONS</div>
+      <div class="qa">
+        <div class="bar"><button id="tick">Run next moment</button><button id="fxEnd" class="ghost">End this scene</button><button id="fxUnstick" class="ghost">Unstick</button></div>
+        <div class="bar" style="margin-top:8px"><input id="fxNote" placeholder="A note the story follows, e.g. Dana gets a call and has to leave" style="flex:1;min-width:200px">
+          <select id="fxMin"><option value="15">15 min</option><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option></select>
+          <button id="fxGo">Give note</button></div>
+        <div id="fxNow" class="muted" style="font-size:16px;margin-top:4px;white-space:pre-line"></div>
+        <div id="aiErr" class="err" hidden></div>
+        <div id="tickMsg"></div>
+        <div class="muted" style="font-size:16px">"Run next moment" uses AI budget; new moments appear on the page after the 5-minute delay. End this scene: the next moment wraps it up with a goodbye. A note also stops the automatic fix for 40 minutes.</div>
       </div>
-      <div class="muted" style="margin-top:6px">Latest moment written: <span id="last">—</span></div>
-      <div class="muted" style="font-size:16px">New moments appear on the page after the 5-minute delay. "Run now" uses AI budget.</div>
-      <div id="aiErr" class="err"></div>
-      <div id="tickMsg"></div>
+      <div class="sec">COMING UP</div><div id="nowComing" class="cu"></div>
+      <div class="bar muted" style="font-size:16px;margin-top:10px;justify-content:space-between"><span>Unlocked items: <b id="unlocked" style="font-weight:normal">—</b></span><button id="testAlert" class="ghost" style="padding:2px 10px">Send test alert</button></div>
     </div>
 
     <div class="box" id="voicesBox">
@@ -136,8 +155,6 @@
       </details>
       <details style="margin-top:6px"><summary>Moods now, the keeper's queue and errors</summary><div id="cxMoods" style="font-size:16px"></div><div id="cxQueue" style="font-size:16px;margin-top:6px"></div><div class="bar"><button id="cxQclear" class="ghost">Clear the queue</button></div></details>
     </div>
-
-    <div class="box"><div style="font-size:24px">Current scene</div><div id="scene" class="muted" style="white-space:pre-line"></div></div>
 
     <div class="box"><div style="font-size:24px">Bug reports</div><div id="bugs" class="muted" style="font-size:16px"></div></div>
 
@@ -223,20 +240,23 @@
     if (p.kind === 'growth') return `${p.names[0]}: ${c.field} ${c.op} "${c.value}"`;
     return `${p.names[0]}: full card. ${c.backstory || ''} ${c.inside ? 'Wants: ' + (c.inside.wantsWeek || c.inside.wantsLong || '') : ''}`;
   }
+  function cxReviewBar(p){   // Approve / Edit / Reject for one proposal (the Cast box and the NOW inbox)
+    const bar = cxEl('div'); bar.className = 'bar';
+    bar.append(cxBtn('Approve', () => cxDo({action: 'review', reviews: [{n: p.n, verdict: 'approve', reason: prompt('Why? (one line)', 'fits the card') || 'approved'}]})),
+      cxBtn('Edit', () => { const cur = p.kind === 'history' ? p.change.history : p.kind === 'growth' ? p.change.value : JSON.stringify(p.change); const tx = prompt('Your wording' + (p.kind === 'card' ? ' (the card as JSON)' : ''), cur); if (tx) cxDo({action: 'review', reviews: [{n: p.n, verdict: 'edit', text: tx, reason: prompt('Why? (one line)', 'reworded') || 'edited'}]}); }, true),
+      cxBtn('Reject', () => cxDo({action: 'review', reviews: [{n: p.n, verdict: 'reject', reason: prompt('Why? (one line)', 'does not fit') || 'rejected'}]}), true));
+    return bar;
+  }
   async function cxLoad(){
     let v; try { v = await cxApi(); } catch (e) { $('cxSum').textContent = 'Cast: ' + e.message; return; }
-    CX = v; const N = id => v.names[id] || id;
+    CX = v; const N = id => v.names[id] || id; if (V) renderInbox(V);
     const cards = Object.values(v.cards);
     $('cxSum').textContent = `${cards.length} cards (${cards.filter(c => c.backstory).length} full), ${v.notes.length} live notes, ${v.archived.length}+ archived, ${v.pairs.length} pairs, ${v.pending.length} waiting for review, ${v.queue.length} scene(s) waiting for the keeper.` + (v.errors.length ? ` Last error: ${v.errors[v.errors.length - 1].msg}` : '');
     const pd = $('cxPend'); pd.textContent = v.pending.length ? '' : 'Nothing waiting.';
     v.pending.forEach(p => { const d = cxEl('div', null, 'border-top:1px dashed #123d20;padding:6px 0');
       d.appendChild(cxEl('div', `#${p.n} ${p.kind} · ${fmt(p.at)} · ${cxChange(p)}`)); d.appendChild(cxEl('div', 'Why: ' + (p.why || '—'), 'color:#2a9a4c'));
       if (p.kind === 'card'){ const det = cxEl('details'); det.appendChild(cxEl('summary', 'the whole card')); det.appendChild(cxEl('pre', JSON.stringify(p.change, null, 1), 'white-space:pre-wrap;font-size:13px')); d.appendChild(det); }
-      const bar = cxEl('div'); bar.className = 'bar';
-      bar.append(cxBtn('Approve', () => cxDo({action: 'review', reviews: [{n: p.n, verdict: 'approve', reason: prompt('Why? (one line)', 'fits the card') || 'approved'}]})),
-        cxBtn('Edit', () => { const cur = p.kind === 'history' ? p.change.history : p.kind === 'growth' ? p.change.value : JSON.stringify(p.change); const tx = prompt('Your wording' + (p.kind === 'card' ? ' (the card as JSON)' : ''), cur); if (tx) cxDo({action: 'review', reviews: [{n: p.n, verdict: 'edit', text: tx, reason: prompt('Why? (one line)', 'reworded') || 'edited'}]}); }, true),
-        cxBtn('Reject', () => cxDo({action: 'review', reviews: [{n: p.n, verdict: 'reject', reason: prompt('Why? (one line)', 'does not fit') || 'rejected'}]}), true));
-      d.appendChild(bar); pd.appendChild(d); });
+      d.appendChild(cxReviewBar(p)); pd.appendChild(d); });
     const rv = $('cxRev'); rv.textContent = v.reviewed.length ? '' : 'Nothing yet.';
     v.reviewed.slice(0, 30).forEach(p => { const d = cxEl('div', `#${p.n} ${p.state} by ${p.review ? p.review.by : '—'} (${p.review ? fmt(p.review.at) : ''}): ${cxChange(p).slice(0, 160)}${p.review && p.review.reason ? ' — ' + p.review.reason : ''} `, 'border-top:1px dashed #123d20;padding:4px 0');
       if (p.state === 'approved' || p.state === 'edited') d.appendChild(cxBtn('Undo', () => { if (confirm('Undo #' + p.n + '?')) cxDo({action: 'undo', n: p.n}); }, true)); rv.appendChild(d); });
@@ -430,11 +450,63 @@
   if (!Voices.hdAllowed()){ $('vHD').hidden = true; $('vHDst').textContent = 'HD voices can be previewed on a computer. The HD voice you choose here is used on computers only.'; }
   $('vSave').onclick = async () => { $('vMsg').textContent = 'Saving…'; try { const v = await api({action: 'voicesSave', voices: vDraft || {}}); vBuilt = ''; render(v); $('vMsg').textContent = 'Saved. Open pages pick it up within a minute.'; } catch(e){ $('vMsg').textContent = e.message; } };
   $('vReset').onclick = () => { if (!confirm('Set every voice back to automatic? (Save to keep it.)')) return; vDraft = {}; Voices.setConfig(vDraft); vBuilt = 'reset'; renderVoices({cfg: {}, cast: Object.values(vCast)}); $('vMsg').textContent = 'Not saved yet.'; };
+  // ---- the NOW box (docs/DIRECTOR_UI_PLAN.md, step 2) ----
+  let V = null;
+  const hm = ms => ms ? new Date(ms).toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit'}) : '—';
+  const el = (tag, txt, cls) => { const e = document.createElement(tag); if (txt != null) e.textContent = txt; if (cls) e.className = cls; return e; };
+  function inboxItem(box, cls, title, why, buttons){
+    const d = el('div', null, 'inb' + (cls ? ' ' + cls : '')); d.appendChild(el('div', title)); if (why) d.appendChild(el('div', why, 'why'));
+    if (buttons && buttons.length){ const b = el('div', null, 'bar'); buttons.forEach(([t, fn, ghost]) => { const x = el('button', t, ghost ? 'ghost' : ''); x.onclick = fn; b.appendChild(x); }); d.appendChild(b); }
+    box.appendChild(d);
+  }
+  const act = async (body, ok) => { try { render(await api(body)); if (ok) { $('tickMsg').className = 'ok'; $('tickMsg').textContent = ok; } } catch(e){ alert(e.message); } };
+  function renderInbox(v){
+    const box = $('nowInbox'); box.textContent = ''; const now = v.now || Date.now();
+    (v.bugs || []).filter(b => b.status === 'new').forEach(b => inboxItem(box, 'red', `Bug report · ${fmt(b.at)}: ${b.text}`, b.screen + (b.page ? ' · ' + b.page : '') + ' · build ' + b.build,
+      [['Mark fixed', () => act({action: 'bugDone', id: b.id})]]));
+    (CX ? CX.pending : []).forEach(p => { const d = el('div', null, 'inb cast'); d.appendChild(el('div', `Cast #${p.n} ${p.kind}: ${cxChange(p)}`)); d.appendChild(el('div', 'Why: ' + (p.why || '—'), 'why')); d.appendChild(cxReviewBar(p)); box.appendChild(d); });
+    (v.goals || []).filter(g => g.status === 'needs-art').forEach(g => inboxItem(box, '', 'Goal waiting for art: ' + g.goal, 'Art needed: ' + (g.art || '—'),
+      [['Release (art is ready)', () => act({action: 'release', id: g.id})]]));
+    if (v.filmLate) { const f = v.filmLate; inboxItem(box, 'red', `The film isn't written: ${f.title} (${f.done}${f.of ? ' of ' + f.of : ''} parts), Saturday ${hm(f.at)}`, 'Not ready by Friday noon, an older film comes back instead.',
+      [['Write it now', () => { $('cinWrite').click(); $('cinMsg').scrollIntoView({behavior: 'smooth', block: 'center'}); }]]); }
+    if (v.lastError && now - v.lastError.at < 6 * 3600000) inboxItem(box, 'red', `AI error at ${fmt(v.lastError.at)}: ${v.lastError.msg}`, 'Backup lines are used until it works.');
+    if (v.autoFix) inboxItem(box, '', `Automatic fix at ${fmt(v.autoFix.at)} (${v.autoFix.why || 'the story went in circles'})`, (v.autoFix.done || []).join(', ') + (v.autoFix.note ? ' · note: ' + v.autoFix.note : ''));
+    if (v.autoFixErr) inboxItem(box, 'red', 'The automatic fix failed: ' + (v.autoFixErr.msg || v.autoFixErr), v.autoFixErr.at ? fmt(v.autoFixErr.at) : '');
+    if (!box.children.length) box.appendChild(el('div', 'All quiet.', 'muted'));
+  }
+  function renderNow(v){
+    $('nowAt').textContent = 'as of ' + hm(v.now);
+    renderInbox(v);
+    const rc = $('nowRecent'); rc.textContent = '';
+    (v.recent || []).forEach((m, i) => {
+      const d = el('details', null, 'mom'); if (!i) d.open = true;
+      d.appendChild(el('summary', `${m.clock.slice(-5)} · ${m.place} · ${m.action}${m.with ? ' · with ' + m.with : ''}${m.lines.length ? ' · ' + m.lines.length + ' lines' : ''}${m.src ? ' · ' + m.src : ''}`));
+      d.appendChild(el('div', m.text, 'nar'));
+      m.lines.forEach(l => { const x = el('div', null, 'ln'); x.append(el('b', l.who + ': '), document.createTextNode(l.say)); d.appendChild(x); });
+      m.hosts.forEach(l => d.appendChild(el('div', '🎙 ' + l.who + ': ' + l.say, 'hl')));
+      rc.appendChild(d); });
+    const fn = v.fixNote, fl = (v.fixLog || [])[0];
+    $('fxNow').textContent = [`Stuck counter: ${v.stuck || 0}.`, fn ? `Note until ${hm(fn.until)}: ${fn.text}` : 'No note running.',
+      fl ? `Last fix ${fmt(fl.at)}${fl.auto ? ' (automatic)' : ''}: ${(fl.done || []).join(', ') || '—'}.` : ''].filter(Boolean).join('\n');
+    const cu = $('nowComing'); cu.textContent = '';
+    (v.coming || []).forEach(c => { const x = el('div'); x.append(el('b', c.clock + ' '), document.createTextNode(c.what)); cu.appendChild(x); });
+    if (!cu.children.length) cu.appendChild(el('div', 'Nothing planned in the next 24 hours.', 'muted'));
+  }
+  async function fix(body, ok){
+    $('tickMsg').className = 'muted'; $('tickMsg').textContent = 'Sending…';
+    try { render(await api({action: 'fix', ...body})); $('tickMsg').className = 'ok'; $('tickMsg').textContent = ok; }
+    catch(e){ $('tickMsg').className = 'err'; $('tickMsg').textContent = e.message; }
+  }
+  $('fxEnd').onclick = () => { if (confirm('End the scene now? The next moment wraps it up with a goodbye.')) fix({endScene: true}, 'Done: the next moment ends the scene.'); };
+  $('fxUnstick').onclick = () => fix({unstick: true}, 'Done: the stuck counter is back to 0.');
+  $('fxGo').onclick = () => { const n = $('fxNote').value.trim(); if (!n) { $('fxNote').focus(); return; }
+    fix({note: n, minutes: +$('fxMin').value}, 'Note given. The story follows it from the next moment.').then(() => { if ($('tickMsg').className === 'ok') $('fxNote').value = ''; }); };
+  $('fxNote').addEventListener('keydown', e => { if (e.key === 'Enter') $('fxGo').click(); });
+  $('nowRefresh').onclick = async () => { try { render(await api()); cxLoad(); } catch(e){ alert(e.message); } };
   function render(v){
     if (!CX) cxLoad();
     renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
-    $('last').textContent = v.last ? `${fmt(v.last.created)} (${v.last.location}/${v.last.action}) ${v.last.text}` : '—';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';
     const wl = $('wish'); wl.textContent = '';
     if (!(v.wishlist||[]).length) wl.textContent = 'Nothing yet.';
@@ -454,6 +526,7 @@
       bl.appendChild(d); });
     const S = v.scene; $('scene').textContent = !S ? 'Ishai is not in a conversation right now.' :
       `With ${S.name} (${S.type}) at ${S.loc} · ${S.lines} of ~${S.target} lines\nWhy: ${S.why}\nIshai wants: ${S.ishaiWants}\n${S.name} wants: ${S.theyWant}\nBeats: ${S.beats}\nEnding: ${S.ending}`;
+    V = v; renderNow(v);
     $('diag').textContent = (v.diag || []).slice().reverse().map(d => `${fmt(d.at)} try ${d.attempt + 1}${d.model ? ' [' + d.model + ']' : ''}: ${d.action || '?'}${d.with ? ' with ' + d.with : ''}, ${d.lines ?? '?'} lines → ${d.problem ? 'SENT BACK: ' + d.problem : 'ok'}`).join('\n') || '—';
     const wd = $('world'), W = v.world;
     wd.textContent = !W ? 'Not fetched yet (happens on the next moment).' :
