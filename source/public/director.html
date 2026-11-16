@@ -336,9 +336,9 @@
       d.appendChild(cxEl('div', 'Why: ' + (p.why || '—'), 'color:var(--dim);font-size:16px'));
       if (p.kind === 'card'){ const det = cxEl('details'); det.appendChild(cxEl('summary', 'the whole card')); det.appendChild(cxEl('pre', JSON.stringify(p.change, null, 1), 'white-space:pre-wrap;font-size:13px')); d.appendChild(det); }
       d.appendChild(cxReviewBar(p)); pd.appendChild(d); });
-    $('cxRevdT').textContent = `Reviewed (undo)` + (v.reviewed.length ? ` (${Math.min(30, v.reviewed.length)})` : '');
+    $('cxRevdT').textContent = `Reviewed (undo)` + (v.reviewed.length ? ` (${v.reviewed.length})` : '');
     const rv = $('cxRev'); rv.textContent = v.reviewed.length ? '' : 'Nothing yet.';
-    v.reviewed.slice(0, 30).forEach(p => { const d = cxEl('div', `#${p.n} ${p.state} by ${p.review ? p.review.by : '—'} (${p.review ? fmt(p.review.at) : ''}): ${cxChange(p).slice(0, 160)}${p.review && p.review.reason ? ' — ' + p.review.reason : ''} `); d.className = 'fl';
+    v.reviewed.forEach(p => { const d = cxEl('div', `#${p.n} ${p.state} by ${p.review ? p.review.by : '—'} (${p.review ? fmt(p.review.at) : ''}): ${cxChange(p).slice(0, 160)}${p.review && p.review.reason ? ' — ' + p.review.reason : ''} `); d.className = 'fl';
       if (p.state === 'approved' || p.state === 'edited') d.appendChild(cxBtn('Undo', () => { if (confirm('Undo #' + p.n + '?')) cxDo({action: 'undo', n: p.n}, `#${p.n} undone.`); }, true)); rv.appendChild(d); });
     // people
     const ids = Object.keys(v.names).sort((a, b) => a === 'ishai' ? -1 : b === 'ishai' ? 1 : ((pairOf(v, 'ishai', b) || {}).warmth || 0) - ((pairOf(v, 'ishai', a) || {}).warmth || 0) || N(a).localeCompare(N(b)));
