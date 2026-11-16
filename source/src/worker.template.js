@@ -293,7 +293,7 @@ export default {
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), life: (s.life || []).slice(-6),
-        writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), backup Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
+        writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), when busy " + (env.GEMINI_BACKUP ? "gemini (" + env.GEMINI_BACKUP + ")" : "the other Gemini Flash models") + ", then Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
         polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3), pushes: (s.pollPushes || []).map(j => ({ kind: j.kind, poll: j.poll, at: j.at, sent: j.sent, done: j.done })) },
         surveys: { off: !!s.surveysOff, err: s.surveyErr || null, list: (s.surveys || []).map(x => ({ id: x.id, kind: x.kind, options: x.options.length, closesAt: x.closesAt, result: x.result ? { total: x.result.total, winner: x.result.winner } : null, linked: x.linked, goal: x.goal })), say: (s.surveySay || []).length } }, { "cache-control": "no-store" });
@@ -782,6 +782,7 @@ async function tick(env, force) {
     u.calls += USE.calls; u.inTok += USE.inTok; u.outTok += USE.outTok; USE.calls = USE.inTok = USE.outTok = 0;
     u.jsonFixed = (u.jsonFixed || 0) + JSON_USE.fixed; u.jsonBad = (u.jsonBad || 0) + JSON_USE.bad; JSON_USE.fixed = JSON_USE.bad = 0;
     u.gemini = { calls: (u.gemini?.calls || 0) + USE_G.calls, inTok: (u.gemini?.inTok || 0) + USE_G.inTok, outTok: (u.gemini?.outTok || 0) + USE_G.outTok }; USE_G.calls = USE_G.inTok = USE_G.outTok = 0;
+    if (GEMINI_BACKUPS_USED) { u.gemini.backup = (u.gemini.backup || 0) + GEMINI_BACKUPS_USED; GEMINI_BACKUPS_USED = 0; }
     if (GEMINI_FAILS.length) { u.gemini.failed = (u.gemini.failed || 0) + GEMINI_FAILS.length; u.gemini.failedBy = u.gemini.failedBy || {};
       GEMINI_FAILS.forEach(f => { const k = f.status || "other"; u.gemini.failedBy[k] = (u.gemini.failedBy[k] || 0) + 1; });
       s.geminiErrs = [...(s.geminiErrs || []), ...GEMINI_FAILS].slice(-8); GEMINI_FAILS.length = 0; }
@@ -1301,23 +1302,46 @@ async function geminiAlts(env) {
   } catch (e) { return []; }
   return geminiAltList;
 }
+// Gemini busy (500/503 "high demand" on the main model): the same call goes to up to 2 backup models (GEMINI_BACKUP, comma-separated, else the
+// other stable Flash / Flash-Lite models, newest first; each has its own free quota). A backup's 429 never pauses the main model. Only when every
+// model fails does the caller see the error (and the story fall back to Cloudflare). A call with its own model (the film writer) gets no backups.
+const GEMINI_BUSY = /^gemini (500|503|504)\b/;
+const GEMINI_BACKUP_N = 2;
+let GEMINI_BACKUPS_USED = 0;
+async function geminiBackups(env, first) {
+  const own = String(env.GEMINI_BACKUP || "").split(",").map(x => x.trim()).filter(Boolean);
+  return (own.length ? own : await geminiAlts(env)).filter(m => m !== first).slice(0, GEMINI_BACKUP_N);
+}
 async function runGemini(env, messages, maxTokens, useModel) {
-  const model = useModel || await pickGemini(env);
+  if (useModel) return geminiOnce(env, messages, maxTokens, useModel, false);
+  const first = await pickGemini(env);
+  try { return await geminiOnce(env, messages, maxTokens, first, false); }
+  catch (e) {
+    if (!GEMINI_BUSY.test(String(e.message))) throw e;
+    for (const m of await geminiBackups(env, first)) {
+      try { const out = await geminiOnce(env, messages, maxTokens, m, true); GEMINI_BACKUPS_USED++; return out; }
+      catch (e2) { if (!/^gemini (500|503|504|429)\b/.test(String(e2.message))) break; }
+    }
+    throw e;
+  }
+}
+async function geminiOnce(env, messages, maxTokens, model, backup) {
   const body = { model, messages, max_tokens: maxTokens, temperature: 0.9, response_format: { type: "json_object" } };
   const call = () => fetch(GEMINI_URL + "/chat/completions", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + env.GEMINI_API_KEY }, body: JSON.stringify(body) });
   let r = await call();
   if (r.status === 400) { delete body.response_format; r = await call(); }            // an older model without JSON mode
   if (!r.ok) {
     const full = await r.text(), t = full.slice(0, 220);
-    if (r.status === 429) geminiOutUntil = /per ?day|daily|PerDay/i.test(t) ? nextPacificMidnight(Date.now()) : Date.now() + 90000;   // the free daily quota resets at midnight Pacific
-    if (r.status === 404 && !env.GEMINI_MODEL) geminiModel = null;                    // that model is gone: pick again next time
+    if (r.status === 429 && !backup) geminiOutUntil = /per ?day|daily|PerDay/i.test(t) ? nextPacificMidnight(Date.now()) : Date.now() + 90000;   // the free daily quota resets at midnight Pacific
+    if (r.status === 404 && !env.GEMINI_MODEL && model === geminiModel) geminiModel = null;   // that model is gone: pick again next time
+    if (r.status === 404 && backup) geminiAltList = null;
     if (r.status === 401 || r.status === 403) geminiOutUntil = Date.now() + 3600000;  // bad key: try again in an hour
     throw new Error(`gemini ${r.status} (${model}): ${full.slice(0, 460)}`);
   }
   const j = await r.json(), c = String(j?.choices?.[0]?.message?.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   USE_G.calls++; USE_G.inTok += j?.usage?.prompt_tokens || 0; USE_G.outTok += j?.usage?.completion_tokens || 0;
   if (!c) throw new Error(`gemini (${model}): empty reply`);
-  lastWriter = "gemini: " + model; GEMINI_SEEN = model;
+  lastWriter = "gemini: " + model + (backup ? " (backup)" : ""); if (!backup) GEMINI_SEEN = model;
   return c;
 }
 async function runModel(env, messages, maxTokens = 1000, role = "story") {
