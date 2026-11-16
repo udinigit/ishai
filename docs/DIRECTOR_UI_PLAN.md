@@ -108,3 +108,7 @@ Each step ships on its own (bump `VERSION`), and nothing is removed until its ne
 - Plan secrets stay off the director page entirely.
 - No extra quick actions on NOW for now: Run next moment, End this scene, Give a note, Unstick.
 - The sub pages get the shared top bar and status line in step 1; their insides stay as they are.
+- Every box opens and closes on a tap of its title and is closed when the page opens; on NOW the box stays open and its parts (waiting for you, the scene now, quick buttons, coming up) open and close, with counts in their titles.
+
+## Built
+- Step 2 (NOW): v253. Step 1 (the shell, the shared bar, refresh, collapsing): v254.

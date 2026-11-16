@@ -43,15 +43,19 @@
   .mom .hl{font-size:15px;color:#7fb8ff;margin-left:8px}
   .cu{font-size:17px} .cu b{font-weight:normal;color:var(--amber)}
   .qa .bar{gap:8px} .qa select{width:auto}
+  .bx-h{cursor:pointer;user-select:none} .bx-t::before,.sec.sx::before{content:'▸ ';color:var(--dim)}
+  .box:not(.shut) > .bx-t::before,.box:not(.shut) > .bx-h .bx-t::before,.sec.sx.open::before{content:'▾ '}
+  .box.shut > .bx-body{display:none} .box.shut > .bx-h button{display:none} .box.shut{padding-bottom:10px}
+  .sec.sx{cursor:pointer;user-select:none;font-size:17px;padding:4px 0} .sx-body[hidden]{display:none}
+  .tab{display:flex;flex-direction:column;gap:14px} .tab[hidden]{display:none}
+  .tools{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:6px}
+  .tools a{display:block;text-align:center;padding:10px;border:1px solid var(--dim);border-radius:8px;background:var(--faint);color:var(--phos);text-decoration:none}
+  @media (min-width:1000px){ .wrap{max-width:980px} .tab[data-tab=week],.tab[data-tab=more]{display:grid;grid-template-columns:1fr 1fr;align-items:start} .tab[data-tab=week][hidden],.tab[data-tab=more][hidden]{display:none} }
 </style>
 </head>
 <body>
+<script>/*__DIR_BAR__*/</script>
 <div class="wrap">
-  <h1>&gt; DIRECTOR // ISHAI</h1>
-  <div class="muted" style="font-size:17px">After you log in here, the <a href="/" style="color:var(--phos)">live page</a> on this device also shows the NARRATION (DEV) tab.</div>
-
-  <div class="muted" style="font-size:17px"><a href="/sandbox" style="color:var(--phos)">Open the sandbox</a> to test scenes, weather and characters by hand, or the <a href="/builder" style="color:var(--phos)">scene builder</a> to compose pictures and export them. Bands, songs, concerts and promotions for the Pump House are on the <a href="/events" style="color:var(--phos)">events page</a>. The <a href="/map" style="color:var(--phos)">map</a> shows every screen, its ways out and where they lead. It never reaches the live show.</div>
-
   <div class="box" id="login">
     <div id="gBox" hidden style="margin-bottom:14px"><div style="margin-bottom:6px">Sign in with a director's Google account</div><div id="gBtn"></div></div>
     <label for="key">Or the password (the ADMIN_KEY you set in Cloudflare)</label>
@@ -60,10 +64,11 @@
   </div>
 
   <div id="main" hidden>
+    <section class="tab" data-tab="now" hidden>
     <div class="box" id="nowBox">
       <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Now</span>
         <span class="muted" style="font-size:16px"><span id="nowAt"></span> <button id="nowRefresh" class="ghost" style="padding:2px 10px">↻</button></span></div>
-      <div class="sec">WAITING FOR YOU</div><div id="nowInbox"></div>
+      <div class="sec" id="secInbox">WAITING FOR YOU</div><div id="nowInbox"></div>
       <div class="sec">THE SCENE NOW</div><div id="scene" style="white-space:pre-line;font-size:17px"></div>
       <div id="nowRecent" style="margin-top:6px"></div>
       <div class="sec">QUICK BUTTONS</div>
@@ -77,36 +82,12 @@
         <div id="tickMsg"></div>
         <div class="muted" style="font-size:16px">"Run next moment" uses AI budget; new moments appear on the page after the 5-minute delay. End this scene: the next moment wraps it up with a goodbye. A note also stops the automatic fix for 40 minutes.</div>
       </div>
-      <div class="sec">COMING UP</div><div id="nowComing" class="cu"></div>
-      <div class="bar muted" style="font-size:16px;margin-top:10px;justify-content:space-between"><span>Unlocked items: <b id="unlocked" style="font-weight:normal">—</b></span><button id="testAlert" class="ghost" style="padding:2px 10px">Send test alert</button></div>
+      <div class="sec" id="secComing">COMING UP</div><div id="nowComing" class="cu"></div>
+      <div class="bar muted keep" style="font-size:16px;margin-top:10px;justify-content:space-between"><span>Unlocked items: <b id="unlocked" style="font-weight:normal">—</b></span><button id="testAlert" class="ghost" style="padding:2px 10px">Send test alert</button></div>
     </div>
-
-    <div class="box" id="voicesBox">
-      <div style="font-size:24px">Voices</div>
-      <div class="muted" style="font-size:16px">How each character sounds on the show, in the Studio and in the trailer. Empty = automatic. Gender picks the device's voice (each viewer's phone or computer has its own); the HD voice is the one used in SOUND: HD VOICES. Pitch and speed apply to both (about 0.8 to 1.3; 1 = natural). ▶ plays a line with this device's voice, ▶HD with the HD voice (load HD here first).</div>
-      <input id="vSample" value="Hi, it's me. Did anyone water Moshe today?" style="margin:6px 0" aria-label="Sample line">
-      <div class="bar" style="flex-wrap:wrap;gap:6px"><button id="vHD" class="ghost">Load HD voices here (90-310 MB)</button> <span id="vHDst" class="muted" style="font-size:16px"></span></div>
-      <div id="vList" style="margin-top:6px"></div>
-      <div class="bar" style="flex-wrap:wrap;gap:6px;margin-top:8px"><button id="vSave">Save voices</button> <button id="vReset" class="ghost">All back to automatic</button> <span id="vMsg" class="muted" style="font-size:16px"></span></div>
-    </div>
-
-    <div class="box">
-      <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Viewers' polls</span>
-        <span><button id="pollBank" class="ghost">Use a stock poll</button> <button id="pollSkip" class="ghost">Skip this poll</button> <button id="pollsOff" class="ghost">Turn polls off</button></span></div>
-      <div id="pollNow" style="margin-top:6px">—</div>
-      <div id="pollErr" class="muted" style="font-size:16px"></div>
-      <div id="pollLog" style="margin-top:6px"></div>
-      <div class="muted" style="font-size:16px" id="pollHelp">One poll an hour, opening at hh:20 (08:20-20:20, not on Shabbat) for 10 minutes. The winner becomes a goal named poll-… that starts an hour or more later, in a free gap. Skip and stock work only before the poll opens.</div>
-    </div>
-
-    <div class="box">
-      <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Surveys of the week</span>
-        <span><button id="survOff" class="ghost">Turn surveys off</button></span></div>
-      <div id="survList" style="margin-top:6px">—</div>
-      <div id="survMsg"></div>
-      <div class="muted" style="font-size:16px">Sunday 06:00 to Saturday 21:00, Google sign-in, one final vote each. Viewers vote from the survey card on the picture. New character and new place: four of our own ideas a week (<code>NEW_CAST_IDEAS</code>, <code>NEW_PLACE_IDEAS</code> in the worker); viewers only pick. Once the winner is built (a <code>SEED_CAST</code> entry, or a place on the map), link it here: it then happens in the story and the hosts say it was the viewers' choice.</div>
-    </div>
-
+    </section>
+    <section class="tab" data-tab="story" hidden>
+    <div class="box"><div style="font-size:24px">Goals</div><div id="goals"></div></div>
     <div class="box">
       <div style="font-size:24px">New story goal</div>
       <label for="goal">What should happen (the AI works it in naturally)</label>
@@ -128,7 +109,11 @@
       <input id="force" placeholder="Example: The cat walks back in on its own, looking smug.">
       <div class="bar" style="margin-top:10px"><button id="add">Add goal</button><span id="addMsg"></span></div>
     </div>
-
+    <div class="box"><div style="font-size:24px">Missing graphics</div>
+      <div class="muted" style="font-size:16px">Things the story mentioned that the camera can't show yet. Ask Claude to draw the ones you like.</div>
+      <div id="wish"></div></div>
+    </section>
+    <section class="tab" data-tab="cast" hidden>
     <div class="box" id="castBox">
       <div style="font-size:24px">Cast: cards, memories, feelings</div>
       <div id="cxSum" class="muted" style="font-size:16px"></div>
@@ -155,24 +140,23 @@
       </details>
       <details style="margin-top:6px"><summary>Moods now, the keeper's queue and errors</summary><div id="cxMoods" style="font-size:16px"></div><div id="cxQueue" style="font-size:16px;margin-top:6px"></div><div class="bar"><button id="cxQclear" class="ghost">Clear the queue</button></div></details>
     </div>
-
-    <div class="box"><div style="font-size:24px">Bug reports</div><div id="bugs" class="muted" style="font-size:16px"></div></div>
-
-    <div class="box"><div style="font-size:24px">AI checks (last moments)</div><div id="diag" class="muted" style="white-space:pre-line;font-size:16px"></div></div>
-
+    </section>
+    <section class="tab" data-tab="week" hidden>
     <div class="box">
-      <div style="font-size:24px">Kitchen: what Ishai cooks today</div>
-      <div id="kitInfo" style="font-size:17px"></div>
-      <label for="kitName">A recipe by name (searched on TheMealDB; empty = a new random one)</label>
-      <input id="kitName" style="width:100%" placeholder="e.g. shakshuka, beef stew, apple crumble">
+      <div style="font-size:24px">Course: Strange But True</div>
+      <div id="courseInfo"></div>
+      <label for="courseTopic">Topic (the exact Wikipedia title, or pick from the list)</label>
+      <input id="courseTopic" list="courseList" style="width:100%"><datalist id="courseList"></datalist>
       <div class="bar" style="margin-top:8px">
-        <button id="kitPick">Cook this today</button>
-        <button id="kitSkip" class="ghost">Skip today</button>
-        <button id="kitOff" class="ghost">Cooking on / off</button>
-        <span id="kitMsg"></span>
+        <select id="courseSlot"><option value="0">Next lecture</option><option value="1">The one after</option></select>
+        <button id="courseSet">Use this topic</button>
+        <button id="courseNew" class="ghost">Pick another at random</button>
+        <button id="courseGen" class="ghost">Write the lecture now</button>
+        <span id="courseMsg"></span>
       </div>
+      <details style="margin-top:8px"><summary>Read the lecture before it airs</summary><div id="coursePreview"></div></details>
+      <details style="margin-top:8px"><summary>What Ishai remembers (last 10 topics)</summary><div id="courseMemory"></div></details>
     </div>
-
     <div class="box">
       <div style="font-size:24px">Cinema: Saturday night at the PixelPlex</div>
       <div id="cinInfo" style="font-size:17px"></div>
@@ -189,29 +173,53 @@
         <span id="cinMsg"></span>
       </div>
     </div>
-
     <div class="box">
-      <div style="font-size:24px">Course: Strange But True</div>
-      <div id="courseInfo"></div>
-      <label for="courseTopic">Topic (the exact Wikipedia title, or pick from the list)</label>
-      <input id="courseTopic" list="courseList" style="width:100%"><datalist id="courseList"></datalist>
+      <div style="font-size:24px">Kitchen: what Ishai cooks today</div>
+      <div id="kitInfo" style="font-size:17px"></div>
+      <label for="kitName">A recipe by name (searched on TheMealDB; empty = a new random one)</label>
+      <input id="kitName" style="width:100%" placeholder="e.g. shakshuka, beef stew, apple crumble">
       <div class="bar" style="margin-top:8px">
-        <select id="courseSlot"><option value="0">Next lecture</option><option value="1">The one after</option></select>
-        <button id="courseSet">Use this topic</button>
-        <button id="courseNew" class="ghost">Pick another at random</button>
-        <button id="courseGen" class="ghost">Write the lecture now</button>
-        <span id="courseMsg"></span>
+        <button id="kitPick">Cook this today</button>
+        <button id="kitSkip" class="ghost">Skip today</button>
+        <button id="kitOff" class="ghost">Cooking on / off</button>
+        <span id="kitMsg"></span>
       </div>
-      <details style="margin-top:8px"><summary>Read the lecture before it airs</summary><div id="coursePreview"></div></details>
-      <details style="margin-top:8px"><summary>What Ishai remembers (last 10 topics)</summary><div id="courseMemory"></div></details>
     </div>
-    <div class="box"><div style="font-size:24px">Goals</div><div id="goals"></div></div>
-
-    <div class="box"><div style="font-size:24px">Missing graphics</div>
-      <div class="muted" style="font-size:16px">Things the story mentioned that the camera can't show yet. Ask Claude to draw the ones you like.</div>
-      <div id="wish"></div></div>
-
+    </section>
+    <section class="tab" data-tab="more" hidden>
+    <div class="box">
+      <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Viewers' polls</span>
+        <span><button id="pollBank" class="ghost">Use a stock poll</button> <button id="pollSkip" class="ghost">Skip this poll</button> <button id="pollsOff" class="ghost">Turn polls off</button></span></div>
+      <div id="pollNow" style="margin-top:6px">—</div>
+      <div id="pollErr" class="muted" style="font-size:16px"></div>
+      <div id="pollLog" style="margin-top:6px"></div>
+      <div class="muted" style="font-size:16px" id="pollHelp">One poll an hour, opening at hh:20 (08:20-20:20, not on Shabbat) for 10 minutes. The winner becomes a goal named poll-… that starts an hour or more later, in a free gap. Skip and stock work only before the poll opens.</div>
+    </div>
+    <div class="box">
+      <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Surveys of the week</span>
+        <span><button id="survOff" class="ghost">Turn surveys off</button></span></div>
+      <div id="survList" style="margin-top:6px">—</div>
+      <div id="survMsg"></div>
+      <div class="muted" style="font-size:16px">Sunday 06:00 to Saturday 21:00, Google sign-in, one final vote each. Viewers vote from the survey card on the picture. New character and new place: four of our own ideas a week (<code>NEW_CAST_IDEAS</code>, <code>NEW_PLACE_IDEAS</code> in the worker); viewers only pick. Once the winner is built (a <code>SEED_CAST</code> entry, or a place on the map), link it here: it then happens in the story and the hosts say it was the viewers' choice.</div>
+    </div>
+    <div class="box"><div style="font-size:24px">Bug reports</div><div id="bugs" class="muted" style="font-size:16px"></div></div>
+    <div class="box" id="voicesBox">
+      <div style="font-size:24px">Voices</div>
+      <div class="muted" style="font-size:16px">How each character sounds on the show, in the Studio and in the trailer. Empty = automatic. Gender picks the device's voice (each viewer's phone or computer has its own); the HD voice is the one used in SOUND: HD VOICES. Pitch and speed apply to both (about 0.8 to 1.3; 1 = natural). ▶ plays a line with this device's voice, ▶HD with the HD voice (load HD here first).</div>
+      <input id="vSample" value="Hi, it's me. Did anyone water Moshe today?" style="margin:6px 0" aria-label="Sample line">
+      <div class="bar" style="flex-wrap:wrap;gap:6px"><button id="vHD" class="ghost">Load HD voices here (90-310 MB)</button> <span id="vHDst" class="muted" style="font-size:16px"></span></div>
+      <div id="vList" style="margin-top:6px"></div>
+      <div class="bar" style="flex-wrap:wrap;gap:6px;margin-top:8px"><button id="vSave">Save voices</button> <button id="vReset" class="ghost">All back to automatic</button> <span id="vMsg" class="muted" style="font-size:16px"></span></div>
+    </div>
+    <div class="box"><div style="font-size:24px">AI checks (last moments)</div><div id="diag" class="muted" style="white-space:pre-line;font-size:16px"></div></div>
     <div class="box"><div style="font-size:24px">Real world</div><div id="world" class="muted"></div></div>
+    <div class="box">
+      <div style="font-size:24px">Tools</div>
+      <div class="tools"><a href="/">▶ Live page</a><a href="/sandbox">Sandbox</a><a href="/builder">Scene builder</a><a href="/events">Events</a><a href="/map">Map</a></div>
+      <div class="muted" style="font-size:16px;margin-top:6px">After you log in here, the live page on this device also shows the NARRATION (DEV) tab. The sandbox, builder and map never reach the live show.</div>
+      <div class="bar" style="margin-top:8px"><button id="signOut" class="ghost">Sign out</button></div>
+    </div>
+    </section>
   </div>
 </div>
 <script>
@@ -468,10 +476,11 @@
     (v.goals || []).filter(g => g.status === 'needs-art').forEach(g => inboxItem(box, '', 'Goal waiting for art: ' + g.goal, 'Art needed: ' + (g.art || '—'),
       [['Release (art is ready)', () => act({action: 'release', id: g.id})]]));
     if (v.filmLate) { const f = v.filmLate; inboxItem(box, 'red', `The film isn't written: ${f.title} (${f.done}${f.of ? ' of ' + f.of : ''} parts), Saturday ${hm(f.at)}`, 'Not ready by Friday noon, an older film comes back instead.',
-      [['Write it now', () => { $('cinWrite').click(); $('cinMsg').scrollIntoView({behavior: 'smooth', block: 'center'}); }]]); }
+      [['Write it now', () => { DirBar.tab('week'); $('cinMsg').closest('.box').classList.remove('shut'); $('cinWrite').click(); setTimeout(() => $('cinMsg').scrollIntoView({behavior: 'smooth', block: 'center'}), 50); }]]); }
     if (v.lastError && now - v.lastError.at < 6 * 3600000) inboxItem(box, 'red', `AI error at ${fmt(v.lastError.at)}: ${v.lastError.msg}`, 'Backup lines are used until it works.');
     if (v.autoFix) inboxItem(box, '', `Automatic fix at ${fmt(v.autoFix.at)} (${v.autoFix.why || 'the story went in circles'})`, (v.autoFix.done || []).join(', ') + (v.autoFix.note ? ' · note: ' + v.autoFix.note : ''));
     if (v.autoFixErr) inboxItem(box, 'red', 'The automatic fix failed: ' + (v.autoFixErr.msg || v.autoFixErr), v.autoFixErr.at ? fmt(v.autoFixErr.at) : '');
+    $('secInbox').textContent = 'WAITING FOR YOU' + (box.children.length ? ` (${box.children.length})` : ' · all quiet');
     if (!box.children.length) box.appendChild(el('div', 'All quiet.', 'muted'));
   }
   function renderNow(v){
@@ -490,6 +499,7 @@
       fl ? `Last fix ${fmt(fl.at)}${fl.auto ? ' (automatic)' : ''}: ${(fl.done || []).join(', ') || '—'}.` : ''].filter(Boolean).join('\n');
     const cu = $('nowComing'); cu.textContent = '';
     (v.coming || []).forEach(c => { const x = el('div'); x.append(el('b', c.clock + ' '), document.createTextNode(c.what)); cu.appendChild(x); });
+    $('secComing').textContent = 'COMING UP' + (cu.children.length ? ` (${cu.children.length}) · next ${v.coming[0].clock.slice(-5)}` : '');
     if (!cu.children.length) cu.appendChild(el('div', 'Nothing planned in the next 24 hours.', 'muted'));
   }
   async function fix(body, ok){
@@ -503,8 +513,44 @@
     fix({note: n, minutes: +$('fxMin').value}, 'Note given. The story follows it from the next moment.').then(() => { if ($('tickMsg').className === 'ok') $('fxNote').value = ''; }); };
   $('fxNote').addEventListener('keydown', e => { if (e.key === 'Enter') $('fxGo').click(); });
   $('nowRefresh').onclick = async () => { try { render(await api()); cxLoad(); } catch(e){ alert(e.message); } };
+  // ---- every box and every part of the NOW box opens and closes on a tap of its title, closed when the page opens ----
+  function collapsible(){
+    document.querySelectorAll('#main .box').forEach(box => {
+      const head = box.firstElementChild;
+      if (box.id === 'nowBox'){   // the NOW box stays open; its parts (WAITING FOR YOU, THE SCENE NOW, ...) close
+        box.querySelectorAll(':scope > .sec').forEach(sec => {
+          const body = document.createElement('div'); body.className = 'sx-body'; body.hidden = true;
+          while (sec.nextSibling && !(sec.nextSibling.classList && (sec.nextSibling.classList.contains('sec') || sec.nextSibling.classList.contains('keep')))) body.appendChild(sec.nextSibling);
+          sec.after(body); sec.classList.add('sx'); sec.onclick = () => { body.hidden = !body.hidden; sec.classList.toggle('open', !body.hidden); };
+        });
+        return;
+      }
+      const body = document.createElement('div'); body.className = 'bx-body';
+      while (head.nextSibling) body.appendChild(head.nextSibling);
+      box.appendChild(body); head.classList.add('bx-h');
+      (head.classList.contains('bar') ? head.querySelector('span') : head).classList.add('bx-t');
+      box.classList.add('shut');
+      head.onclick = e => { if (e.target.closest('button,a,input,select,textarea,label')) return; box.classList.toggle('shut'); };
+    });
+  }
+  collapsible();
+  // ---- tabs and the once-a-minute refresh (docs/DIRECTOR_UI_PLAN.md, step 1) ----
+  const TAB_KEYS = ['now', 'story', 'cast', 'week', 'more'];
+  DirBar.onTab = k => document.querySelectorAll('#main .tab').forEach(t => t.hidden = t.dataset.tab !== k);
+  const hashTab = () => { const h = location.hash.slice(1); return TAB_KEYS.includes(h) ? h : 'now'; };
+  window.addEventListener('hashchange', () => { if (!$('main').hidden) DirBar.tab(hashTab()); });
+  let refreshing = false;
+  async function refresh(){
+    if (document.hidden || $('main').hidden || refreshing) return; refreshing = true;
+    try { render(await api()); if (DirBar.current() === 'now') cxLoad(); } catch(e){} finally { refreshing = false; }
+  }
+  setInterval(refresh, 60000);
+  let hiddenAt = 0; document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = Date.now(); else if (Date.now() - hiddenAt > 55000) refresh(); });
+  $('signOut').onclick = async () => { if (!confirm('Sign out of the director pages on this device?')) return;
+    try { await fetch('/api/signout', {method: 'POST'}); } catch(e){} localStorage.removeItem('ishaiKey'); location.href = '/director'; };
   function render(v){
     if (!CX) cxLoad();
+    DirBar.set(v.status);
     renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';
@@ -595,7 +641,7 @@
   $('courseNew').onclick = () => courseDo({action:'courseNew'}, 'Picking...');
   $('courseGen').onclick = () => courseDo({action:'courseGen'}, 'Writing the lecture, this takes up to a minute...');
   async function open(quiet){
-    try { const v = await api(); if (KEY) localStorage.setItem('ishaiKey', KEY); $('login').hidden = true; $('main').hidden = false; render(v); }
+    try { const v = await api(); if (KEY) localStorage.setItem('ishaiKey', KEY); $('login').hidden = true; $('main').hidden = false; render(v); DirBar.tab(hashTab()); }
     catch(e){ if (!quiet) $('loginMsg').textContent = e.message; if (e.google) googleBox(e.google); }
   }
   // Google sign-in: an account listed in the DIRECTOR_EMAILS secret gets the director cookie, no password needed

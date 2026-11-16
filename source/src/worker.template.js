@@ -475,6 +475,11 @@ export default {
     }
     if (url.pathname === "/director")
       return new Response(DIRECTOR_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
+    if (url.pathname === "/api/director/status") {   // the shared top bar's status line (director page and its tools), read once a minute
+      if (!await isDirector(req, env)) return json({ error: "director only" }, {}, 403);
+      const s = await loadState(env), bugs = JSON.parse(await env.ISHAI.get("bugs") || "[]");
+      return json(await dirStatus(s, env, Date.now(), bugs), { "cache-control": "no-store" });
+    }
     if (url.pathname === "/api/director") {
       const key = env.ADMIN_KEY || env.TICK_SECRET;
       if (!await isDirector(req, env)) return json({ error: key ? "wrong password, or this account is not a director" : "ADMIN_KEY is not set", google: env.GOOGLE_CLIENT_ID || null }, {}, 403);
@@ -4949,11 +4954,25 @@ async function directorApi(req, env) {
       const sent = await sendAlerts(env, s); await saveState(env, s); return json({ ok: true, sent });
     } else if (b.action === "tick") {
       await saveState(env, s); await tick(env, true);
-      const s2 = await loadState(env); return json({ ...directorView(s2, JSON.parse(await env.ISHAI.get("bugs") || "[]")), surveys: await surveyDirector(env, s2).catch(e => ({ err: String(e.message || e), list: [] })) });
+      const s2 = await loadState(env), bugs2 = JSON.parse(await env.ISHAI.get("bugs") || "[]"); return json({ ...directorView(s2, bugs2), status: await dirStatus(s2, env, Date.now(), bugs2), surveys: await surveyDirector(env, s2).catch(e => ({ err: String(e.message || e), list: [] })) });
     }
     await saveState(env, s);
   }
-  return json({ ...directorView(s, JSON.parse(await env.ISHAI.get("bugs") || "[]")), surveys: await surveyDirector(env, s).catch(e => ({ err: String(e.message || e), list: [] })) });
+  const bugs = JSON.parse(await env.ISHAI.get("bugs") || "[]");
+  return json({ ...directorView(s, bugs), status: await dirStatus(s, env, Date.now(), bugs), surveys: await surveyDirector(env, s).catch(e => ({ err: String(e.message || e), list: [] })) });
+}
+// the status line of the shared top bar (docs/DIRECTOR_UI_PLAN.md, step 1): where he is, the writers, the AI budget, and how much waits for the director
+async function dirStatus(s, env, now, bugs) {
+  const last = s.events[s.events.length - 1] || {}, N = directorNow(s, now);
+  const nm = id => id ? (s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id)) : null;
+  const gFail = (s.geminiErrs || []).filter(f => now - f.at < 30 * 60000 && !GEMINI_WHERE.test(f.msg || "")).length;
+  const gemini = !env.GEMINI_API_KEY ? { state: "off" } : now < (s.geminiOutUntil || 0) ? { state: "paused", until: s.geminiOutUntil } : gFail ? { state: "failing", fails: gFail } : { state: "ok" };
+  let cast = 0; try { if (env.DB) cast = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM cast_pending WHERE state = 'pending'").first()) || {}).n || 0; } catch (e) {}
+  const waiting = { bugs: (bugs || []).filter(b => b.status === "new").length, cast, art: (s.director || []).filter(g => g.status === "needs-art").length,
+    film: N.filmLate ? 1 : 0, aiError: s.lastError && now - s.lastError.at < 6 * 3600000 ? 1 : 0, autoFix: (N.autoFix ? 1 : 0) + (s.autoFixErr ? 1 : 0) };
+  const neurons = neuronsOf(s.usage);
+  return { now, clock: last.t ? storyClock(last.t).label : null, loc: last.location || null, place: PLACE_NAME[last.location] || last.location || null, action: last.action || null, with: nm(last.with),
+    gemini, neurons, neuronPct: Math.round(neurons / 100), talk: s.talkBrake || null, stuck: s.stuck || 0, waiting, waitingN: Object.values(waiting).reduce((a, b) => a + b, 0) };
 }
 // the director's voice settings, kept only in known shapes: {id: {g: "m"|"f", kv: "<kokoro voice>", pitch, rate}}
 function cleanVoices(v) {

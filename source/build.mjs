@@ -5,16 +5,19 @@ const BUILD = Date.now().toString(36); // lets open pages notice a new deploy
 // the shared voices (voices.js) go into every page that speaks, where it has the /*__VOICES_JS__*/ marker
 const VOICES_JS = fs.readFileSync('public/voices.js','utf8');
 const withVoices = (h, name) => { if (!h.includes('/*__VOICES_JS__*/')) throw new Error(name + ' has no /*__VOICES_JS__*/ marker'); return h.replace('/*__VOICES_JS__*/', () => VOICES_JS); };
+// the shared top bar of the director's pages (dirbar.js), at each one's /*__DIR_BAR__*/ marker (docs/DIRECTOR_UI_PLAN.md)
+const DIR_BAR = fs.readFileSync('public/dirbar.js','utf8');
+const withBar = (h, name) => { if (h.split('/*__DIR_BAR__*/').length !== 2) throw new Error(name + ' needs /*__DIR_BAR__*/ exactly once'); return h.replace('/*__DIR_BAR__*/', () => DIR_BAR); };
 const html = withWorld(withVoices(fs.readFileSync('public/index.html','utf8').replace('__BUILD__', BUILD), 'index.html'), 'index.html', WORLD, 'page');
 const tpl = withWorld(fs.readFileSync('src/worker.template.js','utf8'), 'worker.template.js', WORLD, 'worker');
 
-const dir = withVoices(fs.readFileSync('public/director.html','utf8'), 'director.html');
-const sandbox = fs.readFileSync('public/sandbox.html','utf8');
-const builder = fs.readFileSync('public/builder.html','utf8');
+const dir = withBar(withVoices(fs.readFileSync('public/director.html','utf8'), 'director.html'), 'director.html');
+const sandbox = withBar(fs.readFileSync('public/sandbox.html','utf8'), 'sandbox.html');
+const builder = withBar(fs.readFileSync('public/builder.html','utf8'), 'builder.html');
 const intro = withVoices(fs.readFileSync('public/intro.html','utf8'), 'intro.html');
-const events = fs.readFileSync('public/events.html','utf8');
+const events = withBar(fs.readFileSync('public/events.html','utf8'), 'events.html');
 // the director's map (/map): story/world.json as it is in this build
-const mapPage = (() => { const src = fs.readFileSync('public/map.html','utf8'), m = '/*__WORLD_JSON__*/{}'; if (src.split(m).length !== 2) throw new Error('map.html needs ' + m + ' exactly once'); return src.replace(m, () => fs.readFileSync('../story/world.json','utf8').trim()); })();
+const mapPage = (() => { const src = fs.readFileSync('public/map.html','utf8'), m = '/*__WORLD_JSON__*/{}'; if (src.split(m).length !== 2) throw new Error('map.html needs ' + m + ' exactly once'); return withBar(src.replace(m, () => fs.readFileSync('../story/world.json','utf8').trim()), 'map.html'); })();
 const sw = fs.readFileSync('public/sw.js','utf8');
 // favicons and the link-preview picture (WhatsApp etc.), served by the worker from memory
 const ICON_TYPES = { '.ico':'image/x-icon', '.svg':'image/svg+xml', '.png':'image/png' };
