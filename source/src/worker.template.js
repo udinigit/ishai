@@ -814,6 +814,7 @@ async function tick(env, force) {
     u.jsonFixed = (u.jsonFixed || 0) + JSON_USE.fixed; u.jsonBad = (u.jsonBad || 0) + JSON_USE.bad; JSON_USE.fixed = JSON_USE.bad = 0;
     u.gemini = { calls: (u.gemini?.calls || 0) + USE_G.calls, inTok: (u.gemini?.inTok || 0) + USE_G.inTok, outTok: (u.gemini?.outTok || 0) + USE_G.outTok }; USE_G.calls = USE_G.inTok = USE_G.outTok = 0;
     if (GEMINI_BACKUPS_USED) { u.gemini.backup = (u.gemini.backup || 0) + GEMINI_BACKUPS_USED; GEMINI_BACKUPS_USED = 0; }
+    if (GEMINI_RETRY_OK) { u.gemini.retryOk = (u.gemini.retryOk || 0) + GEMINI_RETRY_OK; GEMINI_RETRY_OK = 0; }   // v263: busy, then answered on the second try
     if (GEMINI_FAILS.length) { u.gemini.failed = (u.gemini.failed || 0) + GEMINI_FAILS.length; u.gemini.failedBy = u.gemini.failedBy || {};
       GEMINI_FAILS.forEach(f => { const k = f.status || "other"; u.gemini.failedBy[k] = (u.gemini.failedBy[k] || 0) + 1; });
       s.geminiErrs = [...(s.geminiErrs || []), ...GEMINI_FAILS].slice(-8); GEMINI_FAILS.length = 0; }
@@ -1397,7 +1398,7 @@ async function geminiAlts(env) {
 // other stable Flash / Flash-Lite models, newest first; each has its own free quota). A backup's 429 never pauses the main model. Only when every
 // model fails does the caller see the error (and the story fall back to Cloudflare). A call with its own model (the film writer) gets no backups.
 const GEMINI_BUSY = /^gemini (500|503|504)\b/;
-const GEMINI_BACKUP_N = 2;
+const GEMINI_BACKUP_N = 3;   // v263: was 2
 let GEMINI_BACKUPS_USED = 0;
 async function geminiBackups(env, first) {
   const own = String(env.GEMINI_BACKUP || "").split(",").map(x => x.trim()).filter(Boolean);
@@ -1409,13 +1410,19 @@ async function runGemini(env, messages, maxTokens, useModel) {
   try { return await geminiOnce(env, messages, maxTokens, first, false); }
   catch (e) {
     if (!GEMINI_BUSY.test(String(e.message))) throw e;
+    // v263: a "high demand" spike often passes in a second or two: one more try on the main model, then the backups.
+    // Every backup's failure is added to the error, so /api/health shows what each model said (before, only the main model's error was kept).
+    await new Promise(r => setTimeout(r, 2000));
+    try { const out = await geminiOnce(env, messages, maxTokens, first, false); GEMINI_RETRY_OK++; return out; } catch (e1) { if (!GEMINI_BUSY.test(String(e1.message))) throw e1; }
+    const tried = [];
     for (const m of await geminiBackups(env, first)) {
       try { const out = await geminiOnce(env, messages, maxTokens, m, true); GEMINI_BACKUPS_USED++; return out; }
-      catch (e2) { if (!/^gemini (500|503|504|429)\b/.test(String(e2.message))) break; }
+      catch (e2) { const st = (String(e2.message).match(/^gemini (\d{3})/) || [0, "?"])[1]; tried.push(m + " " + st); if (!/^gemini (500|503|504|429)\b/.test(String(e2.message))) break; }
     }
-    throw e;
+    throw new Error(String(e.message).slice(0, 300) + " | retried once | backups: " + (tried.join(", ") || "none found"));
   }
 }
+let GEMINI_RETRY_OK = 0;
 async function geminiOnce(env, messages, maxTokens, model, backup) {
   const body = { model, messages, max_tokens: maxTokens, temperature: 0.9, response_format: { type: "json_object" } };
   const call = () => fetch(GEMINI_URL + "/chat/completions", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + env.GEMINI_API_KEY }, body: JSON.stringify(body) });
