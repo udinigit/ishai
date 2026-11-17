@@ -5375,19 +5375,22 @@
     let hdSrc = null;
     const hdOn = () => mode === 'hd' && Voices.hd().state !== 'failed';
     const prefetch = (id, text, at, keep) => { if (hdOn()) Voices.prefetch(id, text, at, voiceOf(id), keep); };
-    function hdPlay(c){
+    function hdPlay(c, rate = 1){
       return new Promise(res => {
         let done = false; const fin = () => { if (done) return; done = true; saying--; if (hdSrc === src) hdSrc = null; res(); };
         const b = ac.createBuffer(1, c.pcm.length, c.sr); b.copyToChannel(c.pcm, 0);
-        const src = ac.createBufferSource(), gn = ac.createGain(); gn.gain.value = 1.4; src.buffer = b; src.connect(gn).connect(out);
-        saying++; hdSrc = src; src.onended = fin; setTimeout(fin, c.pcm.length / c.sr * 1000 + 1500); voiceState = 'speaking (HD)';
+        const src = ac.createBufferSource(), gn = ac.createGain(); gn.gain.value = 1.4; src.buffer = b; src.playbackRate.value = rate; src.connect(gn).connect(out);
+        saying++; hdSrc = src; src.onended = fin; setTimeout(fin, c.pcm.length / c.sr / rate * 1000 + 1500); voiceState = 'speaking (HD)';
         try { if (ac.state === 'suspended') ac.resume(); src.start(); } catch(e){ fin(); }
       });
     }
-    function say(id, text){
+    // the hosts' energy (v260, "hype" 0-3 on sports-style host lines): faster, higher and louder as it rises; 1 or none = as before
+    const HYPE = [[.94, .97, .8, .97], [1, 1, .9, 1], [1.08, 1.05, 1, 1.03], [1.17, 1.1, 1, 1.06]];   // device rate, pitch, volume; HD playback rate
+    function say(id, text, o = {}){
       if (!on() || !voiced()) return Promise.resolve();
+      const hy = HYPE[Number.isInteger(o.hype) ? o.hype : 1] || HYPE[1];
       if (hdOn()){
-        const c = Voices.get(id, text, voiceOf(id)); if (c) return hdPlay(c);
+        const c = Voices.get(id, text, voiceOf(id)); if (c) return hdPlay(c, hy[3]);
         prefetch(id, text, NOW());      // not ready in time: the device's voice reads this one
       }
       if (!('speechSynthesis' in window)) return Promise.resolve();
@@ -5399,7 +5402,7 @@
         const speak = (own) => {
           const u = new SpeechSynthesisUtterance(text); let started = false;
           const pv = own ? Voices.pickVoice(id) : null, gv = Voices.tone(id, v); if (pv) u.voice = pv;
-          const mv = moodVoice(id); u.pitch = Math.max(.1, Math.min(2, gv.pitch * mv[1])); u.rate = Math.max(.5, Math.min(2, gv.rate * mv[0])); u.volume = .9;
+          const mv = moodVoice(id); u.pitch = Math.max(.1, Math.min(2, gv.pitch * mv[1] * hy[1])); u.rate = Math.max(.5, Math.min(2, gv.rate * mv[0] * hy[0])); u.volume = hy[2];
           const fallback = () => { u.onerror = u.onend = null; try { speechSynthesis.cancel(); } catch(e){} speak(false); };
           u.onstart = () => { started = true; voiceState = own ? 'speaking' : 'speaking (default voice)'; };
           u.onend = fin;
@@ -5579,7 +5582,7 @@
     // the sounds the page can play; the sandbox lists them (`Sound.kinds`)
     const KINDS = ['cork','glug','bag','chop','bubble','whisk','ovendoor','timer','knock','knockhard','knocklevi','buzzer','chime','bikebell','bikeby','carby','busby','scooter','brake','busstop','busgo','cardoor','taxigo',
       'whoosh','riser','hit','sting-adventure','sting-comedy','sting-drama','sting-horror','popcorn','fizz','cash',
-      'waves','birds','wind','owl','drip','bubbles','hooves','tavern','clock','quiz','right','wrong','bark','woof','yip'];
+      'waves','birds','wind','owl','drip','bubbles','hooves','tavern','clock','quiz','right','wrong','bark','woof','yip','ooh'];
     function sfx(kind, o={}){
       if (!on() || !ac) return;
       const r = Math.random, d = o.dir || 1;
@@ -5594,6 +5597,7 @@
           for (let i = 0; i < (kind === 'ovation' ? 4 : 2); i++){ const w = r() * long * .6; tone(1900 + r()*500, .35, 'sine', .025, w, out, 1.35); }
           noise(1.2, {vol:.05, type:'bandpass', freq:420, q:.9, when: .2, buf: brown}); break; }
         case 'laugh': for (let i = 0; i < 26; i++){ const w = r() * 1.6; noise(.06 + r()*.05, {vol: .02 + r()*.03, type:'bandpass', freq: 600 + r()*900, q: 2, when: w}); } break;   // a room laughing
+        case 'ooh': noise(1.3, {vol:.06, type:'bandpass', freq: 420, q: 1.4, sweep:[330, 560], buf: brown}); noise(1.1, {vol:.025, type:'bandpass', freq: 850, q: 2.5, sweep:[700, 1050], when: .05}); break;   // a studio crowd going "ooh" (v260: a host line with hype 3)
         case 'gasp': noise(.5, {vol:.05, type:'bandpass', freq: 900, q: 1.2, sweep:[600, 1500], buf: brown}); break;
         case 'scream': tone(900, .5, 'sawtooth', .012, .05, out, 1.6); noise(.4, {vol:.03, type:'bandpass', freq:1400, q:2, when:.05}); break;
         case 'murmur': noise(3.2, {vol:.04, type:'bandpass', freq: 380 + r()*250, q: .8, buf: brown}); noise(2.5, {vol:.015, type:'bandpass', freq: 900 + r()*400, q: 3, when: .4}); break;   // a room full of people talking
@@ -5876,9 +5880,21 @@
       pre.forEach((c, i) => { if (i) t += linePause(pre[i-1].say); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i: hi(c), host: true, pre: true}); t += ms; }); t += 1400; }
     if (PREVIEW || lines.length < 2) lines.forEach((l, i) => { if (i) t += linePause(lines[i-1].say) + gap; const ms = lineMs(l.say); plan.push({at: t, ms, l, i}); t += ms; });
     else { const lp = livePlan(ev, lines, gap, plan, t); t = lp.t; tail = lp.tail; }   // quick turns, cut-ins and short "Ha!"s, the rest of the time as pauses between exchanges
-    if (post.length){   // the hosts react to what viewers can SEE: after Ishai has got there, then a short beat
+    // sports-style hosts (v260): a line with "after": N is said right after spoken line N, before the next one; everything after it moves on by its length (out of the quiet at the end)
+    const inl = PREVIEW || lines.length < 2 ? [] : post.filter(c => Number.isInteger(c.after) && c.after >= 1 && c.after < lines.length).sort((a, b) => a.after - b.after);
+    for (const c of inl){
+      const li = plan.find(p => !p.host && !p.x && p.i === c.after - 1 && p.l === lines[c.after - 1]); if (!li) continue;
+      const prevHost = plan.filter(p => p.host && !p.pre && p.after === c.after).pop();
+      const bc = plan.filter(p => p.x && p.at >= li.at + li.ms && p.at < li.at + li.ms + 800).pop(), end = bc ? bc.at + bc.ms : li.at + li.ms;   // after a short "Ha!" that follows the line
+      const at = prevHost ? prevHost.at + prevHost.ms + 250 : end + ((c.hype || 0) >= 2 ? 150 : 400), ms = lineMs(c.say), push = ms + 450;
+      plan.forEach(p => { if (p.at >= at && !p.pre) p.at += push; });
+      plan.push({at, ms, l: c, i: hi(c), host: true, after: c.after}); t += push; tail = Math.max(0, tail - push);
+    }
+    plan.sort((a, b) => a.at - b.at);
+    const late = post.filter(c => !inl.includes(c));
+    if (late.length){   // the hosts react to what viewers can SEE: after Ishai has got there, then a short beat
       t = Math.max(t + (lines.length ? 1200 : 0), lead + (prevLoc && prevLoc !== (ev.location || 'apartment') ? 17500 : 5000));
-      post.forEach((c, i) => { if (i) t += linePause(post[i-1].say); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i: hi(c), host: true}); t += ms; });
+      late.forEach((c, i) => { if (i) t += linePause(late[i-1].say); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i: hi(c), host: true}); t += ms; });
     }
     return {plan, ms: t + tail, ride: onBoard ? r : null};
   }
@@ -6036,7 +6052,7 @@
     if (!animate){ line.textContent = m.say; boothScroll(); return Promise.resolve(); }
     const full = m.say, b = budget || {at: NOW(), ms: 0}, into = Math.max(0, NOW() - b.at); let i = charsAt(full, into);
     const quiet = studioOn || showOn;            // the studio recap is on: the booth goes on in text only
-    if (into < 800 && !quiet) Sound.say(m.who, m.say);     // tuned in later than the start of a line: read it, no voice
+    if (into < 800 && !quiet){ if (m.hype === 3) Sound.sfx('ooh'); Sound.say(m.who, m.say, {hype: m.hype}); }     // tuned in later than the start of a line: read it, no voice. A huge moment (hype 3): the crowd goes "ooh"
     card.classList.add('live');
     return new Promise(res => {
       if (i >= full.length){ line.textContent = full; card.classList.remove('live'); boothScroll(); return res(); }
@@ -6110,7 +6126,7 @@
       if (!past && k) Sound.hush();
       if (p.host){ let se = songEndAfter(at); { const e = ARENA && ARENA.event, nx = !se && songBetween(at, at + p.ms) && e.songs.find(sg => e.at + sg.t0 >= at && e.at + sg.t0 < at + p.ms); if (nx) se = e.at + nx.t0 + nx.dur + 1500; }   // would run into the next song: after it
         if (se){ await untilT(se); if (NOW() > se + 60000){ addMsg({id: ev.id + ':c' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, host: true}, false); continue; } }   // mid-song: the hosts wait for the applause (long ago: text only)
-        const hat = se || at; await addMsg({id: ev.id + ':c' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, host: true}, true, {at: hat, ms: p.ms}); await untilT(hat + p.ms); continue; }
+        const hat = se || at; await addMsg({id: ev.id + ':c' + p.i, t: ev.t, who: l.who, say: l.say, loc: ev.location, host: true, hype: l.hype}, true, {at: hat, ms: p.ms}); await untilT(hat + p.ms); continue; }
       if (!past) setSpeaking(l.who);
       const air = l.who==='radio' || l.who==='tv';   // a live line from the radio / TV the story reacts to
       if (air){ MEDIA_UNTIL = at + 240000; if (l.who==='radio' && !past) Sound.duck(true); }

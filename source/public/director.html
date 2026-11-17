@@ -222,6 +222,12 @@
     </section>
     <section class="tab" data-tab="more" hidden>
     <div class="box">
+      <div class="bar" style="justify-content:space-between"><span style="font-size:24px">The hosts</span>
+        <span><button id="hostsStyle" class="ghost">…</button></span></div>
+      <div id="hostsNow" style="margin-top:6px">—</div>
+      <div class="muted" style="font-size:16px">Sports: Oren calls the play in short lines, Zohar gives the opinion and drama and sometimes asks Oren something (he answers, or now and then a sarcastic comeback); host lines come during the talk, with more energy when it matters. Classic: Zohar and Oren exactly as they were up to v259 (lines only after the talk). Switching changes the next lines written, within a few minutes.</div>
+    </div>
+    <div class="box">
       <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Viewers' polls</span>
         <span><button id="pollBank" class="ghost">Use a stock poll</button> <button id="pollSkip" class="ghost">Skip this poll</button> <button id="pollsOff" class="ghost">Turn polls off</button></span></div>
       <div id="pollNow" style="margin-top:6px">—</div>
@@ -650,6 +656,12 @@
   $('fxNote').addEventListener('keydown', e => { if (e.key === 'Enter') $('fxGo').click(); });
   $('nowRefresh').onclick = async () => { try { render(await api()); cxLoad(); } catch(e){ alert(e.message); } };
   // ---- every box and every part of the NOW box opens and closes on a tap of its title, closed when the page opens ----
+  function renderHosts(h){
+    if (!h) return; const sp = h.style !== 'classic';
+    $('hostsNow').textContent = sp ? 'Now: SPORTS (play-by-play and colour, live during the talk).' : 'Now: CLASSIC (the hosts as they were up to v259).';
+    $('hostsStyle').textContent = sp ? 'Back to classic' : 'Switch to sports';
+    $('hostsStyle').onclick = async () => render(await api({action:'hostsStyle', style: sp ? 'classic' : 'sports'}));
+  }
   function collapsible(){
     document.querySelectorAll('#main .box').forEach(box => {
       const head = box.firstElementChild;
@@ -687,7 +699,7 @@
   function render(v){
     if (!CX) cxLoad();
     DirBar.set(v.status);
-    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderPolls(v.polls); renderSurveys(v.surveys);
+    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderHosts(v.hosts); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';
     const wl = $('wish'); wl.textContent = '';
