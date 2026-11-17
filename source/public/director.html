@@ -223,8 +223,9 @@
     <section class="tab" data-tab="more" hidden>
     <div class="box">
       <div class="bar" style="justify-content:space-between"><span style="font-size:24px">The hosts</span>
-        <span><button id="hostsStyle" class="ghost">…</button></span></div>
+        <span><button id="hostsStyle" class="ghost">…</button> <button id="hostsWriter" class="ghost">…</button></span></div>
       <div id="hostsNow" style="margin-top:6px">—</div>
+      <div id="hostsWho" style="margin-top:4px">—</div>
       <div class="muted" style="font-size:16px">Sports: Oren calls the play in short lines, Zohar gives the opinion and drama and sometimes asks Oren something (he answers, or now and then a sarcastic comeback); host lines come during the talk, with more energy when it matters. Classic: Zohar and Oren exactly as they were up to v259 (lines only after the talk). Switching changes the next lines written, within a few minutes.</div>
     </div>
     <div class="box">
@@ -661,6 +662,10 @@
     $('hostsNow').textContent = sp ? 'Now: SPORTS (play-by-play and colour, live during the talk).' : 'Now: CLASSIC (the hosts as they were up to v259).';
     $('hostsStyle').textContent = sp ? 'Back to classic' : 'Switch to sports';
     $('hostsStyle').onclick = async () => render(await api({action:'hostsStyle', style: sp ? 'classic' : 'sports'}));
+    const gm = h.writer !== 'cloudflare';   // v261: who writes the lines
+    $('hostsWho').textContent = (gm ? 'Written by: GEMINI (Cloudflare as backup).' : 'Written by: CLOUDFLARE (Gemini as backup, as up to v260).') + (h.by ? ' Last lines by ' + h.by + '.' : '');
+    $('hostsWriter').textContent = gm ? 'Write with Cloudflare' : 'Write with Gemini';
+    $('hostsWriter').onclick = async () => render(await api({action:'hostsWriter', writer: gm ? 'cloudflare' : 'gemini'}));
   }
   function collapsible(){
     document.querySelectorAll('#main .box').forEach(box => {

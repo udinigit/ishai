@@ -86,6 +86,7 @@ const HOSTS_SPORTS = {
 const hostSay = t => String(t || "").replace(/^\s*\(?\s*(after|pre)(\s*line)?\s*\d*\s*\)?\s*[:\-–]\s*/i, "");   // a writer that put the cue into the words ("After: ...")
 const hostCue = (x, nLines) => { const o = {}, a = Number(x && x.after), h = Number(x && x.hype);
   if (Number.isInteger(a) && a >= 1 && a < nLines) o.after = a; if (Number.isInteger(h) && h >= 0 && h <= 3) o.hype = h; return o; };
+const hostsByGemini = s => !s || s.hostsWriter !== "cloudflare";
 const hostsSports = s => !s || s.hostsStyle !== "classic";
 const hostsOf = s => hostsSports(s) ? HOSTS_SPORTS : HOSTS;
 
@@ -307,7 +308,7 @@ export default {
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), life: (s.life || []).slice(-6),
-        writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), when busy " + (env.GEMINI_BACKUP ? "gemini (" + env.GEMINI_BACKUP + ")" : "the other Gemini Flash models") + ", then Cloudflare", hosts: "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
+        writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), when busy " + (env.GEMINI_BACKUP ? "gemini (" + env.GEMINI_BACKUP + ")" : "the other Gemini Flash models") + ", then Cloudflare", hosts: hostsByGemini(s) ? "gemini, backup Cloudflare" : "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
         polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3), pushes: (s.pollPushes || []).map(j => ({ kind: j.kind, poll: j.poll, at: j.at, sent: j.sent, done: j.done })) },
         surveys: { off: !!s.surveysOff, err: s.surveyErr || null, list: (s.surveys || []).map(x => ({ id: x.id, kind: x.kind, options: x.options.length, closesAt: x.closesAt, result: x.result ? { total: x.result.total, winner: x.result.winner } : null, linked: x.linked, goal: x.goal })), say: (s.surveySay || []).length } }, { "cache-control": "no-store" });
@@ -1246,8 +1247,9 @@ Reply with ONLY JSON: {"moments":[{${briefs.some(Boolean) ? '"pre":[{"who":"zoha
         while ((k = ri.exec(m[1]))) items.push({ who: k[1], say: k[2].replace(/\\"/g, '"') }); out.push({ commentary: items }); }
       return out; };
     const maxTok = 300 + moments.length * (sports ? 280 : 200);
-    let arr = readHosts(await runModel(env, msgs, maxTok, "hosts"));
-    if (arr.filter(x => (x.commentary || []).length).length < Math.ceil(moments.length / 2) && env.GEMINI_API_KEY && Date.now() >= geminiOutUntil) {
+    const gemFirst = hostsByGemini(s);   // v261: the director's choice (MORE → The hosts): Gemini writes the hosts' lines, Cloudflare backs up; or the other way round as before
+    let arr = readHosts(await runModel(env, msgs, maxTok, gemFirst ? "hostsG" : "hosts"));
+    if (!gemFirst && arr.filter(x => (x.commentary || []).length).length < Math.ceil(moments.length / 2) && env.GEMINI_API_KEY && Date.now() >= geminiOutUntil) {
       try { const g = readHosts(await runGemini(env, msgs, maxTok)); if (g.length > arr.length) arr = g; } catch (e) { noteGemini(e, "hosts"); }
     }
     const used = [...said];
@@ -1403,9 +1405,10 @@ async function geminiOnce(env, messages, maxTokens, model, backup) {
 async function runModel(env, messages, maxTokens = 1000, role = "story") {
   const g = !!env.GEMINI_API_KEY && Date.now() >= geminiOutUntil;
   if (g && role === "story") { try { return await runGemini(env, messages, maxTokens); } catch (e) { noteGemini(e, "story"); } }
+  if (g && role === "hostsG") { try { return await runGemini(env, messages, maxTokens); } catch (e) { noteGemini(e, "hosts"); } }   // the hosts' lines by Gemini first (v261, s.hostsWriter), Cloudflare as the backup
   try { return await runCloudflare(env, messages, maxTokens); }
   catch (e) {
-    if (g && role !== "story") { try { return await runGemini(env, messages, maxTokens); } catch (e2) { noteGemini(e2, role); } }
+    if (g && role !== "story" && role !== "hostsG") { try { return await runGemini(env, messages, maxTokens); } catch (e2) { noteGemini(e2, role); } }
     throw e;
   }
 }
@@ -5027,6 +5030,8 @@ async function directorApi(req, env) {
       s.voiceCfg = cleanVoices(b.voices);
     } else if (b.action === "hostsStyle") {   // the hosts' style (v260): "sports" or "classic" (the hosts as they were up to v259, kept to go back to)
       s.hostsStyle = b.style === "classic" ? "classic" : "sports";
+    } else if (b.action === "hostsWriter") {   // who writes the hosts' lines (v261): "gemini" (Cloudflare backs up) or "cloudflare" (as up to v260, Gemini backs up)
+      s.hostsWriter = b.writer === "cloudflare" ? "cloudflare" : "gemini";
     } else if (b.action === "pollsOff") {
       s.pollsOff = !!b.off;
     } else if (b.action === "pollBank") {     // replace the coming poll with a stock one
@@ -5073,7 +5078,7 @@ function directorView(s, bugs) {
   return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), kitchen: kitchenHealth(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { name: s.cast[s.scene.w]?.name || s.scene.w, type: s.scene.type || null, loc: s.scene.loc || null, lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse().map(dirGoal), lastError: s.lastError || null,
-    hosts: { style: hostsSports(s) ? "sports" : "classic" },
+    hosts: { style: hostsSports(s) ? "sports" : "classic", writer: hostsByGemini(s) ? "gemini" : "cloudflare", by: s.hostsBy || null },
     polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t },
     ...directorNow(s, Date.now()) };
