@@ -83,9 +83,25 @@ const HOSTS_SPORTS = {
   rules: HOSTS.rules
 };
 // a sports-style host line's cue: "after" = the spoken line it follows (1..lines-1; the last line or beyond = after the talk), "hype" 0-3
-const hostSay = t => String(t || "").replace(/^\s*\(?\s*(after|pre)(\s*line)?\s*\d*\s*\)?\s*[:\-–]\s*/i, "");   // a writer that put the cue into the words ("After: ...")
+const hostSay = t => String(t || "").replace(/^\s*\(?\s*(after|pre)(\s*line)?\s*\d*\s*\)?\s*[:\-–]\s*/i, "").replace(/^\s*(zohar|oren)\s*:\s*/i, "");   // a writer that put the cue into the words ("After: ...")
 const hostCue = (x, nLines) => { const o = {}, a = Number(x && x.after), h = Number(x && x.hype);
-  if (Number.isInteger(a) && a >= 1 && a < nLines) o.after = a; if (Number.isInteger(h) && h >= 0 && h <= 3) o.hype = h; return o; };
+  if (Number.isInteger(a) && a >= 1 && a < nLines) o.after = a; if (Number.isInteger(h) && h >= 0 && h <= 3) o.hype = h;
+  if (!o.after) { o.ex = 1; if (x && x.later === true) o.later = true; }   // v262: a line of an exchange (tight gaps on the page); "later" = the exchange halfway through a quiet moment
+  return o; };
+const HOSTS_MAX = 10;   // sports style: up to 2 reactions in a talk + an exchange (+ a later one in a quiet moment)
+// one line holding both hosts ("Zohar: '...' Oren: '...'") becomes two lines
+const splitHosts = arr => arr.flatMap(x => { const t = String(x && x.say || ""), parts = t.split(/\s*\b(Zohar|Oren)\s*:\s*/i).filter(Boolean);
+  if (parts.length < 4 || !/^(zohar|oren)$/i.test(parts[0])) return [x];
+  const out = []; for (let k = 0; k + 1 < parts.length; k += 2) out.push({ ...x, who: parts[k].toLowerCase(), say: parts[k + 1].replace(/^['"‘’“”]+|['"‘’“”]+$/g, "").trim() }); return out; });
+// EARLIER TODAY for the hosts' "lookback" (v262, no AI): up to 4 spoken lines from today's earlier talks (25+ minutes ago), one per moment, spread over the day
+function hostsEarlier(s, now) {
+  try { const day = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now)), seen = new Set(), pick = [];
+    const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : null);
+    for (const l of (s.talk || [])) { if (l.host || now - l.t < 25 * 60000 || new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(l.t)) !== day) continue;
+      const mid = String(l.id).split(":")[0]; if (seen.has(mid) || !nm(l.who) || String(l.say || "").length < 25) continue; seen.add(mid); pick.push(l); }
+    const step = Math.max(1, Math.floor(pick.length / 4));
+    return pick.filter((_, k) => k % step === 0).slice(-4).map(l => `${storyClock(l.t).label.slice(-5)} at ${l.loc}${l.w ? " with " + (nm(l.w) || l.w) : ""}, ${nm(l.who)}: "${clip(l.say, 110)}"`).join(" | ");
+  } catch (e) { return ""; } }
 const hostsByGemini = s => !s || s.hostsWriter !== "cloudflare";
 const hostsSports = s => !s || s.hostsStyle !== "classic";
 const hostsOf = s => hostsSports(s) ? HOSTS_SPORTS : HOSTS;
@@ -1215,6 +1231,15 @@ async function addHosts(env, s, moments, clock, now) {
     const sports = hostsSports(s), H = hostsOf(s), ctx = hostsContext(s, moments, now);
     // sports: Zohar asks Oren something in about a third of the talking moments; he answers, or (about a third of those) a sarcastic comeback instead. Rolled here, so it is really random.
     const qa = moments.map(m => sports && (m.lines || []).length >= 2 && Math.random() < 0.35 ? (Math.random() < 0.35 ? "sarcastic" : "straight") : null);
+    // talkier hosts (v262, sports): every moment gets an EXCHANGE (Oren and Zohar going back and forth), its topic picked here so it varies;
+    // a moment with no talk gets a second, LATER exchange halfway through. Data for the topics: TODAY'S PLAN and EARLIER TODAY (no AI).
+    const planTxt = sports ? comingUpText(s, now, 6) : "", earlier = sports ? hostsEarlier(s, now) : "";
+    const pickTopic = (opts, not) => { const o = opts.filter(x => x !== not && (x !== "plan" || planTxt) && (x !== "lookback" || earlier)); return o[Math.floor(Math.random() * o.length)] || "scene"; };
+    const ex = moments.map(m => { if (!sports) return null; const talk = (m.lines || []).length >= 2, act = String(m.action || "").toLowerCase();
+      if (act === "sleeping") return { n: "1-2", topic: "scene" };
+      const a = talk ? { n: "2-4", topic: pickTopic(["react", "react", "lookback", "banter"]) } : { n: "3-5", topic: pickTopic(["scene", "scene", "plan", "lookback", "banter"]) };
+      if (!talk && Math.random() < 0.6) a.later = { n: "2-4", topic: pickTopic(["scene", "plan", "lookback", "banter"], a.topic) };
+      return a; });
     const sponsor = now - (s.lastAd || 0) > AD_EVERY_MIN * 60000 && Math.random() < 0.35 ? SPONSORS[Math.floor(Math.random() * SPONSORS.length)] : null;
     // a moment that starts a scene (someone joins him, or he walks in on them) gets the pair's brief for the hosts' setup ("pre")
     const prevW = i => i ? (moments[i - 1].with ? String(moments[i - 1].with).toLowerCase() : null) : (s.events[s.events.length - 1] || {}).with || null;
@@ -1225,28 +1250,36 @@ async function addHosts(env, s, moments, clock, now) {
       const pl = w && !briefs[i] ? (() => { const p = castPair("ishai", w), md = castMoodLine(w).split(";")[0]; return (p ? ` | between them: ${p.label || "?"}${p.thread ? ", open: " + clip(p.thread, 90) : ""}` : "") + (md ? ` | ${nm(w)} is ${md}` : ""); })() : "";
       return (briefs[i] ? `   SCENE STARTS (write "pre"): ${briefs[i]}\n` : "") + `#${i + 1} ${storyClock(now + DELAY_MIN * 60000 + i * INTERVAL_MIN * 60000).label.slice(-5)} CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}${dogInMoment(s, m) ? " | Falafel the dog is here" : ""}${pl}\n   what happens: ${String(m.text || "").slice(0, 220)}${m.then && m.then.action ? ` | about 3 minutes in he switches to ${m.then.action}` : ""}` +
         (Array.isArray(m.lines) && m.lines.length ? "\n   they say: " + m.lines.slice(0, 14).map((l, k) => `${sports ? (k + 1) + ") " : ""}${nm(String(l.who || "").toLowerCase())}: "${String(l.say || "").slice(0, 120)}"`).join(" / ") : "") +
+        (ex[i] ? `\n   EXCHANGE${(m.lines || []).length >= 2 ? " (after the talk)" : ""}: ${ex[i].n} lines, topic: ${ex[i].topic}` + (ex[i].later ? `\n   LATER EXCHANGE (mark these "later": true): ${ex[i].later.n} lines, topic: ${ex[i].later.topic}` : "") : "") +
         (qa[i] ? `\n   Q&A HERE: Zohar asks Oren a short question about this moment; Oren ${qa[i] === "sarcastic" ? "doesn't really answer: a dry, sarcastic comeback instead" : "answers it, in his own dry way"}.` : ""); }).join("\n");
     const msgs = [{ role: "system", content:
 `You write the two hosts of a live reality show that secretly films Ishai, a man in Tel Aviv.
 - ${H.zohar}
 - ${H.oren}
 - ${H.rules}
-For EACH moment below write ${sports ? "0-3 short lines (max 18 words each; Oren's play-by-play lines shorter still)" : "0-2 short lines (max 20 words each)"}. The viewers see only the picture (the camera and what Ishai is doing) and hear the spoken lines; they cannot read "what happens", so usually one line says plainly what is going on, then a joke, an opinion or a guess. React only to what is visible or said: never invent drinks, food, objects, visitors, calls or plans. When "what happens" has a detail the picture can't show and nobody says it (an object someone brings, holds or hands over, wet clothes, a smell, a sound), one line names it plainly, for example: Dana's at the door with a wet coat and a little pot of basil. If the CAMERA is STATIC, they cannot see him: they wonder where he is, guess, or joke about losing him. Fresh every time: never repeat the lines below, their jokes, openings or catchphrases.${sponsor ? `\nIN ONE OF THESE MOMENTS one host slips in an obvious, cheesy "secret" plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending with a wink like "...not sponsored, by the way"; the other host reacts.` : ""}
+For EACH moment below write ${sports ? "the lines its EXCHANGE asks for (plus up to 2 quick reactions inside a talk), each max 18 words; Oren's play-by-play lines shorter still" : "0-2 short lines (max 20 words each)"}. The viewers see only the picture (the camera and what Ishai is doing) and hear the spoken lines; they cannot read "what happens", so usually one line says plainly what is going on, then a joke, an opinion or a guess. React only to what is visible or said: never invent drinks, food, objects, visitors, calls or plans. When "what happens" has a detail the picture can't show and nobody says it (an object someone brings, holds or hands over, wet clothes, a smell, a sound), one line names it plainly, for example: Dana's at the door with a wet coat and a little pot of basil. If the CAMERA is STATIC, they cannot see him: they wonder where he is, guess, or joke about losing him. Fresh every time: never repeat the lines below, their jokes, openings or catchphrases.${sponsor ? `\nIN ONE OF THESE MOMENTS one host slips in an obvious, cheesy "secret" plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending with a wink like "...not sponsored, by the way"; the other host reacts.` : ""}
 Mention Falafel the dog only in a moment marked "Falafel the dog is here": anywhere else (a concert, a lecture, poker at Boaz's) he is at home and not in the picture.${briefs.some(Boolean) ? `
 A moment marked SCENE STARTS also gets "pre": 1-2 lines played BEFORE anyone speaks, like a reality show's narrator setting up what's at stake, from that brief (e.g. "Dana's still hurt about the missed birthday. First time they've met since. Let's see if he brings it up."). The setup asks a question and never answers it: do not give away anything that happens in that moment or later. Never say a secret.` : ""}
 ${sports ? `
 LIVE, LIKE A SPORTS BROADCAST: the hosts talk DURING the scene, not only after it. A line with "after": N is said right after spoken line N of that moment (the numbers in "they say"), in the pause before the next line: use it to react to that very line (a reveal, a joke landing, an awkward answer, a dodge). At most 2 lines inside one talk; a Q&A is Zohar's question and Oren's reply after the same line. A line without "after" comes once the talk is over. In a moment with no talking, leave "after" out.
 "hype" on every line: 0 calm (quiet moments, night), 1 normal, 2 excited (something happening), 3 huge (only a real reveal, a fight, a kiss, big news: rare). Oren speeds up and Zohar gets louder as it rises.
+EXCHANGES: Oren and Zohar take turns and each line picks up the one before: answers it, teases, disagrees, adds a detail, corrects, asks back. Two friends in a booth talking to each other (and to the viewers), quick and natural, never two separate remarks side by side. Topics:
+  scene = what is on screen right now: where he is, what he is doing, how it looks, the street, the weather
+  plan = what's coming up today (TODAY'S PLAN below): what they expect, a bet between them, a worry (never how it turns out)
+  lookback = something from EARLIER TODAY (below) and what it might have to do with now
+  banter = the two of them disagree or tease each other over something on screen or earlier
+  react = what was just said in the talk
+Only what viewers saw or heard, or the plan; never invent a look, a sound or a reason nobody showed. Never read out numbers or labels from WHO'S WHO.
 Use SCENE SO FAR and WHO'S WHO to connect what is on screen with the people and their story ("third coffee since she walked in", "last time they talked about the job he hung up on her"), but only what viewers have seen or may know.` : ""}
-Reply with ONLY JSON: {"moments":[{${briefs.some(Boolean) ? '"pre":[{"who":"zohar"|"oren","say":"..."}],' : ""}"commentary":[{"who":"zohar"|"oren","say":"..."${sports ? ',"after":3,"hype":1' : ""}}]}]} with exactly ${moments.length} entries, in order.` },
-      { role: "user", content: `${ctx}${hintNow}${teaseNow ? `COMING UP LATER (the producers' plan for today; Ishai has no idea): ${teaseNow}\nIn ONE moment only (the quietest one), ONE line teases the next of these: name the time and the hook and urge viewers to stay tuned or be back then ("...at 20:00, don't miss it"). Never say how it turns out.\n\n` : ""}${s.daySum ? `TODAY SO FAR (to connect with earlier moments): ${clip(s.daySum.text, 300)}\n\n` : ""}ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
+Reply with ONLY JSON: {"moments":[{${briefs.some(Boolean) ? '"pre":[{"who":"zohar"|"oren","say":"..."}],' : ""}"commentary":[{"who":"zohar"|"oren","say":"..."${sports ? ',"after":3,"hype":1},{"who":"oren","say":"...","hype":1,"later":true' : ""}}]}]} with exactly ${moments.length} entries, in order.` },
+      { role: "user", content: `${ctx}${planTxt ? `TODAY'S PLAN (for "plan" exchanges; Ishai has no idea): ${planTxt}\n\n` : ""}${earlier ? `EARLIER TODAY (for "lookback" exchanges; viewers saw these): ${earlier}\n\n` : ""}${hintNow}${teaseNow ? `COMING UP LATER (the producers' plan for today; Ishai has no idea): ${teaseNow}\nIn ONE moment only (the quietest one), ONE line teases the next of these: name the time and the hook and urge viewers to stay tuned or be back then ("...at 20:00, don't miss it"). Never say how it turns out.\n\n` : ""}${s.daySum ? `TODAY SO FAR (to connect with earlier moments): ${clip(s.daySum.text, 300)}\n\n` : ""}ALREADY SAID (do not repeat): ${said.length ? said.map(x => `"${x}"`).join(" ") : "nothing yet"}\n\nMOMENTS:\n${list}` }];
     // read whatever came back, even a cut-off or slightly broken reply: every {"commentary":[...]} found, in order
     const readHosts = raw => { const o = parseAI(raw); if (o && Array.isArray(o.moments)) return o.moments;
       const out = []; const re = /"commentary"\s*:\s*\[([\s\S]*?)\]/g; let m;
       while ((m = re.exec(raw))) { const items = []; const ri = /\{\s*"who"\s*:\s*"(zohar|oren)"\s*,\s*"say"\s*:\s*"((?:[^"\\]|\\.)*)"/gi; let k;
         while ((k = ri.exec(m[1]))) items.push({ who: k[1], say: k[2].replace(/\\"/g, '"') }); out.push({ commentary: items }); }
       return out; };
-    const maxTok = 300 + moments.length * (sports ? 280 : 200);
+    const maxTok = 300 + moments.length * (sports ? 520 : 200);
     const gemFirst = hostsByGemini(s);   // v261: the director's choice (MORE → The hosts): Gemini writes the hosts' lines, Cloudflare backs up; or the other way round as before
     let arr = readHosts(await runModel(env, msgs, maxTok, gemFirst ? "hostsG" : "hosts"));
     if (!gemFirst && arr.filter(x => (x.commentary || []).length).length < Math.ceil(moments.length / 2) && env.GEMINI_API_KEY && Date.now() >= geminiOutUntil) {
@@ -1255,8 +1288,8 @@ Reply with ONLY JSON: {"moments":[{${briefs.some(Boolean) ? '"pre":[{"who":"zoha
     const used = [...said];
     moments.forEach((m, i) => {
       const nl = (m.lines || []).length;
-      const c = (Array.isArray(arr[i]?.commentary) ? arr[i].commentary : []).map(x => ({ who: String(x?.who || "").toLowerCase().trim(), say: hostSay(String(x?.say || "").replace(/\s+/g, " ").trim()).replace(/^["']|["']$/g, "").slice(0, 160), ...(sports ? hostCue(x, nl) : {}) }))
-        .filter(x => (x.who === "zohar" || x.who === "oren") && x.say.length > 3 && !isRepeat(x.say, used) && (!DOG_WORDS.test(x.say) || dogInMoment(s, m))).slice(0, sports ? 3 : 2);
+      const c = splitHosts(Array.isArray(arr[i]?.commentary) ? arr[i].commentary : []).map(x => ({ who: String(x?.who || "").toLowerCase().trim(), say: hostSay(String(x?.say || "").replace(/\s+/g, " ").trim()).replace(/^["']|["']$/g, "").slice(0, 160), ...(sports ? hostCue(x, nl) : {}) }))
+        .filter(x => (x.who === "zohar" || x.who === "oren") && x.say.length > 3 && !isRepeat(x.say, used) && (!DOG_WORDS.test(x.say) || dogInMoment(s, m))).slice(0, sports ? HOSTS_MAX : 2);
       c.forEach(x => used.push(x.say));
       if (teaseNow && c.some(x => TEASE_RE.test(x.say))) s.lastTease = now;
       const pre = briefs[i] ? (Array.isArray(arr[i]?.pre) ? arr[i].pre : []).map(x => ({ who: String(x?.who || "").toLowerCase().trim(), say: String(x?.say || "").replace(/\s+/g, " ").trim().replace(/^["']|["']$/g, "").slice(0, 170), pre: true }))
@@ -1506,7 +1539,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   { const cm = (Array.isArray(o.commentary) ? o.commentary : [])
       .map(c => ({ who: str(c?.who, 10).toLowerCase(), say: hostSay(str(c?.say, 160)).replace(/^["']|["']$/g, ""), ...(c?.pre === true ? { pre: true } : hostsSports(s) ? hostCue(c, ev.lines.length) : {}) }))
       .filter(c => (c.who === "zohar" || c.who === "oren") && c.say);
-    ev.commentary = [...cm.filter(c => c.pre).slice(0, 2), ...cm.filter(c => !c.pre).slice(0, hostsSports(s) ? 3 : 2)]; }   // sports style (v260): up to 3, with "after" and "hype"   // "pre": the hosts' setup before a scene's first line
+    ev.commentary = [...cm.filter(c => c.pre).slice(0, 2), ...cm.filter(c => !c.pre).slice(0, hostsSports(s) ? HOSTS_MAX : 2)]; }   // sports style (v260): up to 3, with "after" and "hype"   // "pre": the hosts' setup before a scene's first line
   if (o.feel && typeof o.feel === "object") { const fw = str(o.feel.who, 30).toLowerCase(), fm = str(o.feel.mood, 14).toLowerCase();   // a mood the story sets mid-scene (body language at once)
     if ((fw === "ishai" || fw === ev.with) && CAST_MOODS.includes(fm) && !LOCALS[fw]) ev.feel = { who: fw, mood: fm, why: str(o.feel.why, 100) }; }
   if (o.scene && typeof o.scene === "object" && ev.with) ev.scene = {
