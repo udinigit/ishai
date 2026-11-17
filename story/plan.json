@@ -1,1023 +1,987 @@
 {
- "version": "2026-11-16a",
- "written": "2026-11-16T05:30:00+02:00",
- "arcs": [
-  {
-   "id": "dana",
-   "title": "Dana: Haifa",
-   "stage": "Sun: he answered her ('small map, could get bigger'); she deflected, a zero-four call face down; later that evening she brought pastries: 'you're predictable, not a bad thing'. Mon: he asks her out for Saturday after Shabbat (a walk, falafel at Avi's); she says yes, and hints that 'things change in January'. Next: first date Sat Nov 21.",
-   "secret": "Dana has been offered a job running a new cafe in Haifa from January and must answer by Mon Dec 7. She has not told Ishai.",
-   "knows": [
-    "Dana",
-    "Lior"
-   ],
-   "revealOn": "2026-11-25",
-   "told": false
-  },
-  {
-   "id": "gadi",
-   "title": "Gadi: Unpaid",
-   "stage": "Sun: the list ('I want: one invoice', underlined twice); Gadi: 'Ofer is migrating'. Mon: Hanukkah files to Gadi only; Gadi lets slip Ruti asked for Ishai's number ('we're a team'), wants a free spinning dreidel; Ishai: the dreidel comes when the invoice has a number. Gadi promises a number by Thursday. Next (week 2): Ruti calls Ishai directly.",
-   "secret": "Sababa Creative lost its biggest client in October. Gadi is paying every freelancer late and hides it behind cheerful 'small things'.",
-   "knows": [
-    "Gadi"
-   ],
-   "revealOn": "2026-12-08",
-   "told": false
-  },
-  {
-   "id": "noa",
-   "title": "Noa: Shir",
-   "stage": "Sun: two calls, hung up mid-sentence, 'amazing', another call beeping in ('a client'); plumbers 'Tuesday morning', she drops her bags Monday night. Mon night: a duffel and a taped box marked 'S.' ('winter stuff, don't open'), Shir's name face down; she sleeps at his place Tue and Wed. Next: the couch nights.",
-   "secret": "Noa's girlfriend of three years, Shir, moved out in October. Noa told nobody: it's why she is late, cancels plans and pushes Ishai's love life so hard.",
-   "knows": [
-    "Noa",
-    "Shir"
-   ],
-   "revealOn": "2026-11-28",
-   "told": false
-  },
-  {
-   "id": "improv",
-   "title": "Improv on Thursdays",
-   "stage": "The notebook: 'I want to talk to Dana', 'I want a date (payment kind)', 'I want: one invoice'. Mon: 'yes, and the dreidel comes when the invoice has a number'. Lesson 3 Thu Nov 19."
-  },
-  {
-   "id": "levi",
-   "title": "Mrs. Levi's cough",
-   "stage": "Sun: a heart from Eli instead of a call; 'mothers don't count'. Mon: hoarse, still in her cardigan, gives Ishai the cats' bowl (the grey one is Ben-Gurion); no doctor. Moti hints he has Eli's number 'in the committee book'. Next (week 2): bronchitis, Ishai feeds the cats daily.",
-   "secret": "Mrs. Levi is lonely: her son Eli in Toronto hasn't visited in four years, and she always says he's busy.",
-   "knows": [
-    "Mrs. Levi",
-    "Moti"
-   ],
-   "revealOn": "2026-11-26",
-   "told": false
-  },
-  {
-   "id": "avi",
-   "title": "Avi's kiosk",
-   "stage": "Thu: Ishai overheard 'Double? From January? Thirty years I'm here...'; Avi said chickpeas and lost his proverb. Ishai paid full price.",
-   "secret": "Avi's landlord is doubling the kiosk's rent from January.",
-   "knows": [
-    "Avi"
-   ],
-   "revealOn": "2026-11-26",
-   "told": false
-  },
-  {
-   "id": "lior",
-   "title": "Lior's novel and Moshe",
-   "stage": "Sun: chapter eleven, 'the man finally answers a question'. Mon: chapter twelve, 'she says yes, I didn't plan that'; tells Ishai there aren't many weeks. Ishai still doesn't recognise himself.",
-   "secret": "Lior's novel is about Ishai: 'the man who apologises to his coffee'.",
-   "knows": [
-    "Lior"
-   ],
-   "revealOn": "2026-11-29",
-   "told": false
-  },
-  {
-   "id": "tomer",
-   "title": "Tomer and Noa",
-   "stage": "Sun gym: wants Ishai to ask whether Noa comes to Wednesday's art night. Mon: Noa says 'a good maybe' and asks if Tomer asked. Wed Nov 18: the Pump House gallery night with Ishai.",
-   "secret": "Tomer has liked Noa since school.",
-   "knows": [
-    "Tomer"
-   ],
-   "revealOn": "2026-12-31",
-   "told": false
-  },
-  {
-   "id": "zelig",
-   "title": "Mr. Zelig's bench",
-   "stage": "Sat: one true sentence for the photo; Dana sat on his bench Thursday 'looking at her phone like it was the sea... not this sea'. 1971: 'I stayed.'"
-  }
- ],
- "beats": [
-  {
-   "id": "1116-hanukkah-files",
-   "startAt": "2026-11-16T08:05:00+02:00",
-   "deadlineAt": "2026-11-16T09:05:00+02:00",
-   "location": "apartment",
-   "with": "Gadi (gadi)",
-   "goal": "Monday first thing: Ishai emails the blue-and-gold Hanukkah chickpea files to Gadi only (as Gadi insisted). Gadi phones, delighted; lets slip that Ruti asked for Ishai's number ('I told her we're a team, teams don't give out numbers') and asks for 'one more small thing', a little spinning dreidel for the app, no fee. Ishai, with the notebook open, says 'yes, and the dreidel comes when the invoice has a number'. Gadi laughs too long and promises 'a number by Thursday'.",
-   "teaser": "Ishai sends the Hanukkah files, and Gadi wants one more spin",
-   "forceText": "Ishai sends Gadi the Hanukkah files; Gadi asks for a free spinning dreidel and Ishai ties it to the invoice.",
-   "forceAction": "phoning",
-   "forceWith": "gadi",
-   "forceLines": [
+  "version": "2026-11-17a",
+  "written": "2026-11-17T05:35:00+02:00",
+  "arcs": [
     {
-     "who": "gadi",
-     "say": "One tiny dreidel. It spins, it's happy, it's ten minutes."
+      "id": "dana",
+      "title": "Dana: Haifa",
+      "stage": "Mon: he asked her out for Saturday after Shabbat (a walk, falafel at Avi's); she said yes, 'things change in January'. Tue: trivia night at Cafe Nahat, Dana is the quizmaster, Ishai plays with Noa and Tomer. Next: first date Sat Nov 21; she almost tells him.",
+      "secret": "Dana has been offered a job running a new cafe in Haifa from January and must answer by Mon Dec 7. She has not told Ishai.",
+      "knows": [
+        "Dana",
+        "Lior"
+      ],
+      "revealOn": "2026-11-25",
+      "told": false
     },
     {
-     "who": "ishai",
-     "say": "Yes, and it spins when the invoice has a number."
-    }
-   ],
-   "forceCommentary": [
-    {
-     "who": "zohar",
-     "say": "He said 'invoice' without apologising. Somebody check his temperature."
+      "id": "gadi",
+      "title": "Gadi: Unpaid",
+      "stage": "Mon: Hanukkah files to Gadi only; Ruti asked for Ishai's number ('we're a team'); a free dreidel 'when the invoice has a number'; Gadi promised a number by Thursday. Tue: quiet. Next: the Thursday number, then Ruti calls Ishai directly (week 2).",
+      "secret": "Sababa Creative lost its biggest client in October. Gadi is paying every freelancer late and hides it behind cheerful 'small things'.",
+      "knows": [
+        "Gadi"
+      ],
+      "revealOn": "2026-12-08",
+      "told": false
     },
     {
-     "who": "oren",
-     "say": "Ten minutes. In Gadi time that's a fiscal quarter."
+      "id": "noa",
+      "title": "Noa: Shir",
+      "stage": "Mon night: the duffel and the taped box 'S.' by the closet ('winter stuff, don't open'), Shir's name face down; he circled the box all evening and didn't open it. Tue: a 07:02 text about three plumbers 'from the British Mandate' (Sivan doesn't buy it); after trivia she sleeps at his place, an 'Eilat hotel client' at ten, a cracked late call on the stairs ('not on the phone, not tonight'). Wed: second couch night. Next: Sat Nov 28 he finds out.",
+      "secret": "Noa's girlfriend of three years, Shir, moved out in October. Noa told nobody: it's why she is late, cancels plans and pushes Ishai's love life so hard.",
+      "knows": [
+        "Noa",
+        "Shir"
+      ],
+      "revealOn": "2026-11-28",
+      "told": false
+    },
+    {
+      "id": "improv",
+      "title": "Improv on Thursdays",
+      "stage": "The notebook: 'I want to talk to Dana', 'I want a date (payment kind)', 'I want: one invoice'. Tue at the gym he tells Sivan he has a list ('number one is a person, number two is an invoice'). Lesson 3 Thu Nov 19."
+    },
+    {
+      "id": "levi",
+      "title": "Mrs. Levi's cough",
+      "stage": "Mon: hoarse, gave Ishai the cats' bowl (the grey one is Ben-Gurion); no doctor. Tue: Ishai helps her record a voice message to Eli ('everything is fine, I'm very busy too'), she coughs through it and deletes it; 'tomorrow I'll see' about a doctor. Next (week 2): bronchitis, Ishai feeds the cats daily.",
+      "secret": "Mrs. Levi is lonely: her son Eli in Toronto hasn't visited in four years, and she always says he's busy.",
+      "knows": [
+        "Mrs. Levi",
+        "Moti"
+      ],
+      "revealOn": "2026-11-26",
+      "told": false
+    },
+    {
+      "id": "avi",
+      "title": "Avi's kiosk",
+      "stage": "Thu: 'Double? From January?' overheard. Tue: no proverb ('today the tahini is the proverb'), an envelope with a lawyer's stamp in his apron, a call he lets ring; 'monuments don't pay rent'. Ishai offered a free design; Avi refused. Next (week 2): no proverbs at all.",
+      "secret": "Avi's landlord is doubling the kiosk's rent from January.",
+      "knows": [
+        "Avi"
+      ],
+      "revealOn": "2026-11-26",
+      "told": false
+    },
+    {
+      "id": "lior",
+      "title": "Lior's novel and Moshe",
+      "stage": "Sun: chapter eleven, 'the man finally answers a question'. Mon: chapter twelve, 'she says yes, I didn't plan that'; tells Ishai there aren't many weeks. Ishai still doesn't recognise himself.",
+      "secret": "Lior's novel is about Ishai: 'the man who apologises to his coffee'.",
+      "knows": [
+        "Lior"
+      ],
+      "revealOn": "2026-11-29",
+      "told": false
+    },
+    {
+      "id": "tomer",
+      "title": "Tomer and Noa",
+      "stage": "Mon: leftover lamb soup with Ishai; Noa's 'good maybe' for Wednesday. Tue: trivia with Noa and Ishai (HERZL HEADS); he argues every answer with Dana, showing off. Wed Nov 18: the Pump House gallery night (Quiet Signals).",
+      "secret": "Tomer has liked Noa since school.",
+      "knows": [
+        "Tomer"
+      ],
+      "revealOn": "2026-12-31",
+      "told": false
+    },
+    {
+      "id": "zelig",
+      "title": "Mr. Zelig's bench",
+      "stage": "Sat: one true sentence for the photo; Dana sat on his bench Thursday 'looking at her phone like it was the sea... not this sea'. 1971: 'I stayed.'"
     }
-   ],
-   "preview": {
-    "moments": [
-     {
-      "location": "apartment",
-      "action": "working",
-      "with": null,
-      "text": "08:00 at the desk: the chickpea glows blue and gold on the screen. Ishai attaches the Hanukkah files to an email addressed only to Gadi and hovers over send. Falafel sleeps under the chair.",
-      "lines": [
-       {
-        "who": "ishai",
-        "say": "Only to Gadi. Not Ruti. Fine. Send."
-       },
-       {
-        "who": "ishai",
-        "say": "Eight o'clock sharp. Nobody can say late."
-       }
+  ],
+  "beats": [
+    {
+      "id": "1117-gym-sivan",
+      "startAt": "2026-11-17T08:10:00+02:00",
+      "deadlineAt": "2026-11-17T09:15:00+02:00",
+      "location": "gym",
+      "with": "Sivan (sivan)",
+      "goal": "Morning treadmill at Herzl Gym next to Sivan (competitive, deadpan). Ishai tells her he has a list of wants now ('number one is a person, number two is an invoice'). Noa texts that three plumbers have been at hers since seven, 'pipes from the British Mandate'; Sivan says nobody in Tel Aviv gets a plumber at seven. Ishai shrugs it off. Sivan sets his speed to six and books him for Wednesday.",
+      "teaser": "Sivan reads Noa's morning text over Ishai's shoulder, and frowns",
+      "forceText": "On the treadmill next to Sivan, Ishai reads Noa's text about three plumbers at seven; Sivan doesn't believe it.",
+      "forceAction": "exercising",
+      "forceWith": "sivan",
+      "forceLines": [
+        {
+          "who": "sivan",
+          "say": "Three plumbers at seven? In Tel Aviv? Nobody gets one before ten."
+        },
+        {
+          "who": "ishai",
+          "say": "She said chaos. With two exclamation marks."
+        }
       ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "A chickpea in Hanukkah colours. The most Israeli sentence I've ever said."
-       },
-       {
-        "who": "oren",
-        "say": "Sent at eight on the dot. Gadi will call at eight-oh-four."
-       }
-      ]
-     },
-     {
-      "location": "apartment",
-      "action": "phoning",
-      "with": "gadi",
-      "text": "Four minutes later the phone rings. Ishai answers on speaker, the YES, AND notebook open at Sunday's list.",
-      "lines": [
-       {
-        "who": "gadi",
-        "say": "Ishai! The gold! The gold is a hug. Ruti's going to cry. Happy tears."
-       },
-       {
-        "who": "ishai",
-        "say": "Good morning, Gadi. Did they open okay?"
-       },
-       {
-        "who": "gadi",
-        "say": "Perfect. She already asked who made them. Wanted your number, even."
-       },
-       {
-        "who": "ishai",
-        "say": "My number? What did you say?"
-       },
-       {
-        "who": "gadi",
-        "say": "I said we're a team. Teams don't give out numbers. It's cleaner."
-       },
-       {
-        "who": "ishai",
-        "say": "Cleaner for who?"
-       },
-       {
-        "who": "gadi",
-        "say": "For everyone! Listen, one more small thing. Small small."
-       },
-       {
-        "who": "ishai",
-        "say": "How small?"
-       },
-       {
-        "who": "gadi",
-        "say": "A little dreidel for the app. It spins, it's happy. Ten minutes for you."
-       },
-       {
-        "who": "ishai",
-        "say": "Ten minutes. Like the wink was one evening."
-       },
-       {
-        "who": "gadi",
-        "say": "Exactly! You get it. That's why you're my favourite."
-       }
+      "forceCommentary": [
+        {
+          "who": "zohar",
+          "say": "Sivan's not buying the plumbers. Neither am I."
+        },
+        {
+          "who": "oren",
+          "say": "'Pipes from the British Mandate.' Too much detail. Classic tell."
+        }
       ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "Ruti wanted his number and Gadi said 'team'. That's not a team, that's a fence."
-       },
-       {
-        "who": "oren",
-        "say": "'Small small.' The two most expensive words in Hebrew."
-       }
-      ]
-     },
-     {
-      "location": "apartment",
-      "action": "phoning",
-      "with": "gadi",
-      "text": "Ishai looks at the underlined line in the notebook, takes a breath and stands up by the window.",
-      "lines": [
-       {
-        "who": "ishai",
-        "say": "Yes, and the dreidel spins when the invoice has a number."
-       },
-       {
-        "who": "gadi",
-        "say": "Ha! Ha ha. Look at you. That class is making you dangerous."
-       },
-       {
-        "who": "ishai",
-        "say": "It's one invoice, Gadi. The wink, Saturday, Hanukkah."
-       },
-       {
-        "who": "gadi",
-        "say": "Ofer is almost done migrating. Almost. It's a big system."
-       },
-       {
-        "who": "ishai",
-        "say": "Then the dreidel is almost done too."
-       },
-       {
-        "who": "gadi",
-        "say": "Okay, okay. A number by Thursday. On my mother."
-       },
-       {
-        "who": "ishai",
-        "say": "Thursday. I'll write it down."
-       },
-       {
-        "who": "gadi",
-        "say": "Write it in your little book. I love your little book."
-       },
-       {
-        "who": "ishai",
-        "say": "It's not little. It's medium."
-       },
-       {
-        "who": "gadi",
-        "say": "Go, spin something. Bye, bye, bye."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "'On my mother.' Somebody call Gadi's mother, she needs to know she's collateral."
-       },
-       {
-        "who": "oren",
-        "say": "He wrote 'Thursday' in the notebook. In pen. That's practically a lawsuit."
-       }
-      ],
-      "update": {
-       "memory": "Got the Hanukkah files at 8. Ishai won't do the dreidel until the invoice has a number. Promised him a number by Thursday. Ruti asked for his number.",
-       "mood": 0
+      "preview": {
+        "moments": [
+          {
+            "location": "gym",
+            "action": "exercising",
+            "with": "sivan",
+            "text": "Herzl Gym at eight. Ishai steps onto the treadmill next to Sivan, who is already running at a pace he can't read. Channel 9 morning news on the left screen.",
+            "lines": [
+              {
+                "who": "sivan",
+                "say": "Husky guy. You came back. I had money on never."
+              },
+              {
+                "who": "ishai",
+                "say": "He's not a husky. He's a... mostly a dog."
+              },
+              {
+                "who": "sivan",
+                "say": "Ten minutes again? Or a whole warm-up today?"
+              },
+              {
+                "who": "ishai",
+                "say": "Twenty. I wrote it down. I'm a man with a list now."
+              },
+              {
+                "who": "sivan",
+                "say": "A list. What's on it?"
+              },
+              {
+                "who": "ishai",
+                "say": "Things I want. Out loud. It's homework from a class."
+              },
+              {
+                "who": "sivan",
+                "say": "Number one, I hope, is 'run faster than a bus'."
+              },
+              {
+                "who": "ishai",
+                "say": "Number one is a person. Number two is an invoice."
+              },
+              {
+                "who": "sivan",
+                "say": "Invoice beats person. Invoices don't cancel on you."
+              },
+              {
+                "who": "ishai",
+                "say": "You'd like my friend Noa. She says things like that."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "A list of wants and number one is a person. Somebody text the cafe."
+              },
+              {
+                "who": "oren",
+                "say": "Sivan runs like her rent is due. Respect."
+              }
+            ]
+          },
+          {
+            "location": "gym",
+            "action": "exercising",
+            "with": "sivan",
+            "text": "His phone buzzes on the treadmill's ledge. He reads the text while still walking, slows down and nearly steps off the belt.",
+            "message": {
+              "from": "noa",
+              "kind": "text",
+              "say": "Plumbers here since seven!! Three of them. Total chaos, pipes from the British Mandate. Trivia tonight, then your couch. Love you, bye"
+            },
+            "lines": [
+              {
+                "who": "ishai",
+                "say": "Pipes from the British Mandate. She sent that at two past seven."
+              },
+              {
+                "who": "sivan",
+                "say": "You're reading on a treadmill. That's how people die."
+              },
+              {
+                "who": "ishai",
+                "say": "My friend has plumbers. Three. Since seven."
+              },
+              {
+                "who": "sivan",
+                "say": "Three plumbers at seven? In Tel Aviv? Nobody gets one before ten."
+              },
+              {
+                "who": "ishai",
+                "say": "She said chaos. With two exclamation marks."
+              },
+              {
+                "who": "sivan",
+                "say": "Two is a lot for chaos. Chaos only needs one."
+              },
+              {
+                "who": "ishai",
+                "say": "She's sleeping at my place tonight. And tomorrow."
+              },
+              {
+                "who": "sivan",
+                "say": "Then buy a second pillow. And speed up, you're at four."
+              },
+              {
+                "who": "ishai",
+                "say": "Four is a speed. Four is honest."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "Three plumbers before breakfast in this city? Sivan smells it. So do I."
+              },
+              {
+                "who": "oren",
+                "say": "'Pipes from the British Mandate.' Nobody lies with that much history unless they're lying."
+              }
+            ]
+          },
+          {
+            "location": "gym",
+            "action": "talking",
+            "with": "sivan",
+            "text": "Sivan hops off, towel round her neck, and taps his speed up to six on her way past. He keeps up for almost a minute, then steps off, red-faced, to talk.",
+            "lines": [
+              {
+                "who": "sivan",
+                "say": "Six. Don't touch it. I'll know."
+              },
+              {
+                "who": "ishai",
+                "say": "How will you know? You're leaving."
+              },
+              {
+                "who": "sivan",
+                "say": "Michal tells me everything. She's by the mirror."
+              },
+              {
+                "who": "ishai",
+                "say": "She invited me to her Friday run club. She doesn't go."
+              },
+              {
+                "who": "sivan",
+                "say": "Nobody goes. It's a club for feeling guilty on Fridays."
+              },
+              {
+                "who": "ishai",
+                "say": "Then I'm already a member."
+              },
+              {
+                "who": "sivan",
+                "say": "Ha. Okay, husky guy. Same time Thursday?"
+              },
+              {
+                "who": "ishai",
+                "say": "Thursday is the class. Wednesday?"
+              },
+              {
+                "who": "sivan",
+                "say": "Wednesday. Twenty-five minutes. Put it on your list."
+              },
+              {
+                "who": "ishai",
+                "say": "Under the invoice. Above the person. No. Below."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "oren",
+                "say": "He held six for almost a minute. Alert the Olympic committee."
+              },
+              {
+                "who": "zohar",
+                "say": "'Below the person.' He corrected himself. I rest my case."
+              }
+            ],
+            "update": {
+              "memory": "The husky guy came back for twenty minutes and held six for almost a minute. Has a list of wants. His friend's 7 AM plumbers sound fake.",
+              "mood": 1
+            }
+          }
+        ]
       }
-     }
-    ]
-   }
-  },
-  {
-   "id": "1116-levi-cats",
-   "startAt": "2026-11-16T09:35:00+02:00",
-   "deadlineAt": "2026-11-16T10:40:00+02:00",
-   "location": "corridor",
-   "with": "Mrs. Levi (levi)",
-   "goal": "As promised, Ishai feeds Mrs. Levi's street cats. She opens her door hoarse and coughing, in her cardigan, and hands him the bowl and dry food with instructions (the grey one is Ben-Gurion; today is Ben-Gurion Day, so he eats first). She refuses a doctor ('it's the landing'). Downstairs by the entrance he feeds the cats alone. Moti comes out with the committee folder; he says she sat on the landing an hour for a heart, and that he has Eli's number 'somewhere in the committee book from 2019'. He hints, never says she is lonely.",
-   "teaser": "Ishai feeds Mrs. Levi's cats, and Moti knows more than he says",
-   "forceText": "Ishai feeds Mrs. Levi's street cats while she coughs at her door; Moti mentions he has Eli's number somewhere.",
-   "forceAction": "talking",
-   "forceWith": "levi",
-   "forceLines": [
-    {
-     "who": "levi",
-     "say": "Ben-Gurion eats first. Today is his day."
     },
     {
-     "who": "ishai",
-     "say": "And you, Mrs. Levi? Honey and lemon, no arguing."
-    }
-   ],
-   "forceCommentary": [
+      "id": "1117-avi-proverb",
+      "startAt": "2026-11-17T12:35:00+02:00",
+      "deadlineAt": "2026-11-17T13:40:00+02:00",
+      "location": "street",
+      "with": "Avi (avi)",
+      "goal": "Lunch at Avi's falafel kiosk after the lecture. Avi works in silence and gives no proverb for the first time ('today the tahini is the proverb'); an envelope with a lawyer's stamp sticks out of his apron and he lets a call ring out. Ishai asks if everything is okay; Avi blames chickpeas and oil, says 'monuments don't pay rent'. Ishai offers a free design; Avi refuses ('free you give to your mother'). Ishai does not learn about the rent.",
+      "teaser": "Avi hands Ishai a falafel, and for once, no proverb",
+      "forceText": "At Avi's kiosk there is no proverb today; an envelope with a lawyer's stamp sticks out of Avi's apron and he blames the price of chickpeas.",
+      "forceAction": "eating",
+      "forceWith": "avi",
+      "forceLines": [
+        {
+          "who": "ishai",
+          "say": "And the proverb? You always give one with the tahini."
+        },
+        {
+          "who": "avi",
+          "say": "Today the tahini is the proverb."
+        }
+      ],
+      "forceCommentary": [
+        {
+          "who": "zohar",
+          "say": "Avi without a proverb is a sky without a sun. Something's wrong."
+        },
+        {
+          "who": "oren",
+          "say": "That envelope has a lawyer's stamp. Nobody gets good news on letterhead."
+        }
+      ],
+      "preview": {
+        "moments": [
+          {
+            "location": "street",
+            "action": "eating",
+            "with": "avi",
+            "text": "The lunch queue at Avi's kiosk is short. Avi fries in silence; a folded envelope with a lawyer's stamp sticks out of his apron pocket. Ishai waits for the proverb that always comes with the pita.",
+            "lines": [
+              {
+                "who": "avi",
+                "say": "Ishai. Half or whole?"
+              },
+              {
+                "who": "ishai",
+                "say": "Whole. And the proverb? You always give one with the tahini."
+              },
+              {
+                "who": "avi",
+                "say": "Today the tahini is the proverb."
+              },
+              {
+                "who": "ishai",
+                "say": "That's not a proverb. That's tahini."
+              },
+              {
+                "who": "avi",
+                "say": "Exactly. Simple. Pickles?"
+              },
+              {
+                "who": "ishai",
+                "say": "Yes, please. Avi, is everything okay? You're quiet."
+              },
+              {
+                "who": "avi",
+                "say": "Quiet is cheaper. Everything is getting expensive, even talking."
+              },
+              {
+                "who": "ishai",
+                "say": "Chickpeas again?"
+              },
+              {
+                "who": "avi",
+                "say": "Chickpeas. Oil. Everything. Eat, it's hot."
+              },
+              {
+                "who": "ishai",
+                "say": "Thank you. Full price. Don't argue."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "No proverb. Avi without a proverb is a sky without a sun."
+              },
+              {
+                "who": "oren",
+                "say": "That envelope has a lawyer's stamp. Nobody gets good news on letterhead."
+              }
+            ]
+          },
+          {
+            "location": "street",
+            "action": "eating",
+            "with": "avi",
+            "text": "Ishai eats leaning on the counter. Avi's phone rings; he looks at the name, lets it ring out and pushes the envelope deeper into his apron.",
+            "lines": [
+              {
+                "who": "ishai",
+                "say": "You can answer. I'll watch the buses."
+              },
+              {
+                "who": "avi",
+                "say": "It's nobody. Somebody who thinks he's somebody."
+              },
+              {
+                "who": "ishai",
+                "say": "Thirty years you're here, right? Since before the bank."
+              },
+              {
+                "who": "avi",
+                "say": "Thirty-one in March. I remember when the bank was a shoe shop."
+              },
+              {
+                "who": "ishai",
+                "say": "Then nobody can move you. You're a monument."
+              },
+              {
+                "who": "avi",
+                "say": "Monuments don't pay rent, Ishai. Pigeons sit on them."
+              },
+              {
+                "who": "ishai",
+                "say": "Is that a proverb?"
+              },
+              {
+                "who": "avi",
+                "say": "No. That's just true. There's a difference."
+              },
+              {
+                "who": "ishai",
+                "say": "If you need anything. A sign, a new menu. I'll design it free."
+              },
+              {
+                "who": "avi",
+                "say": "Free you give to your mother. Eat your falafel."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "oren",
+                "say": "'Thirty-one in March.' He's counting. People who count are worried."
+              },
+              {
+                "who": "zohar",
+                "say": "Ishai offered free design work. Somewhere, Gadi just felt a disturbance."
+              }
+            ],
+            "update": {
+              "memory": "Ishai noticed I had no proverb today and offered a free design. I said nothing about the letter. He paid full price again.",
+              "mood": 0
+            }
+          }
+        ]
+      }
+    },
     {
-     "who": "zohar",
-     "say": "A cat called Ben-Gurion on Ben-Gurion Day. Mrs. Levi plans better than our producers."
-    }
-   ],
-   "preview": {
-    "moments": [
-     {
+      "id": "1117-levi-voice",
+      "startAt": "2026-11-17T17:00:00+02:00",
+      "deadlineAt": "2026-11-17T18:00:00+02:00",
       "location": "corridor",
-      "action": "talking",
-      "with": "levi",
-      "text": "Ishai knocks at apartment 5. Mrs. Levi opens in her cardigan, a tissue up her sleeve, the cats' bowl and a bag of dry food ready by the door. Her voice is hoarse and she coughs before every sentence.",
-      "lines": [
-       {
-        "who": "ishai",
-        "say": "Morning, Mrs. Levi. Cat duty, as promised."
-       },
-       {
-        "who": "levi",
-        "say": "You remembered. Eli forgets birthdays. You remember cats."
-       },
-       {
-        "who": "ishai",
-        "say": "You sound worse than yesterday."
-       },
-       {
-        "who": "levi",
-        "say": "It's the landing. I told you. Moti and his window."
-       },
-       {
-        "who": "ishai",
-        "say": "Maybe a doctor? I'll go with you."
-       },
-       {
-        "who": "levi",
-        "say": "Doctors are for sick people. Take the bowl."
-       },
-       {
-        "who": "levi",
-        "say": "The grey one is Ben-Gurion. Today is his day, so he eats first."
-       },
-       {
-        "who": "ishai",
-        "say": "Ben-Gurion Day. Of course he has a day."
-       },
-       {
-        "who": "levi",
-        "say": "The ginger one steals. Stand between them like a policeman."
-       },
-       {
-        "who": "ishai",
-        "say": "And you? Honey and lemon. No arguing."
-       },
-       {
-        "who": "levi",
-        "say": "No arguing, he says. Go, motek. They're waiting."
-       }
+      "with": "Mrs. Levi (levi)",
+      "goal": "Mrs. Levi sits on a kitchen chair on the landing, coughing, and asks Ishai to help her send a voice message to her son Eli in Toronto. She records 'Eli, motek, it's Ima, everything is fine, I'm very busy too', coughs through it and deletes it so he won't worry. Ishai gently says Eli might want to worry a little and asks her to call a doctor; 'tomorrow I'll see'. Ben-Gurion the grey cat watches from the stairs.",
+      "teaser": "Mrs. Levi records a message for Eli, and deletes it",
+      "forceText": "On the landing Ishai helps Mrs. Levi record a voice message to Eli; she coughs through it and deletes it.",
+      "forceAction": "talking",
+      "forceWith": "levi",
+      "forceLines": [
+        {
+          "who": "levi",
+          "say": "With coughing he'll worry. Then he'll call. Then he's late for work."
+        },
+        {
+          "who": "ishai",
+          "say": "Maybe he'd want to worry. A little."
+        }
       ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "A cat called Ben-Gurion on Ben-Gurion Day. Mrs. Levi plans better than our producers."
-       },
-       {
-        "who": "oren",
-        "say": "'Doctors are for sick people.' She says it like she's not people."
-       }
+      "forceCommentary": [
+        {
+          "who": "zohar",
+          "say": "'I'm very busy too.' Nobody busy sits on a chair on the landing."
+        },
+        {
+          "who": "oren",
+          "say": "Ben-Gurion the cat has better boundaries than anyone in this building."
+        }
       ],
-      "update": {
-       "memory": "Ishai came to feed the cats as he promised. Wanted me to see a doctor. I said it's the landing. He'll stand guard over Ben-Gurion.",
-       "mood": 1
+      "preview": {
+        "moments": [
+          {
+            "location": "corridor",
+            "action": "talking",
+            "with": "levi",
+            "text": "Mrs. Levi sits on her kitchen chair on the landing in her cardigan, coughing, her phone held at arm's length. She waves Ishai over as he comes up the stairs.",
+            "lines": [
+              {
+                "who": "levi",
+                "say": "Ishai. Come. This telephone has a button that hates me."
+              },
+              {
+                "who": "ishai",
+                "say": "Which one? Hi. You sound worse than yesterday."
+              },
+              {
+                "who": "levi",
+                "say": "It's the landing. Drafty. The microphone one. For a voice message."
+              },
+              {
+                "who": "ishai",
+                "say": "Hold it down while you talk. Let go when you're done."
+              },
+              {
+                "who": "levi",
+                "say": "Hold, talk, let go. Like marriage."
+              },
+              {
+                "who": "ishai",
+                "say": "Who's it for?"
+              },
+              {
+                "who": "levi",
+                "say": "Eli. Today is nothing special. I just want to say hello."
+              },
+              {
+                "who": "ishai",
+                "say": "Okay. Hold here. Go."
+              },
+              {
+                "who": "levi",
+                "say": "Eli, motek, it's Ima. Everything is fine. I'm very busy too..."
+              },
+              {
+                "who": "ishai",
+                "say": "Keep holding. It's still recording."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "'I'm very busy too.' Oh, Mrs. Levi. Nobody busy sits on a chair on the landing."
+              },
+              {
+                "who": "oren",
+                "say": "Hold, talk, let go. She's not wrong about marriage."
+              }
+            ]
+          },
+          {
+            "location": "corridor",
+            "action": "talking",
+            "with": "levi",
+            "text": "A long coughing fit swallows the message. She lets go of the button, looks at the screen and deletes it before Ishai can stop her. Ben-Gurion the grey cat watches from the stairs.",
+            "lines": [
+              {
+                "who": "ishai",
+                "say": "Why delete it? It was nice."
+              },
+              {
+                "who": "levi",
+                "say": "With coughing he'll worry. Then he'll call. Then he's late for work."
+              },
+              {
+                "who": "ishai",
+                "say": "Maybe he'd want to worry. A little."
+              },
+              {
+                "who": "levi",
+                "say": "Sons don't want. Sons are busy. Toronto is a busy city."
+              },
+              {
+                "who": "ishai",
+                "say": "Let me make you tea. The ginger one."
+              },
+              {
+                "who": "levi",
+                "say": "You made three on Friday. Two are still in my fridge."
+              },
+              {
+                "who": "ishai",
+                "say": "Then I'll warm one. And tomorrow you call a doctor?"
+              },
+              {
+                "who": "levi",
+                "say": "Tomorrow I'll see. Feed Ben-Gurion, he's looking at you."
+              },
+              {
+                "who": "ishai",
+                "say": "He looks at everyone like that."
+              },
+              {
+                "who": "levi",
+                "say": "Only at people who feed him. Go, go. Thank you, motek."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "oren",
+                "say": "Ben-Gurion has better boundaries than anyone in this building."
+              },
+              {
+                "who": "zohar",
+                "say": "She deleted it. And 'tomorrow I'll see' is Hebrew for no."
+              }
+            ],
+            "update": {
+              "memory": "Ishai helped me with a voice message to Eli. I coughed and deleted it. He wants me to see a doctor. Tomorrow I'll see.",
+              "mood": 0
+            }
+          }
+        ]
       }
-     },
-     {
-      "location": "street",
-      "action": "idle",
-      "with": null,
-      "text": "By the building entrance Ishai crouches with the bowl. A grey cat comes first, a ginger one circles; he shoos it back with one hand.",
-      "lines": [
-       {
-        "who": "ishai",
-        "say": "Ben-Gurion, sir. Breakfast is served."
-       },
-       {
-        "who": "ishai",
-        "say": "You, ginger. Wait your turn. It's a democracy."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "oren",
-        "say": "He's negotiating with cats now. Gadi should be worried."
-       }
-      ]
-     },
-     {
-      "location": "street",
-      "action": "talking",
-      "with": "moti",
-      "text": "Moti comes out of the building with the committee folder under his arm and stops beside him, watching the cats eat.",
-      "lines": [
-       {
-        "who": "moti",
-        "say": "So she gave you the bowl. She doesn't give anyone the bowl."
-       },
-       {
-        "who": "ishai",
-        "say": "Her cough is bad, Moti. She won't see a doctor."
-       },
-       {
-        "who": "moti",
-        "say": "Yesterday she sat on that landing an hour. For a heart on a phone."
-       },
-       {
-        "who": "ishai",
-        "say": "I was there. Eli calls Friday, she said."
-       },
-       {
-        "who": "moti",
-        "say": "Friday. Every Friday is Friday."
-       },
-       {
-        "who": "ishai",
-        "say": "Do you have his number? Eli's?"
-       },
-       {
-        "who": "moti",
-        "say": "Somewhere. In the committee book. From 2019, when the pipes burst."
-       },
-       {
-        "who": "ishai",
-        "say": "She'd kill me if I called him."
-       },
-       {
-        "who": "moti",
-        "say": "She would. Slowly. With soup."
-       },
-       {
-        "who": "moti",
-        "say": "Just listen at her door at night. If the cough changes, you knock."
-       },
-       {
-        "who": "ishai",
-        "say": "I'll knock. Even if she says she's fine."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "'Every Friday is Friday.' Moti just said a whole novel in four words."
-       },
-       {
-        "who": "oren",
-        "say": "A committee book from 2019. The most dangerous document in this building."
-       }
-      ],
-      "update": {
-       "memory": "Ishai fed Mrs. Levi's cats and worries about her cough. Asked for Eli's number. Told him it's in the committee book. He'll knock if the cough changes.",
-       "mood": 1
-      }
-     }
-    ]
-   }
-  },
-  {
-   "id": "1116-cafe-saturday",
-   "startAt": "2026-11-16T12:40:00+02:00",
-   "deadlineAt": "2026-11-16T13:45:00+02:00",
-   "location": "cafe",
-   "with": "Dana (dana)",
-   "goal": "At Cafe Nahat Ishai finally asks Dana out: Saturday after Shabbat, a walk to the park and falafel at Avi's, 'a real date'. She hesitates a beat, then says yes ('after the stars'). Her zero-four number buzzes again and she turns it face down. When he asks why she hesitated she says things change in January ('the menu, everything'), let's do Saturday before anything changes. Then Lior at the corner table: chapter twelve, 'she says yes, I didn't plan that'; 'there aren't many weeks'. Nobody tells Ishai about Haifa.",
-   "teaser": "Ishai has one question for Dana, and it isn't about coffee",
-   "forceText": "Ishai asks Dana out for Saturday after Shabbat and she says yes.",
-   "forceAction": "talking",
-   "forceWith": "dana",
-   "forceLines": [
-    {
-     "who": "ishai",
-     "say": "Saturday, after Shabbat. A walk, falafel at Avi's. A real date."
     },
     {
-     "who": "dana",
-     "say": "Saturday. After the stars. Yes."
-    }
-   ],
-   "forceCommentary": [
-    {
-     "who": "zohar",
-     "say": "SHE SAID YES. I need a minute. I need a cigarette and I don't smoke."
-    }
-   ],
-   "preview": {
-    "moments": [
-     {
-      "location": "cafe",
-      "action": "drinking",
-      "with": "dana",
-      "text": "Cafe Nahat after the lunch rush. Ishai stands at the counter with both hands around his cup; on the foam, a single basil leaf. He has been rehearsing under his breath since the shops block.",
-      "lines": [
-       {
-        "who": "dana",
-        "say": "One leaf today. The wave was a one-time thing."
-       },
-       {
-        "who": "ishai",
-        "say": "Dana. I have a question. Not a coffee question."
-       },
-       {
-        "who": "dana",
-        "say": "Okay. Non-coffee question. Go."
-       },
-       {
-        "who": "ishai",
-        "say": "Saturday. After Shabbat. A walk to the park, then falafel at Avi's."
-       },
-       {
-        "who": "dana",
-        "say": "Like... the two of us."
-       },
-       {
-        "who": "ishai",
-        "say": "Like a date. A real one. Not a hypothetical."
-       },
-       {
-        "who": "dana",
-        "say": "You practised that."
-       },
-       {
-        "who": "ishai",
-        "say": "Four blocks' worth. Out loud. A woman with a stroller moved away from me."
-       },
-       {
-        "who": "dana",
-        "say": "Saturday."
-       },
-       {
-        "who": "ishai",
-        "say": "You can say no. I'll still drink the coffee."
-       },
-       {
-        "who": "dana",
-        "say": "Saturday. After the stars come out. Yes."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "SHE SAID YES. I need a minute. I need a cigarette and I don't smoke."
-       },
-       {
-        "who": "oren",
-        "say": "She paused for three seconds. I timed it. Three long seconds."
-       }
-      ]
-     },
-     {
-      "location": "cafe",
-      "action": "talking",
-      "with": "dana",
-      "text": "Dana's phone buzzes beside the register: the same zero-four number. She turns it face down without looking and starts drawing a second leaf on nothing, on a napkin.",
-      "lines": [
-       {
-        "who": "ishai",
-        "say": "That number again. Zero-four. The north."
-       },
-       {
-        "who": "dana",
-        "say": "It's... work stuff. It can wait till tomorrow."
-       },
-       {
-        "who": "ishai",
-        "say": "You paused before. Before yes."
-       },
-       {
-        "who": "dana",
-        "say": "Things are going to change a bit in January. The menu. Everything."
-       },
-       {
-        "who": "ishai",
-        "say": "The menu? You're changing the croissants?"
-       },
-       {
-        "who": "dana",
-        "say": "Something like that. So let's do Saturday. Before anything changes."
-       },
-       {
-        "who": "ishai",
-        "say": "Before anything changes. Okay. That sounds... important."
-       },
-       {
-        "who": "dana",
-        "say": "It sounds like falafel. Don't make it a speech."
-       },
-       {
-        "who": "ishai",
-        "say": "No speech. And I'll only apologise five times."
-       },
-       {
-        "who": "dana",
-        "say": "Three. You get three sorries. I'm counting."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "'Before anything changes.' Dana, my love, what is changing? Blink twice."
-       },
-       {
-        "who": "oren",
-        "say": "Three sorries for a whole date. He used four ordering a croissant once."
-       }
-      ],
-      "update": {
-       "memory": "Ishai asked me out: Saturday after Shabbat, a walk and Avi's falafel. I said yes. Told him things change in January. He gets three sorries.",
-       "mood": 1
-      }
-     },
-     {
-      "location": "cafe",
-      "action": "talking",
-      "with": "lior",
-      "text": "Ishai floats to the corner table. Lior has stopped typing and is looking at him over the laptop lid with an odd, careful face.",
-      "lines": [
-       {
-        "who": "lior",
-        "say": "Chapter twelve. She says yes. I didn't plan that."
-       },
-       {
-        "who": "ishai",
-        "say": "Your chapter? Lior, were you listening again?"
-       },
-       {
-        "who": "lior",
-        "say": "The room is small. My ears are large. It's a curse."
-       },
-       {
-        "who": "ishai",
-        "say": "She said things change in January. The menu."
-       },
-       {
-        "who": "lior",
-        "say": "The menu. Yes. Menus change."
-       },
-       {
-        "who": "ishai",
-        "say": "You know something about the menu?"
-       },
-       {
-        "who": "lior",
-        "say": "I know that there aren't many weeks in a year. Use Saturday well."
-       },
-       {
-        "who": "ishai",
-        "say": "That's a strange thing to say about falafel."
-       },
-       {
-        "who": "lior",
-        "say": "Writers say strange things. It's in the contract."
-       },
-       {
-        "who": "ishai",
-        "say": "Put me down for a happy chapter, then."
-       },
-       {
-        "who": "lior",
-        "say": "I'm trying. The characters keep making their own choices."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "oren",
-        "say": "Lior just looked at him like a man reading the last page first."
-       },
-       {
-        "who": "zohar",
-        "say": "Lior, put the laptop down and say what you know. Coward. Beautiful coward."
-       }
-      ],
-      "update": {
-       "memory": "Ishai asked Dana out for Saturday; she said yes. I told him there aren't many weeks. He thinks she means the menu.",
-       "mood": 0
-      }
-     }
-    ]
-   }
-  },
-  {
-   "id": "1116-noa-bags",
-   "startAt": "2026-11-16T21:00:00+02:00",
-   "deadlineAt": "2026-11-16T22:35:00+02:00",
-   "location": "apartment",
-   "with": "Noa (noa)",
-   "goal": "Noa drops her bags off the night before the 'plumbers' (Tuesday 07:00): a duffel and a taped cardboard box with 'S.' in marker. She puts the box in the corner by the closet herself: 'winter stuff, don't open it'. Shir's name lights her phone and she turns it face down. Ishai tells her about Saturday with Dana; she is happy for him, too loudly. He asks for Tomer whether she comes to Wednesday's art night: 'a good maybe... Tomer asked you to ask?' She goes home at 22:20 to let the plumbers in; she sleeps here Tuesday and Wednesday. The box stays.",
-   "teaser": "Noa brings her bags early, and one box she won't explain",
-   "forceText": "Noa drops off a duffel and a taped box marked 'S.' for her couch nights and asks Ishai not to open it.",
-   "forceAction": "talking",
-   "forceWith": "noa",
-   "forceLines": [
-    {
-     "who": "noa",
-     "say": "Winter stuff. Don't open it. It's... organised."
-    },
-    {
-     "who": "ishai",
-     "say": "No questions. I'm the king of no questions."
-    }
-   ],
-   "forceCommentary": [
-    {
-     "who": "oren",
-     "say": "A box marked 'S.' Socks. Definitely socks. I'm sure it's socks."
-    }
-   ],
-   "preview": {
-    "moments": [
-     {
+      "id": "1117-noa-stairs",
+      "startAt": "2026-11-17T21:00:00+02:00",
+      "deadlineAt": "2026-11-17T22:40:00+02:00",
       "location": "apartment",
-      "action": "idle",
-      "with": null,
-      "text": "Nine in the evening. The radio is low; Ishai wipes the counter for the second time. His phone lights up with a text.",
-      "message": {
-       "from": "noa",
-       "kind": "text",
-       "say": "Downstairs. Two bags and a box. Don't ask, carry."
+      "with": "Noa (noa)",
+      "goal": "After trivia night Noa comes to sleep at Ishai's 'because of the plumbers'. Too cheerful; teases that Tomer showed off all night. Ishai asks about the plumbers and she piles on details ('very religious plumbers, early risers'). Her phone buzzes face down at ten; 'a hotel client in Eilat'. At half past ten Ishai brings a blanket to the corridor and finds her on the top stair ending a call: 'not on the phone, I can't, not tonight'. She says everything is amazing. He doesn't push. Ishai does NOT learn about Shir.",
+      "teaser": "Noa sleeps over 'for the plumbers', then a call on the stairs",
+      "forceText": "Noa sleeps at Ishai's after trivia; late at night he finds her on the stairs ending a call she won't explain.",
+      "forceAction": "talking",
+      "forceWith": "noa",
+      "forceLines": [
+        {
+          "who": "noa",
+          "say": "Two minutes. I like the stairs. Stairs don't ask anything."
+        },
+        {
+          "who": "ishai",
+          "say": "Okay. Two minutes. The door's open."
+        }
+      ],
+      "forceCommentary": [
+        {
+          "who": "zohar",
+          "say": "'Stairs don't ask anything.' Saddest sentence of the week."
+        },
+        {
+          "who": "oren",
+          "say": "An emotional hotel in Eilat. At half past ten. On the stairs."
+        }
+      ],
+      "preview": {
+        "moments": [
+          {
+            "location": "apartment",
+            "action": "talking",
+            "with": "noa",
+            "text": "After trivia, Noa comes in with a pillow under her arm and a toothbrush in her coat pocket, still buzzing from the quiz. She drops the pillow on the armchair like she owns it.",
+            "lines": [
+              {
+                "who": "noa",
+                "say": "Tomer argued every single answer with Dana. Every one. Showing off."
+              },
+              {
+                "who": "ishai",
+                "say": "Showing off for who? Dana's busy. Saturday, with me."
+              },
+              {
+                "who": "noa",
+                "say": "For the room. Tomer shows off for furniture. He's sweet."
+              },
+              {
+                "who": "ishai",
+                "say": "So how were the plumbers? Three, you said."
+              },
+              {
+                "who": "noa",
+                "say": "A nightmare. The pipes are from the Mandate. Lead. They poisoned the British."
+              },
+              {
+                "who": "ishai",
+                "say": "Sivan at the gym says nobody gets a plumber at seven."
+              },
+              {
+                "who": "noa",
+                "say": "Who's Sivan? Is Sivan a plumber? No? Then Sivan doesn't know."
+              },
+              {
+                "who": "ishai",
+                "say": "She runs at ten an hour. She knows things."
+              },
+              {
+                "who": "noa",
+                "say": "Mine came at seven. Very religious plumbers. Early risers. Can we have tea?"
+              },
+              {
+                "who": "ishai",
+                "say": "Tea. Yes. Sit."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "'Very religious plumbers.' She's building the lie live, with extensions."
+              },
+              {
+                "who": "oren",
+                "say": "Tomer shows off for furniture. Tomer shows off for one piece of furniture."
+              }
+            ]
+          },
+          {
+            "location": "apartment",
+            "action": "drinking",
+            "with": "noa",
+            "text": "Tea at the island. Noa's phone buzzes face down on the counter and keeps buzzing; she doesn't turn it over. Her eyes go to the taped box by the closet, then away.",
+            "lines": [
+              {
+                "who": "ishai",
+                "say": "It's buzzing. Answer, I'll wash the cups."
+              },
+              {
+                "who": "noa",
+                "say": "It's a client. Clients at ten at night should be illegal."
+              },
+              {
+                "who": "ishai",
+                "say": "Which client?"
+              },
+              {
+                "who": "noa",
+                "say": "A hotel in Eilat. They want the logo to feel like 'a hug in August'."
+              },
+              {
+                "who": "ishai",
+                "say": "That's actually a good brief."
+              },
+              {
+                "who": "noa",
+                "say": "Don't side with them. You side with me. Always."
+              },
+              {
+                "who": "ishai",
+                "say": "Always. I didn't open the box, by the way."
+              },
+              {
+                "who": "noa",
+                "say": "I know. You'd have the face. The guilty face."
+              },
+              {
+                "who": "ishai",
+                "say": "I don't have a guilty face."
+              },
+              {
+                "who": "noa",
+                "say": "You have only guilty face. It's why I love you. Go to bed."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "oren",
+                "say": "A hotel in Eilat calling at ten. That hug in August is very persistent."
+              },
+              {
+                "who": "zohar",
+                "say": "'You side with me. Always.' She needs that more than she's saying."
+              }
+            ]
+          },
+          {
+            "location": "corridor",
+            "action": "talking",
+            "with": "noa",
+            "text": "Half past ten. Ishai brings a blanket out to the landing, where Noa sits on the top stair with her phone at her ear. She ends the call too fast when she sees him.",
+            "lines": [
+              {
+                "who": "noa",
+                "say": "...not on the phone. I can't. Not tonight. Bye."
+              },
+              {
+                "who": "ishai",
+                "say": "Sorry. Blanket. It's cold on the stairs."
+              },
+              {
+                "who": "noa",
+                "say": "Thanks. The hotel. Very emotional people in Eilat."
+              },
+              {
+                "who": "ishai",
+                "say": "Noa. Is everything okay?"
+              },
+              {
+                "who": "noa",
+                "say": "Everything's amazing. I'm at yours, there's tea, you have a date."
+              },
+              {
+                "who": "ishai",
+                "say": "That's three things about me."
+              },
+              {
+                "who": "noa",
+                "say": "Because you're the interesting one this month. Enjoy it."
+              },
+              {
+                "who": "ishai",
+                "say": "Come inside. Mrs. Levi will hear us."
+              },
+              {
+                "who": "noa",
+                "say": "Two minutes. I like the stairs. Stairs don't ask anything."
+              },
+              {
+                "who": "ishai",
+                "say": "Okay. Two minutes. The door's open."
+              }
+            ],
+            "commentary": [
+              {
+                "who": "zohar",
+                "say": "'Stairs don't ask anything.' Noa, honey, saddest sentence of the week."
+              },
+              {
+                "who": "oren",
+                "say": "Three things about him. Zero about her. He noticed. Finally."
+              }
+            ],
+            "update": {
+              "memory": "Sleeping at Ishai's for the plumbers. He brought me a blanket on the stairs and asked if I'm okay. Said everything's amazing. He hasn't opened the box.",
+              "mood": 0
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "overrides": [],
+  "hook": {
+    "date": "2026-11-17",
+    "text": "Noa cut a late call on the stairs: 'not on the phone, not tonight'. Who is she really talking to, and what's in the box?"
+  },
+  "previously": {
+    "date": "2026-11-17",
+    "text": "Noa left the taped 'S.' box by the closet and told him not to open it. He circled it all evening, didn't touch it, and went to bed with it still taped."
+  },
+  "texture": {
+    "date": "2026-11-17",
+    "hosts": [
+      "Tuesday: lecture at eleven, trivia at half past seven. Busy man, for a man with no boss.",
+      "Today's lecture is about hoaxes. Fitting. Somebody in this show is running one.",
+      "Princess Caraboo fooled a whole English town for ten weeks. Some people manage it with plumbers.",
+      "Trivia night at Cafe Nahat. Dana with a microphone. Zohar, breathe.",
+      "HERZL HEADS against THE OWLS. My money's on the owls. They're up at night anyway.",
+      "Noa's sleeping at Ishai's tonight. 'For the plumbers.' I'll say no more. I'll say a little more later.",
+      "Moshe the basil had a quiet night. Oren checked. Twice.",
+      "I did not check twice. I checked once and then I confirmed.",
+      "That box marked 'S.' is still by the closet. Untouched. The man has the willpower of a monk.",
+      "Or he's scared of tape. Fifty-fifty.",
+      "Avi's kiosk, the queue at half past six. Best falafel on Herzl, ask anyone.",
+      "Mrs. Levi's game show is at seven thirty. She shouts the answers through the wall.",
+      "Saturday is the date. A walk and falafel. Four days. I'm counting, he's counting, Falafel the dog is counting.",
+      "Nobody tells Ishai anything this week. Have you noticed? Everybody's smiling and nobody's talking.",
+      "Gadi promised a number by Thursday. A number of what, he didn't say.",
+      "The Pump House tomorrow: Quiet Signals. Art you look at in silence. Tomer will talk through all of it.",
+      "Sivan at the gym runs faster than my Wi-Fi.",
+      "If Ishai apologises to a treadmill today, I win a bet.",
+      "Lior's novel is on chapter twelve. I'd read it. I feel like I already have.",
+      "Partly cloudy, twenty-one. Perfect weather for not saying what you mean.",
+      "School's out at half past one. Herzl Street gets loud, Ishai gets louder at his desk.",
+      "Piano practice upstairs at four. Same scale, every Tuesday. It's getting better. Slowly.",
+      "Somebody give Ishai a raise. Oh wait. That's the whole problem.",
+      "Dana asks the questions tonight. For once, Ishai has to answer out loud.",
+      "Ben-Gurion the cat is the most powerful resident of the building. Fight me."
+    ],
+    "radio": [
+      "Radio Herzl 88.2, Tuesday morning. Partly cloudy, twenty-one. Sleeves optional.",
+      "If your plumber shows up before eight, call us. We'd like to interview him.",
+      "Traffic on Herzl is moving, the 88 is on time, which is news in itself.",
+      "Next up, a song for everyone pretending they're fine. Which is everyone.",
+      "Quiz night tonight somewhere in this city? Here's a free answer: it's never Sydney.",
+      "Our listener Rivka says her cat ignores her. Rivka, that's how they say I love you.",
+      "Tuesday fact: the average Tel Avivian says 'sababa' forty times a day. We counted. Badly.",
+      "Coming up after the news: forty minutes of songs about trains. Don't ask.",
+      "To the man who sings along on Herzl Street every morning: we hear you. Literally.",
+      "Weather tonight: mild. Perfect for sitting on the stairs and not talking.",
+      "Radio Herzl, eighty-eight point two. The only station that admits it's Tuesday.",
+      "A song for the night shift, the bakers and everyone up with a full head."
+    ],
+    "mutter": {
+      "zelig": [
+        "The pigeons are early today. Somebody is waiting for something.",
+        "A box that says one letter. One letter is a whole name, if you know.",
+        "In 1971 nobody had plumbers. We had brothers.",
+        "Tuesday. Even the duck looks busy."
+      ],
+      "michal": [
+        "Run club Friday. I'll definitely come this time. Probably.",
+        "Sivan says the husky guy came back. Interesting.",
+        "Mirror, mirror, why do I look tired at nine."
+      ],
+      "sivan": [
+        "Six. He held six. Almost.",
+        "Plumbers at seven. Sure.",
+        "Twenty-five Wednesday. Let's see."
+      ],
+      "lior": [
+        "Chapter thirteen: the friend sleeps over. No. Too close. Keep it.",
+        "She said 'by December'. December is soon.",
+        "The man ordered his coffee without saying sorry. I have to rewrite page four.",
+        "Quiz night. Good. Everybody in one room, nobody saying the true thing."
+      ],
+      "kobi": [
+        "Tuesday. Tuesday numbers are seven and thirty-one. Always.",
+        "One beer. Then the system. Then maybe one beer.",
+        "Quiz at the cafe? Quiz is lottery for people with glasses.",
+        "...no, listen, the lottery remembers you. It REMEMBERS."
+      ]
+    },
+    "overheard": {
+      "street": [
+        "...and he said the rent's going up again, I said everything's going up...",
+        "...three plumbers? before eight? where does she live, Switzerland...",
+        "...Avi didn't even say anything clever today, I got worried...",
+        "...the 88 came on time, I almost missed it out of shock..."
+      ],
+      "market": [
+        "...two kilo tomatoes and don't give me the soft ones...",
+        "...my son in Toronto, he calls Fridays, sometimes...",
+        "...this mint is from this morning, smell it, smell..."
+      ],
+      "park": [
+        "...she says she's fine, everyone says they're fine...",
+        "...the duck has a name, I'm not telling you...",
+        "...ten minutes and back, the dog decides..."
+      ],
+      "cafe": [
+        "...is it trivia tonight? I'm terrible at it, I'm coming...",
+        "...Haifa? no, I said I'd think about it...",
+        "...the guy in the corner writes the same page every day..."
+      ]
+    },
+    "chat": [
+      {
+        "at": "08:20",
+        "who": "Committee",
+        "say": "Reminder: gas delivery at 10:00. Please leave the meter cupboard open."
       },
-      "lines": [
-       {
-        "who": "ishai",
-        "say": "'Don't ask, carry.' The most Noa sentence ever written."
-       },
-       {
-        "who": "ishai",
-        "say": "Coming. Falafel, guard the soup."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "The plumbers aren't until tomorrow. Why is she moving in tonight?"
-       }
-      ]
-     },
-     {
-      "location": "apartment",
-      "action": "talking",
-      "with": "noa",
-      "text": "Noa comes in ahead of him with a duffel bag; Ishai follows with a taped cardboard box, 'S.' written on its side in black marker. She takes it from him and pushes it into the corner by the closet herself.",
-      "lines": [
-       {
-        "who": "noa",
-        "say": "Not there. Here. By the closet. It likes corners."
-       },
-       {
-        "who": "ishai",
-        "say": "It's heavy. What's in it, bricks?"
-       },
-       {
-        "who": "noa",
-        "say": "Winter stuff. Don't open it. It's... organised."
-       },
-       {
-        "who": "ishai",
-        "say": "No questions. I'm the king of no questions."
-       },
-       {
-        "who": "noa",
-        "say": "You drew a question mark under my name in your notebook. I saw it Sunday."
-       },
-       {
-        "who": "ishai",
-        "say": "That was a small one. Decorative."
-       },
-       {
-        "who": "noa",
-        "say": "Plumbers at seven. Then you get me tomorrow night and Wednesday."
-       },
-       {
-        "who": "ishai",
-        "say": "The couch is made. Fresh sheets. The good pillow."
-       },
-       {
-        "who": "noa",
-        "say": "You gave me the good pillow? Now I feel bad."
-       },
-       {
-        "who": "ishai",
-        "say": "Don't. It's a pillow, not a kidney."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "oren",
-        "say": "A box marked 'S.' Socks. Definitely socks. I'm sure it's socks."
-       },
-       {
-        "who": "zohar",
-        "say": "She saw the question mark. Ishai, you can't hide a question mark from a tattoo artist."
-       }
-      ]
-     },
-     {
-      "location": "apartment",
-      "action": "talking",
-      "with": "noa",
-      "text": "They sit at the island with tea. Her phone lights up on the counter with 'Shir' on the screen; she turns it face down without a word and asks about Dana instead.",
-      "lines": [
-       {
-        "who": "noa",
-        "say": "So? Did you ask the barista? Tell me you asked."
-       },
-       {
-        "who": "ishai",
-        "say": "Saturday. After Shabbat. A walk and Avi's falafel. She said yes."
-       },
-       {
-        "who": "noa",
-        "say": "YES! I told you! A walk and falafel, that's so you it hurts."
-       },
-       {
-        "who": "ishai",
-        "say": "You're shouting. Mrs. Levi is sick next door."
-       },
-       {
-        "who": "noa",
-        "say": "Sorry, sorry. I'm just... happy. For somebody. For you."
-       },
-       {
-        "who": "ishai",
-        "say": "Tomer asked me to ask. Wednesday, the art night. Are you coming?"
-       },
-       {
-        "who": "noa",
-        "say": "Tomer asked you to ask me? Why didn't Tomer ask me?"
-       },
-       {
-        "who": "ishai",
-        "say": "He sat behind you in fourth grade. He's still shy about it."
-       },
-       {
-        "who": "noa",
-        "say": "Tell him maybe. A good maybe."
-       },
-       {
-        "who": "noa",
-        "say": "I'm going. I'll sleep at mine tonight, let the plumbers in."
-       },
-       {
-        "who": "ishai",
-        "say": "Leave the box. I won't open it."
-       }
-      ],
-      "commentary": [
-       {
-        "who": "zohar",
-        "say": "'Happy for somebody.' Noa, honey, who is the somebody who isn't happy?"
-       },
-       {
-        "who": "oren",
-        "say": "She turned the phone over so fast it's legally a magic trick."
-       }
-      ],
-      "update": {
-       "memory": "Left my bags and the box at Ishai's, told him not to open it. He asked Dana out for Saturday, she said yes. Tomer asked about Wednesday. Said a good maybe.",
-       "mood": 1
+      {
+        "at": "09:05",
+        "who": "Apt 7",
+        "say": "Gas man at ten. Does he need keys, or do we just pray?"
+      },
+      {
+        "at": "11:40",
+        "who": "Mrs. Levi",
+        "say": "Who has lemons? Not for me. For a friend. Thank you."
+      },
+      {
+        "at": "13:35",
+        "who": "Apt 1",
+        "say": "Kids out of school, stair light still flickering. Moti, the receipt for the bulb?"
+      },
+      {
+        "at": "16:20",
+        "who": "Committee",
+        "say": "The bulb is ordered. Patience is also a bulb."
+      },
+      {
+        "at": "18:10",
+        "who": "Apt 2",
+        "say": "Avi's queue goes to the corner today. Worth it."
+      },
+      {
+        "at": "19:20",
+        "who": "Mrs. Levi",
+        "say": "Game show at 7:30. If you hear shouting, it's the correct answer."
+      },
+      {
+        "at": "21:50",
+        "who": "Apt 7",
+        "say": "Whoever is on the stairs, the light switch is on the left. Good night."
       }
-     }
     ]
-   }
   }
- ],
- "overrides": [],
- "hook": {
-  "date": "2026-11-16",
-  "text": "Noa left a taped box marked 'S.' by Ishai's closet and asked him not to open it. What's inside, and why is she moving in early?"
- },
- "previously": {
-  "date": "2026-11-16",
-  "text": "Noa asked for Ishai's couch 'for the plumbers', no questions, then dodged two calls. She'll drop her bags off tonight. Ishai drew a small question mark under her name."
- },
- "texture": {
-  "hosts": [
-   "Monday. Ben-Gurion Day. Somewhere a cat called Ben-Gurion is about to eat first.",
-   "Gadi's Hanukkah files are due 'first thing'. In Gadi's world first thing is also last thing.",
-   "Ishai's notebook now has three 'I want's. That's three more than last month.",
-   "Moshe the basil had a quiet night. Moshe always has a quiet night. Moshe is a role model.",
-   "Mrs. Levi's cough has a new note in it today. Oren, don't make a joke.",
-   "I wasn't going to make a joke. I was going to make tea.",
-   "Viewers keep asking about the zero-four number on Dana's phone. Zero-four is somewhere up north. Just saying.",
-   "Lior has typed the word 'January' twice today. We zoomed in. We're not proud.",
-   "Noa says plumbers. We checked. Nobody in her building called a plumber.",
-   "Tomer can rewire a whole building but can't send one text to Noa. Electricians.",
-   "If Ishai says yes to one more free thing for Gadi, I'm sending him an invoice myself.",
-   "Ishai practising out loud on the street. A pigeon heard the whole speech.",
-   "Wednesday the Pump House hangs pictures again. Tomer is going 'for the frames'.",
-   "Rule one of Tel Aviv dating: the falafel place is the restaurant.",
-   "Somebody in this building has Eli's number. It's in a book. Books are dangerous.",
-   "Falafel the dog hasn't apologised once in his life. Ishai should take notes.",
-   "Ruti asked for Ishai's number. Remember that name. That's all we'll say.",
-   "Oren, if Dana leaves Tel Aviv I'm leaving the studio. I'm not even joking.",
-   "Nobody said anyone is leaving. I said nothing. I'm a vault.",
-   "Gadi's 'small small' has a cousin called 'tiny'. Watch out for the cousin.",
-   "Mrs. Levi wore lipstick for a text message yesterday. Today: a cardigan and courage.",
-   "Lior's chapter eleven was about a man who answers a question. Chapter twelve is loading.",
-   "Monday tip from Oren: never trust a box that someone tells you not to open.",
-   "Moti carries the committee folder like other men carry a weapon.",
-   "A week from today there's poker at Boaz's. Ishai doesn't know it yet. Shh."
-  ],
-  "radio": [
-   "Radio Herzl 88.2, Monday morning. It's Ben-Gurion Day, so stand on your head for a minute. He'd like that.",
-   "Partly cloudy over Tel Aviv, seventeen degrees. A jacket you take off by noon.",
-   "Traffic on Herzl is moving. Slowly. Like a Monday.",
-   "Next up, a love song. Not for anyone in particular. Or for one particular person.",
-   "Caller says her cat only eats if you call him by his full name. Respect.",
-   "It's past nine. If you haven't answered that email, it's answering you.",
-   "Lunchtime. Remember: the falafel place is a restaurant if you sit down.",
-   "Afternoon on 88.2. Somebody text your mother. She's pretending she doesn't mind.",
-   "Evening is coming early these days. Turn a lamp on and call it cosy.",
-   "Late show. For everyone carrying a box up the stairs tonight: lift with your knees.",
-   "Here's a slow one for the night owls and the people who can't stop checking their phone.",
-   "Radio Herzl 88.2, still here. Like a neighbour who never moves out."
-  ],
-  "mutter": {
-   "zelig": [
-    "Ben-Gurion stood on his head every morning. I stand on my bench. Different philosophy.",
-    "The pigeons know when someone is leaving. They walk differently.",
-    "Monday is a promise Sunday couldn't keep.",
-    "In 1971 the cats on this street had better manners."
-   ],
-   "michal": [
-    "Monday legs. Nobody warned me about Monday legs.",
-    "Friday run club, seven sharp. I'll be there in spirit.",
-    "The mirror says I'm fine. The mirror is a liar."
-   ],
-   "sivan": [
-    "Ten minutes is not a warm-up, it's a nap.",
-    "Incline eight. If you're talking, you're not working.",
-    "Monday. Treadmill four is mine. Everyone knows."
-   ],
-   "lior": [
-    "January. She said January. Or did I write January?",
-    "Chapter twelve: the man practises a question four blocks long.",
-    "Never let the characters know they're characters.",
-    "There aren't many weeks. Good line. Keep it."
-   ],
-   "kobi": [
-    "Monday at the bar is for professionals.",
-    "Seven, fourteen, twenty-two... the system needs a Monday number.",
-    "Kobi's rule: a man who orders water at nine has a reason.",
-    "Midnight soon. My system works best at midnight. Ask anyone."
-   ]
-  },
-  "overheard": {
-   "street": [
-    "...he said Ben-Gurion Day, I said is the bank closed?...",
-    "...the kiosk guy didn't even say his proverb today...",
-    "...my plumber? Never on time. Never...",
-    "...a cat with a name like that, it's a statesman..."
-   ],
-   "market": [
-    "...lemons two for ten, honey, take three...",
-    "...for a cough? Ginger. Not the powder, the root...",
-    "...my son calls Fridays. Some Fridays..."
-   ],
-   "park": [
-    "...he ran past me twice and called it a marathon...",
-    "...the duck is new, the duck wasn't here last week...",
-    "...three laps and he calls it cardio..."
-   ],
-   "cafe": [
-    "...extra shot, oat, no foam, she knows...",
-    "...the almond croissant is back, finally...",
-    "...don't ask a writer what he's writing, ever..."
-   ]
-  },
-  "chat": [
-   {
-    "at": "08:20",
-    "who": "Committee",
-    "say": "Reminder: the stair light on 1 is fixed. Please stop fixing it yourselves."
-   },
-   {
-    "at": "08:26",
-    "who": "Apt 7",
-    "say": "Who fixed it? The tape is still there."
-   },
-   {
-    "at": "10:15",
-    "who": "Committee",
-    "say": "If anyone hears coughing in the night, it's not the pipes. Just knock."
-   },
-   {
-    "at": "12:40",
-    "who": "Mrs. Levi",
-    "say": "I'm fine. Moti, stop writing about me in the group."
-   },
-   {
-    "at": "15:05",
-    "who": "Apt 1",
-    "say": "Ben-Gurion the cat ate before the ginger one. Witnessed."
-   },
-   {
-    "at": "18:30",
-    "who": "Apt 2",
-    "say": "Anyone want soup? Made too much again. Knock on 2."
-   },
-   {
-    "at": "21:10",
-    "who": "Apt 7",
-    "say": "Somebody is carrying boxes up the stairs at nine. Moving in or out?"
-   },
-   {
-    "at": "21:14",
-    "who": "Mrs. Levi",
-    "say": "It's for apartment 4. Mind your business, 7. With love."
-   }
-  ],
-  "date": "2026-11-16"
- }
 }
