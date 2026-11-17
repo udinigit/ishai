@@ -83,6 +83,7 @@ const HOSTS_SPORTS = {
   rules: HOSTS.rules
 };
 // a sports-style host line's cue: "after" = the spoken line it follows (1..lines-1; the last line or beyond = after the talk), "hype" 0-3
+const hostSay = t => String(t || "").replace(/^\s*\(?\s*(after|pre)(\s*line)?\s*\d*\s*\)?\s*[:\-–]\s*/i, "");   // a writer that put the cue into the words ("After: ...")
 const hostCue = (x, nLines) => { const o = {}, a = Number(x && x.after), h = Number(x && x.hype);
   if (Number.isInteger(a) && a >= 1 && a < nLines) o.after = a; if (Number.isInteger(h) && h >= 0 && h <= 3) o.hype = h; return o; };
 const hostsSports = s => !s || s.hostsStyle !== "classic";
@@ -1252,7 +1253,7 @@ Reply with ONLY JSON: {"moments":[{${briefs.some(Boolean) ? '"pre":[{"who":"zoha
     const used = [...said];
     moments.forEach((m, i) => {
       const nl = (m.lines || []).length;
-      const c = (Array.isArray(arr[i]?.commentary) ? arr[i].commentary : []).map(x => ({ who: String(x?.who || "").toLowerCase().trim(), say: String(x?.say || "").replace(/\s+/g, " ").trim().replace(/^["']|["']$/g, "").slice(0, 160), ...(sports ? hostCue(x, nl) : {}) }))
+      const c = (Array.isArray(arr[i]?.commentary) ? arr[i].commentary : []).map(x => ({ who: String(x?.who || "").toLowerCase().trim(), say: hostSay(String(x?.say || "").replace(/\s+/g, " ").trim()).replace(/^["']|["']$/g, "").slice(0, 160), ...(sports ? hostCue(x, nl) : {}) }))
         .filter(x => (x.who === "zohar" || x.who === "oren") && x.say.length > 3 && !isRepeat(x.say, used) && (!DOG_WORDS.test(x.say) || dogInMoment(s, m))).slice(0, sports ? 3 : 2);
       c.forEach(x => used.push(x.say));
       if (teaseNow && c.some(x => TEASE_RE.test(x.say))) s.lastTease = now;
@@ -1500,7 +1501,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   if (o.message && typeof o.message === "object") { const id = str(o.message.from, 20).toLowerCase(), say = str(o.message.say, 160), via = str(o.message.kind, 10).toLowerCase() === "email" ? "email" : "text";
     if (s.cast[id] && say) ev.lines.unshift({ who: id, say, via }); }
   { const cm = (Array.isArray(o.commentary) ? o.commentary : [])
-      .map(c => ({ who: str(c?.who, 10).toLowerCase(), say: str(c?.say, 160).replace(/^["']|["']$/g, ""), ...(c?.pre === true ? { pre: true } : hostsSports(s) ? hostCue(c, ev.lines.length) : {}) }))
+      .map(c => ({ who: str(c?.who, 10).toLowerCase(), say: hostSay(str(c?.say, 160)).replace(/^["']|["']$/g, ""), ...(c?.pre === true ? { pre: true } : hostsSports(s) ? hostCue(c, ev.lines.length) : {}) }))
       .filter(c => (c.who === "zohar" || c.who === "oren") && c.say);
     ev.commentary = [...cm.filter(c => c.pre).slice(0, 2), ...cm.filter(c => !c.pre).slice(0, hostsSports(s) ? 3 : 2)]; }   // sports style (v260): up to 3, with "after" and "hype"   // "pre": the hosts' setup before a scene's first line
   if (o.feel && typeof o.feel === "object") { const fw = str(o.feel.who, 30).toLowerCase(), fm = str(o.feel.mood, 14).toLowerCase();   // a mood the story sets mid-scene (body language at once)
