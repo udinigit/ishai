@@ -133,6 +133,12 @@
       <div id="wish"></div></div>
     </section>
     <section class="tab" data-tab="cast" hidden>
+    <div class="box" id="audBox"><div style="font-size:24px" id="audT">Auditions</div>
+      <div class="muted" style="font-size:16px">Viewers' own characters (docs/AUDITION_PLAN.md). Requests wait here; approve or decline each, with an optional reason the viewer sees. Steps 1-2 are built: the interview page (step 3) is not yet, so an approval now only waits (it lapses after 14 days).</div>
+      <div id="audSum" class="muted" style="font-size:16px"></div>
+      <div id="audReq" style="font-size:17px"></div><div id="audMsg" class="muted" style="font-size:16px"></div>
+      <details style="margin-top:6px"><summary>Decided lately</summary><div id="audDone" style="font-size:16px"></div></details>
+      <details style="margin-top:6px"><summary>Banned accounts</summary><div id="audBan" style="font-size:16px"></div></details></div>
     <div class="box" id="cxRevBox"><div style="font-size:24px" id="cxRevT">Waiting for review</div>
       <div class="muted" style="font-size:16px">Claude reviews these every week; you can do it here first. Approve, edit or reject each, with a one-line reason.</div>
       <div id="cxPend" style="font-size:17px"></div><div id="cxMsg" class="muted" style="font-size:16px"></div></div>
@@ -329,6 +335,49 @@
       const s = id === 'ishai' ? B.sprite({kind: 'ishai', pose: 'idle', frame: 0}) : look ? B.sprite({kind: 'person', look, pose: 'stand', face: 'ahead', frame: 0}) : null;
       if (s) { const c = document.createElement('canvas'); c.width = s.w; c.height = s.h; c.getContext('2d').drawImage(s.canvas, 0, 0); PORTRAIT[id] = {canvas: c, w: s.w, h: s.h}; paint(); } } catch (e) {} });
   }
+  // ---- Auditions (docs/AUDITION_PLAN.md, steps 1-2): /api/member/dir ----
+  let AUD = null; const AUD_ART = {};
+  async function audApi(body){
+    const r = await fetch('/api/member/dir', {method: body ? 'POST' : 'GET', headers: {'x-admin-key': KEY, 'content-type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
+    const j = await r.json().catch(() => ({error: 'bad response (' + r.status + ')'})); if (!r.ok) throw new Error(j.error || 'error ' + r.status); return j;
+  }
+  function audFace(look){   // the avatar, drawn by the hidden builder frame
+    const cv = document.createElement('canvas'); cv.width = 40; cv.height = 64; cv.style.cssText = 'image-rendering:pixelated;background:#020502;border:1px solid var(--faint);flex:none';
+    if (!look) return cv; const k = JSON.stringify(look);
+    cxArt().then(B => { if (!B) return; try { const s = AUD_ART[k] || (AUD_ART[k] = B.sprite({kind: 'person', look, pose: 'stand', face: 'ahead', frame: 0})); if (!s) return;
+      const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; const f = Math.max(1, Math.min(Math.floor(40 / s.w), Math.floor(64 / s.h))); x.drawImage(s.canvas, Math.floor((40 - s.w * f) / 2), 64 - s.h * f, s.w * f, s.h * f); } catch (e) {} });
+    return cv;
+  }
+  const AUD_WORD = {requested: 'asked', declined: 'declined', approved: 'approved', interview: 'in interview', submitted: 'in review', offered: 'offered a role', reading: 'table read', on: 'on the show', leaving: 'leaving', left: 'left the show'};
+  function audRow(m, buttons){
+    const d = cxEl('div'); d.className = 'inb'; d.style.display = 'flex'; d.style.gap = '10px'; d.style.alignItems = 'flex-start';
+    d.appendChild(audFace(m.avatar)); const b = cxEl('div'); b.style.flex = '1';
+    b.appendChild(cxEl('div', `Viewer #${m.short} · ${AUD_WORD[m.state] || m.state}${m.banned ? ' · BANNED' : ''}`));
+    b.appendChild(cxEl('div', `member since ${fmt(m.since)}${m.asked ? ' · asked ' + fmt(m.asked) : ''}${m.decided ? ' · decided ' + fmt(m.decided) : ''}${m.lapses ? ' · lapses ' + fmt(m.lapses) : ''}${m.note ? ' · reason: ' + m.note : ''}`, 'font-size:15px;opacity:.75'));
+    if (buttons) b.appendChild(buttons); d.appendChild(b); return d;
+  }
+  function audDecide(m){   // Approve / Decline open a small form in place: a one-line reason for the viewer (optional)
+    const wrap = cxEl('div'), bar = cxEl('div'), ed = cxEl('div'); bar.className = 'bar'; ed.hidden = true; ed.className = 'ed';
+    const open = act => { ed.textContent = ''; ed.hidden = false; bar.hidden = true;
+      ed.appendChild(cxEl('label', act === 'decline' ? 'Reason for the viewer (optional, they see it)' : act === 'ban' ? 'Reason (optional, the viewer sees it)' : 'Approve this request? The viewer gets a notification.'));
+      const why = cxEl('input'); if (act !== 'approve') ed.appendChild(why);
+      const b2 = cxEl('div'); b2.className = 'bar'; b2.style.marginTop = '6px';
+      b2.append(cxBtn(act === 'approve' ? 'Approve' : act === 'ban' ? 'Ban' : 'Decline', () => audDo({action: act, id: m.id, reason: why.value.trim()}, act === 'approve' ? 'Approved; the viewer was told.' : act === 'ban' ? 'Banned.' : 'Declined; the viewer was told.')),
+        cxBtn('Cancel', () => { ed.hidden = true; bar.hidden = false; }, true)); ed.appendChild(b2); };
+    bar.append(cxBtn('Approve', () => open('approve')), cxBtn('Decline', () => open('decline'), true), cxBtn('Ban', () => open('ban'), true));
+    wrap.append(bar, ed); return wrap;
+  }
+  async function audDo(body, msg){ const m = $('audMsg'); m.className = 'muted'; m.textContent = 'Saving…';
+    try { audRender(await audApi(body)); m.className = 'ok'; m.textContent = msg; } catch (e) { m.className = 'err'; m.textContent = e.message; } }
+  function audRender(v){
+    AUD = v; $('audT').textContent = 'Auditions' + (v.requests.length ? ` (${v.requests.length} waiting)` : '');
+    $('audSum').textContent = `${v.members} member${v.members === 1 ? '' : 's'} with an avatar or a request · at most ${v.max} member characters on the show at once.`;
+    const rq = $('audReq'); rq.textContent = ''; v.requests.forEach(m => rq.appendChild(audRow(m, audDecide(m)))); if (!v.requests.length) rq.appendChild(cxEl('div', 'No requests waiting.', 'opacity:.7'));
+    const dn = $('audDone'); dn.textContent = ''; v.decided.forEach(m => dn.appendChild(audRow(m))); if (!v.decided.length) dn.appendChild(cxEl('div', 'None yet.', 'opacity:.7'));
+    const bn = $('audBan'); bn.textContent = ''; v.banned.forEach(m => bn.appendChild(audRow(m, (() => { const b = cxEl('div'); b.className = 'bar'; b.appendChild(cxBtn('Lift the ban', () => audDo({action: 'unban', id: m.id}, 'Ban lifted.'), true)); return b; })()))); if (!v.banned.length) bn.appendChild(cxEl('div', 'None.', 'opacity:.7'));
+    if (window.LAST_V) renderInbox(window.LAST_V);
+  }
+  async function audLoad(){ try { audRender(await audApi()); } catch (e) { $('audMsg').className = 'err'; $('audMsg').textContent = e.message; } }
   const pairOf = (v, a, b) => v.pairs.find(p => (p.a === a && p.b === b) || (p.a === b && p.b === a));
   async function cxLoad(){
     let v; try { v = await cxApi(); } catch (e) { $('cxSum').textContent = 'Cast: ' + e.message; return; }
@@ -617,6 +666,8 @@
     (v.bugs || []).filter(b => b.status === 'new').forEach(b => inboxItem(box, 'red', `Bug report · ${fmt(b.at)}: ${b.text}`, b.screen + (b.page ? ' · ' + b.page : '') + ' · build ' + b.build,
       [['Mark fixed', () => act({action: 'bugDone', id: b.id})]]));
     (CX ? CX.pending : []).forEach(p => { const d = el('div', null, 'inb cast'); d.appendChild(el('div', `Cast #${p.n} ${p.kind}: ${cxChange(p)}`)); d.appendChild(el('div', 'Why: ' + (p.why || '—'), 'why')); d.appendChild(cxReviewBar(p)); box.appendChild(d); });
+    window.LAST_V = v;
+    (AUD ? AUD.requests : []).forEach(m => { const d = el('div', null, 'inb'); d.appendChild(el('div', `Audition request · viewer #${m.short} · ${fmt(m.asked)}`)); d.appendChild(audDecide(m)); box.appendChild(d); });
     (v.goals || []).filter(g => g.status === 'needs-art').forEach(g => inboxItem(box, '', 'Goal waiting for art: ' + g.goal, 'Art needed: ' + (g.art || '—'),
       [['Release (art is ready)', () => act({action: 'release', id: g.id})]]));
     if (v.filmLate) { const f = v.filmLate; inboxItem(box, 'red', `The film isn't written: ${f.title} (${f.done}${f.of ? ' of ' + f.of : ''} parts), Saturday ${hm(f.at)}`, 'Not ready by Friday noon, an older film comes back instead.',
@@ -689,13 +740,13 @@
   collapsible();
   // ---- tabs and the once-a-minute refresh (docs/DIRECTOR_UI_PLAN.md, step 1) ----
   const TAB_KEYS = ['now', 'story', 'cast', 'week', 'more'];
-  DirBar.onTab = k => { document.querySelectorAll('#main .tab').forEach(t => t.hidden = t.dataset.tab !== k); if (k === 'cast') { cxArt(); if (CX) cxLoad(); } };
+  DirBar.onTab = k => { document.querySelectorAll('#main .tab').forEach(t => t.hidden = t.dataset.tab !== k); if (k === 'cast') { cxArt(); if (CX) cxLoad(); audLoad(); } };
   const hashTab = () => { const h = location.hash.slice(1); return TAB_KEYS.includes(h) ? h : 'now'; };
   window.addEventListener('hashchange', () => { if (!$('main').hidden) DirBar.tab(hashTab()); });
   let refreshing = false;
   async function refresh(){
     if (document.hidden || $('main').hidden || refreshing) return; refreshing = true;
-    try { render(await api()); if (DirBar.current() === 'now') cxLoad(); } catch(e){} finally { refreshing = false; }
+    try { render(await api()); if (DirBar.current() === 'now') { cxLoad(); audLoad(); } } catch(e){} finally { refreshing = false; }
   }
   setInterval(refresh, 60000);
   let hiddenAt = 0; document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = Date.now(); else if (Date.now() - hiddenAt > 55000) refresh(); });
@@ -703,6 +754,7 @@
     try { await fetch('/api/signout', {method: 'POST'}); } catch(e){} localStorage.removeItem('ishaiKey'); location.href = '/director'; };
   function render(v){
     if (!CX) cxLoad();
+    if (!AUD) { AUD = {requests: [], decided: [], banned: [], members: 0, max: 6}; audLoad(); }
     DirBar.set(v.status);
     renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderHosts(v.hosts); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';

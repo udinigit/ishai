@@ -315,6 +315,17 @@
   .bugf .in{background:#050705;border:2px solid var(--phos-faint);border-radius:10px;padding:12px;width:100%;max-width:480px;display:flex;flex-direction:column;gap:8px}
   .bugf textarea{font:inherit;font-size:18px;background:#071007;color:var(--phos);border:1px solid var(--phos-faint);border-radius:6px;min-height:110px;padding:6px}
   .bugf .row{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+  #acctF .in{max-height:92vh;overflow:auto}
+  .mem{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--phos-faint);padding-top:8px}
+  .mem h4{margin:0;font-weight:normal;color:var(--amber);font-size:17px;letter-spacing:1px}
+  .memAv{display:flex;gap:10px;align-items:flex-start}
+  .memAv canvas{width:56px;height:108px;image-rendering:pixelated;background:#0b120b;border:1px solid var(--phos-faint);flex:none}
+  .memEd{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;font-size:14px;flex:1}
+  .memEd label{display:flex;flex-direction:column} .memEd select{font:inherit;font-size:15px;background:#071007;color:var(--phos);border:1px solid var(--phos-faint);border-radius:4px}
+  .memEx{display:flex;flex-wrap:wrap;gap:4px;font-size:14px} .memEx label{display:flex;gap:3px;align-items:center;border:1px solid var(--phos-faint);border-radius:4px;padding:0 4px}
+  .memIn{max-height:200px;overflow:auto;display:flex;flex-direction:column;gap:6px;font-size:15px}
+  .memIn div{border-left:3px solid var(--phos-faint);padding-left:6px} .memIn div.new{border-color:var(--amber)} .memIn small{opacity:.6;display:block}
+  #acct .dot{color:var(--amber);font-size:13px;margin-left:2px}
   .pvb{position:absolute;z-index:6;top:9%;left:50%;transform:translateX(-50%);max-width:92%;background:rgba(10,8,30,.85);color:#ffd36a;border:1px solid #ffd36a;border-radius:6px;padding:2px 8px;font-size:clamp(11px,2.6vw,15px);line-height:1.15;text-align:center;pointer-events:none}
   .adb{position:absolute;z-index:5;left:0;right:0;bottom:12%;display:flex;align-items:center;gap:8px;padding:4px 10px 4px 6px;
     transform:translateX(-105%);transition:transform .7s cubic-bezier(.2,.8,.2,1);pointer-events:none;border-top:2px solid;border-bottom:2px solid}
@@ -356,6 +367,21 @@
   <div id="acctX" style="font-size:16px;opacity:.85"></div>
   <div id="acctG" style="min-height:44px;display:flex;align-items:center"></div>
   <div id="acctM" style="font-size:15px;color:#ffb84d" aria-live="polite"></div>
+  <div class="mem" id="mem" hidden>
+    <h4>YOUR AVATAR</h4>
+    <div class="memAv"><canvas id="memCv" width="14" height="27"></canvas><div class="memEd" id="memEd"></div></div>
+    <div class="memEx" id="memEx"></div>
+    <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><button id="memRnd" class="snd">🎲 RANDOM</button><button id="memPh" class="snd" title="Colours read from a photo, on this device only: the photo never leaves it">📷 FROM A PHOTO</button><input id="memFile" type="file" accept="image/*" hidden><button id="memSave" class="snd">SAVE AVATAR</button></div>
+    <h4>AUDITIONS</h4>
+    <div style="font-size:15px;opacity:.85">Make a character of your own for the show: if the director agrees, you get one long interview about them, and they may join the cast. Once a month at most.</div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:16px"><input type="checkbox" id="memAdult"> I'm 18 or older</label>
+    <div class="row" style="justify-content:flex-start"><button id="memAud" class="snd">REQUEST AN AUDITION</button></div>
+    <div id="memAudT" style="font-size:15px" aria-live="polite"></div>
+    <div id="memDev" style="font-size:15px"></div>
+    <h4 id="memInT">INBOX</h4>
+    <div class="memIn" id="memIn"></div>
+    <div class="row" style="justify-content:flex-start"><button id="memDel" class="snd" style="font-size:14px;opacity:.75">DELETE MY AVATAR AND MESSAGES</button></div>
+  </div>
   <div class="row"><a href="/privacy" target="_blank" rel="noopener" style="font-size:15px;color:var(--phos-dim);margin-right:auto">Privacy</a><a id="acctDir" class="snd" href="/director" hidden style="text-decoration:none;margin-left:0">🎬 DIRECTOR</a><button id="acctOut" class="snd" hidden>SIGN OUT</button><button id="acctC" class="snd">CLOSE</button></div>
 </div></div>
 <div class="bugf" id="bugF" hidden><div class="in">
@@ -6240,6 +6266,10 @@
     });
     if (!rows.some(r => r[0] === 0)){ const p = document.createElement('div'); p.className='meta'; p.textContent = 'Nobody on camera right now.'; el.appendChild(p); }
     rows.sort((a, b) => a[0] - b[0]).forEach(r => el.appendChild(r[1]));
+    if (AUTH.google && !PREVIEW && !BUILDER) try {   // Auditions (docs/AUDITION_PLAN.md): the same button as in the 👤 dialog
+      const m = MBR.v && MBR.v.member, au = document.createElement('button'); au.className = 'snd'; au.style.cssText = 'margin:10px 0 4px;display:block';
+      au.textContent = '🎭 ' + (AUTH.signedIn && m ? MEM_BTN[m.state] || 'AUDITIONS' : 'YOUR OWN CHARACTER? SIGN IN FOR AUDITIONS');
+      au.onclick = e => { e.stopPropagation(); $('acct').click(); }; el.appendChild(au); } catch(e){}
     el.querySelectorAll('.card').forEach(cd => { const sh = cd.querySelector('.cx.shared'); if (sh && sh.parentNode.children[2] !== sh) sh.parentNode.insertBefore(sh, sh.parentNode.children[2] || null); });   // both of a pair on camera: their shared part first
   }
   function settledOnCamera(){
@@ -7698,7 +7728,7 @@
   // Google sign-in (only when the worker has GOOGLE_CLIENT_ID; otherwise anyone votes anonymously)
   const AUTH = {google: null, signedIn: false, director: false, name: (() => { try { return localStorage.getItem('ishaiVoterName') || ''; } catch(e){ return ''; } })(), gis: 0, sig: ''};
   const needSignIn = p => !!(AUTH.google && !AUTH.signedIn && !(p && p.sandbox));
-  async function authLoad(){ try { const r = await (await fetch('/api/me', {cache: 'no-store'})).json(); AUTH.google = r.google || null; AUTH.signedIn = !!r.signedIn; AUTH.director = !!r.director; } catch(e){} AUTH.sig = ''; pollSig = ''; acctShow(); survLoad(true); }
+  async function authLoad(){ try { const r = await (await fetch('/api/me', {cache: 'no-store'})).json(); AUTH.google = r.google || null; AUTH.signedIn = !!r.signedIn; AUTH.director = !!r.director; } catch(e){} AUTH.sig = ''; pollSig = ''; acctShow(); survLoad(true); if (AUTH.signedIn) memLoad(); }
   function gisButton(el){   // Google's own button, drawn into el once the script is ready
     el.textContent = '';
     if (AUTH.gis === 2) try { google.accounts.id.renderButton(el, {theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill'}); return; } catch(e){}
@@ -7709,6 +7739,7 @@
     const b = $('acct'); if (!b) return;
     b.hidden = !(AUTH.google || DEV) || PREVIEW || BUILDER || (demoMode && !DEV);
     b.classList.toggle('on', AUTH.signedIn);
+    b.textContent = '👤'; if (AUTH.signedIn && MBR.unread){ const d = document.createElement('span'); d.className = 'dot'; d.textContent = MBR.unread; b.appendChild(d); }
     b.title = AUTH.signedIn ? 'Signed in' + (AUTH.name ? ' as ' + AUTH.name : '') : 'Sign in or sign up'; b.setAttribute('aria-label', b.title);
     if (!$('acctF').hidden) acctFill();
   }
@@ -7716,12 +7747,114 @@
     const x = $('acctX'), g = $('acctG');
     $('acctOut').hidden = !AUTH.signedIn; $('acctDir').hidden = !(AUTH.director || DEV);
     if (!AUTH.google){ $('acctT').textContent = 'SIGN IN'; g.textContent = ''; x.textContent = 'Google sign-in is not switched on yet. Add the GOOGLE_CLIENT_ID secret in Cloudflare (steps in docs/GOOGLE_SIGNIN.md). Only you see this button until then.'; return; }
+    $('mem').hidden = !AUTH.signedIn;
     if (AUTH.signedIn){ $('acctT').textContent = 'SIGNED IN' + (AUTH.name ? ' AS ' + AUTH.name.toUpperCase() : ''); g.textContent = '';
-      x.textContent = 'You can vote in the hourly viewers\' poll, once per poll.' + (AUTH.director ? ' This account is a director.' : ''); return; }
+      x.textContent = 'You can vote in the hourly viewers\' poll, once per poll.' + (AUTH.director ? ' This account is a director.' : ''); memFill(); return; }
     $('acctT').textContent = 'SIGN IN / SIGN UP';
     x.textContent = 'One tap with your Google account, no password. New here? The same button creates your account. Signing in lets you vote in the hourly viewers\' poll. We keep no name or email.';
     if (!g.firstChild || AUTH.dlg !== AUTH.gis){ AUTH.dlg = AUTH.gis; gisButton(g); }
   }
+  // ---- Auditions, steps 1-2 (docs/AUDITION_PLAN.md): the avatar, the 18+ box, the request button and the inbox, in the 👤 dialog ----
+  const MBR = {v: null, unread: 0, look: null, dirty: false, linked: false, busy: false};
+  const MEM_FIELDS = [['hair', 'Hair', () => LOOK_OPTS.hair], ['hairColor', 'Hair colour', () => Object.keys(HAIRC)], ['skin', 'Skin', () => Object.keys(SKINC)],
+    ['top', 'Top', () => LOOK_OPTS.top], ['shirt', 'Top colour', () => Object.keys(CLOTH)], ['bottom', 'Bottoms', () => LOOK_OPTS.bottom], ['pants', 'Bottoms colour', () => Object.keys(CLOTH)],
+    ['hat', 'Hat', () => LOOK_OPTS.hat], ['hatColor', 'Hat colour', () => Object.keys(CLOTH)]];
+  const MEM_EXTRAS = LOOK_OPTS.extras.filter(e => e !== 'apron');
+  const memPick = a => a[Math.floor(Math.random() * a.length)];
+  function memRandom(){
+    return {hair: memPick(LOOK_OPTS.hair), hairColor: memPick(Object.keys(HAIRC)), skin: memPick(Object.keys(SKINC)), shirt: memPick(Object.keys(CLOTH)), pants: memPick(['black','navy','gray','brown','blue']),
+      top: memPick(LOOK_OPTS.top), bottom: Math.random() < .75 ? 'trousers' : memPick(LOOK_OPTS.bottom), hat: Math.random() < .35 ? memPick(LOOK_OPTS.hat.filter(h => h !== 'none')) : 'none', hatColor: memPick(Object.keys(CLOTH)),
+      extras: [...new Set([memPick(MEM_EXTRAS), memPick(MEM_EXTRAS)])].slice(0, Math.floor(Math.random() * 3))};
+  }
+  // a look from a photo: hair, skin and top colours read where they usually are in a portrait, in this browser only (the photo is never sent)
+  function lookFromPhoto(img){
+    const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), dist = (a, b) => Math.hypot(a[0]-b[0], a[1]-b[1], a[2]-b[2]);
+    const nearest = (c, table) => Object.entries(table).sort((a, b) => dist(c, rgb(Array.isArray(a[1]) ? a[1][0] : a[1])) - dist(c, rgb(Array.isArray(b[1]) ? b[1][0] : b[1])))[0][0];
+    const cv = document.createElement('canvas'); cv.width = 60; cv.height = 80; const x = cv.getContext('2d', {willReadFrequently: true});
+    const s = Math.max(60 / img.width, 80 / img.height); x.drawImage(img, (60 - img.width * s) / 2, (80 - img.height * s) / 2, img.width * s, img.height * s);
+    const avg = (x0, y0, x1, y1) => { const d = x.getImageData(x0, y0, x1 - x0, y1 - y0).data; let r = 0, g = 0, b = 0, n = 0; for (let i = 0; i < d.length; i += 4){ r += d[i]; g += d[i+1]; b += d[i+2]; n++; } return [r/n, g/n, b/n]; };
+    const hairC = avg(22, 4, 38, 11), face = avg(24, 24, 36, 34), shirt = avg(14, 64, 46, 78), sides = avg(10, 26, 18, 44), sides2 = avg(42, 26, 50, 44), chin = avg(25, 36, 35, 42);
+    const look = Object.assign({}, MBR.look || memRandom(), {hair: 'short', hairColor: nearest(hairC, HAIRC), skin: nearest(face, SKINC), shirt: nearest(shirt, CLOTH), extras: []});
+    if (dist(hairC, face) < 45) look.hair = 'bald';
+    else if (dist(sides, hairC) < 55 && dist(sides2, hairC) < 55) look.hair = 'long';
+    if (dist(chin, hairC) < dist(chin, face) - 10) look.extras.push('beard');
+    return look;
+  }
+  function memDraw(){
+    const cv = $('memCv'), L = MBR.look; if (!L) return;
+    const p = portrait(L, false), x = cv.getContext('2d'); x.clearRect(0, 0, cv.width, cv.height); x.drawImage(p, 0, 0);
+    const ed = $('memEd');
+    if (!ed.firstChild) MEM_FIELDS.forEach(([k, label, opts]) => { const l = document.createElement('label'); l.textContent = label; const sel = document.createElement('select'); sel.dataset.k = k;
+      opts().forEach(o => sel.add(new Option(o, o))); sel.onchange = () => { MBR.look[k] = sel.value; MBR.dirty = true; memDraw(); }; l.appendChild(sel); ed.appendChild(l); });
+    ed.querySelectorAll('select').forEach(sel => { sel.value = L[sel.dataset.k] || sel.options[0].value; });
+    const ex = $('memEx');
+    if (!ex.firstChild) MEM_EXTRAS.forEach(e => { const l = document.createElement('label'), c = document.createElement('input'); c.type = 'checkbox'; c.value = e;
+      c.onchange = () => { const on = new Set(MBR.look.extras || []); if (c.checked){ if (on.size >= 5){ c.checked = false; return; } on.add(e); } else on.delete(e); MBR.look.extras = [...on]; MBR.dirty = true; memDraw(); };
+      l.append(c, document.createTextNode(e)); ex.appendChild(l); });
+    ex.querySelectorAll('input').forEach(c => { c.checked = (L.extras || []).includes(c.value); });
+    $('memSave').textContent = MBR.dirty ? 'SAVE AVATAR *' : 'SAVE AVATAR';
+  }
+  const memDate = ms => new Date(ms).toLocaleDateString('en-GB', {timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'short'});
+  const MEM_BTN = {none: 'REQUEST AN AUDITION', requested: 'AUDITION REQUESTED', declined: 'REQUEST AN AUDITION', approved: 'AUDITION', interview: 'CONTINUE YOUR AUDITION', submitted: 'IN REVIEW',
+    offered: 'SEE YOUR ROLE', reading: 'TABLE READ', on: 'QUIT SHOW', leaving: 'LEAVING THE SHOW', left: 'REQUEST AN AUDITION'};
+  function memFill(){
+    const v = MBR.v; if (!v){ $('memAudT').textContent = MBR.busy ? 'Loading…' : ''; return; }
+    const m = v.member; if (!MBR.dirty) MBR.look = JSON.parse(JSON.stringify(m.avatar || MBR.look || memRandom()));
+    if (!m.avatar && !MBR.dirty){ MBR.dirty = true; }   // a first avatar: random until saved
+    memDraw();
+    $('memAdult').checked = m.adult; $('memAdult').disabled = m.state !== 'none' && m.state !== 'declined' && m.state !== 'left';
+    const b = $('memAud'), t = $('memAudT'); b.textContent = MEM_BTN[m.state] || m.state.toUpperCase();
+    const asking = ['none', 'declined', 'left'].includes(m.state);
+    b.disabled = m.banned || (asking ? !m.canAsk && !(m.why && /avatar|18\+/.test(m.why)) : m.state !== 'approved');
+    t.textContent = m.banned ? 'This account can\'t request Auditions.'
+      : m.state === 'requested' ? `Asked on ${memDate(m.asked)}. The director will decide; the answer comes to your inbox below.`
+      : m.state === 'approved' ? `Approved! Your Audition is open until ${memDate(m.approvedUntil)}.`
+      : m.state === 'declined' ? 'The director said no this time.' + (m.note ? ' Reason: ' + m.note : '') + (m.nextAt ? ` You can ask again on ${memDate(m.nextAt)}.` : '')
+      : asking ? (m.canAsk ? 'Needs: your avatar saved and the 18+ box ticked. Ready.' : m.why) : '';
+    const dv = $('memDev'); dv.textContent = '';
+    if (PUSH.ok && !MBR.linked){ const nb = document.createElement('button'); nb.className = 'snd'; nb.textContent = '🔔 NOTIFY ME ON THIS DEVICE';
+      nb.onclick = async () => { try { const sub = await PUSH.ensure(); if (!sub){ dv.textContent = 'Your browser is blocking notifications for this site.'; return; } await memLink(sub); memFill(); } catch(e){ dv.textContent = 'That did not work. Try again.'; } };
+      dv.append(nb, document.createTextNode(' Answers also come here as notifications.')); }
+    else if (MBR.linked) dv.textContent = '🔔 Answers also come to this device as notifications.';
+    const box = $('memIn'); box.textContent = '';
+    (v.inbox || []).forEach(i => { const d = document.createElement('div'); if (!i.read) d.className = 'new'; const sm = document.createElement('small'); sm.textContent = memDate(i.at) + ' ' + new Date(i.at).toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit'});
+      d.append(sm, document.createTextNode(i.text)); box.appendChild(d); });
+    if (!box.firstChild) box.textContent = 'No messages yet.';
+    $('memInT').textContent = 'INBOX' + (v.unread ? ` (${v.unread} NEW)` : '');
+    if (!$('acctF').hidden && v.unread && v.inbox.length) memPost({action: 'read', upTo: v.inbox[0].n}, true);   // seen now; the dot goes once the dialog closes
+  }
+  async function memPost(body, quiet){
+    try { const r = await fetch('/api/member', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)}), j = await r.json().catch(() => ({}));
+      if (!r.ok){ if (!quiet) $('memAudT').textContent = j.error || 'That did not work. Try again.'; return null; }
+      if (j.member && !(body.action === 'read')) { MBR.v = j; MBR.unread = j.unread; } return j;
+    } catch(e){ if (!quiet) $('memAudT').textContent = 'No connection, try again.'; return null; }
+  }
+  async function memLink(sub){ const r = await fetch('/api/member', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({action: 'dev', endpoint: sub.endpoint})}); if (r.ok) MBR.linked = true; }
+  async function memLoad(){
+    if (!AUTH.signedIn || !AUTH.google || MBR.busy) return; MBR.busy = true;
+    try { const r = await fetch('/api/member', {cache: 'no-store'}); if (r.ok){ MBR.v = await r.json(); MBR.unread = MBR.v.unread; } } catch(e){}
+    MBR.busy = false;
+    if (PUSH.ok && !MBR.linked) try { const sub = await PUSH.sub(); if (sub) await memLink(sub); } catch(e){}
+    acctShow(); if (!$('acctF').hidden) memFill();
+  }
+  $('memRnd').onclick = () => { MBR.look = memRandom(); MBR.dirty = true; memDraw(); };
+  $('memPh').onclick = () => $('memFile').click();
+  $('memFile').onchange = e => { const f = e.target.files[0]; if (!f) return; const img = new Image();
+    img.onload = () => { try { MBR.look = lookFromPhoto(img); MBR.dirty = true; memDraw(); } catch(err){} URL.revokeObjectURL(img.src); e.target.value = ''; }; img.src = URL.createObjectURL(f); };
+  $('memSave').onclick = async () => { $('memSave').disabled = true; const j = await memPost({action: 'avatar', look: MBR.look}); $('memSave').disabled = false;
+    if (j){ MBR.dirty = false; memFill(); $('memAudT').textContent = 'Avatar saved.'; } };
+  $('memAdult').onchange = async () => { const j = await memPost({action: 'adult', on: $('memAdult').checked}); if (j) memFill(); };
+  $('memAud').onclick = async () => {
+    const m = MBR.v && MBR.v.member; if (!m) return;
+    if (m.state === 'approved'){ $('memAudT').textContent = `The Audition page is still being built. Your approval is kept until ${memDate(m.approvedUntil)}; we'll message you here when it opens.`; return; }
+    if (MBR.dirty || !m.avatar){ $('memAudT').textContent = 'Save your avatar first (it is the starting look of your character).'; return; }
+    if (!m.adult){ $('memAudT').textContent = 'Tick "I\'m 18 or older" first: the interview is long and its answers go to an AI.'; return; }
+    if (!confirm('Ask the director for an Audition? You can ask once a month.')) return;
+    $('memAud').disabled = true; const j = await memPost({action: 'request'}); if (j) memFill(); else $('memAud').disabled = false;
+  };
+  $('memDel').onclick = async () => { if (!confirm('Delete your avatar, your Audition requests and your messages from the show? This can\'t be undone. Only the date of your last request is kept, for the once-a-month rule.')) return;
+    const j = await memPost({action: 'delete'}); if (j){ MBR.dirty = false; MBR.look = null; memFill(); $('memAudT').textContent = 'Deleted.'; } };
+  setInterval(() => { if (AUTH.signedIn && !document.hidden) memLoad(); }, 10 * 60000);   // a new message lights the 👤 button
   function gisLoad(){   // Google's sign-in script, loaded only when someone needs it
     if (AUTH.gis) return; AUTH.gis = 1;
     const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
@@ -7732,7 +7865,7 @@
   async function onGoogle(resp){
     pollMsg = 'Signing you in…'; pollSig = '';
     try { const r = await fetch('/api/signin', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({credential: resp.credential})}), j = await r.json().catch(() => ({}));
-      if (r.ok){ AUTH.signedIn = true; AUTH.director = !!j.director; AUTH.name = j.name || ''; try { localStorage.setItem('ishaiVoterName', AUTH.name); } catch(e){} pollMsg = ''; $('acctM').textContent = ''; if (j.director) enableDev(); }
+      if (r.ok){ AUTH.signedIn = true; AUTH.director = !!j.director; AUTH.name = j.name || ''; try { localStorage.setItem('ishaiVoterName', AUTH.name); } catch(e){} pollMsg = ''; $('acctM').textContent = ''; if (j.director) enableDev(); memLoad(); }
       else { pollMsg = 'Sign-in failed: ' + (j.error || 'try again') + '.'; $('acctM').textContent = pollMsg; }
     } catch(e){ pollMsg = 'No connection, try again.'; $('acctM').textContent = pollMsg; }
     AUTH.sig = ''; pollSig = ''; acctShow();
@@ -7740,12 +7873,12 @@
   async function signOut(){
     try { await fetch('/api/signout', {method: 'POST'}); } catch(e){}
     try { google.accounts.id.disableAutoSelect(); } catch(e){}
-    const wasDirector = AUTH.director; AUTH.signedIn = false; AUTH.director = false; AUTH.name = ''; try { localStorage.removeItem('ishaiVoterName'); } catch(e){} AUTH.sig = ''; pollSig = ''; acctShow();
+    MBR.v = null; MBR.unread = 0; MBR.linked = false; const wasDirector = AUTH.director; AUTH.signedIn = false; AUTH.director = false; AUTH.name = ''; try { localStorage.removeItem('ishaiVoterName'); } catch(e){} AUTH.sig = ''; pollSig = ''; acctShow();
     let pw = false; try { pw = !!localStorage.getItem('ishaiKey'); } catch(e){}
     if (wasDirector && !pw) location.reload();   // director mode ends with the sign-out
   }
-  $('acct').onclick = e => { e.stopPropagation(); $('acctM').textContent = ''; $('acctF').hidden = false; acctFill(); };
-  $('acctC').onclick = () => { $('acctF').hidden = true; };
+  $('acct').onclick = e => { e.stopPropagation(); $('acctM').textContent = ''; $('acctF').hidden = false; acctFill(); if (AUTH.signedIn) memLoad(); };
+  $('acctC').onclick = () => { $('acctF').hidden = true; if (MBR.v && MBR.v.unread){ MBR.v.unread = 0; MBR.unread = 0; MBR.v.inbox.forEach(i => i.read = 1); acctShow(); } };
   $('acctOut').onclick = () => { signOut(); };
   function authBox(p){   // under the card: the Google button, or who is signed in
     const el = $('pollG'), want = !AUTH.google || p.sandbox ? 'none' : AUTH.signedIn ? 'in:' + AUTH.name : 'out:' + AUTH.gis;

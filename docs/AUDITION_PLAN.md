@@ -1,6 +1,6 @@
 # Auditions: viewers' own characters join the show (plan)
 
-Proposed 2026-11-16 from the director's idea, updated the same day with the director's answers (see "Decisions"). Nothing built yet. It builds on `docs/CAST_PLAN.md` (cards, notes and pairs in D1, the scene keeper, Claude's reviews), which is built (v252), so this can start from its own step 1.
+Proposed 2026-11-16 from the director's idea, updated the same day with the director's answers (see "Decisions"). Steps 1-2 built in v264 (see "As built" at the end). It builds on `docs/CAST_PLAN.md` (cards, notes and pairs in D1, the scene keeper, Claude's reviews), which is built (v252), so this can start from its own step 1.
 
 ## The idea
 A signed-in viewer makes an avatar. They can ask for an Audition once a month. If the director agrees, they get one long interview about a character of their own: name, past, family, work, hobbies, personality, how they talk, what they want and fear.
@@ -231,8 +231,8 @@ No KV writes. A whole interview is about 80 small D1 writes.
 
 ## Steps
 0. **Done:** the deeper characters of `CAST_PLAN.md` (v252): cards and notes in D1, the scene keeper, what the writer gets, full cards with Claude's review.
-1. **Members and avatars:** the `member` table, the avatar editor in the 👤 dialog, the inbox, the 18+ box.
-2. **Requests:** the button and its states, the 30-day rule, the director's Requests box, the pushes.
+1. **Done (v264): Members and avatars:** the `member` table, the avatar editor in the 👤 dialog, the inbox, the 18+ box.
+2. **Done (v264): Requests:** the button and its states, the 30-day rule, the director's Requests box, the pushes.
 3. **The interview:** `story/audition.json` (the bank, its follow-up sets and the wild cards, written by Claude), the AI wild cards, naming, the start screen, the interview page with saving, branching and the 7-day window.
 4. **The character:** the card and three ways in from one Gemini call, Claude's review, the director's To approve box.
 5. **The offer and the debut:** the role page, Accept/Decline, joining the cast, the booked first scene, the reminders.
@@ -241,3 +241,14 @@ No KV writes. A whole interview is about 80 small D1 writes.
 
 ## Open questions
 - None for now.
+
+## As built (v264, steps 1-2)
+- **Worker** (the "Auditions" section at the end of `worker.template.js`): D1 tables `member` (as planned, with `left_at` for `left`, which SQL reserves, and `note` for the director's reason), `member_inbox` (plus `push`: whether the message was pushed) and `member_dev` (member ↔ push device, at most 8 per member; a device belongs to the last account linked on it), made by `memberTables()`. A member row is made the first time the viewer saves something.
+- **`/api/member`** (signed in only): GET → `member` (state, avatar, 18+, `canAsk` / `why`, `nextAt`, `approvedUntil`), `inbox` (last 40), `unread`. POST actions: `avatar` (`cleanLook()`), `adult`, `request` (`memberCan()`: not banned, avatar, 18+, 30 days since the last request and since leaving), `read`, `dev` (links the device's push subscription; the bell must be on), `delete` (avatar, messages and device links; only the request / leaving dates and a ban stay, for the rules).
+- **Lapse:** an approval unused for 14 days (`AUD_APPROVE_D`) goes back to `none` when the member is next read, with an inbox message (`memberLapse()`).
+- **`/api/member/dir`** (director): requests, the last 30 decided, banned accounts; POST `approve`, `decline` (optional reason the viewer sees), `ban`, `unban`. A decision writes an inbox message and pushes it straight away to the member's linked devices (`memberPush()`); `/api/alert` adds pushed inbox messages from the last 20 minutes for that device (`memberAlertItems()`). `dirStatus()` counts waiting requests (`waiting.auditions`, also on the CAST tab badge).
+- **Page:** in the 👤 dialog when signed in (`memFill()`, state in `MBR`): the avatar (drawn by `portrait()`), selects for every look field, extras, 🎲 RANDOM, 📷 FROM A PHOTO (`lookFromPhoto()`, in the browser only), SAVE AVATAR; the 18+ box; the Audition button with each state's label and text; 🔔 NOTIFY ME ON THIS DEVICE (links the device); the INBOX (unread count as a dot on the 👤 button, checked every 10 minutes); DELETE MY AVATAR AND MESSAGES. The Cast tab has the same 🎭 button, which opens the dialog.
+- **Director page:** the Auditions box at the top of the CAST tab (avatar, member since, dates, Approve / Decline / Ban in place), and requests in the NOW inbox.
+- **Until step 3:** an approved viewer's AUDITION button only says the page is being built; the approval lapses after 14 days, so don't approve before step 3 ships.
+- `/privacy` has an "Avatar and Auditions" paragraph.
+

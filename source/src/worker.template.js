@@ -356,6 +356,8 @@ export default {
       return json({ poll: { ...pollPublic(p), result } }, { "cache-control": "no-store" });
     }
     if (url.pathname === "/api/cast" || url.pathname.startsWith("/api/cast/")) return castApi(req, env, url);   // deeper characters (docs/CAST_PLAN.md)
+    if (url.pathname === "/api/member") return memberApi(req, env, url);         // Auditions: the viewer's avatar, inbox and request (docs/AUDITION_PLAN.md)
+    if (url.pathname === "/api/member/dir") return memberDirApi(req, env);       // the director's Auditions box
     if (url.pathname === "/api/ambient") return json({ city: CITY, texture: PLAN.texture || null });
     if (url.pathname === "/api/voices") { const s = await loadState(env); return json(s.voiceCfg || {}, { "cache-control": "public, max-age=60" }); }   // the director's voice settings (the trailer reads them)
     // the show's history: the short version of each day and each week (public); a whole archived day for the director
@@ -2373,6 +2375,7 @@ async function alertFor(env, ep) {
       : await env.DB.prepare("SELECT 1 AS y FROM push_remind WHERE poll = ? AND dev = ?").bind(j.poll, key).first();
     if (row) items.push({ title: j.title, body: j.body, tag: j.kind + "-" + j.poll });
   } catch (e) {}
+  try { items.push(...await memberAlertItems(env, key, now)); } catch (e) {}   // Auditions: the member's own messages, on the devices they linked
   return json({ items }, { "cache-control": "no-store" });
 }
 
@@ -2971,6 +2974,7 @@ const PRIVACY_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"
 <p><b>Cookies.</b> Signing in leaves one cookie, <code>ishai_voter</code>, valid for ${VOTER_DAYS} days, which proves you signed in. Signing out removes it. Your browser also keeps a random id and the polls you voted in, on your device only.</p>
 <p><b>Surveys of the week.</b> Survey votes are kept with the same scrambled id, one per account.</p>
 <p><b>Votes</b> are counted to show the results and to steer the story. They are never sold or shared.</p>
+<p><b>Avatar and Auditions.</b> Signed-in viewers can make an avatar from the show's own looks. "From a photo" reads a few colours in your own browser; the photo is never sent. If you request an Audition we keep, next to the same scrambled id: your avatar, the 18+ box, the request and its answer, and a small inbox of messages to you. If you turn on notifications on a device and are signed in there, we link that device to the scrambled id so the answers reach it. No email address is stored. When interviews open, the answers about your fictional character will be kept until 30 days after the character leaves the show; the character itself stays in the show's history. The 👤 menu has a button that deletes your avatar, your messages and the device links at once (not while an Audition is under way); only the date of your last request stays, for the once-a-month rule.</p>
 <p><a href="/">Back to the show</a></p></body></html>`;
 
 async function pollVote(req, env) {
@@ -5094,8 +5098,9 @@ async function dirStatus(s, env, now, bugs) {
   const nm = id => id ? (s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id)) : null;
   const gFail = (s.geminiErrs || []).filter(f => now - f.at < 30 * 60000 && !GEMINI_WHERE.test(f.msg || "")).length;
   const gemini = !env.GEMINI_API_KEY ? { state: "off" } : now < (s.geminiOutUntil || 0) ? { state: "paused", until: s.geminiOutUntil } : gFail ? { state: "failing", fails: gFail } : { state: "ok" };
-  let cast = 0; try { if (env.DB) cast = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM cast_pending WHERE state = 'pending'").first()) || {}).n || 0; } catch (e) {}
-  const waiting = { bugs: (bugs || []).filter(b => b.status === "new").length, cast, art: (s.director || []).filter(g => g.status === "needs-art").length,
+  let cast = 0, auditions = 0; try { if (env.DB) cast = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM cast_pending WHERE state = 'pending'").first()) || {}).n || 0; } catch (e) {}
+  try { if (env.DB) { await memberTables(env); auditions = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM member WHERE state = 'requested'").first()) || {}).n || 0; } } catch (e) {}
+  const waiting = { bugs: (bugs || []).filter(b => b.status === "new").length, cast, auditions, art: (s.director || []).filter(g => g.status === "needs-art").length,
     film: N.filmLate ? 1 : 0, aiError: s.lastError && now - s.lastError.at < 6 * 3600000 ? 1 : 0, autoFix: (N.autoFix ? 1 : 0) + (s.autoFixErr ? 1 : 0) };
   const neurons = neuronsOf(s.usage);
   return { now, clock: last.t ? storyClock(last.t).label : null, loc: last.location || null, place: PLACE_NAME[last.location] || last.location || null, action: last.action || null, with: nm(last.with),
@@ -5833,4 +5838,148 @@ async function castApi(req, env, url) {
 function castHealth(s) {
   return CASTD ? { cards: Object.keys(CASTD.cards).length, full: Object.values(CASTD.cards).filter(c => c.backstory).length, notes: CASTD.notes.length, archived: CASTD.archived.length, pairs: Object.keys(CASTD.pairs).length,
     moods: Object.keys(CASTD.moods).length, pending: CASTD.pending, queue: CASTD.queue, lastKeep: (s.castLog || []).slice(-1)[0] || null, errors: (s.castErrs || []).slice(-3) } : { off: true, errors: (s.castErrs || []).slice(-3) };
+}
+
+// ============================================================
+// Auditions: viewers' own characters (docs/AUDITION_PLAN.md). Steps 1-2: members, avatars, the inbox, the 18+ box, and
+// the Audition request with its states, the 30-day rule and the director's Requests box. All in D1; no KV writes.
+// A member row is keyed by the hashed Google account (voterOf()); it is made the first time the viewer saves something.
+const AUD_EVERY_D = 30, AUD_APPROVE_D = 14, MEMBER_MAX = 6, INBOX_KEEP = 40;
+const MEMBER_STATES = ["none", "requested", "declined", "approved", "interview", "submitted", "offered", "reading", "on", "leaving", "left"];
+let memberTablesOk = false;
+async function memberTables(env) {
+  if (memberTablesOk || !env.DB) return;
+  await env.DB.batch([
+    "CREATE TABLE IF NOT EXISTS member (id TEXT PRIMARY KEY, avatar TEXT, state TEXT NOT NULL DEFAULT 'none', asked INTEGER, decided INTEGER, started INTEGER, left_at INTEGER, banned INTEGER, adult INTEGER, at INTEGER NOT NULL, note TEXT)",
+    "CREATE TABLE IF NOT EXISTS member_inbox (n INTEGER PRIMARY KEY, member TEXT NOT NULL, at INTEGER NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL, read INTEGER NOT NULL DEFAULT 0, push INTEGER NOT NULL DEFAULT 0)",
+    "CREATE INDEX IF NOT EXISTS member_inbox_m ON member_inbox (member, n)",
+    "CREATE TABLE IF NOT EXISTS member_dev (member TEXT NOT NULL, dev TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (member, dev))",
+    "CREATE INDEX IF NOT EXISTS member_dev_d ON member_dev (dev)"
+  ].map(q => env.DB.prepare(q)));
+  memberTablesOk = true;
+}
+const memberBlank = id => ({ id, avatar: null, state: "none", asked: null, decided: null, started: null, left_at: null, banned: 0, adult: 0, at: null, note: null });
+async function memberGet(env, id) {
+  const r = await env.DB.prepare("SELECT * FROM member WHERE id = ?").bind(id).first();
+  if (!r) return memberBlank(id);
+  let avatar = null; try { avatar = r.avatar ? cleanLook(JSON.parse(r.avatar)) : null; } catch (e) {}
+  return { ...r, avatar, banned: r.banned || 0, adult: r.adult || 0 };
+}
+async function memberPut(env, m, now) {
+  await env.DB.prepare(`INSERT INTO member (id, avatar, state, asked, decided, started, left_at, banned, adult, at, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET avatar = excluded.avatar, state = excluded.state, asked = excluded.asked, decided = excluded.decided, started = excluded.started,
+    left_at = excluded.left_at, banned = excluded.banned, adult = excluded.adult, note = excluded.note`)
+    .bind(m.id, m.avatar ? JSON.stringify(m.avatar) : null, m.state, m.asked, m.decided, m.started, m.left_at, m.banned ? 1 : 0, m.adult ? 1 : 0, m.at || now, m.note).run();
+  m.at = m.at || now;
+}
+// an approval unused for 14 days lapses back to "none" (the month still counts, by `asked`)
+async function memberLapse(env, m, now) {
+  if (m.state === "approved" && m.decided && now - m.decided > AUD_APPROVE_D * 86400000) {
+    m.state = "none"; await memberPut(env, m, now);
+    await memberSay(env, m.id, "lapsed", "Your Audition approval ran out after 14 days without starting. You can ask again once a month has passed since your request.", false, now);
+  }
+  return m;
+}
+// when the viewer may request again (null = now), and why not if they can't
+function memberNext(m) {
+  const day = 86400000, after = Math.max(m.asked ? m.asked + AUD_EVERY_D * day : 0, m.left_at ? m.left_at + AUD_EVERY_D * day : 0);
+  return after;
+}
+function memberCan(m, now) {
+  if (m.banned) return "This account can't request Auditions.";
+  if (!["none", "declined", "left"].includes(m.state)) return "You already have an Audition going.";
+  if (!m.avatar) return "Make your avatar first.";
+  if (!m.adult) return "Tick the 18+ box first.";
+  const next = memberNext(m); if (next > now) return "You can ask again on " + new Date(next).toLocaleDateString("en-GB", { timeZone: TZ, day: "numeric", month: "long" }) + ".";
+  return null;
+}
+async function memberSay(env, member, kind, text, push, now) {
+  await env.DB.prepare("INSERT INTO member_inbox (member, at, kind, text, push) VALUES (?, ?, ?, ?, ?)").bind(member, now, kind, cleanStr(text, 400), push ? 1 : 0).run();
+  await env.DB.prepare("DELETE FROM member_inbox WHERE member = ? AND n NOT IN (SELECT n FROM member_inbox WHERE member = ? ORDER BY n DESC LIMIT ?)").bind(member, member, INBOX_KEEP).run();
+}
+// a push to every device the member linked (few: their own phones and computers), sent straight away; the device reads /api/alert
+async function memberPush(env, member) {
+  if (!env.VAPID_JWK) return 0;
+  const rows = (await env.DB.prepare("SELECT dev FROM member_dev WHERE member = ? LIMIT 8").bind(member).all()).results || [], auth = {};
+  const rs = await Promise.allSettled(rows.map(async r => { const raw = await env.ISHAI.get(r.dev); if (!raw) { await env.DB.prepare("DELETE FROM member_dev WHERE dev = ?").bind(r.dev).run(); return 0; } return pushTo(env, r.dev, JSON.parse(raw).ep, auth); }));
+  return rs.reduce((a, r) => a + (r.status === "fulfilled" ? r.value : 0), 0);
+}
+// the inbox messages that were pushed in the last 20 minutes, for /api/alert (the device shows each tag once)
+async function memberAlertItems(env, key, now) {
+  if (!env.DB || !key) return [];
+  await memberTables(env);
+  const rows = (await env.DB.prepare("SELECT i.n, i.text FROM member_inbox i JOIN member_dev d ON d.member = i.member WHERE d.dev = ? AND i.push = 1 AND i.at > ? ORDER BY i.n DESC LIMIT 3").bind(key, now - 20 * 60000).all()).results || [];
+  return rows.map(r => ({ title: "Watching Ishai · Auditions", body: r.text, tag: "inbox-" + r.n }));
+}
+function memberView(m, now) {
+  const why = memberCan(m, now), next = memberNext(m);
+  return { state: m.state, avatar: m.avatar, adult: !!m.adult, banned: !!m.banned, asked: m.asked, decided: m.decided, left: m.left_at, note: m.state === "declined" ? m.note : null,
+    canAsk: !why, why, nextAt: next > now ? next : null, approvedUntil: m.state === "approved" && m.decided ? m.decided + AUD_APPROVE_D * 86400000 : null, since: m.at };
+}
+async function memberApi(req, env, url) {
+  if (!env.DB) return json({ error: "Auditions are not set up yet" }, {}, 503);
+  if (!env.GOOGLE_CLIENT_ID) return json({ error: "sign-in is not set up" }, {}, 503);
+  const id = await voterOf(req, env); if (!id) return json({ error: "please sign in", signIn: true }, {}, 401);
+  await memberTables(env);
+  const now = Date.now(); let m = await memberLapse(env, await memberGet(env, id), now), msg = null;
+  if (req.method === "POST") {
+    const b = await req.json().catch(() => ({}));
+    if (b.action === "avatar") { m.avatar = cleanLook(b.look); await memberPut(env, m, now); msg = "Avatar saved."; }
+    else if (b.action === "adult") { m.adult = b.on ? 1 : 0; await memberPut(env, m, now); }
+    else if (b.action === "request") {
+      const why = memberCan(m, now); if (why) return json({ error: why }, {}, 409);
+      Object.assign(m, { state: "requested", asked: now, decided: null, note: null }); await memberPut(env, m, now);
+      await memberSay(env, id, "request", "Your Audition request is in. The director will look at it; you'll get a message here (and a notification on linked devices) with the answer.", false, now);
+      msg = "Request sent.";
+    }
+    else if (b.action === "delete") {   // the viewer's own data, gone (the request and leaving dates and a ban stay, so the rules can't be escaped this way)
+      if (!["none", "declined", "left"].includes(m.state)) return json({ error: "not while an Audition is under way" }, {}, 409);
+      const keep = m.banned || m.asked || m.left_at;   // only the dates of the last request or leaving stay, for the once-a-month rule (and a ban)
+      await env.DB.batch([env.DB.prepare("DELETE FROM member_inbox WHERE member = ?").bind(id), env.DB.prepare("DELETE FROM member_dev WHERE member = ?").bind(id),
+        keep ? env.DB.prepare("UPDATE member SET avatar = NULL, adult = 0, note = NULL WHERE id = ?").bind(id) : env.DB.prepare("DELETE FROM member WHERE id = ?").bind(id)]);
+      m = keep ? { ...m, avatar: null, adult: 0, note: null } : memberBlank(id); msg = "Deleted.";
+    }
+    else if (b.action === "read") await env.DB.prepare("UPDATE member_inbox SET read = 1 WHERE member = ? AND n <= ?").bind(id, Math.round(Number(b.upTo)) || 0).run();
+    else if (b.action === "dev") {   // link this device's notifications to the account (the bell must be on: its KV entry exists)
+      const ep = String(b.endpoint || ""), key = ep.length < 700 && pushAllowed(ep) ? await pushKey(ep) : null;
+      if (!key || !await env.ISHAI.get(key)) return json({ error: "turn notifications on first" }, {}, 409);
+      await env.DB.prepare("DELETE FROM member_dev WHERE dev = ? AND member != ?").bind(key, id).run();   // a device belongs to the last account signed in on it
+      await env.DB.prepare("INSERT OR IGNORE INTO member_dev (member, dev, at) VALUES (?, ?, ?)").bind(id, key, now).run();
+      await env.DB.prepare("DELETE FROM member_dev WHERE member = ? AND dev NOT IN (SELECT dev FROM member_dev WHERE member = ? ORDER BY at DESC LIMIT 8)").bind(id, id).run();
+      return json({ ok: true }, { "cache-control": "no-store" });
+    }
+    else return json({ error: "unknown action" }, {}, 400);
+  }
+  const inbox = (await env.DB.prepare("SELECT n, at, kind, text, read FROM member_inbox WHERE member = ? ORDER BY n DESC LIMIT ?").bind(id, INBOX_KEEP).all()).results || [];
+  return json({ ok: true, msg, member: memberView(m, now), inbox, unread: inbox.filter(x => !x.read).length, max: MEMBER_MAX }, { "cache-control": "no-store" });
+}
+// the director's Auditions box: requests to decide, the recent decisions and banned accounts
+async function memberDirApi(req, env) {
+  if (!await isDirector(req, env)) return json({ error: "director only" }, {}, 403);
+  if (!env.DB) return json({ error: "no database" }, {}, 503);
+  await memberTables(env);
+  const now = Date.now();
+  if (req.method === "POST") {
+    const b = await req.json().catch(() => ({})), m = await memberGet(env, String(b.id || "").slice(0, 40));
+    if (!m.at) return json({ error: "no such member" }, {}, 404);
+    const reason = cleanStr(b.reason, 200);
+    if (b.action === "approve" || b.action === "decline") {
+      if (m.state !== "requested") return json({ error: "that request was already decided" }, {}, 409);
+      const ok = b.action === "approve";
+      Object.assign(m, { state: ok ? "approved" : "declined", decided: now, note: ok ? null : reason || null }); await memberPut(env, m, now);
+      await memberSay(env, m.id, ok ? "approved" : "declined", ok ? `Good news: the director approved your Audition! Open the 👤 menu and tap Audition within ${AUD_APPROVE_D} days. It's one long interview about a character of your own (about 30-40 minutes, and it can be taken only once).`
+        : "The director said no to your Audition request this time." + (reason ? " Reason: " + reason.replace(/[.!?]*$/, ".") : "") + " You can ask again a month after your request.", true, now);
+      try { await memberPush(env, m.id); } catch (e) {}
+    } else if (b.action === "ban" || b.action === "unban") {
+      m.banned = b.action === "ban" ? 1 : 0; if (m.banned && ["requested", "approved"].includes(m.state)) { m.state = "declined"; m.decided = now; m.note = reason || null; }
+      await memberPut(env, m, now);
+    } else return json({ error: "unknown action" }, {}, 400);
+  }
+  const rows = (await env.DB.prepare("SELECT * FROM member WHERE state != 'none' OR banned = 1 ORDER BY COALESCE(decided, asked, at) DESC LIMIT 80").all()).results || [];
+  const count = (await env.DB.prepare("SELECT COUNT(*) AS n FROM member").first() || {}).n || 0;
+  const view = r => { let avatar = null; try { avatar = r.avatar ? cleanLook(JSON.parse(r.avatar)) : null; } catch (e) {}
+    return { id: r.id, short: r.id.slice(2, 8), state: r.state, avatar, since: r.at, asked: r.asked, decided: r.decided, note: r.note, banned: !!r.banned,
+      lapses: r.state === "approved" && r.decided ? r.decided + AUD_APPROVE_D * 86400000 : null }; };
+  return json({ members: count, max: MEMBER_MAX, requests: rows.filter(r => r.state === "requested").map(view), decided: rows.filter(r => r.state !== "requested" && !r.banned).slice(0, 30).map(view),
+    banned: rows.filter(r => r.banned).map(view) }, { "cache-control": "no-store" });
 }

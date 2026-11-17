@@ -62,7 +62,7 @@
     if (n) ch.appendChild(chip('⚠ ' + n, 'amber', Object.entries(w).filter(([, v]) => v).map(([k, v]) => k + ' ' + v).join(', '), '/director#now'));
     tabsEl.querySelectorAll('.db-badge').forEach(b => b.remove());
     const badge = (key, v) => { if (!v) return; const a = tabsEl.querySelector(`[data-key="${key}"]`); if (!a) return; const b = document.createElement('span'); b.className = 'db-badge'; b.textContent = v; a.appendChild(b); };
-    badge('now', n); badge('cast', w.cast);
+    badge('now', n); badge('cast', (w.cast || 0) + (w.auditions || 0));
   }
   async function load(){
     if (document.hidden) return;
