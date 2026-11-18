@@ -380,7 +380,8 @@
     const dn = $('audDone'); dn.textContent = ''; v.decided.forEach(m => dn.appendChild(audRow(m))); if (!v.decided.length) dn.appendChild(cxEl('div', 'None yet.', 'opacity:.7'));
     const bn = $('audBan'); bn.textContent = ''; v.banned.forEach(m => bn.appendChild(audRow(m, (() => { const b = cxEl('div'); b.className = 'bar'; b.appendChild(cxBtn('Lift the ban', () => audDo({action: 'unban', id: m.id}, 'Ban lifted.'), true)); return b; })()))); if (!v.banned.length) bn.appendChild(cxEl('div', 'None.', 'opacity:.7'));
     const iv = $('audIv'); iv.textContent = '';
-    (v.interviews || []).forEach(a => { const d = cxEl('div'); d.className = 'inb';
+    (v.interviews || []).forEach(a => { const d = cxEl('div'); d.className = 'inb'; if (a.name && a.name.look) { d.style.display = 'flex'; d.style.gap = '10px'; d.appendChild(audFace(a.name.look)); }
+      const col = cxEl('div'); col.style.flex = '1'; d.appendChild(col); const dd = d; { const d = col;
       const nm = a.name && a.name.first ? `${a.name.first}${a.name.nick ? ' "' + a.name.nick + '"' : ''} ${a.name.sur || ''}${a.name.own ? ' (name typed by the viewer: check it)' : ''}` : 'unnamed';
       d.appendChild(cxEl('div', `${nm} · viewer #${a.short} · ${a.state === 'submitted' ? 'SENT ' + fmt(a.done) : 'answering'} · ${a.answered} of about ${a.total}${a.state === 'interview' && a.until ? ' · open until ' + fmt(a.until) : ''}`));
       const det = cxEl('details'), sum = cxEl('summary', 'Answers'); det.appendChild(sum); const body = cxEl('div', 'Loading…', 'font-size:15px'); det.appendChild(body);
@@ -391,7 +392,7 @@
             body.appendChild(cxEl('div', `${x.follow ? '  ↳ ' : x.wild ? '🃏 ' : ''}${x.q} — ${x.a}${x.other ? ' (' + x.other + ')' : ''}${x.ai ? ' [AI wild card]' : ''}`, x.follow ? 'opacity:.85;padding-left:12px' : '')); });
           if (!j.answers.length) body.textContent = 'No answers yet.';
         } catch (e) { body.textContent = e.message; delete det.dataset.loaded; } };
-      d.appendChild(det); iv.appendChild(d); });
+      d.appendChild(det); } iv.appendChild(dd); });
     if (!(v.interviews || []).length) iv.appendChild(cxEl('div', 'None yet.', 'opacity:.7'));
     if (window.LAST_V) renderInbox(window.LAST_V);
   }

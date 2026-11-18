@@ -8164,7 +8164,7 @@
   // notifications: a bell for each viewer, off until they turn it on (key moments, and the moments they voted for)
   const ALERT_KEY = 'BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI';
   (async () => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || forceLoc || params.has('sandbox') || params.has('builder') || params.has('preview') || params.has('demo') || location.protocol !== 'https:' && location.hostname !== '127.0.0.1') return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || forceLoc || params.has('sandbox') || params.has('builder') || params.has('looks') || params.has('preview') || params.has('demo') || location.protocol !== 'https:' && location.hostname !== '127.0.0.1') return;
     const bell = $('bell'), DEF = {from: 8, to: 23, max: 4, alerts: true, picks: true}, PK = 'ishaiAlerts'; bell.hidden = false;
     const load = () => { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(PK)) || {}); } catch(e){ return {...DEF}; } };
     const keep = p => { try { localStorage.setItem(PK, JSON.stringify(p)); } catch(e){} };
@@ -8202,6 +8202,16 @@
       $('alertS').disabled = false; };
   })();
   if (params.has('syncdebug')) window.__ishaiSync = () => ({loc: actor.loc, x: actor.x, a: actor.action, hidden: actor.hidden, comp: comp.id ? comp.x : null, dog: dog.loc ? dog.x : null, cam: SCENES[actor.loc].cam, ride: !!actor.ride, sw: !!actor.switching, sim: simT});
+  // ?looks: a hidden helper for the Audition page (public): it only draws looks with the show's own art and starts nothing else
+  if (params.has('looks')) {
+    BUILDER = true; demoMode = true; TUNING = false;
+    const ok = e => e.origin === location.origin;
+    window.addEventListener('message', e => { if (!ok(e) || !e.data || !e.data.lookReq) return;
+      let url = null; try { url = portrait(e.data.look || {}, false).toDataURL(); } catch(err){}
+      e.source.postMessage({lookRes: e.data.lookReq, url}, location.origin); });
+    if (parent !== window) parent.postMessage({looksReady: true, opts: {hair: LOOK_OPTS.hair, hairColor: Object.keys(HAIRC), skin: Object.keys(SKINC), top: LOOK_OPTS.top, shirt: Object.keys(CLOTH), bottom: LOOK_OPTS.bottom, pants: Object.keys(CLOTH), hat: LOOK_OPTS.hat, hatColor: Object.keys(CLOTH), extras: LOOK_OPTS.extras.filter(x => x !== 'apron')}}, location.origin);
+    return;
+  }
   requestAnimationFrame(loop);
   if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }
   else if (params.has('preview')) startPreview();

@@ -256,8 +256,8 @@ const SANDBOX_HTML = __SANDBOX_HTML__;
 const INTRO_HTML = __INTRO_HTML__;   // the trailer: /intro, public; first-time visitors land here once
 const BUILDER_HTML = __BUILDER_HTML__;
 const EVENTS_HTML = __EVENTS_HTML__;
-const MAP_HTML = __MAP_HTML__;
-const AUDITION_HTML = __AUDITION_HTML__;   // the viewer's Audition page: naming and the interview (source/public/audition.html, docs/AUDITION_PLAN.md)   // the director's map of every screen (source/public/map.html + story/world.json)
+const MAP_HTML = __MAP_HTML__;   // the director's map of every screen (source/public/map.html + story/world.json)
+const AUDITION_HTML = __AUDITION_HTML__;   // the viewer's Audition page: naming and the interview (source/public/audition.html, docs/AUDITION_PLAN.md)
 const SW_JS = __SW_JS__;
 const ICONS = __ICONS__;   // /favicon.ico, /favicon.svg, /apple-touch-icon.png, /icon-192.png, /icon-512.png, /og.png (source/public/icons)
 const iconBytes = {};
@@ -6215,7 +6215,9 @@ async function audApi(req, env, url) {
       if (own) { const why = audNameWhy(first); if (why) return json({ error: why }, {}, 409); }
       else if (!(AUD_BANK.names[gender] || []).includes(first)) return json({ error: "Pick one of the names, or type your own." }, {}, 409);
       if (nick && (audNameWhy(nick) || nick.toLowerCase() === first.toLowerCase())) return json({ error: "That nickname won't do; leave it empty or try another." }, {}, 409);
-      const name = { first, nick: nick || null, gender, own, sur: audShuffle(AUD_BANK.names.sur, audRand("sur:" + a.n))[0] };
+      // the look: the avatar as it was, or as the viewer changed it on the naming screen (only the show's own options, cleanLook())
+      const look = cleanLook(b.look && typeof b.look === "object" ? b.look : (m.avatar || {}));
+      const name = { first, nick: nick || null, gender, own, sur: audShuffle(AUD_BANK.names.sur, audRand("sur:" + a.n))[0], look };
       const wild = await audBankWild(env, a.n), main = audPick(a.n);
       const w1 = Math.round(main.length * 0.4), w2 = Math.round(main.length * 0.85);   // one in the first half, one near the end
       const picked = [...main.slice(0, w1), { w: 1 }, ...main.slice(w1, w2), { w: 2 }, ...main.slice(w2)];

@@ -44,6 +44,13 @@
   .sec{font-size:18px;color:var(--amber);letter-spacing:1px;text-transform:uppercase}
   .q{font-size:26px;margin:10px 0 12px}
   .wild{border-color:var(--amber)} .wild .q{color:var(--amber)}
+  .look{display:flex;gap:12px;align-items:flex-start}
+  .look img{width:84px;height:162px;image-rendering:pixelated;background:#0b120b;border:1px solid var(--faint);border-radius:4px;flex:none}
+  .lookEd{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;flex:1;font-size:16px}
+  .lookEd label{display:flex;flex-direction:column;color:var(--dim)}
+  .lookEd select{font:inherit;font-size:18px;background:#020402;color:var(--phos);border:1px solid var(--dim);border-radius:4px}
+  .lookEx{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;font-size:16px}
+  .lookEx label{display:flex;gap:4px;align-items:center;border:1px solid var(--faint);border-radius:4px;padding:1px 6px}
   .scale{display:flex;justify-content:space-between;gap:6px;margin:8px 0}
   .scale button{flex:1;padding:12px 0;background:transparent;color:var(--phos);border:1px solid var(--dim)}
   .scale button[aria-pressed=true]{background:var(--phos);color:var(--bg)}
@@ -62,6 +69,7 @@
 </main>
 <div class="foot" id="foot" hidden><div class="in"><button class="ghost" id="back" hidden>← BACK</button><span class="muted" id="saved" style="font-size:16px"></span><button id="next">NEXT →</button></div></div>
 <dialog id="dlg"><p id="dlgT"></p><div class="row" style="justify-content:flex-end"><button class="ghost" id="dlgNo">NOT YET</button><button id="dlgYes">YES, START</button></div></dialog>
+<iframe id="looks" src="/?looks" title="" aria-hidden="true" tabindex="-1" style="position:absolute;width:1px;height:1px;border:0;left:-9999px"></iframe>
 <script>
 (() => {
   const $ = id => document.getElementById(id), app = $('app');
@@ -104,6 +112,7 @@
       ].forEach(t => u.appendChild(el('li', t))); return u; })());
     if (v.until) intro.appendChild(el('p', `Your approval is open until ${date(v.until)}.`, 'muted'));
     app.appendChild(intro);
+    LOOK = LOOK || JSON.parse(JSON.stringify(v.avatar || {})); AVATAR = v.avatar || null; lookCard();
     const c = el('div', null, 'card'); c.appendChild(el('h2', 'NAME YOUR CHARACTER'));
     const seg = el('div', null, 'seg'); [['f', 'A WOMAN'], ['m', 'A MAN']].forEach(([g, t]) => { const b = el('button', t); b.setAttribute('aria-pressed', g === G); b.onclick = () => { G = g; CHOSEN = null; OWN = false; seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); names(false); }; seg.appendChild(b); });
     c.append(el('p', 'Your character is…', 'muted'), seg, el('p', 'Pick a name (a surname comes with it):', 'muted'));
@@ -130,6 +139,36 @@
       CHOSEN = null; ready();
     } catch(e){ msg(e.message, true); }
   }
+  // ---- the look: starts from the avatar; drawn by the show's own art in the hidden ?looks frame ----
+  let LOOK = null, AVATAR = null, OPTS = null, lookN = 0;
+  const LOOK_LABEL = {hair: 'Hair', hairColor: 'Hair colour', skin: 'Skin', top: 'Top', shirt: 'Top colour', bottom: 'Bottoms', pants: 'Bottoms colour', hat: 'Hat', hatColor: 'Hat colour'};
+  const pickR = a => a[Math.floor(Math.random() * a.length)];
+  window.addEventListener('message', e => {
+    if (e.origin !== location.origin || !e.data) return;
+    if (e.data.looksReady){ OPTS = e.data.opts; if ($('lookEd')) lookCard(); else if ($('lookImg') && LOOK) lookDraw(); }
+    if (e.data.lookRes && e.data.lookRes === lookN && e.data.url && $('lookImg')) $('lookImg').src = e.data.url;
+  });
+  function lookDraw(){ const f = $('looks'); if (!f || !f.contentWindow || !OPTS) return; lookN++; f.contentWindow.postMessage({lookReq: lookN, look: LOOK}, location.origin); }
+  function lookCard(){
+    let c = $('lookCard'); if (!c){ c = el('div', null, 'card'); c.id = 'lookCard'; app.appendChild(c); }
+    c.textContent = ''; c.appendChild(el('h2', 'THE LOOK'));
+    c.appendChild(el('p', 'This is how your character will look on the show. It starts from your avatar; change anything you like.', 'muted'));
+    const row = el('div', null, 'look'), img = el('img'); img.id = 'lookImg'; img.alt = 'Your character'; const ed = el('div', null, 'lookEd'); ed.id = 'lookEd';
+    row.append(img, ed); c.appendChild(row);
+    if (!OPTS){ ed.appendChild(el('span', 'Loading the wardrobe…', 'muted')); return; }
+    Object.keys(LOOK_LABEL).forEach(k => { const l = el('label', LOOK_LABEL[k]), sel = el('select'); (OPTS[k] || []).forEach(o => sel.add(new Option(o, o)));
+      sel.value = LOOK[k] && OPTS[k].includes(LOOK[k]) ? LOOK[k] : (LOOK[k] = OPTS[k][0]); sel.onchange = () => { LOOK[k] = sel.value; lookDraw(); }; l.appendChild(sel); ed.appendChild(l); });
+    const ex = el('div', null, 'lookEx'); LOOK.extras = (LOOK.extras || []).filter(x => OPTS.extras.includes(x));
+    OPTS.extras.forEach(x => { const l = el('label'), cb = el('input'); cb.type = 'checkbox'; cb.checked = LOOK.extras.includes(x);
+      cb.onchange = () => { const on = new Set(LOOK.extras); if (cb.checked){ if (on.size >= 5){ cb.checked = false; return; } on.add(x); } else on.delete(x); LOOK.extras = [...on]; lookDraw(); };
+      l.append(cb, document.createTextNode(x)); ex.appendChild(l); });
+    c.appendChild(ex);
+    const r = el('div', null, 'row'); r.style.marginTop = '8px';
+    const rnd = el('button', '🎲 RANDOM', 'ghost'); rnd.onclick = () => { Object.keys(LOOK_LABEL).forEach(k => LOOK[k] = pickR(OPTS[k])); if (Math.random() < .6) LOOK.hat = 'none'; LOOK.extras = Math.random() < .5 ? [pickR(OPTS.extras)] : []; lookCard(); };
+    r.appendChild(rnd);
+    if (AVATAR){ const back = el('button', '↺ MY AVATAR', 'ghost'); back.onclick = () => { LOOK = JSON.parse(JSON.stringify(AVATAR)); lookCard(); }; r.appendChild(back); }
+    c.appendChild(r); lookDraw();
+  }
   function ready(){ $('next').disabled = !(CHOSEN || (OWN && $('ownName').value.trim().length >= 2)); }
   function start(){
     const name = OWN ? $('ownName').value.trim() : CHOSEN && CHOSEN.name, nick = OWN ? $('ownNick').value.trim() : CHOSEN && CHOSEN.nick;
@@ -137,7 +176,7 @@
     $('dlgT').textContent = `Start ${name}'s Audition now? It can be taken only once, and you'll have ${V.days} days to finish it (you can stop and come back).`;
     $('dlg').showModal(); $('dlgNo').onclick = () => $('dlg').close();
     $('dlgYes').onclick = async () => { $('dlg').close(); if (busy) return; busy = true; $('next').disabled = true;
-      try { show(await api({action: 'start', gender: G, own: OWN, name, nick: nick || null})); } catch(e){ msg(e.message, true); ready(); } busy = false; };
+      try { show(await api({action: 'start', gender: G, own: OWN, name, nick: nick || null, look: LOOK})); } catch(e){ msg(e.message, true); ready(); } busy = false; };
   }
   // ---- one question per screen ----
   function question(v){
@@ -145,7 +184,9 @@
     const pct = Math.min(99, Math.round(100 * q.n / q.total));
     const top = el('div'); top.append(el('div', q.wild ? '🃏 WILD CARD' : q.section, 'sec'));
     const bar = el('div', null, 'bar'); const i = el('i'); i.style.width = pct + '%'; bar.appendChild(i); bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-valuenow', pct); bar.setAttribute('aria-valuemin', 0); bar.setAttribute('aria-valuemax', 100);
-    const meta = el('div', null, 'meta'); meta.append(el('span', `${v.name.first} · ${q.n} of about ${q.total}`), el('span', `open until ${date(v.until)}`));
+    const meta = el('div', null, 'meta'); const who = el('span'); who.style.display = 'flex'; who.style.alignItems = 'center'; who.style.gap = '6px';
+    if (v.name.look){ const im = el('img'); im.id = 'lookImg'; im.alt = ''; im.style.cssText = 'width:21px;height:40px;image-rendering:pixelated;border:1px solid var(--faint)'; who.appendChild(im); LOOK = v.name.look; lookDraw(); }
+    who.appendChild(document.createTextNode(`${v.name.first} · ${q.n} of about ${q.total}`)); meta.append(who, el('span', `open until ${date(v.until)}`));
     top.append(bar, meta); app.appendChild(top);
     c.appendChild(el('div', q.q, 'q'));
     const A = q.answer;
