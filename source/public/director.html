@@ -27,6 +27,14 @@
   button{font:inherit;background:var(--faint);color:var(--phos);border:1px solid var(--dim);border-radius:6px;padding:6px 14px;cursor:pointer}
   button:hover{background:#1b5a2f} button:disabled{opacity:.5}
   button.ghost{background:transparent}
+  /* the hosts' language toggle (v275): UK flag on the left, Israel on the right, the knob slides to the one on air */
+  .langRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .langTog{position:relative;display:inline-flex;align-items:center;gap:0;padding:3px;border-radius:999px;width:auto;flex:none}
+  .langTog .lt{display:inline-flex;align-items:center;justify-content:center;width:36px;height:22px;position:relative;z-index:1;opacity:.45;transition:opacity .2s}
+  .langTog .lt svg{display:block;border-radius:2px}
+  .langTog .knob{position:absolute;top:3px;left:3px;width:36px;height:22px;border-radius:999px;background:var(--dim);transition:transform .2s}
+  .langTog[aria-checked="true"] .knob{transform:translateX(36px)}
+  .langTog[aria-checked="false"] .lt.en, .langTog[aria-checked="true"] .lt.he{opacity:1}
   .goal{border-top:1px dashed var(--faint);padding:10px 0}
   .goal:first-child{border-top:none}
   .st{display:inline-block;padding:0 8px;border-radius:4px;margin-right:6px}
@@ -231,9 +239,13 @@
     <section class="tab" data-tab="more" hidden>
     <div class="box">
       <div class="bar" style="justify-content:space-between"><span style="font-size:24px">The hosts</span>
-        <span><button id="hostsStyle" class="ghost">…</button> <button id="hostsWriter" class="ghost">…</button> <button id="hostsLang" class="ghost">…</button></span></div>
+        <span><button id="hostsStyle" class="ghost">…</button> <button id="hostsWriter" class="ghost">…</button></span></div>
       <div id="hostsNow" style="margin-top:6px">—</div>
       <div id="hostsWho" style="margin-top:4px">—</div>
+      <div class="langRow">Hosts' language
+        <button id="hostsLang" class="langTog" role="switch" aria-checked="false" title="English or Hebrew for the hosts' AI-written lines">
+          <span class="lt en"><svg viewBox="0 0 60 30" width="27" height="14" aria-hidden="true"><clipPath id="ukc"><path d="M0,0v30h60V0z"/></clipPath><g clip-path="url(#ukc)"><path d="M0,0v30h60V0z" fill="#012169"/><path d="M0,0L60,30M60,0L0,30" stroke="#fff" stroke-width="6"/><path d="M0,0L60,30M60,0L0,30" stroke="#C8102E" stroke-width="2"/><path d="M30,0v30M0,15h60" stroke="#fff" stroke-width="10"/><path d="M30,0v30M0,15h60" stroke="#C8102E" stroke-width="6"/></g></svg></span><span class="lt he"><svg viewBox="0 0 220 160" width="20" height="14" aria-hidden="true"><path d="M0,0h220v160H0z" fill="#fff"/><path d="M0,15h220v25H0zM0,120h220v25H0z" fill="#0038b8"/><path d="M110,52 L136,97 H84z M110,108 L84,63 H136z" fill="none" stroke="#0038b8" stroke-width="5.5"/></svg></span><i class="knob"></i></button>
+        <span id="hostsLangTxt" class="dim"></span></div>
       <div class="muted" style="font-size:16px">Sports: Oren calls the play in short lines, Zohar gives the opinion and drama and sometimes asks Oren something (he answers, or now and then a sarcastic comeback); host lines come during the talk, with more energy when it matters. Classic: Zohar and Oren exactly as they were up to v259 (lines only after the talk). Switching changes the next lines written, within a few minutes.</div>
     </div>
     <div class="box">
@@ -834,8 +846,8 @@
     $('hostsWriter').textContent = gm ? 'Write with Cloudflare' : 'Write with Gemini';
     $('hostsWriter').onclick = async () => render(await api({action:'hostsWriter', writer: gm ? 'cloudflare' : 'gemini'}));
     const he = h.lang === 'he';   // v274: the hosts' language (AI-written lines only)
-    $('hostsWho').textContent += he ? ' Language: HEBREW (AI-written lines; the rest stays English).' : ' Language: ENGLISH.';
-    $('hostsLang').textContent = he ? 'Hosts in English' : 'Hosts in Hebrew';
+    $('hostsLang').setAttribute('aria-checked', he ? 'true' : 'false');
+    $('hostsLangTxt').textContent = he ? 'Hebrew: the AI-written host lines from the next block (a few minutes); the rest stays English.' : 'English.';
     $('hostsLang').onclick = async () => render(await api({action:'hostsLang', lang: he ? 'en' : 'he'}));
   }
   function collapsible(){

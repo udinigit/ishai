@@ -108,6 +108,10 @@ const hostsSports = s => !s || s.hostsStyle !== "classic";
 // lines change (every prompt that takes hostsOf(s).rules: the hosts' call, the story writer's COMMENTATORS); the hand-written lines,
 // recaps, callers and the cast's talk stay English. The page reads a Hebrew line with a Hebrew device voice and right to left.
 const hostsHe = s => !!s && s.hostsLang === "he";
+// v275: kept in its own KV key, not only in the state: a tick that loaded the state before the switch (or a stale copy in another
+// data center) saved it back and the switch was lost. tick() and the director page read it from here.
+const HOSTS_LANG_KEY = "cfg:hostsLang";
+async function hostsLangLoad(env, s) { try { const v = await env.ISHAI.get(HOSTS_LANG_KEY); if (v) s.hostsLang = v === "he" ? "he" : "en"; } catch (e) {} }
 const HOSTS_HE = `LANGUAGE: the hosts speak HEBREW. Write every "say" in natural, spoken, everyday Israeli Hebrew, in Hebrew letters, like two Tel Aviv TV commentators (slang is fine, never translated-sounding English).
   Everything else stays as it is: JSON keys and "who" values in English ("zohar", "oren"), people's names in Hebrew letters (ישי, דנה, נועה, זוהר, אורן...), the show's brands in their Latin spelling (Cooola, ateBite, Café Nahat...).
   A husky dog is always "hascii", written in Latin letters, never האסקי. Short lines: Hebrew words count the same as English ones.`;
@@ -680,6 +684,7 @@ Reply with ONLY JSON:
 
 async function tick(env, force) {
   const s = await loadState(env);
+  await hostsLangLoad(env, s);   // v275: the director's language switch, from its own key
   const now = Date.now();
   const storyMs = now + DELAY_MIN * 60000;
   const clock = storyClock(storyMs);
@@ -5066,6 +5071,7 @@ function applyPlan(s, now) {
 }
 async function directorApi(req, env) {
   const s = await loadState(env);
+  await hostsLangLoad(env, s);
   const now = Date.now();
   if (req.method === "POST") {
     let b = {}; try { b = await req.json(); } catch {}
@@ -5105,7 +5111,7 @@ async function directorApi(req, env) {
     } else if (b.action === "hostsWriter") {   // who writes the hosts' lines (v261): "gemini" (Cloudflare backs up) or "cloudflare" (as up to v260, Gemini backs up)
       s.hostsWriter = b.writer === "cloudflare" ? "cloudflare" : "gemini";
     } else if (b.action === "hostsLang") {   // the hosts' language (v274): "en" or "he" (AI-written host lines only)
-      s.hostsLang = b.lang === "he" ? "he" : "en";
+      s.hostsLang = b.lang === "he" ? "he" : "en"; await env.ISHAI.put(HOSTS_LANG_KEY, s.hostsLang);
     } else if (b.action === "pollsOff") {
       s.pollsOff = !!b.off;
     } else if (b.action === "pollBank") {     // replace the coming poll with a stock one
