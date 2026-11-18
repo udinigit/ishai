@@ -134,7 +134,7 @@
     </section>
     <section class="tab" data-tab="cast" hidden>
     <div class="box" id="audBox"><div style="font-size:24px" id="audT">Auditions</div>
-      <div class="muted" style="font-size:16px">Viewers' own characters (docs/AUDITION_PLAN.md). Requests wait here; approve or decline each, with an optional reason the viewer sees. An approved viewer names their character and takes the interview (7 days). A sent Audition gets its card and three ways in from the AI; Claude reviews it with the weekly cast review; you pick a way in, edit what you like, and approve (the viewer gets the offer and accepts or declines within 7 days) or reject. The table read and your final green light come next (not built yet).</div>
+      <div class="muted" style="font-size:16px">Viewers' own characters (docs/AUDITION_PLAN.md). Requests wait here; approve or decline each, with an optional reason the viewer sees. An approved viewer names their character and takes the interview (7 days). A sent Audition gets its card and three ways in from the AI; Claude reviews it with the weekly cast review; you pick a way in, edit what you like, and approve (the viewer gets the offer and accepts or declines within 7 days) or reject. After Accept the viewer plays the table read (a short rehearsal of the role on the real set; it tunes the card), and then it's your GREEN LIGHT: only that adds the character to the cast and books the first scene. Your 🧪 test runs it all and stops at the green light.</div>
       <div id="audSum" class="muted" style="font-size:16px"></div>
       <div class="bar" style="margin:6px 0"><button id="audTest">🧪 Try an Audition yourself</button><span id="audTestT" class="muted" style="font-size:15px"></span></div>
       <div id="audReq" style="font-size:17px"></div><div id="audMsg" class="muted" style="font-size:16px"></div>
@@ -339,13 +339,50 @@
   }
   // ---- Auditions (docs/AUDITION_PLAN.md, steps 1-2): /api/member/dir ----
   let AUD = null; const AUD_ART = {}, AUD_OPEN = new Set(), AUD_ROWS = new Map();
-  const AUD_STATE = {submitted: 'SENT', offered: 'OFFERED', accepted: 'ACCEPTED', rejected: 'REJECTED', declinedOffer: 'TURNED DOWN BY THE VIEWER', offerExpired: 'OFFER LAPSED'};
+  const AUD_STATE = {submitted: 'SENT', offered: 'OFFERED', accepted: 'ACCEPTED', rejected: 'REJECTED', declinedOffer: 'TURNED DOWN BY THE VIEWER', offerExpired: 'OFFER LAPSED',
+    reading: 'TABLE READ', tuning: 'BEING TUNED', greenlight: 'READY FOR THE GREEN LIGHT', on: 'ON THE SHOW', testDone: 'TEST DONE', stopped: 'STOPPED'};
+  // steps 5b-5c: the table read's progress, then the green light
+  function audRead(a, box){
+    const d = a.director || {}, w = a.ways[d.way] || {}, r = a.read, bar = cxEl('div'); bar.className = 'bar';
+    const line = (t, st) => box.appendChild(cxEl('div', t, st || ''));
+    if (a.state === 'accepted') { line(`Accepted ${fmt(d.accepted)}: ${w.title}. The table read is being written (next tick, Gemini only).`, 'color:var(--amber)'); bar.appendChild(cxBtn('Write the table read now', () => audDo({action: 'audReadNow', n: a.n}, 'Table read written.'))); box.appendChild(bar); return; }
+    if (a.state === 'reading') { line(`Table read for ${w.title}: ${r ? (r.started ? `started ${fmt(r.started)}, ${r.picks} of ${r.turns} turns` : `ready ${fmt(r.ready)}, not started`) + ' · open until ' + fmt(r.until) : '…'}.`, 'color:var(--amber)'); if (r && !r.started) { bar.appendChild(cxBtn('Write it again', () => { if (confirm('Write a new table read?')) audDo({action: 'audReadNow', n: a.n}, 'A new table read is written.'); }, true)); box.appendChild(bar); } return; }
+    if (a.state === 'tuning') { line(`Table read done (${r ? r.picks : 0} picks). The card is being tuned (next tick).`, 'color:var(--amber)'); bar.appendChild(cxBtn('Tune it now', () => audDo({action: 'audReadNow', n: a.n}, 'Tuned.'))); box.appendChild(bar); return; }
+    if (a.state === 'on') { const f = d.first || {}; line(`ON THE SHOW as ${w.title} (cast id "${a.castId || ''}"). First scene booked: ${fmt(f.at)} at ${f.place}.`, 'color:var(--amber)'); return; }
+    if (a.state === 'testDone') { const x = d.would || {}; line(`Test green light: as a real one it would have joined the cast as "${x.id}" with the first scene ${fmt(x.at)} at ${x.place}. Nothing was booked.`, 'color:var(--amber)'); if (x.goal) line('The goal: ' + x.goal, 'font-size:15px;opacity:.85'); return; }
+    if (a.state === 'stopped') { line('You stopped it' + (d.reason ? ': ' + d.reason : '.'), 'opacity:.8'); return; }
+    // greenlight: everything set; the director's last word
+    const det = cxEl('details'); det.id = 'audCard' + a.n; det.open = !AUD_OPEN.has('x' + a.n); det.ontoggle = () => { if (det.open) AUD_OPEN.delete('x' + a.n); else AUD_OPEN.add('x' + a.n); };
+    det.appendChild(cxEl('summary', 'READY FOR THE GREEN LIGHT')); box.appendChild(det);
+    const f = a.final || {}, tn = r && r.tune, rv = r && r.review, L = (k, v, el) => { if (v) (el || det).appendChild(cxEl('div', k + ': ' + v, 'font-size:15px')); };
+    L('Role', `${w.title}${w.linkText ? ' · ' + w.linkText : ''}`); L('In short', f.role); L('Personality', f.personality);
+    if (f.atWork) L('At work', Object.entries(f.atWork).map(([k, v]) => k + ': ' + v).join(' · '));
+    if (f.dials) L('Dials', Object.entries(f.dials).map(([k, v]) => k + ' = ' + v.setting).join(' · '));
+    if (f.talk) L('Sample lines', (f.talk.samples || []).map(x => '"' + x + '"').join('  '));
+    det.appendChild(cxEl('div', rv ? `Claude on the tuning: ${rv.verdict}${rv.reason ? ' · ' + rv.reason : ''}` : 'Claude hasn\'t reviewed the tuning yet (the weekly cast review). You can decide without it.', 'color:' + (rv ? (rv.verdict === 'reject' ? '#ff6b6b' : 'var(--amber)') : 'var(--dim)') + ';margin-top:4px'));
+    if (r && r.log && r.log.length) { const lg = cxEl('details'); lg.appendChild(cxEl('summary', `The table read (${r.log.length} turns, ${r.log.filter(x => x.self).length} chosen by the character)`));
+      r.log.forEach((x, i) => lg.appendChild(cxEl('div', `${i + 1}. ${x.situation} · ${x.dial}: ${x.setting}${x.self ? ' (chose for themselves)' : ' (' + x.secs + ' s)'} — "${x.say}"`, 'font-size:15px'))); det.appendChild(lg); }
+    else det.appendChild(cxEl('div', 'The table read was skipped: the work side comes from the card and the role alone.', 'opacity:.8'));
+    const ap = cxEl('label', null, 'display:flex;gap:6px;align-items:center;margin-top:6px'), cb = cxEl('input'); cb.type = 'checkbox'; cb.style.width = 'auto'; cb.checked = !(rv && rv.verdict === 'reject'); ap.append(cb, cxEl('span', 'Apply the tuning (dials, at work, sample and mood lines)')); det.appendChild(ap);
+    det.appendChild(cxEl('div', 'First scene: ' + w.scene, 'margin-top:6px'));
+    const tb = cxEl('div'); tb.className = 'bar'; const when = cxEl('input'); when.type = 'datetime-local'; when.style.width = 'auto'; tb.append(cxEl('span', 'When:', 'opacity:.8'), when, cxEl('span', 'empty = the next free slot at the place (within 14 days)', 'opacity:.7;font-size:14px')); det.appendChild(tb);
+    const note = cxEl('input'); note.placeholder = 'note or reason the viewer sees (Not yet / Stop)'; note.style.marginTop = '6px'; det.appendChild(note);
+    const redoL = cxEl('label', null, 'display:flex;gap:6px;align-items:center'), redo = cxEl('input'); redo.type = 'checkbox'; redo.style.width = 'auto'; redoL.append(redo, cxEl('span', 'with Not yet: redo the table read (a new one)')); det.appendChild(redoL);
+    det.addEventListener('input', () => { const row = det.closest('.inb'); if (row) row.dataset.dirty = 1; });
+    const b2 = cxEl('div'); b2.className = 'bar';
+    b2.appendChild(cxBtn('🟢 GREEN LIGHT', () => { const at = when.value ? new Date(when.value).toISOString() : null;
+      if (!confirm(a.test ? 'Test green light: see what would be booked (nothing joins the cast)?' : `GREEN LIGHT: ${a.name.first} joins the cast now and the first scene is booked${at ? '' : ' in the next free slot'}. Go?`)) return;
+      audDo({action: 'audGreen', n: a.n, tune: cb.checked, at}, a.test ? 'Test done.' : 'Green light! ' + a.name.first + ' is in the cast.'); }));
+    b2.appendChild(cxBtn('Not yet', () => audDo({action: 'audNotYet', n: a.n, note: note.value.trim(), redo: redo.checked}, redo.checked ? 'A new table read is on its way.' : 'Note sent.'), true));
+    b2.appendChild(cxBtn('Stop', () => { if (confirm(`Stop ${a.name.first}'s Audition for good? The viewer is told${note.value.trim() ? ' your reason' : ''}.`)) audDo({action: 'audStop', n: a.n, reason: note.value.trim()}, 'Stopped.'); }, true));
+    det.appendChild(b2);
+  }
   // steps 4-5: what comes after the answers: the card being written, the card to approve (with Claude's review and three ways in), the offer
   function audStep(a){
     const box = cxEl('div', null, 'margin-top:6px'), d = a.director || {};
     if (a.state === 'interview') return box;
     if (a.state === 'offered') { const w = a.ways[d.way] || {}; box.appendChild(cxEl('div', `Offered: ${w.title}${w.linkText ? ' (' + w.linkText + ')' : ''}. Waiting for the viewer until ${fmt(d.offerUntil)}.`, 'color:var(--amber)')); return box; }
-    if (a.state === 'accepted') { const w = a.ways[d.way] || {}; box.appendChild(cxEl('div', `Accepted ${fmt(d.accepted)}: ${w.title}. Next is the table read (step 5b, not built yet), then your green light.`, 'color:var(--amber)')); return box; }
+    if (['accepted', 'reading', 'tuning', 'greenlight', 'on', 'testDone', 'stopped'].includes(a.state)) { audRead(a, box); return box; }
     if (a.state !== 'submitted') { box.appendChild(cxEl('div', a.state === 'rejected' ? 'You rejected it' + (d.reason ? ': ' + d.reason : '.') : a.state === 'declinedOffer' ? 'The viewer turned the role down.' : 'The viewer didn\'t answer the offer in 7 days.', 'opacity:.8')); return box; }
     if (!a.card) {
       box.appendChild(cxEl('div', 'The card is being written from the answers (within a few minutes; it waits while Gemini is paused for the day).', 'opacity:.85'));

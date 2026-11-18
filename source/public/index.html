@@ -7809,7 +7809,7 @@
   }
   const memDate = ms => new Date(ms).toLocaleDateString('en-GB', {timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'short'});
   const MEM_BTN = {none: 'REQUEST AN AUDITION', requested: 'AUDITION REQUESTED', declined: 'REQUEST AN AUDITION', approved: 'AUDITION', interview: 'CONTINUE YOUR AUDITION', submitted: 'IN REVIEW',
-    offered: 'SEE YOUR ROLE', reading: 'TABLE READ', on: 'QUIT SHOW', leaving: 'LEAVING THE SHOW', left: 'REQUEST AN AUDITION'};
+    offered: 'SEE YOUR ROLE', reading: 'TABLE READ', greenlight: 'WAITING FOR THE GREEN LIGHT', on: 'QUIT SHOW', leaving: 'LEAVING THE SHOW', left: 'REQUEST AN AUDITION'};
   function memFill(){
     const v = MBR.v; if (!v){ $('memAudT').textContent = MBR.busy ? 'Loading…' : ''; return; }
     const m = v.member; if (!MBR.dirty) MBR.look = JSON.parse(JSON.stringify(m.avatar || MBR.look || memRandom()));
@@ -7818,7 +7818,7 @@
     $('memAdult').checked = m.adult; $('memAdult').disabled = m.state !== 'none' && m.state !== 'declined' && m.state !== 'left';
     const b = $('memAud'), t = $('memAudT'); b.textContent = MEM_BTN[m.state] || m.state.toUpperCase();
     const asking = ['none', 'declined', 'left'].includes(m.state);
-    b.disabled = m.banned || (asking ? !m.canAsk && !(m.why && /avatar|18\+/.test(m.why)) : !['approved', 'interview', 'offered', 'reading'].includes(m.state));
+    b.disabled = m.banned || (asking ? !m.canAsk && !(m.why && /avatar|18\+/.test(m.why)) : !['approved', 'interview', 'offered', 'reading', 'greenlight'].includes(m.state));
     const iv = v.interview;
     t.textContent = m.banned ? 'This account can\'t request Auditions.'
       : m.state === 'requested' ? `Asked on ${memDate(m.asked)}. The director will decide; the answer comes to your inbox below.`
@@ -7826,7 +7826,9 @@
       : m.state === 'interview' && iv ? `${iv.name ? iv.name + ': ' : ''}${iv.answered} of about ${iv.total} answered. Open until ${memDate(iv.until)}.`
       : m.state === 'submitted' ? 'Sent! The card is being written and reviewed; the answer comes to your inbox below.'
       : m.state === 'offered' && v.offer ? `${v.offer.name} has a role: ${v.offer.title}. Accept or decline by ${memDate(v.offer.until)}.`
-      : m.state === 'reading' && v.offer ? `You accepted: ${v.offer.name} as ${v.offer.title}. The table read (a short rehearsal of the role) opens soon; we'll tell you in the inbox.`
+      : m.state === 'reading' && v.offer ? (v.offer.aud === 'reading' ? `${v.offer.name}'s table read is ready: a short rehearsal as ${v.offer.title}, once only${v.offer.readUntil ? ', by ' + memDate(v.offer.readUntil) : ''}.` : v.offer.aud === 'tuning' ? 'Table read done. The card is being tuned.' : `You accepted: ${v.offer.name} as ${v.offer.title}. The table read is being written; we'll tell you in the inbox.`)
+      : m.state === 'greenlight' && v.offer ? `${v.offer.name} is ready and waits for the director's final green light.`
+      : m.state === 'on' && v.offer ? `${v.offer.name} is on the show as ${v.offer.title}!${v.offer.first ? ' First scene: ' + new Date(v.offer.first).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'}) + '.' : ''}`
       : m.state === 'declined' ? 'The director said no this time.' + (m.note ? ' Reason: ' + m.note : '') + (m.nextAt ? ` You can ask again on ${memDate(m.nextAt)}.` : '')
       : asking ? (m.canAsk ? 'Needs: your avatar saved and the 18+ box ticked. Ready.' : m.why) : '';
     const dv = $('memDev'); dv.textContent = '';
@@ -7864,7 +7866,7 @@
   $('memAdult').onchange = async () => { const j = await memPost({action: 'adult', on: $('memAdult').checked}); if (j) memFill(); };
   $('memAud').onclick = async () => {
     const m = MBR.v && MBR.v.member; if (!m) return;
-    if (['approved', 'interview', 'offered', 'reading'].includes(m.state)){ location.href = '/audition'; return; }
+    if (['approved', 'interview', 'offered', 'reading', 'greenlight'].includes(m.state)){ location.href = '/audition'; return; }
     if (MBR.dirty || !m.avatar){ $('memAudT').textContent = 'Save your avatar first (it is the starting look of your character).'; return; }
     if (!m.adult){ $('memAudT').textContent = 'Tick "I\'m 18 or older" first: the interview is long and its answers go to an AI.'; return; }
     if (!confirm('Ask the director for an Audition? You can ask once a month.')) return;
@@ -8179,7 +8181,7 @@
   // notifications: a bell for each viewer, off until they turn it on (key moments, and the moments they voted for)
   const ALERT_KEY = 'BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI';
   (async () => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || forceLoc || params.has('sandbox') || params.has('builder') || params.has('looks') || params.has('casting') || params.has('preview') || params.has('demo') || location.protocol !== 'https:' && location.hostname !== '127.0.0.1') return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || forceLoc || params.has('sandbox') || params.has('builder') || params.has('looks') || params.has('casting') || params.has('read') || params.has('preview') || params.has('demo') || location.protocol !== 'https:' && location.hostname !== '127.0.0.1') return;
     const bell = $('bell'), DEF = {from: 8, to: 23, max: 4, alerts: true, picks: true}, PK = 'ishaiAlerts'; bell.hidden = false;
     const load = () => { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(PK)) || {}); } catch(e){ return {...DEF}; } };
     const keep = p => { try { localStorage.setItem(PK, JSON.stringify(p)); } catch(e){} };
@@ -8220,6 +8222,43 @@
   // ?casting: the Audition page's casting room (public; docs/AUDITION_PLAN.md). The show's own art on the show's own canvas, nothing else runs:
   // Ruti Kaspi, the casting director (never part of the story), at her table; the viewer's character walks in through the door to the tape mark.
   // The Audition page (the parent) sends {cast: {look, phase, dur}}: empty (before the start), enter, talk (Ruti speaks for dur ms: the intro, the goodbye), listen, ask, answer, wild, leave.
+  // ?read: the Audition's table read stage (public, like ?casting): the role's real place, drawn empty, with the character in work clothes
+  // at their post, a STAND IN for Ishai (a grey hoodie and a tag, so nobody takes him for Ishai), a TABLE READ banner and a director's
+  // chair. The Audition page sends {read: {place, look, extraLook, speaker}}; nothing here touches the show.
+  if (params.has('read')) {
+    BUILDER = true; demoMode = true; TUNING = false;
+    const cv = $('scene'); document.body.appendChild(cv);
+    const st = document.createElement('style'); st.textContent = 'html,body{margin:0;background:#050705;overflow:hidden} body>*:not(#scene){display:none!important} #scene{display:block;width:100vw;height:100vh;object-fit:contain;image-rendering:pixelated}'; document.head.appendChild(st);
+    const STANDIN = {hair:'short', hairColor:'brown', skin:'light', shirt:'gray', pants:'navy', top:'hoodie', bottom:'trousers', hat:'none', hatColor:'black', extras:[]};
+    const RS = {place: null, look: null, extra: null, speaker: null, at: performance.now()};
+    window.addEventListener('message', e => { if (e.origin !== location.origin || !e.data || !e.data.read) return;
+      const r = e.data.read; if (r.place) RS.place = r.place; if (r.look) RS.look = r.look; if (r.extraLook) RS.extra = r.extraLook;
+      if ('speaker' in r && r.speaker !== RS.speaker) { RS.speaker = r.speaker; RS.at = performance.now(); } });
+    forceHour = 14; WORLD = {weather: {temp: 22, code: 0, desc: 'clear', rain: false, cloudy: false}};
+    function readFrame(){
+      const now = performance.now(), t = now; g = ctx; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,W,H);
+      const key = RS.place && (PLACE_SCREENS[RS.place] ? PLACE_SCREENS[RS.place][0] : RS.place), sc = key && SCENES[key];
+      if (sc) { DREAMING = true; NO_CROWD = true; drawLater = null;
+        try { sc.draw(t, 14, 'idle', false, {loc: key, action: 'idle', x: 0, targetX: 0, travelling: false, hidden: true, pending: null, with: null}); if (drawLater) drawLater(t); }
+        catch (err) {} finally { DREAMING = false; NO_CROWD = false; ZQ = null; } }
+      else R(0, 0, W, H, '#222820');
+      const fy = sc && sc.walkY || 66, sp = RS.speaker;
+      SPEAKING = sp === 'member' ? 'member' : sp === 'standin' ? 'standin' : sp === 'extra' ? 'extra' : null;
+      // the extra (another customer, the boss) steps in only while they speak, and a little after
+      if (RS.extra && (sp === 'extra' || (now - RS.at < 2500 && RS.lastWas === 'extra'))) person(RS.extra, 40, fy, t, {face: 1, talkPhase: sp === 'extra', fid: sp === 'extra' ? 'gesture' : undefined, seed: 23});
+      if (sp) RS.lastWas = sp;
+      person(STANDIN, 72, fy, t, {face: 1, talkPhase: sp === 'standin', fid: sp === 'standin' ? 'gesture' : sp === 'member' ? 'nod' : undefined, still: !sp, seed: 11});
+      R(66, fy - 9, 33, 7, '#1d2430'); word('STAND IN', 68, fy - 8, '#ffd166');
+      if (RS.look) person(RS.look, 118, fy, t, {face: -1, talkPhase: sp === 'member', fid: sp === 'member' ? 'gesture' : sp === 'standin' || sp === 'extra' ? 'nod' : undefined, still: !sp, seed: 7});
+      // the rehearsal's own things: the banner and the director's chair (empty: it's the viewer's rehearsal)
+      R(0, 0, W, 9, '#1d2430'); word('TABLE READ', 4, 2, '#ffd166'); word('NOT ON AIR', W - 44, 2, '#e05050');
+      const cx = W - 22, cy = H - 26; R(cx, cy, 16, 2, '#2a2a2e'); R(cx+1, cy-10, 14, 8, '#20202a'); word('DIR', cx+3, cy-9, '#ffd166'); R(cx+1, cy+2, 2, 14, '#5a4630'); R(cx+13, cy+2, 2, 14, '#5a4630'); R(cx+1, cy+8, 14, 1, '#5a4630');
+      requestAnimationFrame(readFrame);
+    }
+    requestAnimationFrame(readFrame);
+    if (parent !== window) parent.postMessage({readReady: true}, location.origin);
+    return;
+  }
   if (params.has('casting')) {
     BUILDER = true; demoMode = true; TUNING = false;
     const cv = $('scene'); document.body.appendChild(cv);

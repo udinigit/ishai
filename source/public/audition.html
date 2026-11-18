@@ -19,6 +19,7 @@
   header a{color:var(--dim);text-decoration:none;font-size:18px}
   h1{font-weight:normal;font-size:30px;margin:0;letter-spacing:1px;color:var(--amber)}
   h2{font-weight:normal;font-size:24px;margin:14px 0 6px;color:var(--amber)}
+  .pbar{height:6px;background:#1a2a1a;margin:6px 0} .pbar i{display:block;height:100%;background:var(--amber);width:100%}
   h3{font-weight:normal;font-size:20px;margin:12px 0 4px;color:var(--amber)} .role{font-size:20px;color:#ffd166} .card b{font-weight:normal;color:var(--amber)}
   p{margin:6px 0}
   .muted{color:var(--dim)} .err{color:var(--red);min-height:1.2em} .ok{color:var(--phos)}
@@ -105,6 +106,7 @@
     if (v.stage === 'end') return ending(v);
     if (v.stage === 'submitted') return submitted(v);
     if (v.stage === 'offer' || v.stage === 'accepted') return offer(v);
+    if (['readSoon', 'read', 'readDone', 'waiting', 'on'].includes(v.stage)) return tableRead(v);
     if (v.stage === 'declined' || v.stage === 'rejected') {
       const c = el('div', null, 'card'); c.append(el('h2', v.stage === 'declined' ? 'ROLE TURNED DOWN' : 'NOT THIS TIME'),
         el('p', v.stage === 'declined' ? `You turned the role down, so ${v.name.first} won't join the show. Thank you for the Audition.` : `${v.name.first} won't be joining the show this time. The director's note is in your 👤 inbox. Thank you for the Audition.`),
@@ -273,6 +275,86 @@
     try { show(await api({action: 'answer', k: V.q.k, v: pick, other})); }
     catch(e){ msg(e.message, true); $('saved').textContent = ''; }
     busy = false; okNext();
+  }
+  // ---- the table read (step 5b): a rehearsal of the role on the real set, with a stand-in for Ishai; nothing reaches the show ----
+  const RD = {ready: false, v: null, i: 0, busy: false, paused: false, pauseUsed: false, timer: null, voice: localStorage.getItem('ishaiReadVoice') !== '0'};
+  window.addEventListener('message', e => { if (e.origin === location.origin && e.data && e.data.readReady) { RD.ready = true; readStage(); } });
+  function readStage(speaker){ const f = $('stage'), v = RD.v; if (!f || !f.contentWindow || !v) return;
+    f.contentWindow.postMessage({read: {place: v.place, look: v.workLook, extraLook: v.extraLook, ...(speaker !== undefined ? {speaker} : {})}}, location.origin); }
+  function toRead(v){ RD.v = v; const f = $('stage'); if (!/\?read$/.test(f.getAttribute('src'))) { RD.ready = false; f.setAttribute('src', '/?read'); }
+    else readStage(); $('stageCap').textContent = `TABLE READ · ${v.role.place} · not on air · ${v.name.first}`; }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  function lineShow(label, text, act){ const box = $('ruti'); box.hidden = false; box.textContent = ''; box.append(el('b', label + ': '), document.createTextNode(text)); if (act) box.appendChild(el('i', '  (' + act + ')', 'muted')); }
+  function speak(text, who){
+    const dur = Math.max(1800, text.length * 60);
+    if (!RD.voice || !window.speechSynthesis) return sleep(dur);
+    return new Promise(res => { let done = false; const fin = () => { if (!done) { done = true; res(); } };
+      try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text), V = RD.v, fem = who === 'member' ? V.gender !== 'm' : who === 'extra';
+        const vs = speechSynthesis.getVoices().filter(x => /^en/i.test(x.lang)), pickV = vs.find(x => (fem ? /female|samantha|zira|aria|jenny|sonia|libby|karen|moira|fiona/i : /male|daniel|david|guy|ryan|george|alex|fred/i).test(x.name) && !(fem ? /\bmale/i : /female/i).test(x.name));
+        if (pickV) u.voice = pickV; u.pitch = who === 'member' ? (fem ? 1.1 : .92) : who === 'extra' ? 1.15 : 1; u.rate = 1;
+        u.onend = fin; u.onerror = fin; speechSynthesis.speak(u); } catch (e) { fin(); }
+      setTimeout(fin, dur * 1.8 + 1500); });
+  }
+  async function readSay(l){ const v = RD.v, who = l.who, label = who === 'standin' ? 'STAND-IN' : who === 'extra' ? (v.script.extra || 'EXTRA').toUpperCase() : v.name.first.toUpperCase();
+    lineShow(label, l.say, l.act); readStage(who); await speak(l.say, who); readStage(null); await sleep(350); }
+  function tableRead(v){
+    const c = el('div', null, 'card'), nm = v.name.first; RD.v = v; app.appendChild(c);
+    const back = () => { const a = el('a', 'BACK TO THE SHOW', 'btn'); a.href = '/'; a.style.textDecoration = 'none'; a.style.display = 'inline-block'; a.style.marginTop = '8px'; return a; };
+    if (v.stage !== 'read') {
+      stage('empty'); toRead(v);
+      if (v.stage === 'readSoon') c.append(el('h2', 'THE TABLE READ IS BEING WRITTEN'), el('p', `A short rehearsal of ${nm} as ${v.role.title}, on the real set at ${v.role.place}, with a stand-in for Ishai. We'll tell you in the 👤 inbox when it's ready (usually within the hour).`), back());
+      if (v.stage === 'readDone' || v.stage === 'waiting') c.append(el('h2', v.stage === 'readDone' ? 'THAT\'S A WRAP!' : 'WAITING FOR THE GREEN LIGHT'),
+        el('p', v.stage === 'readDone' || !v.tuned ? `Thank you! ${nm}'s card is being fine-tuned from your picks. Then ${nm} waits for the director's final green light.` : `${nm} is tuned and ready. The director gives the final green light; we'll tell you the time of the first scene.`), back());
+      if (v.stage === 'on') { const f = v.first || {}; c.append(el('h2', v.test ? 'GREEN LIGHT (TEST)' : 'ON THE SHOW!'),
+        el('p', `${nm} ${v.test ? 'would join' : 'joins'} Watching Ishai as ${v.role.title}.` + (f.at ? ` First scene: ${new Date(f.at).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'})}.` : '')),
+        el('p', v.test ? 'It\'s a test, so nothing was booked and no one joined the cast.' : 'From here the show writes ' + nm + '. Watch it live!', 'muted'), back()); }
+      return;
+    }
+    toRead(v); stage('empty'); RD.i = (v.picks || []).length;
+    if (!v.started) {
+      c.append(el('h2', 'THE TABLE READ'), el('p', `A rehearsal of ${nm} as ${v.role.title}, on the real set at ${v.role.place}. A stand-in plays Ishai (and someone plays the others). It isn't part of the story: it only fine-tunes how ${nm} comes across at work.`),
+        el('p', `${v.script.turns.length} turns, about 5-8 minutes, once only: it can't be repeated. At each of ${nm}'s turns pick the line within ${v.sec} seconds; if you don't, ${nm} chooses. One pause, up to 2 minutes. Open until ${date(v.until)}.`, 'muted'));
+      const vb = el('button', RD.voice ? '🔊 VOICES ON' : '🔇 VOICES OFF', 'ghost'); vb.onclick = () => { RD.voice = !RD.voice; localStorage.setItem('ishaiReadVoice', RD.voice ? '1' : '0'); vb.textContent = RD.voice ? '🔊 VOICES ON' : '🔇 VOICES OFF'; }; c.appendChild(vb);
+      $('foot').hidden = false; $('back').hidden = true; $('saved').textContent = ''; $('next').textContent = 'START ▶'; $('next').disabled = false;
+      $('next').onclick = () => { $('dlgT').textContent = `Start the table read now? It runs once (about 5-8 minutes) and can't be repeated.`; $('dlgYes').textContent = 'YES, START'; $('dlgNo').textContent = 'NOT YET';
+        $('dlg').showModal(); $('dlgNo').onclick = () => $('dlg').close();
+        $('dlgYes').onclick = async () => { $('dlg').close(); try { const j = await api({action: 'readStart'}); RD.v = j; $('foot').hidden = true; c.textContent = ''; readRun(c); } catch (e) { msg(e.message, true); } }; };
+      c.appendChild(el('p', '', 'err')).id = 'msg'; return;
+    }
+    readRun(c);
+  }
+  async function readRun(c){
+    const v = RD.v, turns = v.script.turns;
+    for (; RD.i < turns.length; RD.i++) {
+      const t = turns[RD.i]; c.textContent = '';
+      c.append(el('p', `TURN ${RD.i + 1} OF ${turns.length} · ${t.situation.toUpperCase()}`, 'role'), el('p', t.setup, 'muted'));
+      for (const l of t.before) await readSay(l);
+      const pick = await readChoose(c, t, v);
+      const ch = t.choices.find(x => x.k === pick.k) || t.choices[0];
+      let j; try { j = await api({action: 'readPick', turn: RD.i, k: pick.self ? null : pick.k, self: pick.self, ms: pick.ms}); } catch (e) { c.appendChild(el('p', e.message, 'err')); return; }
+      c.textContent = ''; c.append(el('p', `TURN ${RD.i + 1} OF ${turns.length} · ${t.situation.toUpperCase()}`, 'role'), el('p', pick.self ? `${v.name.first.toUpperCase()} CHOSE` : 'YOUR PICK', 'muted'));
+      await readSay({who: 'member', say: ch.say, act: ch.act});
+      const aft = t.after[ch.k]; if (aft) await readSay(aft);
+      if (j.stage === 'readDone') { show(j); return; }
+    }
+    try { show(await api({action: 'readDone'})); } catch (e) { c.appendChild(el('p', e.message, 'err')); }
+  }
+  // the choices with a countdown; no pick in time: the character chooses (the card's own setting)
+  function readChoose(c, t, v){
+    return new Promise(res => {
+      const box = el('div'); c.appendChild(box); box.appendChild(el('p', `What does ${v.name.first} say?`));
+      const bar = el('div', null, 'pbar'), fill = el('i'); bar.appendChild(fill); box.appendChild(bar);
+      const t0 = Date.now(); let used = 0, last = Date.now(), done = false;
+      const finish = r => { if (done) return; done = true; clearInterval(iv); res(r); };
+      t.choices.forEach(ch => { const b = el('button', ch.say + (ch.act ? `  (${ch.act})` : ''), 'opt'); b.style.display = 'block'; b.style.width = '100%'; b.style.textAlign = 'left'; b.style.margin = '6px 0';
+        b.onclick = () => finish({k: ch.k, self: false, ms: Date.now() - t0}); box.appendChild(b); });
+      const pz = el('button', '⏸ PAUSE (once)', 'ghost'); if (RD.pauseUsed) pz.disabled = true; box.appendChild(pz);
+      let pausedAt = 0; pz.onclick = () => { if (RD.paused) { RD.paused = false; pz.textContent = 'PAUSE USED'; pz.disabled = true; last = Date.now(); return; } RD.pauseUsed = true; RD.paused = true; pausedAt = Date.now(); pz.textContent = '▶ GO ON'; };
+      const iv = setInterval(() => { const n = Date.now();
+        if (RD.paused) { if (n - pausedAt > 120000) { RD.paused = false; pz.textContent = 'PAUSE USED'; pz.disabled = true; } last = n; return; }
+        used += n - last; last = n; const left = v.sec * 1000 - used; fill.style.width = Math.max(0, left / (v.sec * 10)) + '%';
+        if (left <= 0) finish({k: null, self: true, ms: n - t0}); }, 100);
+    });
   }
   // ---- the offer (step 5): the role, who the character is, and what the viewer doesn't control; Accept / Decline ----
   function offer(v){

@@ -324,7 +324,7 @@ export default {
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
-        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), auditions: { cardErr: s.audCardErr || null, cardTries: s.audCardTry || {} }, life: (s.life || []).slice(-6),
+        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), auditions: { cardErr: s.audCardErr || null, cardTries: s.audCardTry || {}, readErr: s.audReadErr || null, readTries: s.audReadTry || {} }, life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), when busy " + (env.GEMINI_BACKUP ? "gemini (" + env.GEMINI_BACKUP + ")" : "the other Gemini Flash models") + ", then Cloudflare", hosts: hostsByGemini(s) ? "gemini, backup Cloudflare" : "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
         polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3), pushes: (s.pollPushes || []).map(j => ({ kind: j.kind, poll: j.poll, at: j.at, sent: j.sent, done: j.done })) },
@@ -696,6 +696,7 @@ async function tick(env, force) {
   try { await castLoad(env, s, true);
     if (!force) { await castKeeperTick(env, s, now); await castMaintain(env, s, now); if (CASTD && !CASTD.queue) { await castWeekTick(env, s, now); await castDraftTick(env, s, now); } }
     if (!force) try { await audCardTick(env, s, now); } catch (e) { s.audCardErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // Auditions step 4: a sent Audition's card
+    if (!force) try { await audReadTick(env, s, now); } catch (e) { s.audReadErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // steps 5b-5c: the table read and its tuning
   } catch (e) { castErr(s, "tick: " + String(e && e.message || e)); }
   TALK = talkLevel(s, env, now);
   // director: activate the next goal, or force it if its deadline passed
@@ -5104,7 +5105,7 @@ async function dirStatus(s, env, now, bugs) {
   const gemini = !env.GEMINI_API_KEY ? { state: "off" } : now < (s.geminiOutUntil || 0) ? { state: "paused", until: s.geminiOutUntil } : gFail ? { state: "failing", fails: gFail } : { state: "ok" };
   let cast = 0, auditions = 0; try { if (env.DB) cast = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM cast_pending WHERE state = 'pending'").first()) || {}).n || 0; } catch (e) {}
   try { if (env.DB) { await memberTables(env); auditions = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM member WHERE state = 'requested'").first()) || {}).n || 0;
-    await audTables(env); auditions += ((await env.DB.prepare("SELECT COUNT(*) AS n FROM aud WHERE state = 'submitted'").first()) || {}).n || 0; } } catch (e) {}
+    await audTables(env); auditions += ((await env.DB.prepare("SELECT COUNT(*) AS n FROM aud WHERE state IN ('submitted', 'greenlight')").first()) || {}).n || 0; } } catch (e) {}
   const waiting = { bugs: (bugs || []).filter(b => b.status === "new").length, cast, auditions, art: (s.director || []).filter(g => g.status === "needs-art").length,
     film: N.filmLate ? 1 : 0, aiError: s.lastError && now - s.lastError.at < 6 * 3600000 ? 1 : 0, autoFix: (N.autoFix ? 1 : 0) + (s.autoFixErr ? 1 : 0) };
   const neurons = neuronsOf(s.usage);
@@ -5268,6 +5269,13 @@ function castCardClean(o, base) {
   const sec = (Array.isArray(o.secrets) ? o.secrets : base.secrets || []).map(x => x && typeof x === "object" ? { text: S(x.text, 240), knows: arr(x.knows, 6, 20) } : null).filter(x => x && x.text).slice(0, 4);
   if (sec.length) c.secrets = sec;
   if (base.look) c.look = base.look;
+  // Auditions (v271): a member character's work side (from the table read), its dials, and where it came from
+  const aw = o.atWork && typeof o.atWork === "object" ? o.atWork : base.atWork;
+  if (aw && typeof aw === "object") { const w = {}; for (const k of ["style", "pace", "complaints", "line", "habit"]) { const v = S(aw[k], 200); if (v) w[k] = v; } if (Object.keys(w).length) c.atWork = w; }
+  const dl = o.dials && typeof o.dials === "object" ? o.dials : base.dials;
+  if (dl && typeof dl === "object") { const d = {}; for (const [k, v] of Object.entries(dl).slice(0, 8)) { const kk = S(k, 30), set = S(v && v.setting, 80), note = S(v && v.note, 160); if (kk && set) d[kk] = { setting: set, ...(note ? { note } : {}) }; } if (Object.keys(d).length) c.dials = d; }
+  if (o.from === "audience" || base.from === "audience") c.from = "audience";
+  if (base.workLook) c.workLook = base.workLook;
   return c;
 }
 // the card in a few lines, for prompts
@@ -5280,6 +5288,8 @@ function castShort(card, full) {
   if (full && i.fears) p.push("Fears: " + i.fears);
   if (card.habits && card.habits.length) p.push("Habits: " + card.habits.slice(0, full ? 6 : 3).join("; "));
   if (full && card.talk && card.talk.how) p.push("Talks: " + card.talk.how + (card.talk.avoids && card.talk.avoids.length ? " (avoids: " + card.talk.avoids.join(", ") + ")" : ""));
+  if (card.atWork) p.push("At work: " + Object.values(card.atWork).join("; "));   // a member character's job manner, from the table read
+  if (full && card.dials) p.push("How they come across: " + Object.entries(card.dials).map(([k, v]) => k + " = " + v.setting).join(", "));
   return p.filter(Boolean).join(". ").replace(/\.\./g, ".");
 }
 
@@ -5785,13 +5795,13 @@ async function castApi(req, env, url) {
     await castLoad(env, s, true);
     return json({ rules: CAST_RULES, arcs: (PLAN.arcs || []).map(a => ({ title: a.title, stage: a.stage })), secretsUntil: secretsNow(now).map(x => x.title),
       howToAnswer: 'POST /api/cast/review {"token":"...","reviews":[{"n":12,"verdict":"approve|edit|reject","text":"(edit only: the new wording; for a card, the whole card as JSON)","reason":"one line"}]}',
-      pending: await castPendingView(env, s, false), auditions: await audForReview(env), howToAnswerAuditions: AUD_REVIEW_HOW }, { "cache-control": "no-store" });
+      pending: await castPendingView(env, s, false), auditions: await audForReview(env), howToAnswerAuditions: AUD_REVIEW_HOW, auditionTunes: await audTunesForReview(env), howToAnswerTunes: AUD_TUNE_HOW }, { "cache-control": "no-store" });
   }
   if (url.pathname === "/api/cast/review" && req.method === "POST") {
     const b = await req.json().catch(() => ({}));
     const tok = await castTokenOk(url, b), dir = !tok && await isDirector(req, env);
     if (!tok && !dir) return json({ error: "bad token" }, {}, 403);
-    return json({ results: await castReview(env, s, b.reviews, tok ? "claude" : "director", now), auditions: b.auditions ? await audReviewApply(env, b.auditions, tok ? "claude" : "director", now) : undefined }, { "cache-control": "no-store" });
+    return json({ results: await castReview(env, s, b.reviews, tok ? "claude" : "director", now), auditions: b.auditions ? await audReviewApply(env, b.auditions, tok ? "claude" : "director", now) : undefined, auditionTunes: b.auditionTunes ? await audTuneReviewApply(env, b.auditionTunes, tok ? "claude" : "director", now) : undefined }, { "cache-control": "no-store" });
   }
   if (url.pathname === "/api/cast/dir") {   // the director page's Cast box
     if (!await isDirector(req, env)) return json({ error: "director only" }, {}, 403);
@@ -5850,7 +5860,7 @@ function castHealth(s) {
 // the Audition request with its states, the 30-day rule and the director's Requests box. All in D1; no KV writes.
 // A member row is keyed by the hashed Google account (voterOf()); it is made the first time the viewer saves something.
 const AUD_EVERY_D = 30, AUD_APPROVE_D = 14, MEMBER_MAX = 6, INBOX_KEEP = 40;
-const MEMBER_STATES = ["none", "requested", "declined", "approved", "interview", "submitted", "offered", "reading", "on", "leaving", "left"];
+const MEMBER_STATES = ["none", "requested", "declined", "approved", "interview", "submitted", "offered", "reading", "greenlight", "on", "leaving", "left"];
 let memberTablesOk = false;
 async function memberTables(env) {
   if (memberTablesOk || !env.DB) return;
@@ -5963,8 +5973,9 @@ async function memberApi(req, env, url) {
   if (aud && aud.state === "interview") { const c = (await env.DB.prepare("SELECT COUNT(*) AS c FROM aud_answer WHERE aud = ?").bind(aud.n).first() || {}).c || 0; let nm = {}; try { nm = JSON.parse(aud.name || "{}"); } catch (e) {}
     interview = { name: nm.first || null, answered: c, total: AUD_BANK.total, until: aud.started + AUD_DAYS * 86400000 }; }
   let offer = null;
-  if (aud && ["offered", "accepted"].includes(aud.state)) { const nm = audJ(aud.name, {}), d = audJ(aud.director, {}), w = audJ(aud.ways, [])[d.way];
-    offer = { name: `${nm.first || ""} ${nm.sur || ""}`.trim(), title: w ? w.title : "", until: d.offerUntil || null, accepted: d.accepted || null }; }
+  if (aud && ["offered", "accepted", "reading", "tuning", "greenlight", "on"].includes(aud.state)) { const nm = audJ(aud.name, {}), d = audJ(aud.director, {}), w = audJ(aud.ways, [])[d.way];
+    let readUntil = null; if (aud.state === "reading") { try { await audReadTables(env); const r = await env.DB.prepare("SELECT ready, started FROM aud_read WHERE aud = ?").bind(aud.n).first(); if (r) readUntil = r.started ? null : r.ready + AUD_READ_D * 86400000; } catch (e) {} }
+    offer = { name: `${nm.first || ""} ${nm.sur || ""}`.trim(), title: w ? w.title : "", until: d.offerUntil || null, accepted: d.accepted || null, aud: aud.state, readUntil, first: d.first ? d.first.at : null }; }
   return json({ ok: true, msg, member: memberView(m, now), interview, offer, inbox, unread: inbox.filter(x => !x.read).length, max: MEMBER_MAX }, { "cache-control": "no-store" });
 }
 // the director's Auditions box: requests to decide, the recent decisions and banned accounts
@@ -5986,6 +5997,8 @@ async function memberDirApi(req, env) {
     }
     if (["audWrite", "audApprove", "audReject"].includes(b.action)) {   // steps 4-5: the card, the offer
       const r = await audDirAct(env, b, now); if (r.error) return json({ error: r.error }, {}, r.status || 400);
+    } else if (["audReadNow", "audNotYet", "audStop", "audGreen"].includes(b.action)) {   // steps 5b-5c: the table read, the green light
+      const r = await audGreenAct(env, b, now); if (r.error) return json({ error: r.error }, {}, r.status || 400);
     } else {
     const m = await memberGet(env, String(b.id || "").slice(0, 40));
     if (!m.at) return json({ error: "no such member" }, {}, 404);
@@ -6245,8 +6258,9 @@ async function audApi(req, env, url) {
       a = await env.DB.prepare("SELECT * FROM aud WHERE n = ?").bind(a.n).first();
     } else return out({ stage: "naming", until, shufflesLeft: AUD_SHUFFLES - (a.shuffles || 0), avatar: m.avatar, minutes: [30, 40], days: AUD_DAYS });
   }
-  if (a && ["offered", "accepted", "declinedOffer", "offerExpired"].includes(a.state)) return audOffer(env, m, a, b, now, out);   // steps 5: the role page
-  if (a && a.state === "rejected") return out({ stage: "rejected", name: audJ(a.name, {}) });
+  if (a && ["accepted", "reading", "tuning", "greenlight", "on", "testDone"].includes(a.state) && b.action !== "accept" && b.action !== "decline") return audRead(env, m, a, b, now, out);   // steps 5b-5c
+  if (a && ["offered", "accepted", "declinedOffer", "offerExpired"].includes(a.state)) return audOffer(env, m, a, b, now, out);   // step 5: the role page
+  if (a && (a.state === "rejected" || a.state === "stopped")) return out({ stage: "rejected", name: audJ(a.name, {}) });
   if (!a || !["interview", "submitted"].includes(a.state) || !["interview", "submitted", "offered", "reading", "on"].includes(m.state))
     return out({ stage: "closed", state: a ? a.state : null });
   const name = JSON.parse(a.name || "{}"), until = a.started + AUD_DAYS * 86400000;
@@ -6299,13 +6313,17 @@ async function audApi(req, env, url) {
 // the director's view of interviews: progress, days left, and the answers once submitted (step 4 writes the card)
 async function audDirList(env, now) {
   await audTables(env);
-  const rows = (await env.DB.prepare("SELECT n, member, state, name, started, done, at, card, ways, review, director FROM aud WHERE state IN ('interview', 'submitted', 'offered', 'accepted', 'rejected', 'declinedOffer', 'offerExpired') ORDER BY n DESC LIMIT 40").all()).results || [];
+  const rows = (await env.DB.prepare("SELECT n, member, state, name, started, done, at, card, ways, review, director, cast_id FROM aud WHERE state IN ('interview', 'submitted', 'offered', 'accepted', 'rejected', 'declinedOffer', 'offerExpired', 'reading', 'tuning', 'greenlight', 'on', 'testDone', 'stopped') ORDER BY n DESC LIMIT 40").all()).results || [];
+  await audReadTables(env);
+  const reads = rows.length ? (await env.DB.prepare(`SELECT * FROM aud_read WHERE aud IN (${rows.map(() => "?").join(",")})`).bind(...rows.map(r => r.n)).all()).results || [] : [];
+  const RD = Object.fromEntries(reads.map(r => [r.aud, r]));
   const counts = rows.length ? (await env.DB.prepare(`SELECT aud, COUNT(*) AS c FROM aud_answer WHERE aud IN (${rows.map(() => "?").join(",")}) GROUP BY aud`).bind(...rows.map(r => r.n)).all()).results || [] : [];
   const cnt = Object.fromEntries(counts.map(c => [c.aud, c.c]));
   return rows.map(r => { let nm = {}; try { nm = JSON.parse(r.name || "{}"); } catch (e) {}
     const c = audJ(r.card, null), ways = audJ(r.ways, []), d = audJ(r.director, null);
     return { n: r.n, short: r.member === AUD_TEST_ID ? "TEST (you)" : r.member.slice(2, 8), test: r.member === AUD_TEST_ID, state: r.state, name: nm, answered: cnt[r.n] || 0, total: AUD_BANK.total, started: r.started, done: r.done, until: r.started ? r.started + AUD_DAYS * 86400000 : null,
-      card: c ? c.card : null, cardWhy: c ? c.why : null, cardAt: c ? c.at : null, ways: ways.map(w => ({ ...w, linkText: audLinkText(w, nm.gender) })), review: audJ(r.review, null), director: d }; });
+      card: c ? c.card : null, cardWhy: c ? c.why : null, cardAt: c ? c.at : null, ways: ways.map(w => ({ ...w, linkText: audLinkText(w, nm.gender) })), review: audJ(r.review, null), director: d ? { ...d, entry: undefined, goalObj: undefined } : d,
+      read: audReadView(RD[r.n]), castId: r.cast_id || null, final: r.state === "greenlight" && c ? audFinalCard(r, audJ((RD[r.n] || {}).tune, null)) : null }; });
 }
 async function audDirAnswers(env, n) {
   await audTables(env);
@@ -6491,3 +6509,260 @@ async function audOffer(env, m, a, b, now, out) {
   if (a.state === "declinedOffer" || a.state === "offerExpired") return out({ stage: a.state === "declinedOffer" ? "declined" : "closed", name: nm });
   return out({ stage: a.state === "offered" ? "offer" : "accepted", name: nm, role, card: audPublicCard(c.card), until: d.offerUntil, accepted: d.accepted || null });
 }
+
+// ---- Auditions, steps 5b-5c (docs/AUDITION_PLAN.md): the table read, the tuning, the director's green light ----
+// After Accept (aud `accepted`), audReadTick() writes the rehearsal with one Gemini call (the dials and a short shift of
+// 6-8 turns, each with 3-4 choices inside the personality) → aud `reading`, member `reading`, 5 days to play it once on
+// /audition (the stage is the page's public /?read mode: the role's real place, the character in work clothes at their
+// post, a STAND-IN for Ishai, nothing reaches the show). Picks are kept one by one; done (or 5 days) → `tuning`, and
+// audTuneTick() turns the picks into the card's `dials`, `atWork`, sample lines and mood lines (Claude reviews it with
+// the weekly cast review, as advice) → `greenlight`. The director's GREEN LIGHT is the only way into the cast: the card
+// goes to cast_card, the person to s.cast (from: audience), and the first scene is booked as goal `aud-<n>`.
+// A test Audition stops at the green light and shows what would be booked.
+const AUD_READ_D = 5, AUD_READ_SEC = 20, AUD_FIRST_D = 14;
+let audReadOk = false;
+async function audReadTables(env) {
+  if (audReadOk) return; await audTables(env);
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS aud_read (aud INTEGER PRIMARY KEY, script TEXT, picks TEXT, ready INTEGER, started INTEGER, done INTEGER, tune TEXT, tuned INTEGER, review TEXT)").run();
+  audReadOk = true;
+}
+// the character in their work clothes: the role kind's uniform over their own look (the card keeps it as `workLook`)
+function audWorkLook(look, kind) {
+  const l = JSON.parse(JSON.stringify(look || {})), u = (AUD_KIND[kind] || {}).uniform || {};
+  if (u.top) l.top = u.top; if (u.hat) { l.hat = u.hat; l.hatColor = l.hatColor || l.shirt || "black"; }
+  if (u.extras) l.extras = [...new Set([...(l.extras || []), ...u.extras])].slice(0, 5);
+  return cleanLook(l);
+}
+const AUD_READ_SYS = `You write a TABLE READ for "Watching Ishai" (a realistic slice of life in a Tel Aviv neighbourhood): a short rehearsal of a new character doing the job they were offered, before they join the show. The viewer who created the character picks the character's lines. It is NOT part of the story: nothing in it happens to anyone; a STAND-IN plays Ishai (a friendly 31-year-old freelance designer) as a customer, classmate, neighbour or fellow regular, and nameless extras play everyone else (another customer, the boss).
+First choose the DIALS: 3-4 personality traits that most define this character and are still vague, and 3-4 role dials from the role's list. Each dial has 3-4 settings that are kinds or degrees of the SAME trait, every one inside the personality from the card (a shy character only gets kinds of shy, never a loud bold line). "self" is the setting the card already points to.
+Then write a short working shift from 4-5 of the role's situations: 6-8 TURNS. In each turn: "situation", "setup" (one short stage direction), "before" (1-3 lines said to the character, by "standin" or "extra"), "dial" (one dial id; use every dial at least once), "choices" (one per setting of that dial, each key = the setting's k: the character's line, under 22 words, saying the same thing at that setting; "act" may add a tiny action), "after" (the stand-in's or extra's short answer to each choice, by key). Lines are everyday and believable; fictional brands only; nobody mentions cameras, viewers or a show; no romance.
+Reply with JSON only:
+{"extra":"who the extras are, in a few words","dials":[{"id":"short_id","name":"Name","kind":"personality|role","settings":[{"k":"a","label":"a dry aside"},{"k":"b","label":"..."},{"k":"c","label":"..."}],"self":"a"}],"turns":[{"situation":"...","setup":"...","before":[{"who":"standin","say":"..."}],"dial":"short_id","choices":[{"k":"a","say":"...","act":"..."}],"after":{"a":{"who":"standin","say":"..."}}}]}`;
+function audReadClean(o) {
+  if (!o || typeof o !== "object") return null;
+  const S = castStr, bad = t => CAST_META.test(t) || audBad(t);
+  const dials = (Array.isArray(o.dials) ? o.dials : []).map(d => { if (!d || typeof d !== "object") return null;
+    const id = S(d.id, 24).toLowerCase().replace(/[^a-z0-9_]/g, "_"), sets = (Array.isArray(d.settings) ? d.settings : []).map(x => x && { k: S(x.k, 2).toLowerCase(), label: S(x.label, 60) }).filter(x => x && /^[a-d]$/.test(x.k) && x.label);
+    if (!id || sets.length < 3 || sets.length > 4 || new Set(sets.map(x => x.k)).size !== sets.length) return null;
+    return { id, name: S(d.name, 30) || id, kind: d.kind === "role" ? "role" : "personality", settings: sets, self: sets.some(x => x.k === d.self) ? d.self : sets[0].k }; }).filter(Boolean).slice(0, 8);
+  const D = Object.fromEntries(dials.map(d => [d.id, d]));
+  const line = l => l && typeof l === "object" && S(l.say, 180) && !bad(l.say) ? { who: l.who === "extra" ? "extra" : "standin", say: S(l.say, 180) } : null;
+  const turns = (Array.isArray(o.turns) ? o.turns : []).map(t => { if (!t || typeof t !== "object" || !D[t.dial]) return null;
+    const d = D[t.dial], ch = d.settings.map(x => { const c = (Array.isArray(t.choices) ? t.choices : []).find(y => y && String(y.k).toLowerCase() === x.k);
+      return c && S(c.say, 180) && !bad(c.say) ? { k: x.k, say: S(c.say, 180), ...(S(c.act, 60) && !bad(c.act) ? { act: S(c.act, 60) } : {}) } : null; });
+    if (ch.some(x => !x)) return null;
+    const before = (Array.isArray(t.before) ? t.before : []).map(line).filter(Boolean).slice(0, 3);
+    const after = Object.fromEntries(ch.map(c => [c.k, line(t.after && t.after[c.k]) || { who: (before[0] || {}).who || "standin", say: "Mm. Okay." }]));
+    return { situation: S(t.situation, 60), setup: S(t.setup, 140), before, dial: d.id, choices: ch, after }; }).filter(Boolean).slice(0, 8);
+  if (dials.length < 4 || turns.length < 5) return null;
+  return { extra: S(o.extra, 60) || "another customer", dials: dials.filter(d => turns.some(t => t.dial === d.id)), turns };
+}
+async function audReadWrite(env, a, now) {
+  const nm = audJ(a.name, {}), c = audJ(a.card, {}).card || {}, d = audJ(a.director, {}), w = audJ(a.ways, [])[d.way] || {}, k = AUD_KIND[w.kind] || {};
+  const u = `THE CHARACTER: ${nm.first} ${nm.sur} (${nm.gender === "m" ? "a man" : "a woman"}). Card: ${JSON.stringify({ age: c.age, role: c.role, personality: c.personality, speech: c.speech, habits: c.habits, talk: c.talk, inside: c.inside })}
+THE ROLE: ${w.title} (${k.label}). Place: ${AUD_ROLES.places[w.place] || w.place}. Props there: ${(k.props || []).join(", ")}.
+The role's situations: ${(k.situations || []).join("; ")}.
+The role's dials: ${(k.dials || []).join("; ")}.
+JSON only.`;
+  let raw; try { raw = await runGemini(env, [{ role: "system", content: AUD_READ_SYS }, { role: "user", content: u }], 4000); }
+  catch (e) { noteGemini(e, "auditions"); throw new Error("Gemini is busy: " + String(e && e.message || e).slice(0, 80)); }
+  const sc = audReadClean(parseAI(raw)); if (!sc) throw new Error("the table read came back unusable");
+  await env.DB.prepare("INSERT INTO aud_read (aud, script, picks, ready) VALUES (?, ?, '[]', ?) ON CONFLICT(aud) DO UPDATE SET script = excluded.script, picks = '[]', ready = excluded.ready, started = NULL, done = NULL, tune = NULL, tuned = NULL, review = NULL")
+    .bind(a.n, JSON.stringify(sc), now).run();
+  await env.DB.prepare("UPDATE aud SET state = 'reading' WHERE n = ? AND state IN ('accepted', 'reading')").bind(a.n).run();
+  await memberSay(env, a.member, "read", `${nm.first}'s table read is ready: a short rehearsal of ${nm.gender === "m" ? "him" : "her"} as ${w.title}, about 5-8 minutes, once only. Open the 👤 menu and tap TABLE READ within ${AUD_READ_D} days.`, true, now);
+  try { await memberPush(env, a.member); } catch (e) {}
+}
+const AUD_TUNE_SYS = `You fine-tune a new character of "Watching Ishai" (a realistic slice of life) after their table read: a rehearsal of their job where the viewer picked, turn by turn, how the character says things (a dial and a setting), or let the character choose for themselves. Turn the picks into small card changes that stay inside the character's personality:
+"dials": for each dial, the setting it lands on and how it shows (one short line); "atWork": how they do this job ("style", "pace", how they take a complaint ("complaints"), a "line" they say to every customer or classmate, a small work "habit"); "samples": 2-4 lines in the picked style; "moods": only the moods a dial touches, as one line each for the writer ("angry": "goes dry and very polite"). With no picks, write them from the card and the role alone. Nobody mentions cameras, viewers or a show. Reply with JSON only:
+{"dials":{"<id>":{"setting":"...","note":"..."}},"atWork":{"style":"...","pace":"...","complaints":"...","line":"...","habit":"..."},"samples":["..."],"moods":{"angry":"..."},"why":"one line"}`;
+async function audTuneWrite(env, a, r, now) {
+  const nm = audJ(a.name, {}), c = audJ(a.card, {}).card || {}, d = audJ(a.director, {}), w = audJ(a.ways, [])[d.way] || {}, sc = audJ(r.script, {}), picks = audJ(r.picks, []);
+  const D = Object.fromEntries((sc.dials || []).map(x => [x.id, x]));
+  const lines = picks.map(p => { const t = (sc.turns || [])[p.turn], dl = t && D[t.dial]; if (!t || !dl) return null; const k = p.self ? dl.self : p.k, set = dl.settings.find(x => x.k === k) || {};
+    return `- ${t.situation}: ${dl.name} → ${set.label}${p.self ? " (no pick in time: the character chose for themselves)" : ""}`; }).filter(Boolean).join("\n");
+  const u = `THE CHARACTER: ${nm.first} ${nm.sur}. Card: ${JSON.stringify({ personality: c.personality, speech: c.speech, talk: c.talk, moods: c.moods })}
+THE ROLE: ${w.title}. Role kind: ${(AUD_KIND[w.kind] || {}).label}.
+THE DIALS: ${(sc.dials || []).map(x => `${x.id} (${x.name}: ${x.settings.map(y => y.label).join(" / ")}; the card points to: ${(x.settings.find(y => y.k === x.self) || {}).label})`).join("; ")}
+THE PICKS:\n${lines || "(none: the table read was skipped)"}
+JSON only.`;
+  let raw; try { raw = await runGemini(env, [{ role: "system", content: AUD_TUNE_SYS }, { role: "user", content: u }], 1800); }
+  catch (e) { noteGemini(e, "auditions"); throw new Error("Gemini is busy: " + String(e && e.message || e).slice(0, 80)); }
+  const o = parseAI(raw); if (!o || typeof o !== "object") throw new Error("the tuning came back unusable");
+  const S = castStr, tune = { at: now, picks: picks.length, why: S(o.why, 200) };
+  const probe = castCardClean({ atWork: o.atWork, dials: o.dials }, {}); if (probe.atWork) tune.atWork = probe.atWork; if (probe.dials) tune.dials = probe.dials;
+  tune.samples = (Array.isArray(o.samples) ? o.samples : []).map(x => S(x, 140)).filter(x => x && !CAST_META.test(x) && !audBad(x)).slice(0, 4);
+  tune.moods = Object.fromEntries(Object.entries(o.moods && typeof o.moods === "object" ? o.moods : {}).filter(([m, v]) => CAST_MOODS.includes(m) && S(v, 160)).map(([m, v]) => [m, S(v, 160)]));
+  if (JSON.stringify(tune).match(CAST_META)) throw new Error("the tuning mentions the show");
+  await env.DB.prepare("UPDATE aud_read SET tune = ?, tuned = ? WHERE aud = ?").bind(JSON.stringify(tune), now, a.n).run();
+  await env.DB.prepare("UPDATE aud SET state = 'greenlight' WHERE n = ? AND state = 'tuning'").bind(a.n).run();
+  const m = await memberGet(env, a.member); if (m.at) { m.state = "greenlight"; await memberPut(env, m, now); }
+  await memberSay(env, a.member, "tuned", `${nm.first}'s table read is done and ${nm.gender === "m" ? "his" : "her"} card is tuned. Now ${nm.first} waits for the director's final green light; we'll tell you here, with the time of the first scene.`, false, now);
+}
+// the card as it will join the show: the approved card with the tuning laid over it
+function audFinalCard(a, tune) {
+  const c = JSON.parse(JSON.stringify(audJ(a.card, {}).card || {})), d = audJ(a.director, {}), w = audJ(a.ways, [])[d.way] || {};
+  if (tune) {
+    if (tune.atWork) c.atWork = tune.atWork; if (tune.dials) c.dials = tune.dials;
+    if (tune.samples && tune.samples.length) c.talk = { ...(c.talk || {}), samples: [...tune.samples, ...((c.talk || {}).samples || [])].slice(0, 4) };
+    for (const [m, say] of Object.entries(tune.moods || {})) c.moods = { ...(c.moods || {}), [m]: { ...((c.moods || {})[m] || { body: [] }), say } };
+  }
+  c.from = "audience"; c.workLook = audWorkLook(c.look, w.kind); c.hangouts = [w.place];
+  return c;
+}
+// in tick(): one table read to write, one to close (5 days), one tuning (Gemini only; busy Gemini waits)
+async function audReadTick(env, s, now) {
+  if (!env.DB) return;
+  await audReadTables(env);
+  // the green light saved the state from the director's request; a tick saving at the same time could lose it: put it back
+  for (const a of (await env.DB.prepare("SELECT n, cast_id, director FROM aud WHERE state = 'on' AND cast_id IS NOT NULL").all()).results || []) {
+    const d = audJ(a.director, {}); if (d.entry && !s.cast[a.cast_id]) s.cast[a.cast_id] = d.entry;
+    if (d.goalObj && d.first && d.first.at > now && !(s.director || []).some(g => g.id === d.goalObj.id)) s.director.push(d.goalObj);
+  }
+  if (!env.GEMINI_API_KEY || Date.now() < geminiOutUntil) return;
+  const tries = s.audReadTry || (s.audReadTry = {});
+  const step = async (key, a, fn) => { if ((tries[key] || 0) >= 3) return; tries[key] = (tries[key] || 0) + 1;
+    try { await fn(); delete tries[key]; s.audReadErr = null; } catch (e) { if (/^Gemini is busy/.test(String(e && e.message))) tries[key]--; s.audReadErr = { n: a.n, at: now, what: key, err: String(e && e.message || e).slice(0, 200) }; } };
+  const acc = await env.DB.prepare("SELECT a.* FROM aud a LEFT JOIN aud_read r ON r.aud = a.n WHERE a.state = 'accepted' AND r.script IS NULL ORDER BY a.n LIMIT 1").first();
+  if (acc) return step("w" + acc.n, acc, () => audReadWrite(env, acc, now));
+  // a table read never finished in 5 days closes with the picks made (none: the card stays as approved, with atWork from the role)
+  const late = await env.DB.prepare("SELECT a.n, r.ready FROM aud a JOIN aud_read r ON r.aud = a.n WHERE a.state = 'reading' AND r.done IS NULL AND r.ready < ?").bind(now - AUD_READ_D * 86400000).first();
+  if (late) { await env.DB.prepare("UPDATE aud_read SET done = ? WHERE aud = ?").bind(now, late.n).run(); await env.DB.prepare("UPDATE aud SET state = 'tuning' WHERE n = ?").bind(late.n).run(); }
+  const tn = await env.DB.prepare("SELECT a.*, r.script AS rscript, r.picks AS rpicks FROM aud a JOIN aud_read r ON r.aud = a.n WHERE a.state = 'tuning' AND r.tune IS NULL ORDER BY a.n LIMIT 1").first();
+  if (tn) return step("t" + tn.n, tn, () => audTuneWrite(env, tn, { script: tn.rscript, picks: tn.rpicks }, now));
+}
+// the viewer's table read on /audition: stage "read" (start once, then picks one by one), "readDone", "waiting", "on"
+async function audRead(env, m, a, b, now, out) {
+  await audReadTables(env);
+  const nm = audJ(a.name, {}), d = audJ(a.director, {}), w = audJ(a.ways, [])[d.way] || {}, c = audJ(a.card, {}).card || {};
+  const r = await env.DB.prepare("SELECT * FROM aud_read WHERE aud = ?").bind(a.n).first();
+  const base = { name: nm, role: { title: w.title, place: AUD_ROLES.places[w.place] }, place: w.place, look: c.look || nm.look, workLook: audWorkLook(c.look || nm.look, w.kind) };
+  if (a.state === "accepted" || !r || !r.script) return out({ stage: "readSoon", ...base });
+  if (["tuning", "greenlight"].includes(a.state)) return out({ stage: "waiting", ...base, tuned: !!r.tune });
+  if (["on", "testDone"].includes(a.state)) return out({ stage: "on", ...base, first: d.first || d.would || null, test: a.state === "testDone" });
+  const sc = audJ(r.script, {}), picks = audJ(r.picks, []), until = r.ready + AUD_READ_D * 86400000;
+  if (b.action === "readStart") { if (!r.started) await env.DB.prepare("UPDATE aud_read SET started = ? WHERE aud = ? AND started IS NULL").bind(now, a.n).run(); r.started = r.started || now; }
+  if (b.action === "readPick") {
+    if (!r.started || r.done) return json({ error: "The table read isn't running." }, {}, 409);
+    const turn = Math.round(Number(b.turn)); if (turn !== picks.length || !sc.turns[turn]) return json({ error: "That turn is over." }, {}, 409);
+    const t = sc.turns[turn], self = !!b.self || !t.choices.some(x => x.k === b.k);
+    picks.push({ turn, k: self ? null : b.k, self, ms: clamp(Math.round(Number(b.ms) || 0), 0, 600000) });
+    await env.DB.prepare("UPDATE aud_read SET picks = ? WHERE aud = ?").bind(JSON.stringify(picks), a.n).run();
+  }
+  if (b.action === "readDone" || (r.started && !r.done && picks.length >= sc.turns.length)) {
+    if (picks.length < sc.turns.length) return json({ error: "There are turns left." }, {}, 409);
+    await env.DB.prepare("UPDATE aud_read SET done = ? WHERE aud = ? AND done IS NULL").bind(now, a.n).run();
+    await env.DB.prepare("UPDATE aud SET state = 'tuning' WHERE n = ? AND state = 'reading'").bind(a.n).run();
+    return out({ stage: "readDone", ...base });
+  }
+  return out({ stage: "read", ...base, script: sc, picks, started: r.started || null, until, sec: AUD_READ_SEC, gender: nm.gender, extraLook: audExtraLook(a.n) });
+}
+function audExtraLook(n) { const r = audRand("extra:" + n), p = a => a[Math.floor(r() * a.length)];
+  return cleanLook({ hair: p(["short", "long", "bun", "curly", "bob"]), hairColor: p(LOOK.hairColor), skin: p(LOOK.skin), shirt: p(LOOK.cloth), pants: p(["navy", "black", "gray", "brown"]), top: p(["tshirt", "shirt", "sweater"]), bottom: "trousers", hat: "none", extras: [] }); }
+// Claude's review of the tuning (with the weekly cast review; advice for the green light)
+async function audTunesForReview(env) {
+  await audReadTables(env);
+  const rows = (await env.DB.prepare("SELECT a.*, r.tune AS rtune, r.picks AS rpicks, r.script AS rscript FROM aud a JOIN aud_read r ON r.aud = a.n WHERE a.state = 'greenlight' AND r.tune IS NOT NULL AND r.review IS NULL LIMIT 5").all()).results || [];
+  return rows.map(a => ({ n: a.n, test: a.member === AUD_TEST_ID, name: audJ(a.name, {}), card: audJ(a.card, {}).card, tune: audJ(a.rtune, {}), dials: (audJ(a.rscript, {}).dials || []), picks: audJ(a.rpicks, []).length }));
+}
+async function audTuneReviewApply(env, list, by, now) {
+  await audReadTables(env); const out = [];
+  for (const it of (Array.isArray(list) ? list : []).slice(0, 10)) {
+    const n = Math.round(Number(it && it.n)), verdict = String(it && it.verdict || "").toLowerCase();
+    if (!["approve", "edit", "reject"].includes(verdict)) { out.push({ n, error: "verdict: approve, edit or reject" }); continue; }
+    const r = await env.DB.prepare("SELECT tune FROM aud_read WHERE aud = ?").bind(n).first(); if (!r || !r.tune) { out.push({ n, error: "no tuning to review" }); continue; }
+    let tune = audJ(r.tune, {});
+    if (verdict === "edit" && it.tune && typeof it.tune === "object") { const p = castCardClean({ atWork: it.tune.atWork, dials: it.tune.dials }, {}); tune = { ...tune, ...(p.atWork ? { atWork: p.atWork } : {}), ...(p.dials ? { dials: p.dials } : {}) }; }
+    await env.DB.prepare("UPDATE aud_read SET tune = ?, review = ? WHERE aud = ?").bind(JSON.stringify(tune), JSON.stringify({ verdict, reason: castStr(it.reason, 240), by, at: now }), n).run();
+    out.push({ n, ok: true });
+  }
+  return out;
+}
+// the first scene's slot: the next free stretch at the place, awake, not on Shabbat, from 2 hours on, within 14 days
+function audFirstSlot(s, place, now) {
+  const len = POLL_LEN_MIN * 60000; let t = Math.ceil((now + 2 * 3600000) / (30 * 60000)) * 30 * 60000;
+  for (; t < now + AUD_FIRST_D * 86400000; t += 30 * 60000) {
+    if (!pollAwake(t) || !pollAwake(t + len - 60000) || pollShabbat(s, t) || pollShabbat(s, t + len)) continue;
+    if (!(placeOpen(place, t) && placeOpen(place, t + 60 * 60000))) continue;
+    if (pollFree(s, t, t + len)) return t;
+  }
+  return null;
+}
+const audWhen = t => new Date(t).toLocaleString("en-GB", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+function audCastId(s, first) {
+  const base = String(first || "x").toLowerCase().normalize("NFD").replace(/[^a-z]/g, "").slice(0, 12) || "member";
+  let id = base, i = 2; while (s.cast[id] || SEED_CAST.some(c => c.id === id) || LOCALS[id] || id === "ishai") id = base + i++;
+  return id;
+}
+// the director's last word: GREEN LIGHT (join the cast, book the first scene), Not yet (a note; or redo the table read), Stop
+async function audGreenAct(env, b, now) {
+  await audReadTables(env);
+  const n = Math.round(Number(b.n)), a = await env.DB.prepare("SELECT * FROM aud WHERE n = ?").bind(n).first();
+  if (!a) return { error: "no such Audition", status: 404 };
+  const nm = audJ(a.name, {}), d = audJ(a.director, {}), w = audJ(a.ways, [])[d.way] || {}, m = await memberGet(env, a.member), test = a.member === AUD_TEST_ID;
+  const r = await env.DB.prepare("SELECT * FROM aud_read WHERE aud = ?").bind(n).first();
+  if (b.action === "audReadNow") {   // write the table read (or the tuning) now, here
+    try { if (a.state === "accepted" || a.state === "reading") await audReadWrite(env, a, now);
+      else if (a.state === "tuning") await audTuneWrite(env, a, r, now); else return { error: "nothing to write at this stage", status: 409 };
+      return { ok: true }; } catch (e) { return { error: String(e && e.message || e), status: 502 }; }
+  }
+  if (a.state !== "greenlight") return { error: "that Audition isn't waiting for the green light", status: 409 };
+  if (b.action === "audNotYet") {
+    const note = cleanStr(b.note, 200);
+    if (b.redo) {   // the table read again, from scratch (a new script)
+      await env.DB.prepare("DELETE FROM aud_read WHERE aud = ?").bind(n).run();
+      await env.DB.prepare("UPDATE aud SET state = 'accepted' WHERE n = ?").bind(n).run(); m.state = "reading"; await memberPut(env, m, now);
+      await memberSay(env, m.id, "redo", `The director asked for one more table read for ${nm.first}` + (note ? ": " + note.replace(/[.!?]*$/, ".") : ".") + " A new one is being written; we'll tell you when it's ready.", true, now);
+    } else await memberSay(env, m.id, "notyet", `Not quite yet: the director has a note on ${nm.first}` + (note ? ": " + note.replace(/[.!?]*$/, ".") : ".") + " Nothing for you to do; we'll tell you when there's news.", true, now);
+    try { await memberPush(env, m.id); } catch (e) {}
+    return { ok: true };
+  }
+  if (b.action === "audStop") {
+    const reason = cleanStr(b.reason, 200);
+    await env.DB.prepare("UPDATE aud SET state = 'stopped', director = ? WHERE n = ?").bind(JSON.stringify({ ...d, stopped: now, reason }), n).run();
+    Object.assign(m, { state: "declined", decided: now, note: reason || null }); await memberPut(env, m, now);
+    await memberSay(env, m.id, "stopped", `In the end ${nm.first} won't be joining the show.` + (reason ? " Reason: " + reason.replace(/[.!?]*$/, ".") : "") + " Thank you for everything you put into it. You can ask for a new Audition a month after your last request.", true, now);
+    try { await memberPush(env, m.id); } catch (e) {}
+    return { ok: true };
+  }
+  if (b.action !== "audGreen") return { error: "unknown action", status: 400 };
+  const s = await loadState(env), tune = r && r.tune && b.tune !== false ? audJ(r.tune, null) : null, card = audFinalCard(a, tune);
+  let at = b.at ? Date.parse(b.at) : null;
+  if (at && !(at > now + 30 * 60000 && at < now + AUD_FIRST_D * 86400000)) return { error: "the first scene must be between 30 minutes and 14 days from now", status: 400 };
+  if (!at) at = audFirstSlot(s, w.place, now); if (!at) return { error: "no free slot at the place in the next 14 days: pick a time", status: 409 };
+  const id = audCastId(s, nm.first), name = nm.first, role = `${w.title}${audLinkText(w, nm.gender) ? ", " + audLinkText(w, nm.gender) : ""}`;
+  const goal = `Ishai meets ${name} (${role}) for the first time, at ${AUD_ROLES.places[w.place] || w.place}: ${w.scene} They have never met before; it happens naturally, and ${name} is at work there.`;
+  if (test) {   // a test never joins the cast: show what would happen, and stop
+    const would = { id, at, place: w.place, goal, card };
+    await env.DB.prepare("UPDATE aud SET state = 'testDone', director = ? WHERE n = ?").bind(JSON.stringify({ ...d, would: { id, at, place: w.place, goal } }), n).run();
+    m.state = "none"; await memberPut(env, m, now);
+    await memberSay(env, m.id, "green", `GREEN LIGHT (test): ${name} would join the show as ${w.title}, first scene ${audWhen(at)}. It's a test, so nothing was booked.`, false, now);
+    return { ok: true, would };
+  }
+  card.id = id; card.name = name;
+  const entry = { id, name, role, personality: card.personality || "", speech: card.speech || "", hangouts: [w.place], look: card.look, workLook: card.workLook, gender: nm.gender,
+    memory: `New in the neighbourhood, ${w.title}. Has never met Ishai.`, relationship: 0, from: "audience", aud: n, lastSeen: null, scenes: 0 };
+  s.cast[id] = entry;
+  await castTables(env);
+  await env.DB.prepare("INSERT INTO cast_card (id, card, v, at) VALUES (?, ?, 1, ?) ON CONFLICT(id) DO UPDATE SET card = excluded.card, v = cast_card.v + 1, at = excluded.at").bind(id, JSON.stringify(castCardClean(card, card)), now).run();
+  const g = newGoal({ id: "aud-" + n, goal, forceText: `${name} and Ishai meet for the first time at ${AUD_ROLES.places[w.place] || w.place}.`, startAt: new Date(at).toISOString(), deadlineAt: new Date(at + POLL_LEN_MIN * 60000).toISOString(),
+    location: w.place, with: name, forceWith: id, forceAction: "talking", teaser: `A new face at ${AUD_ROLES.places[w.place] || w.place}: Ishai meets ${name}` }, now);
+  g.aud = n; s.director.push(g);
+  await saveState(env, s); try { await castLoad(env, s, true); } catch (e) {}
+  await env.DB.prepare("UPDATE aud SET state = 'on', cast_id = ?, director = ? WHERE n = ?").bind(id, JSON.stringify({ ...d, green: now, first: { at, place: w.place, goal: g.id }, entry, goalObj: g }), n).run();
+  Object.assign(m, { state: "on", decided: now }); await memberPut(env, m, now);
+  await memberSay(env, m.id, "green", `GREEN LIGHT! ${name} joins Watching Ishai as ${w.title}. First scene: ${audWhen(at)}, at ${AUD_ROLES.places[w.place] || w.place}, where ${name} meets Ishai for the first time. Watch it live!`, true, now);
+  try { await memberPush(env, m.id); } catch (e) {}
+  return { ok: true, id, at };
+}
+
+// the table read as the director sees it: each turn with the dial, the pick (or "chose for themselves") and the line said
+function audReadView(r) {
+  if (!r) return null;
+  const sc = audJ(r.script, null), picks = audJ(r.picks, []), D = Object.fromEntries(((sc || {}).dials || []).map(x => [x.id, x]));
+  return { ready: r.ready, started: r.started, done: r.done, until: r.ready ? r.ready + AUD_READ_D * 86400000 : null, turns: sc ? sc.turns.length : 0, picks: picks.length,
+    dials: (sc || {}).dials || [], tune: audJ(r.tune, null), review: audJ(r.review, null),
+    log: sc ? picks.map(p => { const t = sc.turns[p.turn] || {}, dl = D[t.dial] || { settings: [] }, k = p.self ? dl.self : p.k, ch = (t.choices || []).find(c => c.k === k) || {};
+      return { situation: t.situation, dial: dl.name, setting: (dl.settings.find(x => x.k === k) || {}).label, self: !!p.self, say: ch.say, secs: Math.round((p.ms || 0) / 1000) }; }) : [] };
+}
+const AUD_TUNE_HOW = 'auditionTunes: a member character\'s tuning after their table read (dials, atWork, sample lines, mood lines). Check every change stays inside the card\'s personality and the role, and the rules. Add "auditionTunes":[{"n":3,"verdict":"approve|edit|reject","reason":"one line","tune":{"atWork":{...},"dials":{...}} (edit only)}] to the POST. Advice for the director\'s green light.';
