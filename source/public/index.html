@@ -319,7 +319,7 @@
   .mem{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--phos-faint);padding-top:8px}
   .mem h4{margin:0;font-weight:normal;color:var(--amber);font-size:17px;letter-spacing:1px}
   .memAv{display:flex;gap:10px;align-items:flex-start}
-  .memAv canvas{width:56px;height:108px;image-rendering:pixelated;background:#0b120b;border:1px solid var(--phos-faint);flex:none}
+  .memAv canvas{width:56px;height:108px;image-rendering:pixelated;background:#8d9b93;border:1px solid var(--phos-faint);flex:none}
   .memEd{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;font-size:14px;flex:1}
   .memEd label{display:flex;flex-direction:column} .memEd select{font:inherit;font-size:15px;background:#071007;color:var(--phos);border:1px solid var(--phos-faint);border-radius:4px}
   .memEx{display:flex;flex-wrap:wrap;gap:4px;font-size:14px} .memEx label{display:flex;gap:3px;align-items:center;border:1px solid var(--phos-faint);border-radius:4px;padding:0 4px}
@@ -1164,6 +1164,16 @@
     else if (st === 'bob'){ R(x+1,y+7,8,2,h); }
   }
   // hats (L.hat, colour L.hatColor from CLOTH): drawn over the hair, the same from the back
+  // a hat that covers the head hides the hair that would stick out above or beside it; a kippah or a headband doesn't
+  const HAT_COVERS = {cap:1, beanie:1, fedora:1, bucket:1, sunhat:1, bandana:1, headscarf:1};
+  function hairUnder(L){
+    const k = L.hat, st = L.hair; if (!k || !HAT_COVERS[k]) return st;
+    if (k === 'headscarf') return st === 'bald' ? 'bald' : 'short';       // all of it under the scarf
+    if (st === 'bun' || st === 'spiky' || st === 'side' || st === 'cap') return 'short';
+    if (st === 'mohawk') return 'buzz';
+    if (st === 'curly' || st === 'afro') return 'curlyCap';
+    return st;
+  }
   function hat(x, y, L, back, muted){
     const k = L.hat; if (!k || k === 'none') return;
     let cc = CLOTH[L.hatColor] || CLOTH[L.pants] || CLOTH.red; if (muted) cc = mute(cc, .65);
@@ -1210,7 +1220,8 @@
     if (kind==='shift') x += Math.floor(t/2000)%2;
     const y0 = y, x0 = x, hm = headMove(kind, t); y += hm.dy || 0; x += (hm.dx || 0) + (bl && bl.sway || 0);
     head(x,y,{frown: bl && bl.frown, yawn: hm.yawn, closed: hm.closed || blinkOn(t,o.seed??1700), look: bl && bl.look != null && kind !== 'turn' && kind !== 'look' ? bl.look : lookFid(t, kind, o.face??-1), down: !!o.down || !!hm.down, talk: hm.open || ((theirs || o.talking) && Math.floor(t/170)%2)});
-    // hair styles
+    // hair styles (under a hat: what would stick out above or beside it is tucked in, hairUnder())
+    L = Object.assign({}, L, {hair: hairUnder(L)});
     const h = pal.hair;
     if (L.hair==='bald'){ R(x+2,y,6,3,pal.skin); R(x+3,y,2,1,tint(pal.skin,.3)); }
     else if (L.hair==='long'){ R(x+1,y+3,1,7,h); R(x+8,y+3,1,7,h); }
@@ -1228,6 +1239,7 @@
     else if (L.hair==='bob'){ R(x+1,y+3,1,5,h); R(x+8,y+3,1,5,h); R(x+2,y+2,6,1,h); R(x+1,y+7,1,1,shade(h,.7)); R(x+8,y+7,1,1,shade(h,.7)); }
     else if (L.hair==='dreads'){ R(x+1,y+3,1,8,h); R(x,y+4,1,6,h); R(x+8,y+3,1,8,h); R(x+9,y+4,1,6,h); R(x,y+6,1,1,shade(h,.7)); R(x+9,y+7,1,1,shade(h,.7)); }
     else if (L.hair==='side'){ R(x+2,y+2,4,1,h); R(x+1,y+1,1,3,h); R(x+5,y+1,1,1,shade(h,.7)); }
+    else if (L.hair==='curlyCap'){ R(x,y+3,1,3,h); R(x+9,y+3,1,3,h); R(x,y+4,1,1,shade(h,.7)); }   // curly or an afro under a hat: only the curls below it
     // face extras
     if (ex.includes('glasses')){ R(x+2,y+3,3,1,'#1a1a1a'); R(x+5,y+3,3,1,'#1a1a1a'); R(x+2,y+4,1,1,'#1a1a1a'); R(x+7,y+4,1,1,'#1a1a1a'); }
     if (ex.includes('mustache')) R(x+3,y+5,4,1,h);
@@ -1237,7 +1249,7 @@
     if (ex.includes('freckles') && kind !== 'turn'){ R(x+3,y+5,1,1,pal.skinShade); R(x+6,y+5,1,1,pal.skinShade); R(x+4,y+6,1,1,pal.skinShade); }
     if (ex.includes('stubble') && kind !== 'turn'){ for (let i = 0; i < 6; i += 2) R(x+2+i,y+7,1,1,shade(h,.9)); R(x+3,y+6,1,1,shade(h,.9)); R(x+6,y+6,1,1,shade(h,.9)); }
     if (ex.includes('headphones') && kind !== 'turn'){ R(x+1,y-1,8,1,'#222'); R(x,y+2,1,4,'#222'); R(x+9,y+2,1,4,'#222'); R(x,y+3,1,2,'#c23b3b'); R(x+9,y+3,1,2,'#c23b3b'); }
-    if (kind==='turn') backHair(x,y,h,L.hair,pal.skin);
+    if (kind==='turn') backHair(x,y,h,L.hair === 'curlyCap' ? 'curly' : L.hair,pal.skin);
     hat(x, y, L, kind === 'turn', o.muted);                                           // a hat goes over the hair, from the front or the back
     if (kind==='turn' && ex.includes('headphones')) R(x+1,y-1,8,1,'#222');
     if (bl && bl.mark) emote(x, y, bl.mark, t);
@@ -6209,10 +6221,11 @@
     CAST = next; if (changed && !$('castPanel').hidden) renderCast();
     updateLabels();
   }
-  function portrait(look, isIshai){
+  const LOOK_BG = '#8d9b93';   // a mid grey behind looks being chosen, so black and white both show
+  function portrait(look, isIshai, bg){
     const c = document.createElement('canvas'); c.width = 14; c.height = 27;
     const pc = c.getContext('2d'); const prev = g; g = pc;
-    R(0,0,14,27,'#0b120b');
+    R(0,0,14,27,bg || '#0b120b');
     if (isIshai){ head(2,4,{}); torso(2,4); armsDown(2,4); legs(2,4,0); }
     else person(look, 2, 4, 0, {face:0, seed:999});
     g = prev; return c;
@@ -7782,7 +7795,7 @@
   }
   function memDraw(){
     const cv = $('memCv'), L = MBR.look; if (!L) return;
-    const p = portrait(L, false), x = cv.getContext('2d'); x.clearRect(0, 0, cv.width, cv.height); x.drawImage(p, 0, 0);
+    const p = portrait(L, false, LOOK_BG), x = cv.getContext('2d'); x.clearRect(0, 0, cv.width, cv.height); x.drawImage(p, 0, 0);
     const ed = $('memEd');
     if (!ed.firstChild) MEM_FIELDS.forEach(([k, label, opts]) => { const l = document.createElement('label'); l.textContent = label; const sel = document.createElement('select'); sel.dataset.k = k;
       opts().forEach(o => sel.add(new Option(o, o))); sel.onchange = () => { MBR.look[k] = sel.value; MBR.dirty = true; memDraw(); }; l.appendChild(sel); ed.appendChild(l); });
@@ -8164,7 +8177,7 @@
   // notifications: a bell for each viewer, off until they turn it on (key moments, and the moments they voted for)
   const ALERT_KEY = 'BEV_aboiLYMr5triqg4ChAMbFrvzhgtWhtfyI5Fd7WKSvnlF8ylKyYXryfo2rpII3Gn6t96AcwWizQxaHvLsAuI';
   (async () => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || forceLoc || params.has('sandbox') || params.has('builder') || params.has('looks') || params.has('preview') || params.has('demo') || location.protocol !== 'https:' && location.hostname !== '127.0.0.1') return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || forceLoc || params.has('sandbox') || params.has('builder') || params.has('looks') || params.has('casting') || params.has('preview') || params.has('demo') || location.protocol !== 'https:' && location.hostname !== '127.0.0.1') return;
     const bell = $('bell'), DEF = {from: 8, to: 23, max: 4, alerts: true, picks: true}, PK = 'ishaiAlerts'; bell.hidden = false;
     const load = () => { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(PK)) || {}); } catch(e){ return {...DEF}; } };
     const keep = p => { try { localStorage.setItem(PK, JSON.stringify(p)); } catch(e){} };
@@ -8202,12 +8215,67 @@
       $('alertS').disabled = false; };
   })();
   if (params.has('syncdebug')) window.__ishaiSync = () => ({loc: actor.loc, x: actor.x, a: actor.action, hidden: actor.hidden, comp: comp.id ? comp.x : null, dog: dog.loc ? dog.x : null, cam: SCENES[actor.loc].cam, ride: !!actor.ride, sw: !!actor.switching, sim: simT});
+  // ?casting: the Audition page's casting room (public; docs/AUDITION_PLAN.md). The show's own art on the show's own canvas, nothing else runs:
+  // Ruti Kaspi, the casting director (never part of the story), at her table; the viewer's character walks in through the door to the tape mark.
+  // The Audition page (the parent) sends {cast: {look, phase}}: empty (before the start), enter, listen, ask, answer, wild, leave.
+  if (params.has('casting')) {
+    BUILDER = true; demoMode = true; TUNING = false;
+    const cv = $('scene'); document.body.appendChild(cv);
+    const st = document.createElement('style'); st.textContent = 'html,body{margin:0;background:#050705;overflow:hidden} body>*:not(#scene){display:none!important} #scene{display:block;width:100vw;height:auto;image-rendering:pixelated}'; document.head.appendChild(st);
+    const DIR = {hair:'bun', hairColor:'auburn', skin:'fair', shirt:'teal', pants:'navy', top:'sweater', bottom:'trousers', hat:'none', hatColor:'black', extras:['glasses','necklace']};
+    const MARK = 100, DOOR = 182, WALK_MS = 4200, CS = {look: null, phase: 'empty', at: performance.now(), x: null};
+    window.addEventListener('message', e => { if (e.origin !== location.origin || !e.data || !e.data.cast) return;
+      const c = e.data.cast, now = performance.now();
+      if (c.look) CS.look = c.look;
+      if (c.phase && c.phase !== CS.phase) { CS.phase = c.phase; CS.at = now; }   // only a real change restarts (a resend after loading changes nothing)
+      else if (c.phase && c.again && (c.phase === 'ask' || c.phase === 'wild')) CS.at = now;   // the next question: ask again
+    });
+    const ease = k => k < 0 ? 0 : k > 1 ? 1 : k * k * (3 - 2 * k);
+    function castFrame(){
+      const now = performance.now(), t = now, el = now - CS.at; g = ctx; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,W,H);
+      // the room: a grey wall, the seamless paper backdrop behind the mark, a wooden floor
+      R(0,0,W,64,'#5d6875'); R(0,0,W,3,'#4a535e'); R(0,61,W,3,'#4a535e');
+      R(6,6,62,11,'#1d2430'); word('8BITTV CASTING',9,9,'#ffd166');
+      R(76,2,64,3,'#8a8f88'); R(78,5,60,59,'#d9dbd2'); R(78,64,60,20,'#cfd1c7'); R(78,63,60,1,'#c2c4ba');
+      R(0,64,78,44,'#7a6750'); R(138,64,W-138,44,'#7a6750'); R(78,84,60,24,'#7a6750');
+      for (let x = 0; x < W; x += 16) { if (x < 78 || x >= 138) R(x,64,1,44,'#6a5844'); else R(x,84,1,24,'#6a5844'); }
+      R(MARK+1,88,8,1,'#e8d24a'); R(MARK+4,85,1,7,'#e8d24a');   // the tape mark
+      // the door on the right: open while someone comes or goes
+      const doorOpen = (CS.phase === 'enter' && el < WALK_MS * .55) || (CS.phase === 'leave' && el > WALK_MS * .45 && el < WALK_MS * 1.1);
+      R(178,24,14,66,'#3a2c20'); R(180,26,12,64, doorOpen ? '#141210' : '#6a5440'); if (!doorOpen) R(182,58,2,3,'#d8c070');
+      // the light and the camera on its tripod, facing the mark
+      R(167,22,14,12,'#f2f0e6'); R(168,23,12,10,'#fffbe8'); R(173,34,1,56,'#3a3a3e'); R(170,89,7,1,'#3a3a3e');
+      R(155,60,1,30,'#2a2a2e'); R(150,90,12,1,'#2a2a2e'); R(152,72,1,18,'#2a2a2e'); R(159,72,1,18,'#2a2a2e');
+      R(149,50,15,10,'#2a2a2e'); R(143,52,6,6,'#3a3a40'); R(142,53,1,4,'#6a8aa8'); R(160,51,2,2, Math.floor(now/600)%2 ? '#ff4040' : '#5a1010');
+      // Ruti at her table: she asks (talks), listens, nods and writes after an answer, holds up a card for a wild card
+      const asking = (CS.phase === 'ask' || CS.phase === 'wild') && el < 2600, after = CS.phase === 'answer' && el > 1500 && el < 4200;
+      SPEAKING = asking ? 'castdir' : (CS.phase === 'answer' && el < 1500) ? 'member' : null;
+      person(DIR, 26, 58, t, {legs:'sit', face:1, talkPhase: asking, fid: asking ? 'gesture' : after ? 'nod' : undefined, seed: 41});
+      if (CS.phase === 'wild' && el < 3200) { R(38,60,6,8,'#f4f0e4'); R(39,61,4,6,'#c23b3b'); if (Math.floor(now/250)%2) R(45,57,1,1,'#ffd166'); }
+      R(8,78,62,3,'#8a6a4a'); R(10,81,58,14,'#6e5238'); R(11,95,3,10,'#4a3624'); R(64,95,3,10,'#4a3624');
+      R(42,72,14,6,'#2a2f38'); R(43,73,12,4, '#8fb8d8');   // the laptop
+      R(14,75,11,3,'#f4f0e4'); R(15,74,9,1,'#e8e4d8'); R(60,73,3,5,'#f2f0ea'); R(63,74,1,2,'#f2f0ea');   // scripts, coffee
+      R(24,81,30,7,'#1d2430'); word('CASTING',26,82,'#ffd166');
+      if (asking) { R(36,46,11,7,'#f4f0e4'); R(38,53,2,2,'#f4f0e4'); const d = Math.floor(now/300)%4; for (let i = 0; i < 3; i++) if (i < d) R(38+i*3,49,2,2,'#1d2430'); }
+      // the character: walks in to the mark, stands there, answers (talks), walks out at the end
+      if (CS.look && CS.phase !== 'empty') {
+        let x = MARK, walk = false, face = -1;
+        if (CS.phase === 'enter' && el < WALK_MS) { x = DOOR - (DOOR - MARK) * ease(el / WALK_MS); walk = true; }
+        if (CS.phase === 'leave') { if (el > WALK_MS * 1.1) x = null; else { x = MARK + (DOOR - MARK) * ease(el / WALK_MS); walk = true; face = 1; } }
+        if (x != null) person(CS.look, Math.round(x), 64, t, {walk, face, talkPhase: SPEAKING === 'member', fid: SPEAKING === 'member' ? 'gesture' : undefined, seed: 7});
+      }
+      requestAnimationFrame(castFrame);
+    }
+    requestAnimationFrame(castFrame);
+    if (parent !== window) parent.postMessage({castingReady: true}, location.origin);
+    return;
+  }
   // ?looks: a hidden helper for the Audition page (public): it only draws looks with the show's own art and starts nothing else
   if (params.has('looks')) {
     BUILDER = true; demoMode = true; TUNING = false;
     const ok = e => e.origin === location.origin;
     window.addEventListener('message', e => { if (!ok(e) || !e.data || !e.data.lookReq) return;
-      let url = null; try { url = portrait(e.data.look || {}, false).toDataURL(); } catch(err){}
+      let url = null; try { url = portrait(e.data.look || {}, false, LOOK_BG).toDataURL(); } catch(err){}
       e.source.postMessage({lookRes: e.data.lookReq, url}, location.origin); });
     if (parent !== window) parent.postMessage({looksReady: true, opts: {hair: LOOK_OPTS.hair, hairColor: Object.keys(HAIRC), skin: Object.keys(SKINC), top: LOOK_OPTS.top, shirt: Object.keys(CLOTH), bottom: LOOK_OPTS.bottom, pants: Object.keys(CLOTH), hat: LOOK_OPTS.hat, hatColor: Object.keys(CLOTH), extras: LOOK_OPTS.extras.filter(x => x !== 'apron')}}, location.origin);
     return;

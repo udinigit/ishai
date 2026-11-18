@@ -44,8 +44,10 @@
   .sec{font-size:18px;color:var(--amber);letter-spacing:1px;text-transform:uppercase}
   .q{font-size:26px;margin:10px 0 12px}
   .wild{border-color:var(--amber)} .wild .q{color:var(--amber)}
+  #stage{display:block;width:100%;aspect-ratio:192/108;border:1px solid var(--faint);border-radius:6px;background:#050705;margin-bottom:6px}
+  .stageCap{font-size:15px;color:var(--dim);margin:0 0 6px}
   .look{display:flex;gap:12px;align-items:flex-start}
-  .look img{width:84px;height:162px;image-rendering:pixelated;background:#0b120b;border:1px solid var(--faint);border-radius:4px;flex:none}
+  .look img{width:84px;height:162px;image-rendering:pixelated;background:#8d9b93;border:1px solid var(--faint);border-radius:4px;flex:none}
   .lookEd{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;flex:1;font-size:16px}
   .lookEd label{display:flex;flex-direction:column;color:var(--dim)}
   .lookEd select{font:inherit;font-size:18px;background:#020402;color:var(--phos);border:1px solid var(--dim);border-radius:4px}
@@ -65,6 +67,8 @@
 <body>
 <main>
   <header><h1>YOUR AUDITION</h1><a href="/">✕ BACK TO THE SHOW</a></header>
+  <iframe id="stage" src="/?casting" title="The casting room: Ruti Kaspi, the casting director, at her table"></iframe>
+  <p class="stageCap" id="stageCap">THE CASTING ROOM · Ruti Kaspi, casting</p>
   <div id="app" aria-live="polite"><p class="muted">Loading…</p></div>
 </main>
 <div class="foot" id="foot" hidden><div class="in"><button class="ghost" id="back" hidden>← BACK</button><span class="muted" id="saved" style="font-size:16px"></span><button id="next">NEXT →</button></div></div>
@@ -90,7 +94,10 @@
   function show(v){
     V = v; pick = null; other = ''; app.textContent = ''; $('foot').hidden = true; window.scrollTo(0, 0);
     if (v.stage === 'naming') return naming(v);
-    if (v.stage === 'q') return question(v);
+    if (v.stage === 'q') { stageQuestion(v); $('stageCap').textContent = `THE CASTING ROOM · Ruti Kaspi, casting · ${v.name.first}`; return question(v); }
+    if (v.stage === 'naming') stage('empty');
+    if (v.stage === 'end') stage('listen', v.name && v.name.look);
+    if (v.stage === 'submitted') stage(CAST.entered ? 'leave' : 'empty', v.name && v.name.look);
     if (v.stage === 'end') return ending(v);
     if (v.stage === 'submitted') return submitted(v);
     const c = el('div', null, 'card');
@@ -148,6 +155,16 @@
     if (e.data.looksReady){ OPTS = e.data.opts; if ($('lookEd')) lookCard(); else if ($('lookImg') && LOOK) lookDraw(); }
     if (e.data.lookRes && e.data.lookRes === lookN && e.data.url && $('lookImg')) $('lookImg').src = e.data.url;
   });
+  // ---- the casting room (the ?casting frame above): what it shows follows the page ----
+  const CAST = {look: null, phase: 'empty', answeredAt: 0, entered: false};
+  function stage(phase, look, again){ if (look) CAST.look = look; if (phase) CAST.phase = phase; const f = $('stage'); if (f && f.contentWindow) f.contentWindow.postMessage({cast: {look: CAST.look, phase: CAST.phase, again: !!again}}, location.origin); }
+  window.addEventListener('message', e => { if (e.origin === location.origin && e.data && e.data.castingReady) stage(null, null, false); });
+  function stageQuestion(v){
+    const first = !CAST.entered; CAST.entered = true;
+    if (first && v.q.n === 0) { stage('enter', v.name.look); setTimeout(() => stage(v.q.wild ? 'wild' : 'ask'), 4400); return; }   // just started: walks in first
+    const wait = Math.max(0, 1600 - (Date.now() - CAST.answeredAt));   // let the answer play before the next question
+    setTimeout(() => stage(v.q.wild ? 'wild' : 'ask', v.name.look, true), wait);
+  }
   function lookDraw(){ const f = $('looks'); if (!f || !f.contentWindow || !OPTS) return; lookN++; f.contentWindow.postMessage({lookReq: lookN, look: LOOK}, location.origin); }
   function lookCard(){
     let c = $('lookCard'); if (!c){ c = el('div', null, 'card'); c.id = 'lookCard'; app.appendChild(c); }
@@ -194,7 +211,7 @@
       const many = q.t === 'many', sel = new Set(A ? (Array.isArray(A.v) ? A.v : [A.v]) : []);
       if (many) c.appendChild(el('p', `Pick up to ${q.max || 3}.`, 'muted'));
       const opts = q.other ? [...q.o, q.other] : q.o, list = el('div', null, 'names');
-      const otherIn = el('input'); otherIn.type = 'text'; otherIn.maxLength = 80; otherIn.placeholder = 'A few words…'; otherIn.hidden = true; otherIn.value = (A && A.other) || ''; otherIn.oninput = () => { other = otherIn.value; okNext(); };
+      const otherIn = el('input'); otherIn.type = 'text'; otherIn.maxLength = 60; otherIn.placeholder = 'A few words (up to 60 letters)…'; otherIn.hidden = true; otherIn.value = (A && A.other) || ''; otherIn.oninput = () => { other = otherIn.value; okNext(); };
       opts.forEach(o => { const b = el('button', o, 'opt'); b.setAttribute('aria-pressed', sel.has(o));
         b.onclick = () => { if (many){ if (sel.has(o)) sel.delete(o); else { if (sel.size >= (q.max || 3)) return; sel.add(o); } } else { sel.clear(); sel.add(o); }
           list.querySelectorAll('.opt').forEach(x => x.setAttribute('aria-pressed', sel.has(x.textContent))); otherIn.hidden = !sel.has(q.other); if (!otherIn.hidden) otherIn.focus();
@@ -229,6 +246,7 @@
   }
   async function send(){
     if (busy) return; busy = true; $('next').disabled = true; $('saved').textContent = 'saving…';
+    CAST.answeredAt = Date.now(); stage('answer');
     try { show(await api({action: 'answer', k: V.q.k, v: pick, other})); }
     catch(e){ msg(e.message, true); $('saved').textContent = ''; }
     busy = false; okNext();

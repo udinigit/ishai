@@ -215,10 +215,20 @@
   },
   {
    "id": "basics.self",
-   "t": "text",
+   "t": "one",
    "req": 1,
    "to": "traits",
-   "q": "In one sentence: who is your character, the way they'd introduce themselves at a party?",
+   "q": "How would they introduce themselves at a party?",
+   "o": [
+    "By their job, first thing",
+    "With a joke",
+    "By asking about the other person first",
+    "With their whole life story",
+    "Shyly, just their name",
+    "By who they know here",
+    "With a compliment",
+    "With a firm handshake and nothing else"
+   ],
    "s": "basics"
   },
   {
@@ -515,9 +525,19 @@
   },
   {
    "id": "fam.saying",
-   "t": "text",
+   "t": "one",
    "to": "talk",
-   "q": "A family saying they grew up with (made up is fine)?",
+   "q": "A saying they grew up with at home?",
+   "o": [
+    "Eat, you're too thin",
+    "Don't tell your father",
+    "Everything will be fine",
+    "Money doesn't grow on trees",
+    "Be home before dark",
+    "Family first",
+    "Say thank you",
+    "Ask your mother"
+   ],
    "s": "family"
   },
   {
@@ -878,9 +898,18 @@
   },
   {
    "id": "work.story",
-   "t": "text",
+   "t": "one",
    "to": "work",
-   "q": "A story about work they tell at every party?",
+   "q": "The work story they tell at every party?",
+   "o": [
+    "The customer who wouldn't leave",
+    "The day the boss cried",
+    "A mistake that turned out great",
+    "The interview that went wrong",
+    "The time they saved the day",
+    "The famous face (they won't say who) they once served",
+    "Their first day, a disaster"
+   ],
    "s": "work"
   },
   {
@@ -2120,10 +2149,22 @@
   },
   {
    "id": "talk.phrase",
-   "t": "text",
+   "t": "one",
    "req": 1,
    "to": "talk",
    "q": "A phrase they say a lot?",
+   "o": [
+    "Yalla, let's go",
+    "It'll be fine",
+    "Trust me",
+    "Seriously?",
+    "Don't start",
+    "Life is short",
+    "Wait, wait, wait",
+    "What can you do",
+    "Exactly!",
+    "Listen to me"
+   ],
    "s": "talk"
   },
   {
@@ -2285,10 +2326,20 @@
   },
   {
    "id": "in.secret",
-   "t": "text",
+   "t": "one",
    "req": 1,
    "to": "secret",
-   "q": "A small, harmless secret only they know (fictional)?",
+   "q": "A small, harmless secret only they know?",
+   "o": [
+    "They can't swim",
+    "They still sleep with a teddy bear",
+    "They hate a dish everyone loves",
+    "They secretly write poems",
+    "They cried at a cartoon last week",
+    "They're afraid of pigeons",
+    "They never finished a book they say they loved",
+    "They practise speeches in the mirror"
+   ],
    "s": "inside"
   },
   {
@@ -7429,8 +7480,17 @@
    },
    {
     "id": "fu.hob.hour",
-    "t": "text",
-    "q": "A perfect hour of {x} for them, in one line?"
+    "t": "one",
+    "q": "A perfect hour of {x} for them is...",
+    "o": [
+     "Early morning, alone",
+     "With music on",
+     "With a friend who's better at it",
+     "After a long day, to switch off",
+     "Outdoors, whatever the weather",
+     "When nobody's watching"
+    ],
+    "other": 1
    }
   ],
   "place": [
@@ -7586,15 +7646,35 @@
    },
    {
     "id": "fu.work.boss",
-    "t": "text",
-    "q": "One sentence their boss (or a customer) says about them?"
+    "t": "one",
+    "q": "What does their boss (or a customer) say about them?",
+    "o": [
+     "Always on time",
+     "Too chatty",
+     "The best we've had",
+     "A bit slow, but careful",
+     "Everyone asks for them",
+     "Hard to manage, worth it"
+    ],
+    "other": 1
    }
   ],
   "love": [
    {
     "id": "fu.love.line",
-    "t": "text",
-    "q": "How did it begin (or end), in one line?"
+    "t": "one",
+    "q": "How did it begin (or end)?",
+    "o": [
+     "At a party, by chance",
+     "Through friends",
+     "Slowly, as friends first",
+     "Fast, and then all at once",
+     "With a long talk at night",
+     "Quietly, they grew apart",
+     "A big fight",
+     "It's still going"
+    ],
+    "other": 1
    },
    {
     "id": "fu.love.long",

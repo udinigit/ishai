@@ -7,7 +7,7 @@ one fu.hob.thing | A thing they own for {x} that matters to them? | Something ol
 one fu.hob.oops | An embarrassing moment with {x}? | They fell over in public; They broke something expensive; They showed off and failed, loudly; They got the day wrong and missed it all; Someone from work caught them at it; Nothing yet (it's coming)
 one fu.hob.with | Alone or with others? | Alone, it's their time; With one close friend; With a group or a club; Teaching others; With family, like it or not
 one fu.hob.ishai | Would they teach Ishai {x}? | Gladly, today; Only if he asks nicely; Never, it's their thing; They'd try, but they're a terrible teacher
-text fu.hob.hour | A perfect hour of {x} for them, in one line?
+one fu.hob.hour | A perfect hour of {x} for them is... | Early morning, alone; With music on; With a friend who's better at it; After a long day, to switch off; Outdoors, whatever the weather; When nobody's watching
 
 @follow hob.music name=music
 one fu.music.inst | What exactly do they play? | Guitar; Piano; Oud; Darbuka; Violin; Drums; Bass; Trumpet; Ukulele; Nothing, they listen, seriously; Their voice, in the shower
@@ -146,7 +146,7 @@ one fu.work.before | What did they do before this? | Waiting tables; A soldier's
 one fu.work.secret | What are they secretly good at in their job? | Calming angry people; Fixing what others break; Remembering everyone's name; Numbers; Making the coffee everyone loves; Looking busy
 one fu.work.colleague | A colleague they can't stand? | The one who eats loudly; The boss's nephew; The one who takes credit; The one who's always happy; They like everyone, suspiciously
 one fu.work.got | How did they get this job? | A friend's tip; An ad, against the odds; The family business; They started it themselves; Pure luck; They don't really know
-text fu.work.boss | One sentence their boss (or a customer) says about them?
+one fu.work.boss | What does their boss (or a customer) say about them? | Always on time; Too chatty; The best we've had; A bit slow, but careful; Everyone asks for them; Hard to manage, worth it
 @follow work.office name=office work
 one fu.office.what | What kind of office? | Insurance; A bank; A government office; An agency; A law firm's front desk
 @follow work.tech name=tech
@@ -177,7 +177,7 @@ one fu.stu.job | Their part-time job? | A café; A call centre; Private lessons;
 one fu.law.what | Their law work? | A young lawyer, many hours; A paralegal; They left law and don't regret it; Still deciding
 
 @generic love
-text fu.love.line | How did it begin (or end), in one line?
+one fu.love.line | How did it begin (or end)? | At a party, by chance; Through friends; Slowly, as friends first; Fast, and then all at once; With a long talk at night; Quietly, they grew apart; A big fight; It's still going
 one fu.love.long | How long? | A few weeks; A year or two; Many years; Forever, it feels like
 one fu.love.friends | What do friends say about it? | It's perfect; It's a mistake; It's none of their business; Nothing, nobody knows
 @follow love.single name=being single

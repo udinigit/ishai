@@ -6013,6 +6013,8 @@ async function memberDirApi(req, env) {
 // (`generic[f's prefix]`, `{x}` = the set's name)), wild cards (`wild`), the name lists, blocked words and famous names.
 const AUD_BANK = __AUDITION__;
 const AUD_FU_PRIO = { "hob.main": 2.5, "work.now": 2, "edu.level": 1.5, "love.status": 1.5, "basics.grew": 1.5, "fam.sibs": 1.3, "fam.kids": 1.3, "hob.food": 1.2 };   // answers whose follow-ups count most get more of them
+// No written answers since v268 (the director's choice): every question is choices, plus a few-word "something else" (AUD_OTHER_LEN)
+const AUD_OTHER_LEN = 60;
 const AUD_DAYS = 7, AUD_TEXT_MAX = 10, AUD_TEXT_LEN = 200, AUD_SHUFFLES = 10, AUD_WILD_RECENT = 200;
 let audTablesOk = false;
 async function audTables(env) {
@@ -6103,8 +6105,8 @@ function audFollow(qid, labels, list, A, seed) {
   return out.map(({ t, ...it }) => it);
 }
 // text answers: short, no links, emails or numbers that look like phones, no blocked words
-function audClean(t) {
-  let s = cleanStr(t, AUD_TEXT_LEN).replace(/https?:\/\/\S+|www\.\S+|\S+@\S+\.\S+/gi, "").replace(/\+?\d[\d\s-]{6,}\d/g, "");
+function audClean(t, max) {
+  let s = cleanStr(t, max || AUD_TEXT_LEN).replace(/https?:\/\/\S+|www\.\S+|\S+@\S+\.\S+/gi, "").replace(/\+?\d[\d\s-]{6,}\d/g, "");
   for (const w of AUD_BANK.blocked) s = s.replace(new RegExp("\\b" + w + "\\w*", "gi"), "…");
   return s.replace(/\s{2,}/g, " ").replace(/\s+([,.!?])/g, "$1").trim();
 }
@@ -6237,8 +6239,8 @@ async function audApi(req, env, url) {
     const k = String(b.k || ""), item = st.live.find(it => audKey(it) === k);
     if (!item) return json({ error: "That question isn't open." }, {}, 409);
     const q = audQ(item, st.wild); let v = b.v, other = null;
-    if (q.t === "one") { if (v === AUD_OTHER && q.other) { other = audClean(b.other); if (!other) return json({ error: "Write a few words, or pick one." }, {}, 400); } else if (!q.o.map(audLabel).includes(v)) return json({ error: "Pick one of the answers." }, {}, 400); }
-    else if (q.t === "many") { if (!Array.isArray(v)) return json({ error: "Pick at least one." }, {}, 400); v = [...new Set(v)].filter(x => q.o.map(audLabel).includes(x) || (x === AUD_OTHER && q.other)); if (!v.length || v.length > (q.max || 3)) return json({ error: `Pick 1 to ${q.max || 3}.` }, {}, 400); if (v.includes(AUD_OTHER)) { other = audClean(b.other); if (!other) return json({ error: "Write a few words for \"something else\"." }, {}, 400); } }
+    if (q.t === "one") { if (v === AUD_OTHER && q.other) { other = audClean(b.other, AUD_OTHER_LEN); if (!other) return json({ error: "Write a few words, or pick one." }, {}, 400); } else if (!q.o.map(audLabel).includes(v)) return json({ error: "Pick one of the answers." }, {}, 400); }
+    else if (q.t === "many") { if (!Array.isArray(v)) return json({ error: "Pick at least one." }, {}, 400); v = [...new Set(v)].filter(x => q.o.map(audLabel).includes(x) || (x === AUD_OTHER && q.other)); if (!v.length || v.length > (q.max || 3)) return json({ error: `Pick 1 to ${q.max || 3}.` }, {}, 400); if (v.includes(AUD_OTHER)) { other = audClean(b.other, AUD_OTHER_LEN); if (!other) return json({ error: "Write a few words for \"something else\"." }, {}, 400); } }
     else if (q.t === "scale") { v = Math.round(Number(v)); if (!(v >= 1 && v <= 5)) return json({ error: "Pick a point on the scale." }, {}, 400); }
     else { v = audClean(v); if (v.length < 2) return json({ error: "Write a few words." }, {}, 400); }
     const ans = { v, ...(other ? { other } : {}) }, before = A[k];

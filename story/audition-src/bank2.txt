@@ -40,7 +40,7 @@ one mood.cry to=moods | Who sees them cry? | Nobody, ever; Their best friend; Th
 @section talk | Talk | 3
 one talk.speed req to=talk | How do they speak? | Fast, words falling over each other; Slowly, choosing each word; Loud, from across the street; Quietly, people lean in; With their hands, a lot; In questions, always
 one talk.style to=talk | What's their way with words? | Polite and formal; Jokes in every sentence; Short and dry; Stories that go on and on; Swears a little, mildly; Mixes Hebrew and English; Quotes films and songs
-text talk.phrase req to=talk | A phrase they say a lot?
+one talk.phrase req to=talk | A phrase they say a lot? | Yalla, let's go; It'll be fine; Trust me; Seriously?; Don't start; Life is short; Wait, wait, wait; What can you do; Exactly!; Listen to me
 many talk.love max=2 to=talk | Topics they could talk about for hours? | Food; Football; Their family; The building committee's latest drama; Films; Old Tel Aviv; Money; Love lives (other people's); Travel; Health tips; Music; Their job
 one talk.avoid to=talk | A topic they avoid? | Their past; Money; Their ex; Their job; Their age; Their family; Nothing, they'll talk about anything
 one talk.listen to=talk | As a listener, they... | Listen to every word; Wait for their turn to speak; Give advice nobody asked for; Remember everything you said a year later; Nod and drift off
@@ -51,7 +51,7 @@ one in.year to=inside | What do they want this year? | A better job; Love; To mo
 one in.life to=inside | And in life? | A family of their own; To be respected at what they do; To travel the world; Peace and quiet; To make something that lasts; To be a little famous; To take care of their parents
 one in.fear req to=inside | Their biggest fear? | Being alone>in.fear; Failing in front of everyone>in.fear; Getting old>in.fear; Losing their job>in.fear; Heights>in.fear; Disappointing their family>in.fear; Being ordinary>in.fear; The sea at night>in.fear
 one in.proud to=inside | What are they most proud of? | Their family; Something they built; Getting through a hard year; A prize at school, long ago; Their friendships; Their cooking; Being honest
-text in.secret req to=secret | A small, harmless secret only they know (fictional)?
+one in.secret req to=secret | A small, harmless secret only they know? | They can't swim; They still sleep with a teddy bear; They hate a dish everyone loves; They secretly write poems; They cried at a cartoon last week; They're afraid of pigeons; They never finished a book they say they loved; They practise speeches in the mirror
 one in.regret to=inside | A small regret? | A trip they didn't take; A friend they lost touch with; Quitting an instrument; Words they said in anger; A job they turned down; None, they don't do regret
 one in.believe to=inside | Something they believe in? | Luck; Hard work; People are good; Everything happens for a reason; Coffee fixes most things; Nothing, they're a sceptic
 one in.change to=inside | One thing they'd change about themselves? | Be braver; Worry less; Talk less; Talk more; Be tidier; Be more patient; Nothing, thanks

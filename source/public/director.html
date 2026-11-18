@@ -344,7 +344,7 @@
     const j = await r.json().catch(() => ({error: 'bad response (' + r.status + ')'})); if (!r.ok) throw new Error(j.error || 'error ' + r.status); return j;
   }
   function audFace(look){   // the avatar, drawn by the hidden builder frame
-    const cv = document.createElement('canvas'); cv.width = 40; cv.height = 64; cv.style.cssText = 'image-rendering:pixelated;background:#020502;border:1px solid var(--faint);flex:none';
+    const cv = document.createElement('canvas'); cv.width = 40; cv.height = 64; cv.style.cssText = 'image-rendering:pixelated;background:#8d9b93;border:1px solid var(--faint);flex:none';
     if (!look) return cv; const k = JSON.stringify(look);
     cxArt().then(B => { if (!B) return; try { const s = AUD_ART[k] || (AUD_ART[k] = B.sprite({kind: 'person', look, pose: 'stand', face: 'ahead', frame: 0})); if (!s) return;
       const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; const f = Math.max(1, Math.min(Math.floor(40 / s.w), Math.floor(64 / s.h))); x.drawImage(s.canvas, Math.floor((40 - s.w * f) / 2), 64 - s.h * f, s.w * f, s.h * f); } catch (e) {} });
