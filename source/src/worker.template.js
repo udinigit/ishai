@@ -5970,7 +5970,16 @@ async function memberDirApi(req, env) {
   const now = Date.now(), url = new URL(req.url);
   if (url.searchParams.get("aud")) { const v = await audDirAnswers(env, Math.round(Number(url.searchParams.get("aud")))); return v ? json(v, { "cache-control": "no-store" }) : json({ error: "no such Audition" }, {}, 404); }
   if (req.method === "POST") {
-    const b = await req.json().catch(() => ({})), m = await memberGet(env, String(b.id || "").slice(0, 40));
+    const b = await req.json().catch(() => ({}));
+    if (b.action === "testStart") {   // a fresh test Audition for the director: approved now, with a random avatar; the old one and its answers go
+      await audTables(env);
+      await env.DB.batch([env.DB.prepare("DELETE FROM aud_answer WHERE aud IN (SELECT n FROM aud WHERE member = ?)").bind(AUD_TEST_ID), env.DB.prepare("DELETE FROM aud WHERE member = ?").bind(AUD_TEST_ID),
+        env.DB.prepare("DELETE FROM member_inbox WHERE member = ?").bind(AUD_TEST_ID)]);
+      const t = { ...memberBlank(AUD_TEST_ID), state: "approved", asked: now, decided: now, adult: 1, avatar: cleanLook(b.look || {}) };
+      await memberPut(env, t, now);
+      return json({ ok: true, open: "/audition?test=1" }, { "cache-control": "no-store" });
+    }
+    const m = await memberGet(env, String(b.id || "").slice(0, 40));
     if (!m.at) return json({ error: "no such member" }, {}, 404);
     const reason = cleanStr(b.reason, 200);
     if (b.action === "approve" || b.action === "decline") {
@@ -5981,17 +5990,19 @@ async function memberDirApi(req, env) {
         : "The director said no to your Audition request this time." + (reason ? " Reason: " + reason.replace(/[.!?]*$/, ".") : "") + " You can ask again a month after your request.", true, now);
       try { await memberPush(env, m.id); } catch (e) {}
     } else if (b.action === "ban" || b.action === "unban") {
+      if (m.id === AUD_TEST_ID) return json({ error: "that's your test Audition" }, {}, 409);
       m.banned = b.action === "ban" ? 1 : 0; if (m.banned && ["requested", "approved"].includes(m.state)) { m.state = "declined"; m.decided = now; m.note = reason || null; }
       await memberPut(env, m, now);
     } else return json({ error: "unknown action" }, {}, 400);
   }
-  const rows = (await env.DB.prepare("SELECT * FROM member WHERE state != 'none' OR banned = 1 ORDER BY COALESCE(decided, asked, at) DESC LIMIT 80").all()).results || [];
-  const count = (await env.DB.prepare("SELECT COUNT(*) AS n FROM member").first() || {}).n || 0;
+  const rows = (await env.DB.prepare("SELECT * FROM member WHERE (state != 'none' OR banned = 1) AND id != ? ORDER BY COALESCE(decided, asked, at) DESC LIMIT 80").bind(AUD_TEST_ID).all()).results || [];
+  const count = (await env.DB.prepare("SELECT COUNT(*) AS n FROM member WHERE id != ?").bind(AUD_TEST_ID).first() || {}).n || 0;
+  const tm = await env.DB.prepare("SELECT state FROM member WHERE id = ?").bind(AUD_TEST_ID).first();
   const view = r => { let avatar = null; try { avatar = r.avatar ? cleanLook(JSON.parse(r.avatar)) : null; } catch (e) {}
-    return { id: r.id, short: r.id.slice(2, 8), state: r.state, avatar, since: r.at, asked: r.asked, decided: r.decided, note: r.note, banned: !!r.banned,
+    return { id: r.id, short: r.id === AUD_TEST_ID ? "TEST (you)" : r.id.slice(2, 8), test: r.id === AUD_TEST_ID, state: r.state, avatar, since: r.at, asked: r.asked, decided: r.decided, note: r.note, banned: !!r.banned,
       lapses: r.state === "approved" && r.decided ? r.decided + AUD_APPROVE_D * 86400000 : null }; };
   let interviews = []; try { interviews = await audDirList(env, now); } catch (e) {}
-  return json({ members: count, max: MEMBER_MAX, interviews, requests: rows.filter(r => r.state === "requested").map(view), decided: rows.filter(r => r.state !== "requested" && !r.banned).slice(0, 30).map(view),
+  return json({ members: count, max: MEMBER_MAX, interviews, test: tm ? tm.state : null, requests: rows.filter(r => r.state === "requested").map(view), decided: rows.filter(r => r.state !== "requested" && !r.banned).slice(0, 30).map(view),
     banned: rows.filter(r => r.banned).map(view) }, { "cache-control": "no-store" });
 }
 
@@ -6172,15 +6183,20 @@ async function audExpire(env, m, a, now) {
   }
   if (a && a.state === "naming" && m.state === "none") await env.DB.prepare("UPDATE aud SET state = 'lapsed' WHERE n = ?").bind(a.n).run();
 }
+// The director's own test Audition (?test=1, director only): the same code and tables under the member id `AUD_TEST_ID`, started
+// from the Auditions box (testStart), never counted in MEMBER_MAX, and (in the later steps) never joining the real cast.
+const AUD_TEST_ID = "t-director";
 async function audApi(req, env, url) {
   if (!env.DB) return json({ error: "Auditions are not set up yet" }, {}, 503);
-  if (!env.GOOGLE_CLIENT_ID) return json({ error: "sign-in is not set up" }, {}, 503);
-  const id = await voterOf(req, env); if (!id) return json({ error: "please sign in", signIn: true }, {}, 401);
+  const test = url.searchParams.get("test") === "1";
+  if (test && !await isDirector(req, env)) return json({ error: "director only" }, {}, 403);
+  if (!test && !env.GOOGLE_CLIENT_ID) return json({ error: "sign-in is not set up" }, {}, 503);
+  const id = test ? AUD_TEST_ID : await voterOf(req, env); if (!id) return json({ error: "please sign in", signIn: true }, {}, 401);
   await audTables(env);
   const now = Date.now(), m = await memberLapse(env, await memberGet(env, id), now);
   let a = await audRow(env, id); await audExpire(env, m, a, now);
   const b = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-  const out = extra => json({ ok: true, member: m.state, ...extra }, { "cache-control": "no-store" });
+  const out = extra => json({ ok: true, member: m.state, test, ...extra }, { "cache-control": "no-store" });
   // approved: the Audition row is made when the page first opens (it holds the name shuffles); a new approval makes a new row
   if (m.state === "approved" && (!a || a.state !== "naming" || (m.decided && a.at < m.decided))) {
     const r = await env.DB.prepare("INSERT INTO aud (member, state, bank_v, at) VALUES (?, 'naming', ?, ?) RETURNING n").bind(id, AUD_BANK.v, now).first();
@@ -6266,7 +6282,7 @@ async function audDirList(env, now) {
   const counts = rows.length ? (await env.DB.prepare(`SELECT aud, COUNT(*) AS c FROM aud_answer WHERE aud IN (${rows.map(() => "?").join(",")}) GROUP BY aud`).bind(...rows.map(r => r.n)).all()).results || [] : [];
   const cnt = Object.fromEntries(counts.map(c => [c.aud, c.c]));
   return rows.map(r => { let nm = {}; try { nm = JSON.parse(r.name || "{}"); } catch (e) {}
-    return { n: r.n, short: r.member.slice(2, 8), state: r.state, name: nm, answered: cnt[r.n] || 0, total: AUD_BANK.total, started: r.started, done: r.done, until: r.started ? r.started + AUD_DAYS * 86400000 : null }; });
+    return { n: r.n, short: r.member === AUD_TEST_ID ? "TEST (you)" : r.member.slice(2, 8), test: r.member === AUD_TEST_ID, state: r.state, name: nm, answered: cnt[r.n] || 0, total: AUD_BANK.total, started: r.started, done: r.done, until: r.started ? r.started + AUD_DAYS * 86400000 : null }; });
 }
 async function audDirAnswers(env, n) {
   await audTables(env);

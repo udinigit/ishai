@@ -68,8 +68,11 @@
   const el = (tag, txt, cls) => { const e = document.createElement(tag); if (txt != null) e.textContent = txt; if (cls) e.className = cls; return e; };
   const date = ms => new Date(ms).toLocaleDateString('en-GB', {timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'long'});
   let V = null, pick = null, other = '', busy = false;
+  const TEST = new URLSearchParams(location.search).get('test') === '1';   // the director's own test Audition (from the Auditions box)
+  if (TEST) { const t = el('div', 'TEST AUDITION · DIRECTOR ONLY · nothing here reaches the show', 'card'); t.style.cssText = 'border-color:var(--amber);color:var(--amber);font-size:17px;padding:6px 10px'; document.querySelector('main').insertBefore(t, app); }
   async function api(body, k){
-    const r = await fetch('/api/aud' + (k ? '?k=' + encodeURIComponent(k) : ''), body ? {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)} : {cache: 'no-store'});
+    const q = [TEST ? 'test=1' : '', k ? 'k=' + encodeURIComponent(k) : ''].filter(Boolean).join('&');
+    const r = await fetch('/api/aud' + (q ? '?' + q : ''), body ? {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)} : {cache: 'no-store'});
     const j = await r.json().catch(() => ({error: 'No answer from the show, try again.'})); if (!r.ok) { const e = new Error(j.error || 'Error ' + r.status); e.j = j; throw e; } return j;
   }
   function msg(text, err){ const m = $('msg'); if (m){ m.textContent = text || ''; m.className = err ? 'err' : 'ok'; } }

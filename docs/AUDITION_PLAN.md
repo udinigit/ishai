@@ -1,6 +1,6 @@
 # Auditions: viewers' own characters join the show (plan)
 
-Proposed 2026-11-16 from the director's idea, updated the same day with the director's answers (see "Decisions"). Steps 1-3 built in v264-v265 (see "As built" at the end). It builds on `docs/CAST_PLAN.md` (cards, notes and pairs in D1, the scene keeper, Claude's reviews), which is built (v252), so this can start from its own step 1.
+Proposed 2026-11-16 from the director's idea, updated the same day with the director's answers (see "Decisions"). Steps 1-3 built in v264-v266 (see "As built" at the end). It builds on `docs/CAST_PLAN.md` (cards, notes and pairs in D1, the scene keeper, Claude's reviews), which is built (v252), so this can start from its own step 1.
 
 ## The idea
 A signed-in viewer makes an avatar. They can ask for an Audition once a month. If the director agrees, they get one long interview about a character of their own: name, past, family, work, hobbies, personality, how they talk, what they want and fear.
@@ -17,6 +17,9 @@ The viewer is told when and how their character will first appear and accepts. F
 - **A table read before the debut:** after Accept, the viewer rehearses the first scene with a stand-in for Ishai, picking their character's lines from choices on a timer. It is only for fine-tuning: it never happens in the story (the character hasn't met Ishai), and every choice fits the interview's personality, differing by degree and kind (levels and types of sarcasm, say) (see "The table read").
 - **At most 6 member characters at once** (`MEMBER_MAX` = 6) to start; approved Auditions past that wait in line.
 - **One or two wild cards:** odd, random-feeling questions with many possible answers, which may be written by the AI, to give each character something nobody else has (see "Wild cards").
+- **(2026-11-18) The table read is about the role.** It rehearses the character doing the job they were offered (a waiter takes orders, deals with a complaint, recommends a dish), and it tunes how they act in that role, built on the personality from the interview (see "The table read").
+- **(2026-11-18) The director gives a final green light** after everything is set (the card, the role, the accepted offer, the table read and its tuning). Nothing goes on the show without it (see "The green light").
+- **(2026-11-18) The director can test every step alone:** a test Audition of their own runs the real code from the request to the green light, and never reaches the show (see "Testing it yourself").
 
 ## The button (one per account, in the 👤 dialog and on the Cast tab)
 The button's state is kept in D1 (`member.state`) and moves in this order:
@@ -30,7 +33,8 @@ The button's state is kept in D1 (`member.state`) and moves in this order:
 | `interview` | **Continue your Audition** | Answers are saved one by one. Open for 7 days from the start. |
 | `submitted` | **In review** (disabled) | The card is being written, reviewed by Claude, then approved by the director. |
 | `offered` | **See your role** | The role and the first appearance. **Accept** or **Decline** within 7 days. |
-| `reading` | **Table read** | Accepted. The rehearsal of the first scene is ready (see "The table read"); open until 2 hours before the debut. |
+| `reading` | **Table read** | Accepted. The rehearsal of the role is ready (see "The table read"); open for 5 days. |
+| `greenlight` | **Waiting for the green light** (disabled) | The tuned card waits for the director's final green light (see "The green light"). |
 | `on` | **Quit show** | The character is in the show. |
 | `leaving` | **Leaving the show** (disabled) | The last appearance is booked within 7 days, with its time. |
 | `left` | **Request an Audition** (disabled until 30 days after leaving) | |
@@ -147,13 +151,30 @@ The bank is written once by Claude in the build step. The director can edit it, 
   - The role page shows the card's public side and the look.
   - It also explains what they don't control: what happens, who the character becomes, when they appear. The show writes all of it and Claude reviews any growth.
   - **Accept** / **Decline** within 7 days.
-- **On Accept** the character joins the cast (`cast_card` with `owner` = the member, plus `SEED_CAST`-like hangouts, voice gender from the answers, an `INK` colour from `INK_MORE`). The first scene is booked as a goal (`aud-<id>`, like a survey winner's `surveyGoal()`, in the next free gap within 14 days). The viewer gets the exact time the day before and again 10 minutes before (push). Before the debut comes the table read (next section); the button reads **Table read** until then.
+- **On Accept** the table read opens (next section); the button reads **Table read**. Nothing joins the cast yet.
+- **After the table read** (or once its 5 days pass) and Claude's review of the tuning, the character waits for the director's **green light** (see below). Only then does the character join the cast (`cast_card` with `owner` = the member, plus `SEED_CAST`-like hangouts, voice gender from the answers, an `INK` colour from `INK_MORE`) and the first scene get booked as a goal (`aud-<id>`, like a survey winner's `surveyGoal()`, in the next free gap within 14 days). The viewer gets the exact time the day before and again 10 minutes before (push).
 
-## The table read (after Accept, before the debut)
-A rehearsal of the character's first scene, on the real set, with a stand-in playing Ishai. It is **not something that happens to the character**: in the story she hasn't met Ishai yet, and nothing from the table read becomes a memory, a note or a plan for the first scene. Its job is to **fine-tune the character**: the viewer picks their character's lines, and every choice they're offered already fits the personality from the interview, differing only by a little (how much, and what kind). The picks set where on each scale the character really sits.
+## The table read (after Accept, before the green light)
+A rehearsal of the character **in the role they were offered**, on the real set where they'll work, with a stand-in playing Ishai. It tunes two things: who they are (the personality dials below) and **how they do this job**, built on that personality. A waiter character rehearses being a waiter: greeting a table, taking an order, recommending something, handling a complaint, a quiet moment with a colleague. A shy, warm character is offered shy, warm ways of being a waiter; a sarcastic one, kinds of sarcastic waiter. The tuned result is the card's `atWork` part, which the writer gets whenever the character is at their post.
 
-- **When:** from Accept until 2 hours before the booked debut (`reading`). Once only, about 5-8 minutes; the page says so before it starts, and that it can't be repeated.
-- **What gets tuned (the dials):** from the card, one Gemini call picks the 6-8 traits that most define this character and are still vague, and turns each into a dial with 3-4 settings of the same trait.
+### The role's situations (`story/audition.json` → `roles`)
+Each way in has a role kind, and each role kind has a small set of work situations the script draws 4-5 from, plus the dials of how the job is done:
+
+| Role kind | Situations (examples) | How they do it (role dials) |
+|---|---|---|
+| **Waiter / barista** (Café Nahat, the food court, The Black Candle) | greeting a table, taking an order, the regular's usual, recommending, a wrong order, the bill, a rush hour, a slow afternoon with the boss | service style (formal · friendly · chatty · brisk), pace, how they recommend, how they take a complaint, small talk |
+| **Market vendor / stall** (Shuk Shalom) | calling out to passers-by, haggling, a regular, a tourist, a bad batch, closing time | selling style (shouting · charming · honest · pushy), haggling, regulars |
+| **Shop clerk** (Everything Else, The Big S, the little shops) | helping someone find a thing, a return, a long queue, a shoplifting suspicion, a slow hour | helpfulness, patience, rules vs. bending them |
+| **Kiosk night clerk** | a late customer, a regular, backgammon, a drunk, the lottery | night manner, chattiness, toughness |
+| **Gym staff / trainer** (Herzl Gym) | a first-timer, someone doing it wrong, a regular, closing the gym | coaching style (strict · cheerful · technical · lazy) |
+| **Student** (Tel Herzl University) | before the lecture, a group project, asking a question in class, the courtyard break | how they study, speak up, help others |
+| **Neighbour** (Ishai's building) | the stairs, borrowing something, a noise, the building committee | how neighbourly, nosy, helpful |
+| **Bar regular** (The Black Candle) | ordering, the football on TV, a stranger at the bar, last call | how they hold the bar, how social |
+
+The bank also lists, per role kind, the jargon and props the show can draw (an order pad, a coffee machine, a scale at the stall). A role kind not in the list (a new job the director builds) gets its own row first. It is **not something that happens to the character**: in the story she hasn't met Ishai yet, and nothing from the table read becomes a memory, a note or a plan for the first scene. Its job is to **fine-tune the character**: the viewer picks their character's lines, and every choice they're offered already fits the personality from the interview, differing only by a little (how much, and what kind). The picks set where on each scale the character really sits.
+
+- **When:** from Accept, for 5 days (`reading`). Once only, about 5-8 minutes; the page says so before it starts, and that it can't be repeated.
+- **What gets tuned (the dials):** from the card **and the role**, one Gemini call picks 3-4 personality dials (the traits that most define this character and are still vague) and 3-4 role dials (from the role kind's list above), and turns each into a dial with 3-4 settings, every setting inside the personality from the interview.
   - **Sarcastic:** a dry aside · a playful tease · a sharp jab · sarcasm at their own expense.
   - **Warm:** quietly kind · openly friendly · fussing over people.
   - **Nervous:** a short, careful answer · talks too much · a joke to cover it.
@@ -161,8 +182,8 @@ A rehearsal of the character's first scene, on the real set, with a stand-in pla
 
   Never a choice that breaks the interview's personality: a shy character never gets a loud, bold line, only kinds and degrees of shy.
 - **The script:** the same call writes the rehearsal around the dials.
-  - It gets the card, Ishai's card, the chosen way in and the planned first scene (where, who introduces them, what's going on).
-  - It writes about 8 turns. The stand-in says what Ishai would most likely say, from his card. Each of the character's 6-8 turns tests one dial, with **3-4 choices**: lines (and sometimes a small action, "hands him the menu") that say the same thing at that dial's different settings.
+  - It gets the card, Ishai's card, the chosen way in, the role kind's situations and the place.
+  - It writes a short working shift of 4-5 of the role's situations, about 8-10 turns. The stand-in plays Ishai as a customer (or classmate, neighbour, fellow regular) in some of them, and the other parts (another customer, the boss) are nameless extras. Each of the character's 6-8 turns tests one dial, with **3-4 choices**: lines (and sometimes a small action, "hands him the menu") that say the same thing at that dial's different settings.
   - After each choice the stand-in has his own short answer to it, and the scene then comes back to the same next beat, so the script stays one small tree.
   - The script is checked like the card (`cleanCard()` rules: short, in the world, no real people or brands, and each choice inside the trait it tests).
 - **The stage:** the real place, drawn by the show's own code in a private rehearsal view (`/?read`, only for that member; no live feed, nothing saved to the show; built on the sandbox's `ingest()`).
@@ -175,13 +196,27 @@ A rehearsal of the character's first scene, on the real set, with a stand-in pla
   - The viewer can't go back; there is a ⏸ pause (once, up to 2 minutes).
 - **Fine-tuning:** at the end, one Gemini call turns the picks into small card changes:
   - the dial settings, kept on the card as `dials` (e.g. `sarcasm: {level: 2, kind: "dry"}`), which the writer gets with the card;
+  - the card's **`atWork`**: how they do this job (service style, pace, how they handle a complaint, a line they say to every customer, a small work habit), which the writer gets whenever the character is at their post;
   - sample lines in the picked style, replacing the most generic ones;
   - the mood `say` lines touched by a dial (angry and sarcastic: "goes dry and very polite").
 
   The changes go to `cast_pending` and through Claude's review like any growth. Claude checks every change stays inside the interview's personality. The director isn't asked again, but sees them in the Auditions box. A viewer who lets every turn time out tunes nothing: the card stays as approved.
 - **Not part of the story:** no notes, facts, memories, moods or plans come from the table read. The real debut is written live, as always, from the tuned card alone. Ishai is the real Ishai, and they meet for the first time there.
-- **Skipped** (the viewer never opens it): the debut goes ahead with the approved card. The inbox says the table read was missed.
+- **Skipped** (the viewer never opens it in the 5 days): the card goes to the green light as approved, with an `atWork` written from the card and the role alone. The inbox says the table read was missed.
 - **Afterwards:** the viewer can replay their table read (read only) from the role page. After the debut, a link to how the real first meeting went in 8bitTV+.
+
+## The green light (the director's last word)
+After everything is set, nothing goes on the show until the director says so.
+- **When:** once the table read's tuning has passed Claude's review (or the table read was skipped), the member's state is `greenlight` and the Auditions box shows the character under **Ready for the green light**.
+- **What the director sees:** the final card (with `dials` and `atWork`), the look, the role and way in, Claude's notes, the table read (replayable), and the proposed first scene with the free slots for it.
+- **GREEN LIGHT:** the character joins the cast, the first scene is booked (the director may pick the slot), and the viewer is told the time (inbox and push).
+- **Not yet:** back with a note (for example "redo the tuning", "different first scene"); or **Stop**, with an optional reason for the viewer, which ends the Audition (it counts as that month's).
+
+## Testing it yourself (the director's test Audition)
+- The Auditions box has **🧪 Try an Audition yourself**: it makes (or resets) a test member, already approved, and opens `/audition?test=1` in a new tab. Built in v266 for the interview; every later step keeps this path working.
+- The test runs the real code and tables under the member id `t-director`, so what the director sees is what a viewer gets; the page carries a TEST AUDITION banner. It needs no Google sign-in (the director's cookie is enough) and never counts in `MEMBER_MAX`, the request rules or the viewers' lists.
+- **In the later steps** the test goes on the same way: the director's test gets its card, Claude's review, the offer on its role page (`?test=1`), the table read (`/?read&test=1`) and the green light. A test character **never joins the cast**: at the green light the box shows what would be booked, and stops there.
+- Starting a fresh test deletes the old one with its answers.
 
 ## On the show
 - **How often:** a member character is a regular in their place and appears like any regular, plus a booked scene with Ishai about every 4-7 days. `MEMBER_MAX` (start with 6) member characters at once; past it, approved Auditions wait in line, and the viewer sees their place.
@@ -235,8 +270,10 @@ No KV writes. A whole interview is about 80 small D1 writes.
 2. **Done (v264): Requests:** the button and its states, the 30-day rule, the director's Requests box, the pushes.
 3. **Done (v265): The interview:** `story/audition.json` (the bank, its follow-up sets and the wild cards, written by Claude), the AI wild cards, naming, the start screen, the interview page with saving, branching and the 7-day window.
 4. **The character:** the card and three ways in from one Gemini call, Claude's review, the director's To approve box.
-5. **The offer and the debut:** the role page, Accept/Decline, joining the cast, the booked first scene, the reminders.
-5b. **The table read:** the dials and script call, the `/?read` stage with the stand-in, the timed choices and "chose for themselves", the tune call (`dials`, sample lines, mood lines) through Claude's review, the replay.
+5. **The offer:** the role page, Accept/Decline (joining the cast and the booking move to the green light, 5c).
+5b. **The table read:** the role kinds and their situations in the bank, the dials and script call (personality and role dials), the `/?read` stage at the role's place with the stand-in, the timed choices and "chose for themselves", the tune call (`dials`, `atWork`, sample lines, mood lines) through Claude's review, the replay.
+5c. **The green light:** the Ready box, GREEN LIGHT / Not yet / Stop, joining the cast and booking the first scene only then, the viewer's notice.
+- **Every step:** the director's test path (`?test=1`) through that step, never joining the cast.
 6. **On the show and quitting:** regular appearances, ★ MY CHARACTER, "on now" pushes, Quit show, the goodbye scene, archiving, deleting answers, the 30-day rule, the director's end and ban.
 
 ## Open questions
@@ -253,12 +290,12 @@ No KV writes. A whole interview is about 80 small D1 writes.
 - `/privacy` has an "Avatar and Auditions" paragraph.
 
 ## As built (v265, step 3: the interview)
-- **The bank** (`story/audition.json`, built into the worker as `AUD_BANK`): 120 main questions in the 12 sections (each section's `n` = how many an interview draws; `req` ones always), 105 follow-up sets with 100 specific questions plus 28 generic templates per family (`generic.hob`, `place`, `edu`, `work`, `love`, `fam`, `music`, `food`; `{x}` is the set's `name`), 58 wild cards with 12-16 answers each, 60 + 60 first names, 18 nicknames, 60 surnames, blocked words and famous names. `$cast` in options becomes the cast's names at run time; the neighbourhood's places are written into the options. Fewer main questions than the plan's "about 320": each interview draws ~52 of them, so most variety comes from the follow-ups and wild cards; more can be added to the JSON (keep ids unique; `if` values must match the source's option labels exactly).
+- **The bank** (`story/audition.json`, built into the worker as `AUD_BANK`; since v266 written from `story/audition-src/*.txt` by `build_bank.py`, which also checks it): 329 main questions in the 12 sections (v265 had 120; 22 always asked) (each section's `n` = how many an interview draws; `req` ones always), 105 follow-up sets with 100 specific questions plus 28 generic templates per family (`generic.hob`, `place`, `edu`, `work`, `love`, `fam`, `music`, `food`; `{x}` is the set's `name`), 58 wild cards with 12-16 answers each, 60 + 60 first names, 18 nicknames, 60 surnames, blocked words and famous names. `$cast` in options becomes the cast's names at run time; the neighbourhood's places are written into the options. Each interview draws ~52; two interviews share about half of them. To change the bank, edit the .txt files and run `python3 story/audition-src/build_bank.py` (don't hand-edit the JSON).
 - **Tables:** `aud` (one per approval: `state` naming → interview → submitted, or lapsed / expired; `name` {first, nick, gender, own, sur}; `picked` = the interview's list; `wild`; `shuffles`) and `aud_answer` (one row per answer, `q` = the item's key). `audTables()`.
 - **`/api/aud`** (signed in): the page opens → an `aud` row in `naming`; `names` (three for the chosen gender, `audNames()`, never a cast name; Shuffle up to 10, counted), `check` (a typed name: `audNameWhy()`: 2-14 Latin or Hebrew letters, no blocked or famous names, not in the cast), `start` (once: the name, a surname from the list, the draw `audPick()`: per section the required plus a weighted draw, `if` sources added, in bank order; wild card 1 at 40%, 2 at 85%; member → `interview`), `answer` (checked against the options; "Something else" with a short line; text cleaned by `audClean()`: 200 characters, no links, emails or phone numbers, blocked words → …), Back (`?k=` an answered item in the same section), `submit` (member → `submitted`, an inbox message). Expired after 7 days (`audExpire()`: member back to `none`, the month counts).
 - **Branching:** `audApplies()`: a main question with `if` [source, is, values] is asked only when it fits; follow-ups only while their parent's answer still names them. Changing an answer after Back replaces its follow-ups (and deletes their answers).
 - **Follow-ups** (`audFollow()`): right after the answer, per named option (two hobbies each get theirs), the set's own questions first, then the family's templates; how many from what's left of `total` (80) after every question still planned, shared with the answers still to come that may open follow-ups, more for the answers that count most (`AUD_FU_PRIO`: hobbies, work, schooling, love, where they grew up, family); a template at most twice an interview; at most `AUD_TEXT_MAX` (10) written answers. A test run: 51 main, 22 follow-ups, 2 wild cards, 75 in all.
 - **Wild cards:** two from the bank at the start, never one used in the last 100 Auditions (`audBankWild()`); when Basics is done, one Gemini call (`audAiWild()`, `AUD_WILD_SYS`, 9 s at most, only the Basics choices, never the written answers) may replace both, if neither has been answered and both pass `audWildOk()` (ends with ?, 10-14 answers under 45 characters, no "you", links, blocked or famous names); otherwise the bank's stay.
 - **The page** `/audition` (`source/public/audition.html`, built in as `AUDITION_HTML`): BEFORE YOU START (time, 7 days, only once, about the character not you, what happens next), NAME YOUR CHARACTER (a woman / a man, three names with nicknames, Shuffle, or type your own with a live check), START with a confirmation; then one question per screen with the section, a progress bar (answered of about 80, it never goes back), the date it closes, the answer buttons (one, up to N, a 1-5 scale with its two ends, or a text box with a counter), "Something else" with a line, ← BACK within a section, NEXT (Enter works); the end screen (SEND ✓) and SENT. The 👤 dialog's button opens it (AUDITION / CONTINUE YOUR AUDITION with "n of about 80 answered, open until …").
-- **Director:** the Auditions box lists the interviews (name, a typed name flagged for checking, viewer, answering or SENT, how many answered, open until) with their answers by section on tap (`/api/member/dir?aud=n`, follow-ups indented, wild cards marked, AI ones tagged). Writing the card from the answers is step 4.
+- **Director:** the Auditions box lists the interviews (name, a typed name flagged for checking, viewer, answering or SENT, how many answered, open until) with their answers by section on tap (`/api/member/dir?aud=n`, follow-ups indented, wild cards marked, AI ones tagged). Writing the card from the answers is step 4. v266 adds the director's test Audition (see "Testing it yourself").
 - **Deleting:** the 👤 dialog's delete removes Auditions that never started, lapsed or expired, with their answers. Deleting answers 30 days after a character leaves comes with step 6.

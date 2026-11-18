@@ -137,7 +137,6 @@
   {
    "id": "basics.tlv",
    "t": "one",
-   "req": 1,
    "to": "backstory",
    "q": "How long have they lived in Tel Aviv?",
    "o": [
@@ -368,7 +367,6 @@
   {
    "id": "fam.parents",
    "t": "one",
-   "req": 1,
    "to": "family",
    "q": "Their parents now?",
    "o": [
@@ -860,7 +858,6 @@
   {
    "id": "work.money",
    "t": "one",
-   "req": 1,
    "to": "traits",
    "q": "With money they are...",
    "o": [
@@ -1092,7 +1089,6 @@
   {
    "id": "home.place",
    "t": "one",
-   "req": 1,
    "to": "home",
    "q": "How does their home look?",
    "o": [
@@ -1386,7 +1382,6 @@
   {
    "id": "hob.music",
    "t": "one",
-   "req": 1,
    "to": "taste",
    "q": "What music do they put on?",
    "o": [
@@ -1481,7 +1476,6 @@
   {
    "id": "hob.place",
    "t": "one",
-   "req": 1,
    "to": "way_in",
    "q": "Their favourite place in the neighbourhood?",
    "o": [
@@ -1613,7 +1607,6 @@
   {
    "id": "pers.order",
    "t": "scale",
-   "req": 1,
    "to": "dials.order",
    "q": "Their desk, their plans, their days are...",
    "lo": "Chaos",
@@ -1623,7 +1616,6 @@
   {
    "id": "pers.social",
    "t": "scale",
-   "req": 1,
    "to": "dials.social",
    "q": "After a party they feel...",
    "lo": "Empty, they need a week alone",
@@ -1689,7 +1681,6 @@
   {
    "id": "pers.cancel",
    "t": "one",
-   "req": 1,
    "to": "traits",
    "q": "A friend cancels an hour before dinner. They...",
    "o": [
@@ -1959,7 +1950,6 @@
   {
    "id": "mood.angryshow",
    "t": "one",
-   "req": 1,
    "to": "moods.angry",
    "q": "When they're angry, it shows as...",
    "o": [
@@ -1975,7 +1965,6 @@
   {
    "id": "mood.sad",
    "t": "one",
-   "req": 1,
    "to": "moods.sad",
    "q": "What makes them sad?",
    "o": [
@@ -2116,7 +2105,6 @@
   {
    "id": "talk.style",
    "t": "one",
-   "req": 1,
    "to": "talk",
    "q": "What's their way with words?",
    "o": [
@@ -2207,7 +2195,6 @@
   {
    "id": "in.year",
    "t": "one",
-   "req": 1,
    "to": "inside",
    "q": "What do they want this year?",
    "o": [
@@ -2225,7 +2212,6 @@
   {
    "id": "in.life",
    "t": "one",
-   "req": 1,
    "to": "inside",
    "q": "And in life?",
    "o": [
@@ -2433,6 +2419,3086 @@
     "The quiet streets",
     "The noise",
     "That nobody knows them yet"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "basics.height",
+   "t": "one",
+   "to": "look",
+   "q": "How tall are they, for the drawing?",
+   "o": [
+    "Short and proud of it",
+    "Average",
+    "Tall, they duck in doorways",
+    "Tall, and they slouch about it"
+   ],
+   "s": "basics"
+  },
+  {
+   "id": "basics.hands",
+   "t": "one",
+   "to": "tell",
+   "q": "What do they do with their hands while they talk?",
+   "o": [
+    "Wave them everywhere",
+    "Keep them in their pockets",
+    "Play with a ring or a pen",
+    "Fold their arms",
+    "Touch the other person's arm",
+    "Hide them, they don't know what to do with them"
+   ],
+   "s": "basics"
+  },
+  {
+   "id": "basics.voice",
+   "t": "one",
+   "to": "talk",
+   "q": "Their voice is...",
+   "o": [
+    "Deep and slow",
+    "High and quick",
+    "Hoarse, as if from shouting at football",
+    "Soft, people say \"what?\"",
+    "A radio voice, everyone says so",
+    "Loud, even when whispering"
+   ],
+   "s": "basics"
+  },
+  {
+   "id": "basics.birthday",
+   "t": "one",
+   "to": "facts",
+   "q": "How do they spend their birthday?",
+   "o": [
+    "A big party they plan themselves",
+    "Dinner with family",
+    "Alone, by choice",
+    "At work, nobody knows",
+    "A trip somewhere new",
+    "They forget it until someone calls"
+   ],
+   "s": "basics"
+  },
+  {
+   "id": "basics.smell",
+   "t": "one",
+   "to": "tell",
+   "q": "People remember them by...",
+   "o": [
+    "A strong perfume",
+    "Coffee",
+    "Laundry soap",
+    "Cigarette smoke they deny",
+    "Sunscreen, all year",
+    "Nothing, they're careful about it"
+   ],
+   "s": "basics"
+  },
+  {
+   "id": "fam.mother",
+   "t": "one",
+   "to": "family",
+   "q": "Their mother is (or was)...",
+   "o": [
+    "A worrier who calls three times a day",
+    "A tough woman who ran everything",
+    "Gentle and quiet",
+    "Funny, the life of every party",
+    "Strict, but fair",
+    "Someone they're still trying to understand"
+   ],
+   "if": [
+    "fam.parents",
+    false,
+    [
+     "Both passed away"
+    ]
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.father",
+   "t": "one",
+   "to": "family",
+   "q": "Their father is (or was)...",
+   "o": [
+    "A man of few words",
+    "A storyteller",
+    "Always working",
+    "The one who cooked",
+    "A dreamer with plans that never worked",
+    "Their best friend"
+   ],
+   "if": [
+    "fam.parents",
+    false,
+    [
+     "Both passed away"
+    ]
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.fight",
+   "t": "one",
+   "to": "family",
+   "q": "The thing their family argues about most?",
+   "o": [
+    "Money",
+    "Who sits where at dinner",
+    "Who visits grandma",
+    "The inheritance of a small flat",
+    "Their love life",
+    "Nothing, they're scarily polite"
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.kidsage",
+   "t": "one",
+   "to": "family",
+   "q": "How old are the kids?",
+   "o": [
+    "Babies",
+    "Small, at kindergarten",
+    "At school",
+    "Teenagers",
+    "In the army or studying",
+    "Grown up with kids of their own"
+   ],
+   "if": [
+    "fam.kids",
+    true,
+    [
+     "One",
+     "Two or more",
+     "Grown-up children"
+    ]
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.kidstalk",
+   "t": "one",
+   "to": "family",
+   "q": "With their kids they...",
+   "o": [
+    "Talk every day",
+    "Fight about screens",
+    "Are best friends",
+    "Worry quietly",
+    "Are the strict one",
+    "Are the fun one"
+   ],
+   "if": [
+    "fam.kids",
+    true,
+    [
+     "One",
+     "Two or more",
+     "Grown-up children"
+    ]
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.wantkids",
+   "t": "one",
+   "to": "inside",
+   "q": "Why not yet?",
+   "o": [
+    "Not the right partner",
+    "Not the right flat",
+    "Not the right moment",
+    "They're scared they'd be bad at it",
+    "They're saving up first"
+   ],
+   "if": [
+    "fam.kids",
+    true,
+    [
+     "Not yet, they'd like to"
+    ]
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.house",
+   "t": "one",
+   "to": "backstory",
+   "q": "The home they grew up in was...",
+   "o": [
+    "A small flat with too many people",
+    "A house with a garden",
+    "A caravan for a few years",
+    "A big old flat with high ceilings",
+    "Different every year",
+    "Above the family shop"
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.food",
+   "t": "one",
+   "to": "family",
+   "q": "The smell of their childhood kitchen?",
+   "o": [
+    "Chicken soup on Fridays",
+    "Fried onions",
+    "Fresh bread",
+    "Spices they still can't name",
+    "Burnt toast",
+    "Nothing, nobody cooked"
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.photo",
+   "t": "one",
+   "to": "family",
+   "q": "A family photo on their wall shows...",
+   "o": [
+    "A wedding long ago",
+    "Grandparents young",
+    "Everyone on a beach",
+    "Their brother's army ceremony",
+    "A dog they all loved",
+    "No photos, they keep them in a box"
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.black",
+   "t": "one",
+   "to": "family",
+   "q": "The black sheep of the family is...",
+   "o": [
+    "Them, proudly",
+    "An uncle who disappeared to India",
+    "A cousin who became famous locally",
+    "A sister who married the wrong man",
+    "Nobody, they're boringly fine"
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.call",
+   "t": "one",
+   "to": "routine",
+   "q": "Who in the family calls them most?",
+   "o": [
+    "Their mother",
+    "A sibling",
+    "A grandparent",
+    "An aunt with gossip",
+    "Nobody, they do the calling",
+    "The family WhatsApp group, nonstop"
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.holiday",
+   "t": "one",
+   "to": "family",
+   "q": "Their favourite holiday at home?",
+   "o": [
+    "Passover, the big dinner",
+    "Hanukkah and doughnuts",
+    "Rosh Hashana with honey",
+    "Purim, costumes",
+    "Independence Day barbecues",
+    "Shavuot, cheesecake",
+    "None, holidays are stressful"
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.secret",
+   "t": "one",
+   "to": "family",
+   "q": "A family story nobody tells at dinner?",
+   "o": [
+    "A great-uncle who ran away to sea",
+    "A lost fortune",
+    "A cousin no one talks to",
+    "A wedding that almost didn't happen",
+    "A recipe stolen from a neighbour",
+    "None they know of"
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.chores",
+   "t": "one",
+   "to": "backstory",
+   "q": "As a child their chore was...",
+   "o": [
+    "Washing the dishes",
+    "Taking out the rubbish",
+    "Looking after a younger sibling",
+    "Helping at the family shop",
+    "Feeding the animals",
+    "Nothing, they were spoiled"
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.punish",
+   "t": "one",
+   "to": "backstory",
+   "q": "When they were naughty, they were...",
+   "o": [
+    "Sent to their room",
+    "Given the silent treatment",
+    "Made to apologise to everyone",
+    "Laughed at, which was worse",
+    "Never caught",
+    "Rarely naughty, honestly"
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.reunion",
+   "t": "one",
+   "to": "family",
+   "q": "At family reunions they...",
+   "o": [
+    "Organise everything",
+    "Hide with the kids",
+    "Talk to the oldest relatives",
+    "Leave early",
+    "Take all the photos",
+    "Cook too much"
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.sibjob",
+   "t": "one",
+   "to": "family",
+   "q": "What do their siblings do?",
+   "o": [
+    "Something successful they're compared to",
+    "Something nobody understands",
+    "They're all in the same business",
+    "Very different paths",
+    "They have no siblings"
+   ],
+   "if": [
+    "fam.sibs",
+    false,
+    [
+     "An only child"
+    ]
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.inlaws",
+   "t": "one",
+   "to": "family",
+   "q": "With in-laws (or a partner's family) they...",
+   "o": [
+    "Get along beautifully",
+    "Smile through it",
+    "Avoid Friday dinners",
+    "Are treated like a child of their own",
+    "Have no in-laws, and that's fine"
+   ],
+   "if": [
+    "love.status",
+    true,
+    [
+     "In a relationship",
+     "Married",
+     "Divorced"
+    ]
+   ],
+   "s": "family"
+  },
+  {
+   "id": "fam.name",
+   "t": "one",
+   "to": "backstory",
+   "q": "Who were they named after?",
+   "o": [
+    "A grandparent",
+    "A singer their parent loved",
+    "A character in a book",
+    "Nobody, their parents just liked it",
+    "A family friend who did something brave",
+    "A long story with a mistake at the registry"
+   ],
+   "s": "family"
+  },
+  {
+   "id": "edu.homework",
+   "t": "one",
+   "to": "traits",
+   "q": "At school they did homework...",
+   "o": [
+    "Early, neatly",
+    "At the last minute",
+    "On the bus",
+    "By copying from a friend",
+    "Never, but they passed anyway",
+    "With a parent sitting next to them"
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "edu.friends",
+   "t": "one",
+   "to": "backstory",
+   "q": "Their school friends now?",
+   "o": [
+    "Still their closest people",
+    "Scattered, a reunion every few years",
+    "One stayed, the rest drifted",
+    "Nobody, they started fresh",
+    "They avoid them on social media"
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "edu.trip",
+   "t": "one",
+   "to": "backstory",
+   "q": "A school trip they remember?",
+   "o": [
+    "Climbing Masada at dawn",
+    "A week in the north, in the rain",
+    "A trip abroad with the class",
+    "A museum where they got lost",
+    "One that was cancelled and they're still upset"
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "edu.exam",
+   "t": "one",
+   "to": "moods",
+   "q": "Before a big exam they...",
+   "o": [
+    "Studied for weeks",
+    "Crammed all night",
+    "Got sick, every time",
+    "Stayed calm, suspiciously",
+    "Made cheat notes they never used"
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "edu.lang",
+   "t": "one",
+   "to": "edu",
+   "q": "A language they learned at school and forgot?",
+   "o": [
+    "English, they still have it",
+    "French",
+    "Arabic",
+    "Russian",
+    "Spanish",
+    "They didn't forget, they're fluent"
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "edu.class",
+   "t": "one",
+   "to": "backstory",
+   "q": "Their place in the class photo?",
+   "o": [
+    "The middle, smiling",
+    "The back, half hidden",
+    "The front, sitting on the floor",
+    "Not there, they were sick that day",
+    "Making a face"
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "edu.course",
+   "t": "one",
+   "to": "inside",
+   "q": "A short course they took as an adult?",
+   "o": [
+    "Cooking",
+    "Photography",
+    "First aid",
+    "Coding",
+    "A language",
+    "Pottery",
+    "Driving, finally",
+    "None"
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "edu.uniform",
+   "t": "one",
+   "to": "backstory",
+   "q": "They feel most themselves in...",
+   "o": [
+    "Their army uniform, back then",
+    "A suit",
+    "Shorts and sandals",
+    "Work clothes",
+    "Pyjamas",
+    "Whatever their partner picked"
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "edu.grade",
+   "t": "one",
+   "to": "traits",
+   "q": "Their report cards said...",
+   "o": [
+    "\"Talks too much in class\"",
+    "\"A pleasure to teach\"",
+    "\"Could do better\"",
+    "\"Brilliant but lazy\"",
+    "\"Kind to others\"",
+    "\"Daydreams\""
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "edu.idol",
+   "t": "one",
+   "to": "backstory",
+   "q": "As a teenager they wanted to be...",
+   "o": [
+    "A footballer",
+    "A singer",
+    "A doctor",
+    "A pilot",
+    "A teacher",
+    "Rich",
+    "Just older"
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "edu.student",
+   "t": "one",
+   "to": "edu",
+   "q": "Studying now, they are...",
+   "o": [
+    "Top of the class",
+    "Just getting by",
+    "Changing subjects again",
+    "Working too much to study",
+    "Loving every minute"
+   ],
+   "if": [
+    "edu.level",
+    true,
+    [
+     "Still studying now"
+    ]
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "edu.borrow",
+   "t": "one",
+   "to": "traits",
+   "q": "In class they were the one who...",
+   "o": [
+    "Always had a spare pen",
+    "Always needed a spare pen",
+    "Shared their lunch",
+    "Sold sweets",
+    "Fixed the projector",
+    "Organised the class trip"
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "edu.wise",
+   "t": "one",
+   "to": "inside",
+   "q": "The wisest person they ever learned from?",
+   "o": [
+    "A grandparent",
+    "A teacher",
+    "A commander in the army",
+    "A boss",
+    "A neighbour",
+    "A stranger on a bus"
+   ],
+   "s": "edu"
+  },
+  {
+   "id": "work.hours",
+   "t": "one",
+   "to": "routine",
+   "q": "When do they work best?",
+   "o": [
+    "Early morning",
+    "Late at night",
+    "Under pressure only",
+    "In short bursts",
+    "With music on",
+    "In total silence"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.lunch",
+   "t": "one",
+   "to": "routine",
+   "q": "Lunch at work is...",
+   "o": [
+    "A sandwich at the desk",
+    "A long lunch with colleagues",
+    "Whatever the café downstairs has",
+    "Skipped, always",
+    "Leftovers in a box",
+    "Something they cooked for everyone"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.late",
+   "t": "one",
+   "to": "traits",
+   "q": "They're late to work...",
+   "o": [
+    "Never",
+    "Five minutes, every day",
+    "Only on Sundays",
+    "When the bus is late",
+    "They make their own hours"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.praise",
+   "t": "one",
+   "to": "traits",
+   "q": "When the boss praises them they...",
+   "o": [
+    "Glow for a week",
+    "Suspect a trick",
+    "Ask for a raise",
+    "Share the credit",
+    "Say it was nothing"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.quit",
+   "t": "one",
+   "to": "backstory",
+   "q": "Have they ever quit a job in a dramatic way?",
+   "o": [
+    "Yes, a speech and a slammed door",
+    "Yes, by text",
+    "They walked out at lunch and never came back",
+    "Never, they leave politely",
+    "They've had the same job forever"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.mistake",
+   "t": "one",
+   "to": "backstory",
+   "q": "Their biggest mistake at work?",
+   "o": [
+    "An email sent to everyone",
+    "A wrong order for a whole wedding",
+    "Locked the shop with a customer inside",
+    "Forgot an important meeting",
+    "Nothing big, they're careful"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.desk",
+   "t": "one",
+   "to": "facts",
+   "q": "Their desk or workplace has...",
+   "o": [
+    "Photos of family",
+    "Plants",
+    "A mug with a joke on it",
+    "Nothing personal",
+    "Snacks for everyone",
+    "A small radio"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.customers",
+   "t": "one",
+   "to": "way_in",
+   "q": "With customers or the public they are...",
+   "o": [
+    "Patient as a saint",
+    "Quick and efficient",
+    "Chatty, everyone's friend",
+    "Polite but distant",
+    "Funny, regulars come back for them",
+    "Shy, they prefer the back room"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.team",
+   "t": "one",
+   "to": "work",
+   "q": "In a team they are...",
+   "o": [
+    "The leader, whether asked or not",
+    "The quiet one who does the work",
+    "The joker",
+    "The one who organises birthdays",
+    "The one who complains",
+    "Better alone"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.raise",
+   "t": "one",
+   "to": "traits",
+   "q": "Asking for a raise, they...",
+   "o": [
+    "Never would",
+    "Practise in the mirror for a week",
+    "Just ask, directly",
+    "Hint and hope",
+    "Threaten to leave"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.retire",
+   "t": "one",
+   "to": "work",
+   "q": "Retirement for them is...",
+   "o": [
+    "Busier than work ever was",
+    "Too quiet",
+    "Grandchildren every day",
+    "Volunteering",
+    "A part-time job they love",
+    "Finally the beach"
+   ],
+   "if": [
+    "basics.age",
+    true,
+    [
+     "61-75"
+    ]
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.first",
+   "t": "one",
+   "to": "backstory",
+   "q": "Their first salary went on...",
+   "o": [
+    "A gift for their mother",
+    "Clothes",
+    "A trip",
+    "Savings",
+    "A guitar",
+    "A party"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.pride",
+   "t": "one",
+   "to": "inside",
+   "q": "At work they're proudest of...",
+   "o": [
+    "Never missing a day",
+    "A thank-you letter from a customer",
+    "Something they built",
+    "Training someone who now does well",
+    "Surviving a terrible boss"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.uniform",
+   "t": "one",
+   "to": "look",
+   "q": "Do they wear something special for work?",
+   "o": [
+    "An apron",
+    "A uniform",
+    "A suit",
+    "Whatever they like",
+    "Safety shoes",
+    "A name tag they hate"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.phone",
+   "t": "one",
+   "to": "work",
+   "q": "After work, their work phone is...",
+   "o": [
+    "Off, always",
+    "On, but they ignore it",
+    "On, and they answer at midnight",
+    "They don't have one",
+    "Ringing, always"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.skill",
+   "t": "one",
+   "to": "work",
+   "q": "A skill they could teach anyone?",
+   "o": [
+    "Making perfect coffee",
+    "Selling anything",
+    "Fixing a leaking tap",
+    "Calming a crying baby",
+    "Using a spreadsheet",
+    "Negotiating at the market"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.wish",
+   "t": "one",
+   "to": "way_in",
+   "q": "What would make a job perfect for them?",
+   "o": [
+    "Nice people",
+    "Good money",
+    "Being near the sea",
+    "Short hours",
+    "Something new every day",
+    "Being their own boss"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.colleague",
+   "t": "one",
+   "to": "work",
+   "q": "Their favourite kind of colleague?",
+   "o": [
+    "One who brings cake",
+    "One who works hard",
+    "One who makes them laugh",
+    "One who leaves them alone",
+    "One who tells them everything"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.sunday",
+   "t": "one",
+   "to": "moods",
+   "q": "Sunday morning, back to work, they feel...",
+   "o": [
+    "Ready",
+    "Tired already",
+    "Happy to see everyone",
+    "Dread",
+    "Nothing, every day is the same"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "work.rich",
+   "t": "one",
+   "to": "inside",
+   "q": "If they won a lot of money they'd...",
+   "o": [
+    "Quit the next day",
+    "Keep working, quietly",
+    "Buy their parents a flat",
+    "Travel for a year",
+    "Open a small business",
+    "Give most of it away"
+   ],
+   "s": "work"
+  },
+  {
+   "id": "love.first",
+   "t": "one",
+   "to": "backstory",
+   "q": "Their first love was...",
+   "o": [
+    "A classmate who never knew",
+    "A summer love at the beach",
+    "Someone from the army",
+    "A neighbour",
+    "A pen pal",
+    "They're still waiting"
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.meet",
+   "t": "one",
+   "to": "love",
+   "q": "How did they meet their partner?",
+   "o": [
+    "At work",
+    "Through friends",
+    "On an app",
+    "At a wedding",
+    "On a bus",
+    "At university",
+    "They grew up together"
+   ],
+   "if": [
+    "love.status",
+    true,
+    [
+     "In a relationship",
+     "Married"
+    ]
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.years",
+   "t": "one",
+   "to": "love",
+   "q": "How long have they been together?",
+   "o": [
+    "Less than a year",
+    "1-5 years",
+    "5-15 years",
+    "More than 15 years",
+    "On and off for years"
+   ],
+   "if": [
+    "love.status",
+    true,
+    [
+     "In a relationship",
+     "Married"
+    ]
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.fight",
+   "t": "one",
+   "to": "love",
+   "q": "Together, they argue about...",
+   "o": [
+    "The dishes",
+    "Money",
+    "Whose family to visit",
+    "The thermostat",
+    "Nothing, they never fight",
+    "Being late"
+   ],
+   "if": [
+    "love.status",
+    true,
+    [
+     "In a relationship",
+     "Married"
+    ]
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.ritual",
+   "t": "one",
+   "to": "love",
+   "q": "A ritual they share as a couple?",
+   "o": [
+    "Friday night films",
+    "A walk by the sea",
+    "Breakfast in bed on Saturdays",
+    "A secret nickname",
+    "Doing the crossword together",
+    "Cooking together"
+   ],
+   "if": [
+    "love.status",
+    true,
+    [
+     "In a relationship",
+     "Married"
+    ]
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.date",
+   "t": "one",
+   "to": "love",
+   "q": "Their idea of a perfect date?",
+   "o": [
+    "A picnic by the sea",
+    "A small concert",
+    "Cooking at home",
+    "A long walk",
+    "A fancy restaurant",
+    "A day trip somewhere new"
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.gift",
+   "t": "one",
+   "to": "love",
+   "q": "The best gift for them is...",
+   "o": [
+    "Something handmade",
+    "A trip",
+    "Flowers",
+    "Time together",
+    "Something they mentioned once",
+    "Food"
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.jealous",
+   "t": "one",
+   "to": "moods",
+   "q": "Are they jealous?",
+   "o": [
+    "Not at all",
+    "A little, they hide it",
+    "Very, they know it's a problem",
+    "Only about their friends' time"
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.ex",
+   "t": "one",
+   "to": "love",
+   "q": "With their ex they...",
+   "o": [
+    "Are still friends",
+    "Never speak",
+    "Meet at family events, awkwardly",
+    "Have no ex",
+    "Still have their sweater"
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.apps",
+   "t": "one",
+   "to": "love",
+   "q": "Dating apps?",
+   "o": [
+    "Never tried",
+    "Tried, gave up",
+    "Endless swiping",
+    "They met someone there",
+    "They help friends write profiles"
+   ],
+   "if": [
+    "love.status",
+    true,
+    [
+     "Single and happy",
+     "Single and looking",
+     "Dating, it's complicated",
+     "Divorced",
+     "Widowed"
+    ]
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.blind",
+   "t": "one",
+   "to": "love",
+   "q": "A blind date set up by family?",
+   "o": [
+    "Never, never again",
+    "Once, it was a disaster",
+    "Once, it was lovely",
+    "They're the one who sets them up"
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.romance",
+   "t": "one",
+   "to": "love",
+   "q": "Their love life is like a...",
+   "o": [
+    "Romantic comedy",
+    "Long drama",
+    "Mystery",
+    "Documentary",
+    "Short film",
+    "Sitcom with a laugh track"
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.alone",
+   "t": "one",
+   "to": "inside",
+   "q": "Living alone, they...",
+   "o": [
+    "Love it",
+    "Talk to their plants",
+    "Call friends every evening",
+    "Fill the place with music",
+    "Would rather not"
+   ],
+   "if": [
+    "love.status",
+    true,
+    [
+     "Single and happy",
+     "Single and looking",
+     "Divorced",
+     "Widowed"
+    ]
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.wedding",
+   "t": "one",
+   "to": "love",
+   "q": "Their wedding (real or dreamed of) is...",
+   "o": [
+    "Huge, 500 guests",
+    "Small, family only",
+    "On the beach",
+    "In a city office, quickly",
+    "Never happening, by choice"
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.friend",
+   "t": "one",
+   "to": "love",
+   "q": "Their best friend is...",
+   "o": [
+    "From childhood",
+    "From the army",
+    "From work",
+    "Their partner",
+    "Their sibling",
+    "Their dog"
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.advice",
+   "t": "one",
+   "to": "love",
+   "q": "When friends ask for love advice, they say...",
+   "o": [
+    "\"Leave\"",
+    "\"Talk to them\"",
+    "\"Give it time\"",
+    "\"You deserve better\"",
+    "\"Why ask me?\""
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.matchmaker",
+   "t": "one",
+   "to": "traits",
+   "q": "Have they ever played matchmaker?",
+   "o": [
+    "Yes, two couples are married now",
+    "Yes, a total disaster",
+    "They try, nobody listens",
+    "Never, too risky"
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.letter",
+   "t": "one",
+   "to": "inside",
+   "q": "Have they ever written a love letter?",
+   "o": [
+    "Yes, and sent it",
+    "Yes, never sent",
+    "Many, all to the same person",
+    "Never"
+   ],
+   "s": "love"
+  },
+  {
+   "id": "love.dance",
+   "t": "one",
+   "to": "love",
+   "q": "At weddings they...",
+   "o": [
+    "Dance until the end",
+    "Dance only to slow songs",
+    "Sit and eat",
+    "Give a speech",
+    "Leave before the dancing"
+   ],
+   "s": "love"
+  },
+  {
+   "id": "home.type",
+   "t": "one",
+   "to": "home",
+   "q": "What kind of home?",
+   "o": [
+    "A small rented flat",
+    "A big old flat with roommates",
+    "A house with a garden",
+    "A tiny studio with a balcony",
+    "Their parents' flat, still",
+    "A flat they bought, with a mortgage"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.balcony",
+   "t": "one",
+   "to": "home",
+   "q": "Their balcony (if they have one) has...",
+   "o": [
+    "Plants, too many",
+    "A washing machine",
+    "Two chairs and a view",
+    "Bikes",
+    "Storage boxes",
+    "No balcony, sadly"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.mess",
+   "t": "one",
+   "to": "traits",
+   "q": "Their messiest corner?",
+   "o": [
+    "The kitchen",
+    "The desk",
+    "The bedroom chair with clothes",
+    "The hallway with shoes",
+    "The car",
+    "Nowhere, it's spotless"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.music",
+   "t": "one",
+   "to": "home",
+   "q": "At home there's usually...",
+   "o": [
+    "Radio on",
+    "Music from a speaker",
+    "The TV in the background",
+    "Silence",
+    "Kids' noise",
+    "A parrot"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.cook",
+   "t": "one",
+   "to": "home",
+   "q": "How often do they cook at home?",
+   "o": [
+    "Every day",
+    "On weekends",
+    "When guests come",
+    "Never, they order in",
+    "Only breakfast"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.guest",
+   "t": "one",
+   "to": "home",
+   "q": "When guests come over they...",
+   "o": [
+    "Clean for two days",
+    "Cook a feast",
+    "Order pizza",
+    "Apologise for the mess",
+    "Love it, the door is always open"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.bed",
+   "t": "one",
+   "to": "routine",
+   "q": "Their bed is...",
+   "o": [
+    "Always made",
+    "Never made",
+    "Full of pillows",
+    "Shared with a cat",
+    "A sofa bed"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.plant",
+   "t": "one",
+   "to": "home",
+   "q": "Plants at home?",
+   "o": [
+    "A jungle",
+    "One cactus",
+    "Plastic ones, nobody can tell",
+    "A herb garden",
+    "None survive"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.fixit",
+   "t": "one",
+   "to": "traits",
+   "q": "When something breaks at home they...",
+   "o": [
+    "Fix it themselves, badly",
+    "Call their father",
+    "Call a neighbour",
+    "Watch videos for hours",
+    "Ignore it for a year"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.shower",
+   "t": "one",
+   "to": "routine",
+   "q": "Shower in the morning or the evening?",
+   "o": [
+    "Morning, cold",
+    "Morning, long and hot",
+    "Evening, to sleep",
+    "Both",
+    "Whenever there's hot water"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.night",
+   "t": "one",
+   "to": "routine",
+   "q": "Their last thing before sleep?",
+   "o": [
+    "Reading",
+    "Scrolling on the phone",
+    "A tea",
+    "Checking the door is locked, twice",
+    "A call to someone",
+    "Nothing, they fall asleep instantly"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.decor",
+   "t": "one",
+   "to": "home",
+   "q": "Their walls have...",
+   "o": [
+    "Family photos",
+    "Art from the market",
+    "Posters from concerts",
+    "Maps",
+    "Nothing yet"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.noise",
+   "t": "one",
+   "to": "home",
+   "q": "The noise they hear most at home?",
+   "o": [
+    "Traffic",
+    "Neighbours' TV",
+    "Birds",
+    "Kids next door",
+    "The sea, faintly",
+    "Their own music"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.cleanday",
+   "t": "one",
+   "to": "routine",
+   "q": "Cleaning day is...",
+   "o": [
+    "Thursday night",
+    "Friday morning",
+    "Whenever guests come",
+    "Every day, a little",
+    "What's cleaning?"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.drawer",
+   "t": "one",
+   "to": "facts",
+   "q": "Their junk drawer has...",
+   "o": [
+    "Batteries",
+    "Keys to nowhere",
+    "Takeaway menus",
+    "Coins from trips",
+    "Rubber bands",
+    "Birthday candles"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.move",
+   "t": "one",
+   "to": "inside",
+   "q": "Would they move away from the neighbourhood?",
+   "o": [
+    "Never",
+    "For love",
+    "For a bigger flat",
+    "For work abroad",
+    "They're already thinking about it"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.door",
+   "t": "one",
+   "to": "home",
+   "q": "Their front door has...",
+   "o": [
+    "A mezuzah",
+    "A doormat with a joke",
+    "Kids' stickers",
+    "A wreath of dried flowers",
+    "Nothing, plain"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.wifi",
+   "t": "one",
+   "to": "facts",
+   "q": "Their wifi name is...",
+   "o": [
+    "Something funny",
+    "Their family name",
+    "\"Get your own\"",
+    "The default, never changed",
+    "A film reference",
+    "They don't know"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "home.morningdrink",
+   "t": "one",
+   "to": "routine",
+   "q": "First drink of the morning?",
+   "o": [
+    "Coffee",
+    "Tea",
+    "Water with lemon",
+    "Juice",
+    "Whatever's in the fridge"
+   ],
+   "s": "home"
+  },
+  {
+   "id": "hob.weekend",
+   "t": "one",
+   "to": "hobbies",
+   "q": "A perfect free afternoon?",
+   "o": [
+    "A long nap",
+    "A walk by the sea",
+    "Coffee with a friend",
+    "Working on their hobby",
+    "A film",
+    "Cooking for people"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.concert",
+   "t": "one",
+   "to": "taste",
+   "q": "The last concert they went to?",
+   "o": [
+    "A big rock show",
+    "An Israeli singer in a park",
+    "Classical music",
+    "A friend's band in a bar",
+    "They don't go to concerts"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.game",
+   "t": "one",
+   "to": "hobbies",
+   "q": "Their favourite game?",
+   "o": [
+    "Backgammon",
+    "Cards",
+    "Chess",
+    "Video games",
+    "Board games",
+    "Football in the park"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.museum",
+   "t": "one",
+   "to": "taste",
+   "q": "In a museum they head for...",
+   "o": [
+    "The paintings",
+    "The history rooms",
+    "The café",
+    "The gift shop",
+    "The exit"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.beach",
+   "t": "one",
+   "to": "hobbies",
+   "q": "At the beach they...",
+   "o": [
+    "Swim far out",
+    "Play matkot",
+    "Read under an umbrella",
+    "Sleep",
+    "Walk along the water",
+    "Don't go, too sandy"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.collect2",
+   "t": "one",
+   "to": "hobbies",
+   "q": "What do they have too many of?",
+   "o": [
+    "Books",
+    "Mugs",
+    "Shoes",
+    "Plants",
+    "Records",
+    "Notebooks",
+    "Scarves"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.tv",
+   "t": "one",
+   "to": "taste",
+   "q": "A TV show they've watched three times?",
+   "o": [
+    "An old sitcom",
+    "A detective series",
+    "A cooking show",
+    "A nature series",
+    "A drama from abroad",
+    "None, once is enough"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.sing",
+   "t": "one",
+   "to": "hobbies",
+   "q": "Do they sing?",
+   "o": [
+    "In the shower",
+    "In the car",
+    "In a choir",
+    "At karaoke only",
+    "Never in public"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.instrument",
+   "t": "one",
+   "to": "hobbies",
+   "q": "An instrument they own but don't play?",
+   "o": [
+    "A guitar",
+    "A keyboard",
+    "A harmonica",
+    "A violin from childhood",
+    "Drums in the storage room",
+    "None"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.radio",
+   "t": "one",
+   "to": "taste",
+   "q": "On the radio they like...",
+   "o": [
+    "News all day",
+    "Old songs",
+    "Talk shows",
+    "Football",
+    "Classical",
+    "They don't listen"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.festival",
+   "t": "one",
+   "to": "hobbies",
+   "q": "A festival they never miss?",
+   "o": [
+    "A food festival",
+    "A wine festival",
+    "A music festival",
+    "A street fair",
+    "The light festival",
+    "None"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.diy",
+   "t": "one",
+   "to": "hobbies",
+   "q": "Have they ever built or made something big?",
+   "o": [
+    "Furniture",
+    "A boat",
+    "A garden",
+    "A costume for a whole family",
+    "A small business",
+    "Nothing yet"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.walk",
+   "t": "one",
+   "to": "hobbies",
+   "q": "Where do they walk to think?",
+   "o": [
+    "Along the sea",
+    "Through the market",
+    "In the park",
+    "Around the block, many times",
+    "They don't walk, they drive"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.sweets",
+   "t": "one",
+   "to": "taste",
+   "q": "Their weakness at the kiosk?",
+   "o": [
+    "Chocolate",
+    "Sunflower seeds",
+    "Ice cream",
+    "Bamba",
+    "Sour sweets",
+    "Nothing, they're strong"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.street",
+   "t": "one",
+   "to": "taste",
+   "q": "Their go-to street food?",
+   "o": [
+    "Falafel",
+    "Sabich",
+    "Shawarma",
+    "Burekas",
+    "Pizza slice",
+    "Corn on the cob"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.dessert",
+   "t": "one",
+   "to": "taste",
+   "q": "Their favourite dessert?",
+   "o": [
+    "Malabi",
+    "Chocolate cake",
+    "Ice cream",
+    "Baklava",
+    "Fruit salad",
+    "Cheesecake"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.season",
+   "t": "one",
+   "to": "taste",
+   "q": "Their favourite season?",
+   "o": [
+    "Summer, the beach",
+    "Winter, the rain",
+    "Spring, the flowers",
+    "Autumn, the first cool night"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.sport2",
+   "t": "one",
+   "to": "hobbies",
+   "q": "A sport they're terrible at but love?",
+   "o": [
+    "Football",
+    "Basketball",
+    "Tennis",
+    "Swimming",
+    "Running",
+    "Dancing"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.film",
+   "t": "one",
+   "to": "taste",
+   "q": "A film they cry at every time?",
+   "o": [
+    "An old romance",
+    "An animated film",
+    "A war film",
+    "A film about a dog",
+    "A sports film",
+    "None, they don't cry at films"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.picnic",
+   "t": "one",
+   "to": "hobbies",
+   "q": "Their picnic basket has...",
+   "o": [
+    "Watermelon and cheese",
+    "Sandwiches",
+    "A thermos of coffee",
+    "Fruit and nuts",
+    "Everything, it's a feast"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.book2",
+   "t": "one",
+   "to": "taste",
+   "q": "A book they keep giving as a gift?",
+   "o": [
+    "A novel about love",
+    "A history book",
+    "A cookbook",
+    "A children's book",
+    "Poetry",
+    "They give gift cards"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.smell",
+   "t": "one",
+   "to": "taste",
+   "q": "A smell they love?",
+   "o": [
+    "Rain",
+    "Bread",
+    "The sea",
+    "Coffee",
+    "Jasmine at night",
+    "Petrol, strangely"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.screen2",
+   "t": "one",
+   "to": "routine",
+   "q": "How much screen time a day?",
+   "o": [
+    "Too much",
+    "Hardly any",
+    "Only for work",
+    "Only for films",
+    "They don't count"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "hob.city",
+   "t": "one",
+   "to": "taste",
+   "q": "A city abroad they'd live in?",
+   "o": [
+    "Paris",
+    "Barcelona",
+    "New York",
+    "Berlin",
+    "Rome",
+    "Nowhere, home is best"
+   ],
+   "s": "hob"
+  },
+  {
+   "id": "pers.stubborn",
+   "t": "scale",
+   "to": "dials.stubborn",
+   "q": "When they've decided something, they are...",
+   "lo": "Easy to talk round",
+   "hi": "Immovable",
+   "s": "pers"
+  },
+  {
+   "id": "pers.tidy",
+   "t": "scale",
+   "to": "dials.order",
+   "q": "Their wallet, their bag, their pockets are...",
+   "lo": "A mess",
+   "hi": "Perfectly organised",
+   "s": "pers"
+  },
+  {
+   "id": "pers.trust",
+   "t": "scale",
+   "to": "dials.trust",
+   "q": "They trust new people...",
+   "lo": "Never at first",
+   "hi": "Right away",
+   "s": "pers"
+  },
+  {
+   "id": "pers.compete",
+   "t": "scale",
+   "to": "dials.compete",
+   "q": "In a game with friends, they are...",
+   "lo": "Happy to lose",
+   "hi": "Must win, always",
+   "s": "pers"
+  },
+  {
+   "id": "pers.spont",
+   "t": "scale",
+   "to": "dials.spont",
+   "q": "A sudden invitation tonight? They...",
+   "lo": "Need a week's notice",
+   "hi": "Are already putting on shoes",
+   "s": "pers"
+  },
+  {
+   "id": "pers.drama",
+   "t": "scale",
+   "to": "dials.drama",
+   "q": "When something small goes wrong, they...",
+   "lo": "Shrug it off",
+   "hi": "Make it a big story",
+   "s": "pers"
+  },
+  {
+   "id": "pers.lie",
+   "t": "one",
+   "to": "traits",
+   "q": "A small lie they'd tell?",
+   "o": [
+    "\"I'm almost there\"",
+    "\"I love the gift\"",
+    "\"I'm fine\"",
+    "\"I already ate\"",
+    "They never lie, even small"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.borrow",
+   "t": "one",
+   "to": "traits",
+   "q": "A friend borrows money and forgets. They...",
+   "o": [
+    "Remind them gently",
+    "Never mention it",
+    "Mention it at every dinner",
+    "Forget too",
+    "Write it in a notebook"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.noise",
+   "t": "one",
+   "to": "traits",
+   "q": "The neighbours are loud at midnight. They...",
+   "o": [
+    "Knock on the door",
+    "Bang on the wall",
+    "Put in earplugs",
+    "Join the party",
+    "Write a note"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.late",
+   "t": "one",
+   "to": "traits",
+   "q": "They're running late for a friend. They...",
+   "o": [
+    "Text ten minutes before",
+    "Arrive with a gift as apology",
+    "Pretend the bus broke down",
+    "Run all the way",
+    "Are never late"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.secret2",
+   "t": "one",
+   "to": "traits",
+   "q": "They see a friend's partner on a date with someone else. They...",
+   "o": [
+    "Tell the friend at once",
+    "Talk to the partner first",
+    "Say nothing, not their business",
+    "Agonise for weeks"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.stranger",
+   "t": "one",
+   "to": "traits",
+   "q": "A stranger asks for directions. They...",
+   "o": [
+    "Walk them there",
+    "Explain three times",
+    "Point vaguely",
+    "Pretend not to understand",
+    "Send them the wrong way by mistake"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.thanks",
+   "t": "one",
+   "to": "traits",
+   "q": "Someone holds a door for them. They...",
+   "o": [
+    "Say thank you twice",
+    "Nod",
+    "Hold the next door for ten people",
+    "Don't notice"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.criticism",
+   "t": "one",
+   "to": "traits",
+   "q": "When someone criticises them, they...",
+   "o": [
+    "Listen and change",
+    "Argue back",
+    "Go quiet and sulk",
+    "Laugh it off",
+    "Think about it for weeks"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.leader",
+   "t": "one",
+   "to": "traits",
+   "q": "In a group, they are...",
+   "o": [
+    "The leader",
+    "The peacemaker",
+    "The joker",
+    "The quiet one",
+    "The one who has the snacks"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.surprise",
+   "t": "one",
+   "to": "traits",
+   "q": "A surprise party for them would...",
+   "o": [
+    "Make them cry with joy",
+    "Make them angry",
+    "Make them run away",
+    "Be found out a week before"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.money2",
+   "t": "one",
+   "to": "traits",
+   "q": "They find out they were overcharged by 5 shekels. They...",
+   "o": [
+    "Go back and ask",
+    "Let it go",
+    "Complain online",
+    "Never buy there again"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.queue2",
+   "t": "one",
+   "to": "traits",
+   "q": "At a bus stop with a long queue, they...",
+   "o": [
+    "Wait patiently",
+    "Take a taxi",
+    "Walk",
+    "Chat with everyone"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.boss2",
+   "t": "one",
+   "to": "traits",
+   "q": "Their boss asks them to stay late on a Friday. They...",
+   "o": [
+    "Stay, of course",
+    "Say no politely",
+    "Stay and sulk",
+    "Bargain for a day off"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.hero",
+   "t": "one",
+   "to": "traits",
+   "q": "Someone faints in the street. They...",
+   "o": [
+    "Help at once",
+    "Call for help",
+    "Freeze",
+    "Make sure someone is helping",
+    "Take charge"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.decide",
+   "t": "one",
+   "to": "traits",
+   "q": "Choosing from a menu, they...",
+   "o": [
+    "Know at once",
+    "Take forever",
+    "Order what the person before them ordered",
+    "Ask the waiter",
+    "Always order the same"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.change",
+   "t": "one",
+   "to": "traits",
+   "q": "Plans change at the last minute. They...",
+   "o": [
+    "Adapt happily",
+    "Get upset",
+    "Need a moment",
+    "Prefer it, actually"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.sorry",
+   "t": "one",
+   "to": "traits",
+   "q": "Saying sorry for them is...",
+   "o": [
+    "Easy, they say it too much",
+    "Hard, very hard",
+    "Only with a gift",
+    "Rare, they're rarely wrong"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.kindness",
+   "t": "one",
+   "to": "traits",
+   "q": "A small kindness they do often?",
+   "o": [
+    "Feed street cats",
+    "Leave a big tip",
+    "Help old people with bags",
+    "Remember birthdays",
+    "Listen"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.morning2",
+   "t": "one",
+   "to": "traits",
+   "q": "Before their morning coffee they are...",
+   "o": [
+    "Unbearable",
+    "Sweet",
+    "Silent",
+    "Exactly the same as after"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.fairness",
+   "t": "one",
+   "to": "traits",
+   "q": "Two friends fight and ask them to judge. They...",
+   "o": [
+    "Pick a side honestly",
+    "Refuse to judge",
+    "Make them laugh",
+    "Take both out for coffee"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.gossip",
+   "t": "one",
+   "to": "traits",
+   "q": "Gossip?",
+   "o": [
+    "They love it",
+    "They hate it",
+    "They listen but never repeat",
+    "They start it"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.pride",
+   "t": "one",
+   "to": "traits",
+   "q": "Asking for help, they...",
+   "o": [
+    "Ask easily",
+    "Never ask",
+    "Ask only family",
+    "Ask and then do it themselves"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "pers.fearless",
+   "t": "one",
+   "to": "traits",
+   "q": "Something that doesn't scare them at all that scares everyone else?",
+   "o": [
+    "Spiders",
+    "Heights",
+    "Public speaking",
+    "The dark",
+    "Hospitals",
+    "Big dogs"
+   ],
+   "s": "pers"
+  },
+  {
+   "id": "mood.jealous",
+   "t": "one",
+   "to": "moods.jealous",
+   "q": "When they're jealous they...",
+   "o": [
+    "Go quiet",
+    "Make jokes",
+    "Ask too many questions",
+    "Pretend not to care",
+    "Talk about it honestly"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.embarrass",
+   "t": "one",
+   "to": "moods.embarrassed",
+   "q": "When they're embarrassed they...",
+   "o": [
+    "Turn red",
+    "Laugh loudly",
+    "Leave the room",
+    "Make it worse by explaining",
+    "Act as if nothing happened"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.bored",
+   "t": "one",
+   "to": "moods.bored",
+   "q": "When they're bored they...",
+   "o": [
+    "Clean",
+    "Eat",
+    "Call someone",
+    "Start a project",
+    "Sleep",
+    "Look for trouble"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.proud",
+   "t": "one",
+   "to": "moods.proud",
+   "q": "When they're proud of something they...",
+   "o": [
+    "Tell everyone",
+    "Tell nobody, smile inside",
+    "Call their mother",
+    "Treat themselves to something"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.lonely",
+   "t": "one",
+   "to": "moods.lonely",
+   "q": "When they're lonely they...",
+   "o": [
+    "Go somewhere with people",
+    "Call an old friend",
+    "Talk to their pet",
+    "Watch old films",
+    "Pretend they're not"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.excited",
+   "t": "one",
+   "to": "moods.excited",
+   "q": "When they're excited they...",
+   "o": [
+    "Talk fast and loud",
+    "Can't sleep",
+    "Plan everything",
+    "Keep it secret"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.tired",
+   "t": "one",
+   "to": "moods.tired",
+   "q": "When they're very tired they...",
+   "o": [
+    "Get grumpy",
+    "Get silly",
+    "Fall asleep anywhere",
+    "Drink more coffee"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.stress",
+   "t": "one",
+   "to": "moods",
+   "q": "Under stress they...",
+   "o": [
+    "Make lists",
+    "Eat",
+    "Can't eat",
+    "Clean",
+    "Go for a run",
+    "Snap at people"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.hurt",
+   "t": "one",
+   "to": "moods",
+   "q": "When someone hurts their feelings they...",
+   "o": [
+    "Say so straight away",
+    "Go silent",
+    "Cry later, alone",
+    "Act extra cheerful",
+    "Remember it forever"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.weather",
+   "t": "one",
+   "to": "moods",
+   "q": "The weather that puts them in a bad mood?",
+   "o": [
+    "Heat waves",
+    "Grey skies",
+    "Wind",
+    "Humidity",
+    "None, they love all weather"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.morning",
+   "t": "one",
+   "to": "moods",
+   "q": "Mornings they wake up...",
+   "o": [
+    "Singing",
+    "Grumpy",
+    "Slowly",
+    "Already worrying",
+    "Starving"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.cheer",
+   "t": "one",
+   "to": "moods",
+   "q": "What always cheers them up?",
+   "o": [
+    "A good meal",
+    "A call from a friend",
+    "Music",
+    "A walk",
+    "A silly video",
+    "A hug"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.temper",
+   "t": "one",
+   "to": "moods",
+   "q": "Their temper is...",
+   "o": [
+    "Slow to start, hard to stop",
+    "Quick, gone in a minute",
+    "Hidden, it comes out sideways",
+    "What temper?"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.music",
+   "t": "one",
+   "to": "moods",
+   "q": "When they're down they play...",
+   "o": [
+    "Sad songs, louder",
+    "Happy songs, louder",
+    "Nothing",
+    "The radio, whatever's on"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "mood.guilt",
+   "t": "one",
+   "to": "moods",
+   "q": "When they feel guilty they...",
+   "o": [
+    "Confess at once",
+    "Buy a gift",
+    "Avoid the person",
+    "Can't sleep",
+    "Pretend it never happened"
+   ],
+   "s": "moods"
+  },
+  {
+   "id": "talk.greet",
+   "t": "one",
+   "to": "talk",
+   "q": "How do they say hello?",
+   "o": [
+    "A big hug",
+    "A handshake",
+    "\"Ahlan!\"",
+    "A nod",
+    "\"What's new?\"",
+    "A kiss on the cheek"
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.bye",
+   "t": "one",
+   "to": "talk",
+   "q": "How do they say goodbye?",
+   "o": [
+    "It takes twenty minutes",
+    "\"Yalla, bye\"",
+    "Just leave",
+    "\"Take care of yourself\"",
+    "A long hug"
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.swear",
+   "t": "one",
+   "to": "talk",
+   "q": "When they stub their toe they say...",
+   "o": [
+    "Something in Arabic",
+    "Something in Russian",
+    "\"Oops\"",
+    "Something very creative",
+    "Nothing, silent pain"
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.slang",
+   "t": "one",
+   "to": "talk",
+   "q": "Their slang?",
+   "o": [
+    "Old Israeli slang from the 80s",
+    "Army slang",
+    "Teenage slang they borrowed",
+    "Proper Hebrew, always",
+    "English words everywhere"
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.joke",
+   "t": "one",
+   "to": "talk",
+   "q": "Their jokes are...",
+   "o": [
+    "Puns, terrible ones",
+    "Dry and quick",
+    "Long stories with a twist",
+    "About themselves",
+    "Rare but perfect"
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.compliment",
+   "t": "one",
+   "to": "talk",
+   "q": "They give compliments...",
+   "o": [
+    "Often and big",
+    "Rarely, but they mean it",
+    "Only about food",
+    "Awkwardly"
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.argue",
+   "t": "one",
+   "to": "talk",
+   "q": "In an argument they say...",
+   "o": [
+    "\"Let me finish\"",
+    "\"You always...\"",
+    "\"Fine.\"",
+    "\"Listen to me for a second\"",
+    "Nothing, they walk away"
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.nick",
+   "t": "one",
+   "to": "talk",
+   "q": "They call people they like...",
+   "o": [
+    "\"Motek\"",
+    "\"Habibi\"",
+    "\"Neshama\"",
+    "By a nickname they made up",
+    "By their full name, always"
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.story",
+   "t": "one",
+   "to": "talk",
+   "q": "A story they tell too often?",
+   "o": [
+    "The army",
+    "A trip abroad",
+    "How they met their partner",
+    "A celebrity they once saw",
+    "A near disaster"
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.texts",
+   "t": "one",
+   "to": "talk",
+   "q": "Their text messages are...",
+   "o": [
+    "Long, with emojis",
+    "One word",
+    "Voice notes instead",
+    "Perfect grammar",
+    "Full of typos"
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.silence",
+   "t": "one",
+   "to": "talk",
+   "q": "Silence in a conversation makes them...",
+   "o": [
+    "Comfortable",
+    "Nervous, they fill it",
+    "Sleepy",
+    "Think of something to say for later"
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.question",
+   "t": "one",
+   "to": "talk",
+   "q": "The question they always ask people?",
+   "o": [
+    "\"Did you eat?\"",
+    "\"How's your mother?\"",
+    "\"What's new?\"",
+    "\"Are you married?\"",
+    "\"Where are you from?\""
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.accent",
+   "t": "one",
+   "to": "talk",
+   "q": "Their accent?",
+   "o": [
+    "Pure Tel Aviv",
+    "A little Russian",
+    "A little French",
+    "A little American",
+    "A northern twang",
+    "Moroccan grandma's"
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "talk.word",
+   "t": "one",
+   "to": "talk",
+   "q": "A word they say all the time?",
+   "o": [
+    "\"Basically\"",
+    "\"Sababa\"",
+    "\"Actually\"",
+    "\"Like\"",
+    "\"Wallak\"",
+    "\"Honestly\""
+   ],
+   "s": "talk"
+  },
+  {
+   "id": "in.dream",
+   "t": "one",
+   "to": "inside",
+   "q": "A dream they never told anyone?",
+   "o": [
+    "To sing on a stage",
+    "To write a book",
+    "To live by the sea",
+    "To be a chef",
+    "To have a big family",
+    "To open a shop"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.hero",
+   "t": "one",
+   "to": "inside",
+   "q": "Their hero is...",
+   "o": [
+    "A parent",
+    "A teacher",
+    "A historical figure from a book",
+    "A friend",
+    "Nobody, heroes disappoint"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.happy",
+   "t": "one",
+   "to": "inside",
+   "q": "The happiest day of their life?",
+   "o": [
+    "A wedding",
+    "A birth",
+    "A trip",
+    "Graduation",
+    "An ordinary Tuesday",
+    "It hasn't happened yet"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.worst",
+   "t": "one",
+   "to": "inside",
+   "q": "A hard time they got through?",
+   "o": [
+    "A break-up",
+    "Losing a job",
+    "A move",
+    "A family illness",
+    "A lonely year",
+    "They've been lucky"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.wish",
+   "t": "one",
+   "to": "inside",
+   "q": "If they could talk to their younger self, they'd say...",
+   "o": [
+    "\"Relax\"",
+    "\"Be braver\"",
+    "\"Call your grandma more\"",
+    "\"Save money\"",
+    "\"You'll be fine\""
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.legacy",
+   "t": "one",
+   "to": "inside",
+   "q": "How do they want to be remembered?",
+   "o": [
+    "As kind",
+    "As funny",
+    "As a good parent",
+    "As someone who built something",
+    "As a good friend"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.habit",
+   "t": "one",
+   "to": "inside",
+   "q": "A habit they're trying to break?",
+   "o": [
+    "Biting their nails",
+    "Staying up late",
+    "Checking the phone",
+    "Saying yes to everything",
+    "Sugar"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.lucky",
+   "t": "one",
+   "to": "inside",
+   "q": "Do they believe in luck?",
+   "o": [
+    "Very much, they have charms",
+    "A bit",
+    "Not at all",
+    "Only bad luck"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.alone",
+   "t": "one",
+   "to": "inside",
+   "q": "What they do when nobody's watching?",
+   "o": [
+    "Dance",
+    "Sing",
+    "Talk to themselves",
+    "Eat dessert first",
+    "Cry at ads"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.wrong",
+   "t": "one",
+   "to": "inside",
+   "q": "Something they were wrong about for years?",
+   "o": [
+    "A person",
+    "A job",
+    "A city",
+    "Their own talent",
+    "Love"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.thanks",
+   "t": "one",
+   "to": "inside",
+   "q": "Someone they never thanked properly?",
+   "o": [
+    "A teacher",
+    "A parent",
+    "An old friend",
+    "A stranger who helped",
+    "A boss"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.small",
+   "t": "one",
+   "to": "inside",
+   "q": "A small thing that makes a day good?",
+   "o": [
+    "Good coffee",
+    "A parking spot",
+    "A message from a friend",
+    "Sun after rain",
+    "A song on the radio"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.question",
+   "t": "one",
+   "to": "inside",
+   "q": "A question they ask themselves at night?",
+   "o": [
+    "Am I happy?",
+    "Did I do enough?",
+    "What if I'd stayed?",
+    "What's for breakfast?",
+    "Nothing, they sleep"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.giveup",
+   "t": "one",
+   "to": "inside",
+   "q": "Something they gave up on?",
+   "o": [
+    "Music",
+    "A sport",
+    "A degree",
+    "A dream job",
+    "A relationship",
+    "Nothing yet"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.brave",
+   "t": "one",
+   "to": "inside",
+   "q": "The bravest thing they ever did?",
+   "o": [
+    "Moved country",
+    "Quit a safe job",
+    "Said I love you first",
+    "Stood up to a bully",
+    "Asked for help"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.miss",
+   "t": "one",
+   "to": "inside",
+   "q": "Something they miss from the past?",
+   "o": [
+    "A person",
+    "A place",
+    "Their energy",
+    "Their old neighbourhood",
+    "A song era"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "in.keep",
+   "t": "one",
+   "to": "inside",
+   "q": "A promise they kept?",
+   "o": [
+    "To a parent",
+    "To a friend",
+    "To themselves",
+    "To a child",
+    "They don't make promises"
+   ],
+   "s": "inside"
+  },
+  {
+   "id": "world.cafe",
+   "t": "one",
+   "to": "way_in",
+   "q": "At Cafe Nahat they'd sit...",
+   "o": [
+    "By the window",
+    "At the counter, chatting",
+    "In the corner with a laptop",
+    "Outside, rain or shine",
+    "They'd take it to go"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.market",
+   "t": "one",
+   "to": "way_in",
+   "q": "At Shuk Shalom they'd go first to...",
+   "o": [
+    "The spice stall",
+    "The fish stall",
+    "The fruit stall",
+    "The bakery",
+    "The cheese man",
+    "The cheapest stall"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.bar",
+   "t": "one",
+   "to": "way_in",
+   "q": "At The Black Candle bar they'd...",
+   "o": [
+    "Order beer and watch football",
+    "Talk to the bartender",
+    "Sit alone with a book",
+    "Dance",
+    "Never go in"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.street",
+   "t": "one",
+   "to": "way_in",
+   "q": "On Herzl Street they'd stop at...",
+   "o": [
+    "The kiosk",
+    "The falafel stand",
+    "The bench by the bus stop",
+    "Every shop window",
+    "Nowhere, always rushing"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.park",
+   "t": "one",
+   "to": "way_in",
+   "q": "In the park they'd...",
+   "o": [
+    "Feed the ducks",
+    "Run",
+    "Read on a bench",
+    "Meet friends",
+    "Walk a dog"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.gym",
+   "t": "one",
+   "to": "way_in",
+   "q": "At the gym they'd be...",
+   "o": [
+    "A regular every morning",
+    "There once a month",
+    "Chatting more than training",
+    "Never, they hate gyms"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.uni",
+   "t": "one",
+   "to": "way_in",
+   "q": "At the university they'd be...",
+   "o": [
+    "A student",
+    "A lecturer",
+    "A cleaner with stories",
+    "A visitor at lectures",
+    "Never been"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.neighbour",
+   "t": "one",
+   "to": "way_in",
+   "q": "As Ishai's neighbour they'd be...",
+   "o": [
+    "Friendly, borrowing sugar",
+    "Quiet, a nod in the stairs",
+    "Nosy",
+    "Helpful",
+    "Complaining about noise"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.tell",
+   "t": "one",
+   "to": "way_in",
+   "q": "What would they tell Ishai on their first meeting?",
+   "o": [
+    "A joke",
+    "Their whole life story",
+    "Almost nothing",
+    "A compliment",
+    "A complaint about the weather"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.help",
+   "t": "one",
+   "to": "way_in",
+   "q": "How could they help Ishai?",
+   "o": [
+    "Fix something in his flat",
+    "Give him advice",
+    "Make him laugh",
+    "Feed him",
+    "Introduce him to people"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.annoy",
+   "t": "one",
+   "to": "way_in",
+   "q": "What about Ishai might annoy them?",
+   "o": [
+    "He's too quiet",
+    "He's too polite",
+    "He's always alone",
+    "His music",
+    "Nothing"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.fit",
+   "t": "one",
+   "to": "way_in",
+   "q": "In the neighbourhood they'd be known as...",
+   "o": [
+    "The friendly one",
+    "The strange one",
+    "The helpful one",
+    "The loud one",
+    "The new one"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.plan",
+   "t": "one",
+   "to": "way_in",
+   "q": "Their plan for the next year here?",
+   "o": [
+    "Find a job",
+    "Make friends",
+    "Fall in love",
+    "Open something",
+    "Just live"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.time",
+   "t": "one",
+   "to": "way_in",
+   "q": "When would they be around?",
+   "o": [
+    "Mornings",
+    "Afternoons",
+    "Evenings",
+    "Weekends",
+    "All the time"
+   ],
+   "s": "world"
+  },
+  {
+   "id": "world.dog",
+   "t": "one",
+   "to": "way_in",
+   "q": "What would they think of Falafel, Ishai's dog?",
+   "o": [
+    "They'd love him",
+    "They're afraid of dogs",
+    "They'd bring him treats",
+    "They'd want one too",
+    "They're a cat person"
    ],
    "s": "world"
   }

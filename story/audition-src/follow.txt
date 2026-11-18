@@ -1,0 +1,250 @@
+@generic hob
+one fu.hob.start | How did they get into {x}? Who started them on it? | A parent; A grandparent; A friend from school; An ex (the only good thing left); A teacher; A video online; Nobody, they just tried it one day
+one fu.hob.good | How good are they at {x}, honestly? | A beginner and proud of it; Getting there, slowly; Good, people ask them for tips; Very good, they've won something; Terrible, and they love it anyway
+one fu.hob.when | When do they do it? | Every morning before anything else; Evenings after work; Weekends only; Whenever they're stressed; Once a month, when they remember
+one fu.hob.where | Where do they do it, around here? | At home; Cafe Nahat; The Black Candle bar; The park and its pond; The Pump House plaza; The promenade by the sea; The Big S mall; The food court at The Big S; Shuk Shalom market; The Everything Else store; The little shops on Herzl Street; Shmulik's kiosk; Herzl Gym; Tel Herzl University; Herzl Street itself
+one fu.hob.thing | A thing they own for {x} that matters to them? | Something old, handed down to them; Something cheap that works perfectly; Something far too expensive; Something they made themselves; A gift from someone they miss
+one fu.hob.oops | An embarrassing moment with {x}? | They fell over in public; They broke something expensive; They showed off and failed, loudly; They got the day wrong and missed it all; Someone from work caught them at it; Nothing yet (it's coming)
+one fu.hob.with | Alone or with others? | Alone, it's their time; With one close friend; With a group or a club; Teaching others; With family, like it or not
+one fu.hob.ishai | Would they teach Ishai {x}? | Gladly, today; Only if he asks nicely; Never, it's their thing; They'd try, but they're a terrible teacher
+text fu.hob.hour | A perfect hour of {x} for them, in one line?
+
+@follow hob.music name=music
+one fu.music.inst | What exactly do they play? | Guitar; Piano; Oud; Darbuka; Violin; Drums; Bass; Trumpet; Ukulele; Nothing, they listen, seriously; Their voice, in the shower
+one fu.music.band | Have they ever been in a band? | Yes, at school, it was awful; Yes, they still play weddings; They're starting one; Never, they'd be too shy; Their band was almost famous once
+@follow hob.cooking name=cooking
+one fu.cook.dish | The dish they're known for? | Shakshuka; Stuffed vegetables; Fish in tomato sauce; A curry from a trip; Soup for any problem; Lasagne for twenty; Burnt rice, famously
+one fu.cook.who | Who do they cook for? | Friends, every Friday; Only themselves; A partner who never thanks them; Their parents, in return; Anyone who looks hungry
+@follow hob.baking name=baking
+one fu.bake.what | What do they bake best? | Sourdough bread; Chocolate babka; Cheesecake; Cookies for the whole building; Challah on Fridays; Cakes that always sink
+@follow hob.running name=running
+one fu.run.dist | How far do they run? | 3 km, slowly; 5 km most days; 10 km on weekends; Half marathons; A marathon once, never again
+one fu.run.route | Their route? | Along the sea at dawn; Round the park; On the treadmill at the gym; Through the empty streets at night; Wherever the dog pulls
+@follow hob.cycling name=cycling
+one fu.bike.bike | Their bike is... | An old steel bike they fixed up; A fancy road bike; A city bike with a basket; A folding bike; Borrowed, for three years now
+@follow hob.swimming name=swimming
+one fu.swim.where | Where do they swim? | In the sea, all year round; In the sea, only in summer; A pool, early morning laps; They float more than they swim
+@follow hob.yoga name=yoga
+one fu.yoga.how | Their yoga is... | Every morning on the balcony; A class twice a week; Videos at home, mostly lying down; Serious, they want to teach it
+@follow hob.gym name=the gym
+one fu.gym.what | At the gym they mostly... | Lift heavy; Run on the treadmill with a series on; Take every class there is; Talk more than train; Go for the sauna
+@follow hob.football name=football
+one fu.foot.team | Football: playing or watching? | Playing on Friday mornings with friends; Watching every match, loudly; Coaching kids; A team they suffer for since childhood
+@follow hob.basketball name=basketball
+one fu.bball.how | Basketball for them is... | A pick-up game at the park; Watching the big leagues at night; Their whole teenage years; Shooting hoops alone to think
+@follow hob.chess name=chess
+one fu.chess.open | Their chess? | Online, all night; In the park with old men; A favourite opening they always play; They lose to their nephew, always
+@follow hob.backgammon name=backgammon
+one fu.bg.with | Backgammon with whom? | Grandpa, every Shabbat; The kiosk owner; Anyone brave enough; Alone on the phone app
+@follow hob.garden name=gardening
+one fu.garden.what | What do they grow? | Herbs on the windowsill; Tomatoes on the balcony; Cactuses, only cactuses; A lemon tree in a pot; Too many plants, all with names
+@follow hob.photo name=photography
+one fu.photo.what | What do they photograph? | Strangers in the street; Cats; The sea at sunset; Old buildings; Food, before anyone eats; Their friends, who hate it
+one fu.photo.cam | With what? | Their phone; An old film camera; A big camera they carry everywhere; A cheap camera from a flea market
+@follow hob.paint name=painting
+one fu.paint.what | What do they paint or draw? | Portraits of friends; Sea views; Cartoons; Abstract shapes; The view from their window, again and again; Tiny drawings in the margins
+@follow hob.writing name=writing
+one fu.write.what | What do they write? | A novel they'll never finish; Poems nobody reads; A diary, every night; Funny posts online; Letters to people they never send; Songs
+@follow hob.reading name=reading
+one fu.read.what | What do they read most? | Thrillers; History; Poetry; Science fiction; Biographies; Anything with a dragon
+@follow hob.games name=video games
+one fu.games.what | What do they play? | Old 8-bit classics; Big adventure games; Football games with friends; Puzzle games on the bus; Strategy games, all night
+@follow hob.boardgames name=board games
+one fu.board.what | Their game night is... | Every week, same friends; Monopoly with family, ending in a fight; Complicated games with 300-page rules; Cards and rummikub with neighbours
+@follow hob.sewing name=sewing
+one fu.sew.what | What do they make? | Clothes for themselves; Scarves for everyone, every winter; Repairs for the whole building; Costumes for the kids' Purim
+@follow hob.wood name=woodwork
+one fu.wood.what | What have they built? | A bookshelf that leans; A table they eat at every day; Toys for the kids in the family; Boxes, many boxes
+@follow hob.fix name=fixing old things
+one fu.fix.what | What do they fix? | Old radios; Bicycles; Furniture from the street; Anything anyone brings them; Watches
+@follow hob.dance name=dancing
+one fu.dance.what | Their dancing? | Salsa on Tuesday nights; Folk dancing in the park; Wild at weddings; Ballet as a child, still the posture; Only in the kitchen
+@follow hob.singing name=singing
+one fu.sing.what | Where do they sing? | A choir; Karaoke nights; In the shower, beautifully; At family dinners, by request; In the street, unaware
+@follow hob.theatre name=theatre
+one fu.theatre.what | Theatre for them is... | Acting in an amateur group; Every premiere in town; Backstage, building sets; A dream they gave up
+@follow hob.film name=films
+one fu.film.what | Their kind of film? | Old black-and-white classics; Action, the louder the better; Romantic comedies, every one; Horror, alone at night; Strange films nobody's heard of
+@follow hob.birds name=birdwatching
+one fu.birds.where | Where do they watch birds? | The park pond, every morning; Up north, migration season; From their balcony; Wherever they go, binoculars ready
+@follow hob.fishing name=fishing
+one fu.fish.where | Where do they fish? | Off the breakwater at dawn; The marina; A lake up north; They mostly sit and think
+@follow hob.hiking name=hiking
+one fu.hike.where | Their favourite trail? | The desert; Up north, by the streams; The whole Israel Trail, someday; Anywhere with a view and a sandwich
+@follow hob.surf name=surfing
+one fu.surf.how | Their surfing? | Every morning before work; Weekends when the waves are good; Still learning, mostly falling; They teach it to kids
+@follow hob.volunteer name=volunteering
+one fu.vol.where | Where do they volunteer? | A soup kitchen; An animal shelter; Helping old people with shopping; Teaching kids to read; Cleaning the beach
+@follow hob.collect name=collecting
+one fu.collect.what | What do they collect? | Stamps; Old coins; Vinyl records; Snow globes; Bus tickets; Postcards from places they've never been; Rubber ducks
+@follow hob.lang name=languages
+one fu.lang.what | Which language are they learning? | Spanish; Italian; Japanese; Arabic; French; Korean, from the series; Yiddish, from grandma's letters
+@follow hob.stars name=astronomy
+one fu.stars.what | Astronomy for them? | A telescope on the roof; Apps that name every star; Desert nights with friends; Books about space, at bedtime
+@follow hob.puzzle name=puzzles
+one fu.puzzle.what | Their puzzles? | The newspaper crossword in pen; Jigsaws of a thousand pieces; Sudoku on the bus; Riddles they torture friends with
+@follow hob.travel name=travel
+one fu.travel.where | The best trip they ever took? | India, for months; A week in Rome; South America with a backpack; A road trip in the desert; Their parents' home town abroad; They haven't yet, it's all planned
+@follow hob.podcast name=podcasts
+one fu.pod.what | What do they listen to? | True crime; History; Comedy; Science; Two friends chatting about nothing; Self-improvement
+@follow hob.comedy name=comedy
+one fu.comedy.what | Comedy for them is... | Watching stand-up every week; Trying open-mic nights, terrified; Funny videos, all day; Telling the same three jokes, perfectly
+@follow hob.meditate name=meditation
+one fu.med.how | Their meditation? | Ten minutes every morning; An app that tells them to breathe; A retreat once a year; They fall asleep every time
+@follow hob.cars name=cars and motorbikes
+one fu.cars.what | Cars or motorbikes? | An old car they restore; A motorbike they ride on Saturdays; Watching races; Knowing every model on the street
+
+@generic place
+one fu.place.mem | What do they remember most about {x}? | The smell of bread in the morning; The sound of the sea; Wind and dust; Neighbours shouting across balconies; Total silence at night; Rain on a tin roof; Bells and calls to prayer far away
+one fu.place.friend | A friend from there they still call? | Yes, every week; Yes, on birthdays; They lost touch and miss them; They'd rather forget everyone from there
+one fu.place.miss | What do they miss about it? | The food; The quiet; Their family; How direct people were; Nothing at all; The weather
+one fu.place.back | Do they go back? | Every holiday; Rarely, it's far; Never, they don't want to; They will, one day, to stay
+@follow place.tlv name=Tel Aviv
+one fu.tlv.change | How has the city changed since they were a child? | Too many towers; Too expensive; Better, more alive; They hate the scooters; It hasn't, not where it matters
+@follow place.north name=the north
+one fu.north.what | Their town up north was... | Green and quiet; Close to the border, tense; Near the lake; Small, everyone knew them
+@follow place.south name=the south
+one fu.south.what | Their town in the south was... | Hot and dusty; On the edge of the desert; Near the sea; Small and proud
+@follow place.jlm name=Jerusalem
+one fu.jlm.what | Jerusalem for them was... | Stone and cold winters; Too serious; Beautiful, they miss it; Their grandparents' house
+@follow place.haifa name=Haifa
+one fu.haifa.what | Haifa for them was... | The mountain and the sea; Stairs, so many stairs; Quiet and friendly; The port
+@follow place.kibbutz name=the kibbutz
+one fu.kib.what | Kibbutz life was... | Happy, barefoot all summer; Hard, they left at 18; The children's house, they still talk about it; The dining hall and its gossip
+@follow place.moshav name=the moshav
+one fu.moshav.what | Their family on the moshav grew... | Avocados; Flowers; Chickens, many chickens; Nothing, they had a garage
+@follow place.europe name=Europe
+one fu.europe.where | Where in Europe? | France; Russia or Ukraine; Germany; England; Italy; Poland; Spain; Somewhere small they'd have to explain
+@follow place.americas name=the Americas
+one fu.amer.where | Where? | The United States; Argentina; Brazil; Mexico; Canada; Ethiopia, then America (a long story)
+@follow place.abroad name=abroad
+one fu.abroad.where | Where? | Ethiopia; South Africa; Australia; India; Morocco; Somewhere they don't talk about
+@follow place.moved name=moving around
+one fu.moved.why | Why did they move so much? | A parent in the army; A parent's job abroad; Money trouble; Their family is just restless; They never really knew
+
+@generic edu
+one fu.edu.finish | Did they finish? | Yes, top of the class; Yes, just barely; They're still going; No, life got in the way; No, and they're glad
+one fu.edu.learn | What did they really learn there? | How to work hard; How to make friends; How to party; That they were in the wrong place; A real trade they still use
+one fu.edu.person | Someone from those days they still think about? | A teacher who believed in them; A best friend they lost; A first love; A rival who did better; Nobody, they moved on
+@follow edu.hs name=high school
+one fu.hs.why | Why straight to work? | The family needed the money; They hated sitting still; A job came along; They had a plan of their own
+@follow edu.trade name=trade school
+one fu.trade.what | Which trade? | Electrician; Cook; Hairdresser; Car mechanic; Carpenter; Plumber; Graphic design
+@follow edu.college name=college
+one fu.college.what | Their diploma is in... | Practical engineering; Nursing; Accounting; Design; Social work; Tourism
+@follow edu.uni name=university
+one fu.uni.life | University was... | The best years of their life; Endless exams and coffee; Mostly the student union; Studying at night, working by day
+@follow edu.drop name=dropping out
+one fu.drop.why | Why did they drop out? | Money; A job too good to refuse; They hated it; Love, a long story; A family crisis
+@follow edu.self name=teaching themselves
+one fu.self.what | What did they teach themselves? | Programming; Cooking; Languages; How to fix anything; Music; Accounting, sadly
+@follow edu.teacher name=a teacher
+one fu.teacher.what | What did that teacher do? | Gave them a book that changed everything; Stayed after class to help; Told them they'd be something; Was strict and fair; Let them sing in the class play
+
+@generic work
+one fu.work.before | What did they do before this? | Waiting tables; A soldier's job that stayed with them; Sales; Something completely different; Nothing, this was their first job
+one fu.work.secret | What are they secretly good at in their job? | Calming angry people; Fixing what others break; Remembering everyone's name; Numbers; Making the coffee everyone loves; Looking busy
+one fu.work.colleague | A colleague they can't stand? | The one who eats loudly; The boss's nephew; The one who takes credit; The one who's always happy; They like everyone, suspiciously
+one fu.work.got | How did they get this job? | A friend's tip; An ad, against the odds; The family business; They started it themselves; Pure luck; They don't really know
+text fu.work.boss | One sentence their boss (or a customer) says about them?
+@follow work.office name=office work
+one fu.office.what | What kind of office? | Insurance; A bank; A government office; An agency; A law firm's front desk
+@follow work.tech name=tech
+one fu.tech.what | What do they do in tech? | Write code; Test other people's code; Design apps; Sell software; Fix everyone's computers
+@follow work.shop name=a shop
+one fu.shop.what | What do they sell? | Clothes; Vegetables at the market; Phones and cables; Flowers; Second-hand books; Spices
+@follow work.food name=cafés and restaurants
+one fu.food.what | Their job there? | Barista; Cook; Waiting tables; Washing up, for now; Running the place
+@follow work.teach name=teaching
+one fu.teach.what | Who do they teach? | Little kids; Teenagers; Adults learning Hebrew; Music lessons at home; University students
+@follow work.health name=health care
+one fu.health.what | Their job in health care? | Nurse; Paramedic; Pharmacist; Physiotherapist; Hospital porter; A doctor, very tired
+@follow work.build name=building and repairs
+one fu.build.what | What do they do? | Electrician; Plumber; Painter; Builder; Handyman for the whole street
+@follow work.drive name=driving
+one fu.drive.what | What do they drive? | A taxi; A delivery scooter; A bus; A truck to the market at dawn
+@follow work.art name=art
+one fu.art.what | Their art pays... | All the bills, proudly; Some bills; Nothing yet; In exposure, they joke
+@follow work.business name=their own business
+one fu.biz.what | What's the business? | A small café; A repair shop; Online shop; A cleaning company; Tours for tourists
+@follow work.none name=between jobs
+one fu.none.how | Between jobs, they... | Send ten CVs a day; Enjoy the break, guiltily; Help a friend's business for free; Think about a total change
+@follow work.retired name=retirement
+one fu.ret.was | What did they do before retiring? | A teacher; A bus driver; An engineer; A nurse; A shop owner; A clerk, 40 years in one office
+@follow work.student name=studying
+one fu.stu.job | Their part-time job? | A café; A call centre; Private lessons; Babysitting; Delivery
+@follow work.law name=law
+one fu.law.what | Their law work? | A young lawyer, many hours; A paralegal; They left law and don't regret it; Still deciding
+
+@generic love
+text fu.love.line | How did it begin (or end), in one line?
+one fu.love.long | How long? | A few weeks; A year or two; Many years; Forever, it feels like
+one fu.love.friends | What do friends say about it? | It's perfect; It's a mistake; It's none of their business; Nothing, nobody knows
+@follow love.single name=being single
+one fu.single.how | Being single is... | Freedom; Lonely on Fridays; A project, they're working on it; Fine, but their mother disagrees
+@follow love.dating name=dating
+one fu.dating.how | Their dating life? | Apps, endlessly; Friends' blind dates; Someone from work, secretly; An ex who keeps coming back
+@follow love.together name=the relationship
+one fu.together.how | How did they meet? | At work; Through friends; On an app; At the army; On a bus; At a wedding
+@follow love.married name=the marriage
+one fu.married.how | The marriage is... | Happy, after many years; Comfortable; Busy, with kids; Going through a rough patch
+@follow love.divorced name=the divorce
+one fu.div.how | After the divorce they... | Are friends with the ex; Never speak to the ex; Share the kids, politely; Moved to Tel Aviv to start again
+@follow love.widowed name=being widowed
+one fu.wid.how | How do they live with it? | Keep busy; Talk to their late partner at night; Their friends helped; They've started to smile again
+
+@generic fam
+one fu.fam.close | Close or not? | Very close, they talk every day; Close at holidays; Polite, nothing more; An old argument that never got settled
+@follow fam.sibs name=their siblings
+one fu.sibs.names | A sibling they're closest to? | A sister, older; A sister, younger; A brother, older; A brother, younger; None of them, really
+one fu.sibs.fight | An old fight between them? | Who got the bigger room; Money from the parents; A partner nobody liked; Nothing, they're lucky
+@follow fam.twin name=their twin
+one fu.twin.how | Their twin is... | Identical, people mix them up; Completely different; Living abroad; Their best friend and worst critic
+@follow fam.parents name=their parents
+one fu.par.where | Where do their parents live? | Nearby, too near; In another city; Abroad; Together in the same old flat
+@follow fam.grand name=their grandparents
+one fu.grand.what | What did that grandparent give them? | Recipes; Stories from the old country; Their stubbornness; A ring, a watch or a book; Their laugh
+@follow fam.kids name=their children
+one fu.kids.ages | How old are the kids? | Babies; At school; Teenagers; Grown up and gone; A mix
+one fu.kids.how | As a parent, they are... | Strict; Fun, the kids' best friend; Worried all the time; Tired; Proud, showing photos to strangers
+@follow pet.dog name=their dog
+one fu.dog.name | The dog is called...? | Lucky; Bamba; Shoko; Max; Pita; Moshe; Lola; Captain
+@follow pet.cat name=their cat
+one fu.cat.name | The cat is called...? | Mitzi; Pilpel; Simba; Mrs. Cohen; Tiger; Kugel
+@follow pet.bird name=the parrot
+one fu.bird.talk | What does the parrot say? | Their name; "Shalom!"; A rude word they regret teaching; The phone ringing; Nothing, it judges silently
+
+@generic music
+one fu.music.song | A song from that music that's theirs? | One from their teens; One from their parents' wedding; One they danced to in the army; One they can't hear without crying; One they sing badly at karaoke
+one fu.music.live | Concerts? | Every week; Once a year, the big one; Small bars only; Never, crowds are too much
+@follow music.israeli
+@follow music.mizrahi
+@follow music.rock
+@follow music.hiphop
+@follow music.jazz
+@follow music.classical
+@follow music.electro
+@follow music.french
+
+@generic food
+one fu.food.where | Where do they get it? | Their own kitchen; The market stall they swear by; Their mother's; A tiny place nobody knows; The place by the beach
+@follow food.dish name=that dish
+one fu.dish.what | Which dish is it? | Kubbeh soup; Stuffed peppers; Gefilte fish; Couscous; Jachnun; Cholent; A cake with a secret
+@follow food.hummus name=hummus
+@follow food.spicy name=spicy food
+@follow food.sweet name=sweets
+@follow food.vegan name=vegan food
+one fu.vegan.why | Why vegan? | The animals; Health; A partner started it; A film they saw; They just like vegetables
+
+@follow money.saver name=saving
+one fu.saver.for | Saving for what? | A flat of their own; A big trip; Their kids; A rainy day; They don't know, it feels good
+@follow money.spender name=spending
+one fu.spender.on | What do they spend on? | Clothes; Eating out; Gifts for everyone; Gadgets; Travel; Coffee, a lot of coffee
+@follow home.share name=the shared flat
+one fu.share.mates | The roommates are... | Best friends; Strangers who leave notes; A couple who fight; A student who never sleeps
+@follow mood.angry name=anger
+one fu.angry.last | The last time they were really angry? | At a bank clerk; At their sibling; At a neighbour's noise; At themselves; At a referee on TV; They can't remember
+@follow in.fear name=that fear
+one fu.fear.why | Why that fear? | Something that happened as a child; A family story; They don't know, it's just there; They watched a parent go through it
+@follow world.remind name=who Ishai reminds them of
+one fu.remind.who | Who does he remind them of? | An old friend; A brother or cousin; A teacher; A neighbour from childhood; An actor they can't name

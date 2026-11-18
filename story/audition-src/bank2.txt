@@ -1,0 +1,64 @@
+@section pers | Personality | 8
+scale pers.open req to=dials.open | New things: a new food, a new place, a new idea. They... | Run from them; Can't wait
+scale pers.order to=dials.order | Their desk, their plans, their days are... | Chaos; Perfectly in order
+scale pers.social to=dials.social | After a party they feel... | Empty, they need a week alone; Charged, where's the next one
+scale pers.warm req to=dials.warm | With strangers they are... | Cool and careful; Warm from the first minute
+scale pers.worry req to=dials.worry | How much do they worry? | Nothing gets to them; Everything, all the time
+scale pers.honest to=dials.honest | When the truth hurts, they... | Soften it a lot; Say it straight
+scale pers.patience to=dials.patience | Waiting in a queue, they are... | Furious after a minute; Calm for an hour
+scale pers.humour to=dials.humour | Their humour is... | Gentle; Sharp, a bit cruel
+scale pers.risk to=dials.risk | Risks? | Never, safety first; Always, why not
+one pers.cancel to=traits | A friend cancels an hour before dinner. They... | Say "no problem" and mean it; Say "no problem" and sulk for a week; Call to ask what's wrong; Go alone anyway; Are secretly relieved; Send a long message about respect
+one pers.wallet to=traits | They find a wallet on the street with 500 shekels. They... | Find the owner, whatever it takes; Hand it in at the kiosk; Take a coffee's worth, return the rest (and feel bad); Post a photo in the neighbourhood group; Leave it, not their business
+one pers.line to=traits | Someone cuts in line at the market. They... | Say something, loudly; Say something, politely; Mutter to the person behind them; Let it go, it's one person; Cut back in front of them
+one pers.gift to=traits | They get a gift they hate. They... | Thank them warmly and hide it; Say honestly they don't like it; Give it to someone else; Use it once when the giver visits; Return it with a smile
+one pers.lost to=traits | Lost in a new city, they... | Ask a stranger at once; Walk in circles rather than ask; Trust the phone completely; Enjoy getting lost; Panic a little
+one pers.mistake to=traits | They made a mistake at work that nobody noticed. They... | Tell the boss straight away; Fix it quietly; Forget about it; Lose sleep over it for a week; Blame the computer
+one pers.party to=traits | At a party where they know nobody, they... | Find the host's dog; Make three new friends; Help in the kitchen; Leave after ten minutes; Stand by the snacks; Start the dancing
+one pers.argue to=traits | In an argument they... | Shout, then hug; Go cold and silent; Bring up things from 2015; Make a joke to stop it; Need a day before they talk; Always want to win
+one pers.compliment to=traits | When someone compliments them, they... | Blush and change the subject; Say thank you and enjoy it; Wonder what the person wants; Compliment them right back, twice; Tell the story behind it
+one pers.help to=traits | A neighbour needs help moving a sofa at midnight. They... | Come down in pyjamas; Help, complaining all the way; Pretend to be asleep; Call two friends to help too; Offer coffee instead
+one pers.plans to=traits | Plans for the weekend? | Every hour planned; A rough idea; Whatever happens; Whatever their friends decide; Work, probably
+one pers.secret to=traits | A friend tells them a secret. They... | Take it to the grave; Tell only their partner; Forget it by Tuesday; Hint at it by accident; Worry about it for both of them
+one pers.rain to=traits | It starts raining hard while they're out. They... | Laugh and walk on; Run for the nearest café; Complain to everyone; Already have an umbrella; Dance a bit, nobody's looking
+one pers.waiter to=traits | A waiter brings the wrong dish. They... | Eat it, too shy to say; Say so, politely; Make a scene; Joke about it and swap; Like it more than what they ordered
+one pers.alone to=traits | A whole day alone with nothing to do. For them that's... | Heaven; Scary; Boring after an hour; A chance to clean everything; Impossible, they'd call someone
+one pers.fear to=traits | In a dark stairwell when the light goes off, they... | Laugh it off; Freeze; Sing loudly; Run up the stairs; Find the switch by feel, calmly
+
+@section moods | Moods | 4
+one mood.angry req to=moods.angry | What makes them really angry? | Being lied to>mood.angry; Waiting for someone who's late>mood.angry; Unfairness, to anyone>mood.angry; Being interrupted>mood.angry; Mess that isn't theirs>mood.angry; Bad drivers>mood.angry; Losing at games>mood.angry; Almost nothing>mood.angry
+one mood.angryshow to=moods.angry | When they're angry, it shows as... | Silence and short answers; A loud voice and waving hands; Cleaning, very hard; Sarcasm; Going for a long walk; Tears, which annoys them more
+one mood.sad to=moods.sad | What makes them sad? | Goodbyes; Old photos; Rainy Sundays; Feeling useless; Missing family abroad; Watching the news; Other people's sadness
+one mood.sadshow to=moods.sad | When they're sad they... | Want to be alone; Call everyone; Eat something sweet; Sleep a lot; Pretend everything's fine; Listen to the same sad song
+one mood.nervous to=moods.nervous | What makes them nervous? | Phone calls from unknown numbers; Speaking in front of people; Doctors; Their boss; First dates; Flying; Being late
+one mood.nervshow to=moods.nervous | When they're nervous they... | Talk too fast; Go very quiet; Make jokes; Fix their hair or clothes; Check the phone again and again; Eat
+one mood.happy req to=moods.happy | What makes them truly happy? | A full table of friends; The sea in the morning; A job well done; Music, loud; Their family; A small win, like a parking spot; Making someone laugh
+one mood.happyshow to=moods.happy | When they're happy, you see it because they... | Sing in the street; Hug everyone; Talk about it to strangers; Smile and say nothing; Buy everyone coffee; Dance in the kitchen
+one mood.calm to=moods | What calms them down? | A walk by the sea; A cigarette they keep quitting; A cup of tea; Calling their mother; Cleaning; Music in headphones; Sleep
+one mood.cry to=moods | Who sees them cry? | Nobody, ever; Their best friend; Their family; Everybody, they cry at adverts; Their pet
+
+@section talk | Talk | 3
+one talk.speed req to=talk | How do they speak? | Fast, words falling over each other; Slowly, choosing each word; Loud, from across the street; Quietly, people lean in; With their hands, a lot; In questions, always
+one talk.style to=talk | What's their way with words? | Polite and formal; Jokes in every sentence; Short and dry; Stories that go on and on; Swears a little, mildly; Mixes Hebrew and English; Quotes films and songs
+text talk.phrase req to=talk | A phrase they say a lot?
+many talk.love max=2 to=talk | Topics they could talk about for hours? | Food; Football; Their family; The building committee's latest drama; Films; Old Tel Aviv; Money; Love lives (other people's); Travel; Health tips; Music; Their job
+one talk.avoid to=talk | A topic they avoid? | Their past; Money; Their ex; Their job; Their age; Their family; Nothing, they'll talk about anything
+one talk.listen to=talk | As a listener, they... | Listen to every word; Wait for their turn to speak; Give advice nobody asked for; Remember everything you said a year later; Nod and drift off
+one talk.phone to=talk | On the phone they... | Talk for an hour; Hate calls, text only; Voice notes, five minutes long; Never pick up, call back later; Shout as if the line were bad
+
+@section inside | Inside | 4
+one in.year to=inside | What do they want this year? | A better job; Love; To move flats; To get fit; To finish something they started; To fix things with someone; To save money; Nothing, they're content
+one in.life to=inside | And in life? | A family of their own; To be respected at what they do; To travel the world; Peace and quiet; To make something that lasts; To be a little famous; To take care of their parents
+one in.fear req to=inside | Their biggest fear? | Being alone>in.fear; Failing in front of everyone>in.fear; Getting old>in.fear; Losing their job>in.fear; Heights>in.fear; Disappointing their family>in.fear; Being ordinary>in.fear; The sea at night>in.fear
+one in.proud to=inside | What are they most proud of? | Their family; Something they built; Getting through a hard year; A prize at school, long ago; Their friendships; Their cooking; Being honest
+text in.secret req to=secret | A small, harmless secret only they know (fictional)?
+one in.regret to=inside | A small regret? | A trip they didn't take; A friend they lost touch with; Quitting an instrument; Words they said in anger; A job they turned down; None, they don't do regret
+one in.believe to=inside | Something they believe in? | Luck; Hard work; People are good; Everything happens for a reason; Coffee fixes most things; Nothing, they're a sceptic
+one in.change to=inside | One thing they'd change about themselves? | Be braver; Worry less; Talk less; Talk more; Be tidier; Be more patient; Nothing, thanks
+
+@section world | The world | 3
+one world.know req to=way_in | Might they already know someone in the neighbourhood? (a wish, not a promise) | Nobody yet, a fresh start; $cast
+one world.how to=way_in | How would they know them? | A neighbour of; An old friend of; Studied with; Worked with; A cousin of; Met at the gym with; From the same home town as | world.know!Nobody yet, a fresh start
+one world.ishai req to=way_in | Their first impression of Ishai, a quiet man from Herzl Street? | He seems kind; He seems lonely; He seems a bit odd; He seems like someone who needs a friend; They wouldn't notice him at first; He reminds them of someone>world.remind
+one world.change to=way_in | What would change that first impression? | A good joke; A favour; Seeing him with his dog; A long talk over coffee; Seeing him being kind to someone; Nothing, first impressions stick
+one world.hood to=way_in | What do they like most about the neighbourhood? | The sea; The market; The cafés; The people; The quiet streets; The noise; That nobody knows them yet

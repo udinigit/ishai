@@ -136,6 +136,7 @@
     <div class="box" id="audBox"><div style="font-size:24px" id="audT">Auditions</div>
       <div class="muted" style="font-size:16px">Viewers' own characters (docs/AUDITION_PLAN.md). Requests wait here; approve or decline each, with an optional reason the viewer sees. Steps 1-3 are built: an approved viewer names their character and takes the interview (7 days). Writing the card from the answers is step 4, so sent Auditions wait here with their answers.</div>
       <div id="audSum" class="muted" style="font-size:16px"></div>
+      <div class="bar" style="margin:6px 0"><button id="audTest">🧪 Try an Audition yourself</button><span id="audTestT" class="muted" style="font-size:15px"></span></div>
       <div id="audReq" style="font-size:17px"></div><div id="audMsg" class="muted" style="font-size:16px"></div>
       <details style="margin-top:6px" open><summary>Interviews (in progress and sent)</summary><div id="audIv" style="font-size:16px"></div></details>
       <details style="margin-top:6px"><summary>Decided lately</summary><div id="audDone" style="font-size:16px"></div></details>
@@ -373,6 +374,8 @@
   function audRender(v){
     AUD = v; $('audT').textContent = 'Auditions' + (v.requests.length ? ` (${v.requests.length} waiting)` : '');
     $('audSum').textContent = `${v.members} member${v.members === 1 ? '' : 's'} with an avatar or a request · at most ${v.max} member characters on the show at once.`;
+    $('audTestT').textContent = v.test ? ` Your test: ${v.test}. ` : ' Runs the real interview as a viewer would; it never reaches the show.';
+    if (v.test && v.test !== 'none') { const a = cxEl('a', 'open it'); a.href = '/audition?test=1'; a.target = '_blank'; $('audTestT').appendChild(a); }
     const rq = $('audReq'); rq.textContent = ''; v.requests.forEach(m => rq.appendChild(audRow(m, audDecide(m)))); if (!v.requests.length) rq.appendChild(cxEl('div', 'No requests waiting.', 'opacity:.7'));
     const dn = $('audDone'); dn.textContent = ''; v.decided.forEach(m => dn.appendChild(audRow(m))); if (!v.decided.length) dn.appendChild(cxEl('div', 'None yet.', 'opacity:.7'));
     const bn = $('audBan'); bn.textContent = ''; v.banned.forEach(m => bn.appendChild(audRow(m, (() => { const b = cxEl('div'); b.className = 'bar'; b.appendChild(cxBtn('Lift the ban', () => audDo({action: 'unban', id: m.id}, 'Ban lifted.'), true)); return b; })()))); if (!v.banned.length) bn.appendChild(cxEl('div', 'None.', 'opacity:.7'));
@@ -392,6 +395,9 @@
     if (!(v.interviews || []).length) iv.appendChild(cxEl('div', 'None yet.', 'opacity:.7'));
     if (window.LAST_V) renderInbox(window.LAST_V);
   }
+  $('audTest').onclick = async () => {
+    if (AUD && AUD.test && AUD.test !== 'none' && !confirm('Start a fresh test Audition? Your current test and its answers are deleted.')) return;
+    try { const r = await audApi({action: 'testStart'}); window.open(r.open, '_blank'); audLoad(); } catch (e) { $('audTestT').textContent = e.message; } };
   async function audLoad(){ try { audRender(await audApi()); } catch (e) { $('audMsg').className = 'err'; $('audMsg').textContent = e.message; } }
   const pairOf = (v, a, b) => v.pairs.find(p => (p.a === a && p.b === b) || (p.a === b && p.b === a));
   async function cxLoad(){
