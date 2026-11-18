@@ -1414,7 +1414,8 @@ async function geminiBackups(env, first) {
   const own = String(env.GEMINI_BACKUP || "").split(",").map(x => x.trim()).filter(Boolean);
   return (own.length ? own : await geminiAlts(env)).filter(m => m !== first).slice(0, GEMINI_BACKUP_N);
 }
-async function runGemini(env, messages, maxTokens, useModel) {
+async function runGemini(env, messages, maxTokens, useModel) { return hascii(await runGeminiRaw(env, messages, maxTokens, useModel)); }
+async function runGeminiRaw(env, messages, maxTokens, useModel) {
   if (useModel) return geminiOnce(env, messages, maxTokens, useModel, false);
   const first = await pickGemini(env);
   try { return await geminiOnce(env, messages, maxTokens, first, false); }
@@ -1452,6 +1453,16 @@ async function geminiOnce(env, messages, maxTokens, model, backup) {
   lastWriter = "gemini: " + model + (backup ? " (backup)" : ""); if (!backup) GEMINI_SEEN = model;
   return c;
 }
+// The director's rule (v273): on this show a husky dog is always a "hascii". Every AI reply passes through hascii(), so no writer
+// (story, hosts, recaps, callers, lectures, films, cards...; runGemini() and runCloudflare() both wrap their raw versions) can say "husky" about a dog; a husky voice, laugh or whisper stays husky.
+const HASCII_RE = /\b(husk)(y|ies)\b(?!\s+(?:voice|voiced|laugh|whisper|tone|sound|cough|breath|growl|murmur|rasp))/gi;
+function hascii(t) {
+  if (typeof t !== "string") return t;
+  return t.replace(HASCII_RE, (m, a, b) => {
+    const w = b.toLowerCase() === "ies" ? "hasciis" : "hascii";
+    return m === m.toUpperCase() ? w.toUpperCase() : a[0] === "H" ? "H" + w.slice(1) : w;
+  });
+}
 async function runModel(env, messages, maxTokens = 1000, role = "story") {
   const g = !!env.GEMINI_API_KEY && Date.now() >= geminiOutUntil;
   if (g && role === "story") { try { return await runGemini(env, messages, maxTokens); } catch (e) { noteGemini(e, "story"); } }
@@ -1462,7 +1473,8 @@ async function runModel(env, messages, maxTokens = 1000, role = "story") {
     throw e;
   }
 }
-async function runCloudflare(env, messages, maxTokens = 1000) {
+async function runCloudflare(env, messages, maxTokens = 1000) { return hascii(await runCloudflareRaw(env, messages, maxTokens)); }
+async function runCloudflareRaw(env, messages, maxTokens = 1000) {
   let lastErr;
   // while Workers AI is out of budget, skip it (no wasted calls) and use the backup AI if one is set
   for (let i = Date.now() < cfOutUntil ? MODELS.length : modelIdx; i < MODELS.length; i++) {

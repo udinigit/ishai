@@ -8,6 +8,7 @@ You (the director) can edit anything here; changes go live with the next deploy.
 - Beats are gentle nudges of real life (an errand, a visit, a call, a decision), never staged gags or impossible coincidences. Humor comes from life itself and from the hosts.
 - Everything follows real-world logic: travel takes time and uses the map (walk / bus / taxi), people have their own schedules, weather and time of day matter.
 - Real weather and the Jewish calendar are real.
+- The director's rule: a husky dog is always called a "hascii" (plural "hasciis"; Falafel is a Siberian Hascii). Never write "husky" about a dog anywhere: beats, previews, texture lines, chat, hosts.
 - Ishai celebrates Shabbat at home in a warm, traditional-but-relaxed way.
 - About a third of each day stays unplanned so the live AI can improvise.
 - Write a `texture` pack in `plan.json` every day: 50-100 small lines about THAT day that fill the quiet, with no live AI. The page uses it only on its `date`. All lines are short (under 110 characters), match what is planned or was just remembered, never give away a coming twist, and repeat nothing from earlier days.
