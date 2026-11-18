@@ -6389,7 +6389,9 @@ async function audCardTick(env, s, now) {
   const a = rows.find(r => (tries[r.n] || 0) < AUD_CARD_TRIES); if (!a) return;
   tries[a.n] = (tries[a.n] || 0) + 1;
   try { await audWriteCard(env, a); delete tries[a.n]; s.audCardErr = null; }
-  catch (e) { s.audCardErr = { n: a.n, at: now, err: String(e && e.message || e).slice(0, 200), tries: tries[a.n] }; }
+  catch (e) { const busy = /^Gemini is busy/.test(String(e && e.message));
+    if (busy) tries[a.n]--;   // Gemini being overloaded isn't the card's fault: only bad replies count as tries
+    s.audCardErr = { n: a.n, at: now, err: String(e && e.message || e).slice(0, 200), tries: tries[a.n] }; }
 }
 const audJ = (t, d) => { try { return t ? JSON.parse(t) : d; } catch (e) { return d; } };
 // Claude's review (the weekly cast review): cards waiting, with the answers to check them against
