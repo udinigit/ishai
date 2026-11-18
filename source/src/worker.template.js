@@ -324,7 +324,7 @@ export default {
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
-        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), auditions: { cardErr: s.audCardErr || null, cardTries: s.audCardTry || {}, readErr: s.audReadErr || null, readTries: s.audReadTry || {} }, life: (s.life || []).slice(-6),
+        block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), auditions: { cardErr: s.audCardErr || null, cardTries: s.audCardTry || {}, readErr: s.audReadErr || null, readTries: s.audReadTry || {}, lifeErr: s.memberErr || null }, life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), when busy " + (env.GEMINI_BACKUP ? "gemini (" + env.GEMINI_BACKUP + ")" : "the other Gemini Flash models") + ", then Cloudflare", hosts: hostsByGemini(s) ? "gemini, backup Cloudflare" : "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
         polls: { db: !!env.DB, google: !!env.GOOGLE_CLIENT_ID, off: !!s.pollsOff, next: s.poll ? { id: s.poll.id, q: s.poll.question, by: s.poll.bank ? "stock" : "ai", done: !!s.poll.done } : null, err: s.pollErr || null, last: (s.pollLog || []).slice(-3), pushes: (s.pollPushes || []).map(j => ({ kind: j.kind, poll: j.poll, at: j.at, sent: j.sent, done: j.done })) },
@@ -595,7 +595,8 @@ function publicState(s, dev) {
       .map(([k, v]) => ({ item: k, count: v.count, example: v.example, reachedAt: v.reachedAt || null })),
     artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, goal: g.goal, art: g.art, createdAt: g.createdAt })),
     cast: Object.values(s.cast).map(c => ({ id: c.id, name: c.name, role: c.role, personality: c.personality,
-      look: c.look, memory: c.memory, relationship: c.relationship, lastSeen: c.lastSeen, scenes: c.scenes || 0, remote: c.phoneOnly || undefined })),
+      look: c.look, memory: c.memory, relationship: c.relationship, lastSeen: c.lastSeen, scenes: c.scenes || 0, remote: c.phoneOnly || undefined,
+      ...(c.from === "audience" ? { from: "audience", post: c.post || null, workLook: c.workLook || null, met: !!c.met, gender: c.gender } : {}) })),
     location: last?.location, action: last?.action
   };
 }
@@ -697,6 +698,7 @@ async function tick(env, force) {
     if (!force) { await castKeeperTick(env, s, now); await castMaintain(env, s, now); if (CASTD && !CASTD.queue) { await castWeekTick(env, s, now); await castDraftTick(env, s, now); } }
     if (!force) try { await audCardTick(env, s, now); } catch (e) { s.audCardErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // Auditions step 4: a sent Audition's card
     if (!force) try { await audReadTick(env, s, now); } catch (e) { s.audReadErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // steps 5b-5c: the table read and its tuning
+    if (!force) try { await memberLifeTick(env, s, now); } catch (e) { s.memberErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // step 6: on the show, and leaving it
   } catch (e) { castErr(s, "tick: " + String(e && e.message || e)); }
   TALK = talkLevel(s, env, now);
   // director: activate the next goal, or force it if its deadline passed
@@ -766,6 +768,7 @@ async function tick(env, force) {
     if (ev.update?.memory && !CASTD) c.memory = ev.update.memory;   // with the cast store, the scene keeper keeps these
     if (!CASTD) c.relationship = clamp((c.relationship || 0) + clamp(Math.round(Number(ev.update?.mood) || 0), -1, 1), -5, 5);
     c.lastSeen = storyMs; c.scenes = (c.scenes || 0) + 1;
+    if (c.from === "audience") { if (!c.met) c.met = storyMs; s.memberOnNow = [...(s.memberOnNow || []), { id: c.id, at: now }].slice(-10); }   // Auditions step 6: the first meeting, and "on now" for the owner
   }
   s.events.push({ id: s.nextId++, t: storyMs, created: now, location: ev.location, action: ev.action, delivery: ev.delivery || undefined,
     text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null, art: ev.art || undefined, feel: ev.feel || undefined, then: ev.then || undefined, bathFrom: ev.bathFrom || undefined, holdIt: ev.holdIt || undefined });
@@ -843,7 +846,7 @@ const feel = r => r <= -3 ? "dislikes him" : r < 0 ? "is annoyed with him" : r =
 function castSection(s, last) {
   const near = new Set([last.location, ...NEXT[last.location]]);
   const recent = new Set(s.events.slice(-8).map(e => e.with).filter(Boolean));
-  const all = Object.values(s.cast);
+  const all = Object.values(s.cast).filter(c => !(c.from === "audience" && !c.met));   // a viewer's character before their first scene with Ishai: not yet someone he knows
   const score = c => (recent.has(c.id) ? 2 : 0) + (c.hangouts || []).some(h => near.has(h)) + (c.lastSeen || 0) / 1e15;
   const full = all.filter(c => recent.has(c.id) || (c.relationship || 0) >= 3 || (c.hangouts || []).some(h => near.has(h))).sort((a, b) => score(b) + (b.relationship || 0) / 10 - score(a) - (a.relationship || 0) / 10).slice(0, 4);
   const fullIds = new Set(full.map(c => c.id));
@@ -1533,6 +1536,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
     const hit = Object.values(s.cast).find(c => c.id === w || c.name.toLowerCase() === w)
       || (ev.newCard && (ev.newCard.id === w || ev.newCard.name.toLowerCase() === w) ? ev.newCard : null) || (loc0 ? { id: loc0[0] } : null);
     if (!hit) return { ev, problem: `"${o.with}" is not a known person; "with" must be one of ${Object.keys(s.cast).map(k => `"${k}"`).join(", ")} or null` };
+    if (hit.from === "audience" && !hit.met && !(s.director || []).some(g => g.forceWith === hit.id && g.status === "active")) return { ev, problem: `Ishai hasn't met ${hit.name} yet: that happens in their own planned first scene` };
     ev.with = hit.id;
   }
   if (ev.newCard && ev.with !== ev.newCard.id) ev.with = ev.newCard.id;
@@ -2885,7 +2889,7 @@ function pollCheck(s, raw, closesAt) {
 }
 async function writePoll(env, s, opensAt, closesAt) {
   const from = pollHM(closesAt + POLL_DELAY_MIN * 60000), to = pollHM(closesAt + POLL_LOOK_H * 3600000);
-  const cast = Object.values(s.cast).filter(c => !POLL_NOT.includes(c.id))
+  const cast = Object.values(s.cast).filter(c => !POLL_NOT.includes(c.id) && !(c.from === "audience" && !c.met))
     .map(c => `- ${c.id}: ${c.name}, ${c.role}. ${c.phoneOnly ? "Never seen in person: kind \"message\" only." : "Usually at: " + (c.hangouts || []).join(", ") + "."} Memory of Ishai: ${String(c.memory || "none").slice(0, 160)}`).join("\n");
   const recent = (s.pollLog || []).slice(-8).map(p => `- ${p.question} -> ${p.winner || "no votes"}`).join("\n") || "- none yet";
   const messages = [{ role: "system", content:
@@ -5958,6 +5962,11 @@ async function memberApi(req, env, url) {
       m = keep ? { ...m, avatar: null, adult: 0, note: null } : memberBlank(id); msg = "Deleted.";
     }
     else if (b.action === "read") await env.DB.prepare("UPDATE member_inbox SET read = 1 WHERE member = ? AND n <= ?").bind(id, Math.round(Number(b.upTo)) || 0).run();
+    else if (b.action === "quit") {   // step 6: Quit show (a goodbye scene within 7 days)
+      if (m.state !== "on" || !aud || aud.state !== "on") return json({ error: "Your character isn't on the show." }, {}, 409);
+      const s = await loadState(env), r = await audLeave(env, s, aud, now, { by: "member" }); if (r.now) await saveState(env, s);
+      m = await memberGet(env, id); msg = r.now ? "Your character has left the show." : "The goodbye is booked: " + audWhen(r.at) + ".";
+    }
     else if (b.action === "dev") {   // link this device's notifications to the account (the bell must be on: its KV entry exists)
       const ep = String(b.endpoint || ""), key = ep.length < 700 && pushAllowed(ep) ? await pushKey(ep) : null;
       if (!key || !await env.ISHAI.get(key)) return json({ error: "turn notifications on first" }, {}, 409);
@@ -5973,9 +5982,9 @@ async function memberApi(req, env, url) {
   if (aud && aud.state === "interview") { const c = (await env.DB.prepare("SELECT COUNT(*) AS c FROM aud_answer WHERE aud = ?").bind(aud.n).first() || {}).c || 0; let nm = {}; try { nm = JSON.parse(aud.name || "{}"); } catch (e) {}
     interview = { name: nm.first || null, answered: c, total: AUD_BANK.total, until: aud.started + AUD_DAYS * 86400000 }; }
   let offer = null;
-  if (aud && ["offered", "accepted", "reading", "tuning", "greenlight", "on"].includes(aud.state)) { const nm = audJ(aud.name, {}), d = audJ(aud.director, {}), w = audJ(aud.ways, [])[d.way];
+  if (aud && ["offered", "accepted", "reading", "tuning", "greenlight", "on", "leaving"].includes(aud.state)) { const nm = audJ(aud.name, {}), d = audJ(aud.director, {}), w = audJ(aud.ways, [])[d.way];
     let readUntil = null; if (aud.state === "reading") { try { await audReadTables(env); const r = await env.DB.prepare("SELECT ready, started FROM aud_read WHERE aud = ?").bind(aud.n).first(); if (r) readUntil = r.started ? null : r.ready + AUD_READ_D * 86400000; } catch (e) {} }
-    offer = { name: `${nm.first || ""} ${nm.sur || ""}`.trim(), title: w ? w.title : "", until: d.offerUntil || null, accepted: d.accepted || null, aud: aud.state, readUntil, first: d.first ? d.first.at : null }; }
+    offer = { name: `${nm.first || ""} ${nm.sur || ""}`.trim(), title: w ? w.title : "", until: d.offerUntil || null, accepted: d.accepted || null, aud: aud.state, readUntil, first: d.first ? d.first.at : null, castId: aud.cast_id || null, byeAt: d.byeAt || null }; }
   return json({ ok: true, msg, member: memberView(m, now), interview, offer, inbox, unread: inbox.filter(x => !x.read).length, max: MEMBER_MAX }, { "cache-control": "no-store" });
 }
 // the director's Auditions box: requests to decide, the recent decisions and banned accounts
@@ -5997,6 +6006,12 @@ async function memberDirApi(req, env) {
     }
     if (["audWrite", "audApprove", "audReject"].includes(b.action)) {   // steps 4-5: the card, the offer
       const r = await audDirAct(env, b, now); if (r.error) return json({ error: r.error }, {}, r.status || 400);
+    } else if (b.action === "audEnd") {   // step 6: the director ends a member character (a goodbye, or straight away; a ban stops new Auditions)
+      await audTables(env); const a = await env.DB.prepare("SELECT * FROM aud WHERE n = ?").bind(Math.round(Number(b.n))).first();
+      if (!a || !["on", "leaving"].includes(a.state)) return json({ error: "that character isn't on the show" }, {}, 409);
+      const s = await loadState(env), r = a.state === "leaving" && !b.now ? { ok: true } : await audLeave(env, s, a, now, { by: "director", now: !!b.now, why: cleanStr(b.reason, 200) || null });
+      if (r.now || (a.state === "leaving" && b.now)) { if (a.state === "leaving") await audGone(env, s, a, audJ(a.director, {}), now, cleanStr(b.reason, 200) || null); await saveState(env, s); }
+      if (b.ban) { const m = await memberGet(env, a.member); if (m.at && m.id !== AUD_TEST_ID) { m.banned = 1; await memberPut(env, m, now); } }
     } else if (["audReadNow", "audNotYet", "audStop", "audGreen"].includes(b.action)) {   // steps 5b-5c: the table read, the green light
       const r = await audGreenAct(env, b, now); if (r.error) return json({ error: r.error }, {}, r.status || 400);
     } else {
@@ -6258,7 +6273,7 @@ async function audApi(req, env, url) {
       a = await env.DB.prepare("SELECT * FROM aud WHERE n = ?").bind(a.n).first();
     } else return out({ stage: "naming", until, shufflesLeft: AUD_SHUFFLES - (a.shuffles || 0), avatar: m.avatar, minutes: [30, 40], days: AUD_DAYS });
   }
-  if (a && ["accepted", "reading", "tuning", "greenlight", "on", "testDone"].includes(a.state) && b.action !== "accept" && b.action !== "decline") return audRead(env, m, a, b, now, out);   // steps 5b-5c
+  if (a && ["accepted", "reading", "tuning", "greenlight", "on", "testDone", "leaving", "left"].includes(a.state) && b.action !== "accept" && b.action !== "decline") return audRead(env, m, a, b, now, out);   // steps 5b-6
   if (a && ["offered", "accepted", "declinedOffer", "offerExpired"].includes(a.state)) return audOffer(env, m, a, b, now, out);   // step 5: the role page
   if (a && (a.state === "rejected" || a.state === "stopped")) return out({ stage: "rejected", name: audJ(a.name, {}) });
   if (!a || !["interview", "submitted"].includes(a.state) || !["interview", "submitted", "offered", "reading", "on"].includes(m.state))
@@ -6313,7 +6328,7 @@ async function audApi(req, env, url) {
 // the director's view of interviews: progress, days left, and the answers once submitted (step 4 writes the card)
 async function audDirList(env, now) {
   await audTables(env);
-  const rows = (await env.DB.prepare("SELECT n, member, state, name, started, done, at, card, ways, review, director, cast_id FROM aud WHERE state IN ('interview', 'submitted', 'offered', 'accepted', 'rejected', 'declinedOffer', 'offerExpired', 'reading', 'tuning', 'greenlight', 'on', 'testDone', 'stopped') ORDER BY n DESC LIMIT 40").all()).results || [];
+  const rows = (await env.DB.prepare("SELECT n, member, state, name, started, done, at, card, ways, review, director, cast_id FROM aud WHERE state IN ('interview', 'submitted', 'offered', 'accepted', 'rejected', 'declinedOffer', 'offerExpired', 'reading', 'tuning', 'greenlight', 'on', 'testDone', 'stopped', 'leaving', 'left') ORDER BY n DESC LIMIT 40").all()).results || [];
   await audReadTables(env);
   const reads = rows.length ? (await env.DB.prepare(`SELECT * FROM aud_read WHERE aud IN (${rows.map(() => "?").join(",")})`).bind(...rows.map(r => r.n)).all()).results || [] : [];
   const RD = Object.fromEntries(reads.map(r => [r.aud, r]));
@@ -6639,7 +6654,7 @@ async function audRead(env, m, a, b, now, out) {
   const base = { name: nm, role: { title: w.title, place: AUD_ROLES.places[w.place] }, place: w.place, look: c.look || nm.look, workLook: audWorkLook(c.look || nm.look, w.kind) };
   if (a.state === "accepted" || !r || !r.script) return out({ stage: "readSoon", ...base });
   if (["tuning", "greenlight"].includes(a.state)) return out({ stage: "waiting", ...base, tuned: !!r.tune });
-  if (["on", "testDone"].includes(a.state)) return out({ stage: "on", ...base, first: d.first || d.would || null, test: a.state === "testDone" });
+  if (["on", "testDone", "leaving", "left"].includes(a.state)) return out({ stage: "on", ...base, first: d.first || d.would || null, test: a.state === "testDone", leaving: a.state === "leaving" ? { at: d.byeAt } : null, left: a.state === "left" ? d.left : null, replay: r ? audReadView(r).log : [] });   // with the table read to look back on
   const sc = audJ(r.script, {}), picks = audJ(r.picks, []), until = r.ready + AUD_READ_D * 86400000;
   if (b.action === "readStart") { if (!r.started) await env.DB.prepare("UPDATE aud_read SET started = ? WHERE aud = ? AND started IS NULL").bind(now, a.n).run(); r.started = r.started || now; }
   if (b.action === "readPick") {
@@ -6741,7 +6756,8 @@ async function audGreenAct(env, b, now) {
   }
   card.id = id; card.name = name;
   const entry = { id, name, role, personality: card.personality || "", speech: card.speech || "", hangouts: [w.place], look: card.look, workLook: card.workLook, gender: nm.gender,
-    memory: `New in the neighbourhood, ${w.title}. Has never met Ishai.`, relationship: 0, from: "audience", aud: n, lastSeen: null, scenes: 0 };
+    memory: `New in the neighbourhood, ${w.title}. Has never met Ishai.`, relationship: 0, from: "audience", aud: n, lastSeen: null, scenes: 0,
+    post: { place: w.place, kind: w.kind, hours: ((AUD_KIND[w.kind] || {}).hours || {})[w.place] || [9, 17] } };
   s.cast[id] = entry;
   await castTables(env);
   await env.DB.prepare("INSERT INTO cast_card (id, card, v, at) VALUES (?, ?, 1, ?) ON CONFLICT(id) DO UPDATE SET card = excluded.card, v = cast_card.v + 1, at = excluded.at").bind(id, JSON.stringify(castCardClean(card, card)), now).run();
@@ -6766,3 +6782,94 @@ function audReadView(r) {
       return { situation: t.situation, dial: dl.name, setting: (dl.settings.find(x => x.k === k) || {}).label, self: !!p.self, say: ch.say, secs: Math.round((p.ms || 0) / 1000) }; }) : [] };
 }
 const AUD_TUNE_HOW = 'auditionTunes: a member character\'s tuning after their table read (dials, atWork, sample lines, mood lines). Check every change stays inside the card\'s personality and the role, and the rules. Add "auditionTunes":[{"n":3,"verdict":"approve|edit|reject","reason":"one line","tune":{"atWork":{...},"dials":{...}} (edit only)}] to the POST. Advice for the director\'s green light.';
+
+// ---- Auditions, step 6 (docs/AUDITION_PLAN.md): on the show, and leaving it ----
+// A member character (s.cast entry with from: "audience") stands at their post in their hours (the page's memberLayer()),
+// is kept out of the story until their first scene with Ishai (`met`, set when a moment with them is accepted), and then gets a
+// booked scene with Ishai every 4-7 days (goal `mem-<id>-<mmdd>`). The owner gets reminders the day before and 10 minutes
+// before the first scene, and "on now" pushes (at most AUD_ONNOW a day). Quit show (the owner) or End (the director) books a
+// goodbye within 7 days (goal `bye-<n>`) that fits the role; after it the character leaves the cast (the card stays, marked
+// left), and the interview's answers are deleted 30 days later. Never met: they leave at once.
+const AUD_ONNOW = 2, AUD_BYE_D = 7, AUD_KEEP_ANSWERS_D = 30;
+const AUD_BYE_WHY = ["a job offer in another city", "a place in a course abroad", "moving up north to be near family", "a new job across the country", "going back to studying, far from here"];
+function audSlot(s, place, now, days) {
+  const len = POLL_LEN_MIN * 60000; let t = Math.ceil((now + 2 * 3600000) / (30 * 60000)) * 30 * 60000;
+  for (; t < now + days * 86400000; t += 30 * 60000) {
+    if (!pollAwake(t) || !pollAwake(t + len - 60000) || pollShabbat(s, t) || pollShabbat(s, t + len)) continue;
+    if (!(placeOpen(place, t) && placeOpen(place, t + 60 * 60000))) continue;
+    if (pollFree(s, t, t + len)) return t;
+  }
+  return null;
+}
+async function audSet(env, n, state, d) { await env.DB.prepare("UPDATE aud SET state = COALESCE(?, state), director = ? WHERE n = ?").bind(state, JSON.stringify(d), n).run(); }
+// out of the cast: the s.cast entry goes, the card stays as history (left), goals with them are cancelled
+async function audGone(env, s, a, d, now, why) {
+  const id = a.cast_id, nm = audJ(a.name, {});
+  if (id) { delete s.cast[id];
+    for (const g of s.director || []) if (g.forceWith === id && g.status !== "done") { g.status = "done"; g.how = "cancelled"; g.doneAt = now; }
+    try { await castTables(env); const r = await env.DB.prepare("SELECT card FROM cast_card WHERE id = ?").bind(id).first();
+      if (r) { const c = audJ(r.card, {}); c.left = now; await env.DB.prepare("UPDATE cast_card SET card = ?, at = ? WHERE id = ?").bind(JSON.stringify(c), now, id).run(); } } catch (e) {} }
+  d.left = now; d.leftWhy = why || null; await audSet(env, a.n, "left", d);
+  const m = await memberGet(env, a.member); if (m.at) { Object.assign(m, { state: "left", left_at: now }); await memberPut(env, m, now); }
+  await memberSay(env, a.member, "left", `${nm.first} has left Watching Ishai. Thank you for bringing ${nm.gender === "m" ? "him" : "her"} to the neighbourhood. You can ask for a new Audition 30 days from now.`, true, now);
+  try { await memberPush(env, a.member); } catch (e) {}
+}
+// Quit show (the owner) or End (the director): a goodbye scene within 7 days, or straight away
+async function audLeave(env, s, a, now, o) {
+  const d = audJ(a.director, {}), id = a.cast_id, c = id && s.cast[id], nm = audJ(a.name, {});
+  if (!c || !c.met || o.now) { await audGone(env, s, a, d, now, o.why); return { ok: true, now: true }; }
+  const place = (c.post || {}).place || (c.hangouts || [])[0] || "street", at = audSlot(s, place, now, AUD_BYE_D) || audSlot(s, "street", now, AUD_BYE_D);
+  if (!at) { await audGone(env, s, a, d, now, o.why); return { ok: true, now: true }; }
+  const why = AUD_BYE_WHY[Math.floor(audRand("bye:" + a.n)() * AUD_BYE_WHY.length)];
+  for (const g of s.director || []) if (g.forceWith === id && g.status === "waiting") { g.status = "done"; g.how = "cancelled"; g.doneAt = now; }
+  const g = newGoal({ id: "bye-" + a.n, goal: `${c.name} tells Ishai some news: ${why}, so this is goodbye. A warm, real farewell at ${AUD_ROLES.places[place] || place}; after today ${c.name} won't be around any more. Nobody dies, nothing dramatic: life moves on.`,
+    forceText: `${c.name} says goodbye to Ishai: ${why}.`, startAt: new Date(at).toISOString(), deadlineAt: new Date(at + POLL_LEN_MIN * 60000).toISOString(), location: place, with: c.name, forceWith: id, forceAction: "talking",
+    teaser: `${c.name} has news for Ishai` }, now);
+  g.audBye = a.n; s.director.push(g); await saveState(env, s);
+  Object.assign(d, { leaving: now, byeAt: at, byeGoal: g, leaveBy: o.by || "member", leaveWhy: o.why || null });
+  await audSet(env, a.n, "leaving", d);
+  const m = await memberGet(env, a.member); if (m.at) { m.state = "leaving"; await memberPut(env, m, now); }
+  await memberSay(env, a.member, "leaving", `${c.name}'s last appearance: ${audWhen(at)}, at ${AUD_ROLES.places[place] || place}: ${c.name} tells Ishai about ${why}.`, true, now);
+  try { await memberPush(env, a.member); } catch (e) {}
+  return { ok: true, at };
+}
+// in tick(): reminders, "on now", regular scenes, goodbyes, putting things back after a lost save, deleting old answers
+async function memberLifeTick(env, s, now) {
+  if (!env.DB) return; await audReadTables(env);
+  const rows = (await env.DB.prepare("SELECT * FROM aud WHERE state IN ('on', 'leaving') AND cast_id IS NOT NULL").all()).results || [];
+  const day = dayOfTZ(now), onNow = s.memberOnNow || []; s.memberOnNow = [];
+  for (const a of rows) {
+    const d = audJ(a.director, {}), id = a.cast_id, nm = audJ(a.name, {}); let dirty = false;
+    if (a.state === "leaving") {
+      if (d.byeGoal && !(s.director || []).some(g => g.id === d.byeGoal.id)) s.director.push(d.byeGoal);   // a lost save
+      const g = (s.director || []).find(x => x.id === "bye-" + a.n);
+      if ((g && g.status === "done") || (d.byeAt && now > d.byeAt + 6 * 3600000)) { await audGone(env, s, a, d, now, d.leaveWhy); continue; }
+    }
+    const c = s.cast[id]; if (!c) continue;
+    const f = d.first || {};
+    if (f.at && !d.rem1 && now > f.at - 24 * 3600000 && now < f.at - 3 * 3600000) { d.rem1 = now; dirty = true;
+      await memberSay(env, a.member, "remind", `Tomorrow: ${nm.first}'s first scene, ${audWhen(f.at)}, at ${AUD_ROLES.places[f.place] || f.place}.`, true, now); try { await memberPush(env, a.member); } catch (e) {} }
+    if (f.at && !d.rem2 && now > f.at - 12 * 60000 && now < f.at + 15 * 60000) { d.rem2 = now; dirty = true;
+      await memberSay(env, a.member, "remind", `In 10 minutes: ${nm.first} meets Ishai for the first time, at ${AUD_ROLES.places[f.place] || f.place}. Watch it live!`, true, now); try { await memberPush(env, a.member); } catch (e) {} }
+    if (onNow.some(x => x.id === id)) { const o = d.onNow && d.onNow.day === day ? d.onNow : { day, n: 0 };
+      if (o.n < AUD_ONNOW && !(f.at && Math.abs(now - f.at) < 3600000)) { o.n++; d.onNow = o; dirty = true;
+        await memberSay(env, a.member, "onnow", `${nm.first} is on Watching Ishai right now, with Ishai!`, true, now); try { await memberPush(env, a.member); } catch (e) {} } }
+    // a scene with Ishai every 4-7 days, once they've met (never while one is booked or a goodbye is coming)
+    if (a.state === "on" && c.met && !(s.director || []).some(g => g.forceWith === id && g.status !== "done")) {
+      const gap = 4 + Math.floor(audRand("gap:" + id + ":" + (c.scenes || 0))() * 4), last = Math.max(c.lastSeen || 0, d.lastBooked || 0);
+      if (now - last > (gap - 1) * 86400000) {
+        const place = (c.post || {}).place || (c.hangouts || [])[0], at = place && audSlot(s, place, now + 86400000 - 2 * 3600000, 2);
+        if (at) { const g = newGoal({ id: `mem-${id}-${dayOfTZ(at).slice(5).replace("-", "")}`, goal: `Ishai runs into ${c.name} (${c.role}) at ${AUD_ROLES.places[place] || place}, where ${c.name} is at work. They pick up where they left off, naturally.`,
+            forceText: `Ishai and ${c.name} chat at ${AUD_ROLES.places[place] || place}.`, startAt: new Date(at).toISOString(), deadlineAt: new Date(at + POLL_LEN_MIN * 60000).toISOString(), location: place, with: c.name, forceWith: id, forceAction: "talking" }, now);
+          s.director.push(g); d.lastBooked = at; dirty = true; }
+      }
+    }
+    if (dirty) await audSet(env, a.n, null, d);
+  }
+  // left characters still in the cast after a lost save; answers 30 days after leaving
+  if (!s.audSweep || now - s.audSweep > 6 * 3600000) { s.audSweep = now;
+    for (const a of (await env.DB.prepare("SELECT n, cast_id, director FROM aud WHERE state = 'left'").all()).results || []) {
+      const d = audJ(a.director, {}); if (a.cast_id && s.cast[a.cast_id] && s.cast[a.cast_id].aud === a.n) delete s.cast[a.cast_id];
+      if (d.left && now - d.left > AUD_KEEP_ANSWERS_D * 86400000 && !d.answersGone) { await env.DB.prepare("DELETE FROM aud_answer WHERE aud = ?").bind(a.n).run(); d.answersGone = now; await audSet(env, a.n, null, d); }
+    } }
+}

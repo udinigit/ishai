@@ -9229,6 +9229,20 @@
   "kinds": [
    {
     "id": "waiter",
+    "hours": {
+     "cafe": [
+      8,
+      17
+     ],
+     "foodcourt": [
+      11,
+      21
+     ],
+     "bar": [
+      18,
+      25
+     ]
+    },
     "label": "waiter / barista",
     "title": "a {job} at {place}",
     "jobs": {
@@ -9272,6 +9286,12 @@
    },
    {
     "id": "vendor",
+    "hours": {
+     "market": [
+      7,
+      18
+     ]
+    },
     "label": "market vendor",
     "title": "a {job} at {place}",
     "jobs": {
@@ -9307,6 +9327,20 @@
    },
    {
     "id": "clerk",
+    "hours": {
+     "store": [
+      9,
+      20
+     ],
+     "mall": [
+      10,
+      21
+     ],
+     "shops": [
+      9,
+      18
+     ]
+    },
     "label": "shop clerk",
     "title": "a {job} at {place}",
     "jobs": {
@@ -9342,6 +9376,12 @@
    },
    {
     "id": "nightclerk",
+    "hours": {
+     "kiosk": [
+      18,
+      29
+     ]
+    },
     "label": "kiosk night clerk",
     "title": "the {job} at {place}",
     "jobs": {
@@ -9373,6 +9413,14 @@
    },
    {
     "id": "gym",
+    "hours": {
+     "gym": [
+      7,
+      12,
+      17,
+      21
+     ]
+    },
     "label": "gym staff / trainer",
     "title": "a {job} at {place}",
     "jobs": {
@@ -9406,6 +9454,12 @@
    },
    {
     "id": "student",
+    "hours": {
+     "campus": [
+      9,
+      16
+     ]
+    },
     "label": "student",
     "title": "a {job} at {place}",
     "jobs": {
@@ -9438,6 +9492,14 @@
    },
    {
     "id": "neighbour",
+    "hours": {
+     "corridor": [
+      8,
+      9,
+      18,
+      20
+     ]
+    },
     "label": "neighbour",
     "title": "a {job} in {place}",
     "jobs": {
@@ -9466,6 +9528,12 @@
    },
    {
     "id": "regular",
+    "hours": {
+     "bar": [
+      20,
+      24
+     ]
+    },
     "label": "bar regular",
     "title": "a {job} at {place}",
     "jobs": {

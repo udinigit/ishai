@@ -340,7 +340,7 @@
   // ---- Auditions (docs/AUDITION_PLAN.md, steps 1-2): /api/member/dir ----
   let AUD = null; const AUD_ART = {}, AUD_OPEN = new Set(), AUD_ROWS = new Map();
   const AUD_STATE = {submitted: 'SENT', offered: 'OFFERED', accepted: 'ACCEPTED', rejected: 'REJECTED', declinedOffer: 'TURNED DOWN BY THE VIEWER', offerExpired: 'OFFER LAPSED',
-    reading: 'TABLE READ', tuning: 'BEING TUNED', greenlight: 'READY FOR THE GREEN LIGHT', on: 'ON THE SHOW', testDone: 'TEST DONE', stopped: 'STOPPED'};
+    reading: 'TABLE READ', tuning: 'BEING TUNED', greenlight: 'READY FOR THE GREEN LIGHT', on: 'ON THE SHOW', testDone: 'TEST DONE', stopped: 'STOPPED', leaving: 'LEAVING', left: 'LEFT THE SHOW'};
   // steps 5b-5c: the table read's progress, then the green light
   function audRead(a, box){
     const d = a.director || {}, w = a.ways[d.way] || {}, r = a.read, bar = cxEl('div'); bar.className = 'bar';
@@ -348,7 +348,14 @@
     if (a.state === 'accepted') { line(`Accepted ${fmt(d.accepted)}: ${w.title}. The table read is being written (next tick, Gemini only).`, 'color:var(--amber)'); bar.appendChild(cxBtn('Write the table read now', () => audDo({action: 'audReadNow', n: a.n}, 'Table read written.'))); box.appendChild(bar); return; }
     if (a.state === 'reading') { line(`Table read for ${w.title}: ${r ? (r.started ? `started ${fmt(r.started)}, ${r.picks} of ${r.turns} turns` : `ready ${fmt(r.ready)}, not started`) + ' · open until ' + fmt(r.until) : '…'}.`, 'color:var(--amber)'); if (r && !r.started) { bar.appendChild(cxBtn('Write it again', () => { if (confirm('Write a new table read?')) audDo({action: 'audReadNow', n: a.n}, 'A new table read is written.'); }, true)); box.appendChild(bar); } return; }
     if (a.state === 'tuning') { line(`Table read done (${r ? r.picks : 0} picks). The card is being tuned (next tick).`, 'color:var(--amber)'); bar.appendChild(cxBtn('Tune it now', () => audDo({action: 'audReadNow', n: a.n}, 'Tuned.'))); box.appendChild(bar); return; }
-    if (a.state === 'on') { const f = d.first || {}; line(`ON THE SHOW as ${w.title} (cast id "${a.castId || ''}"). First scene booked: ${fmt(f.at)} at ${f.place}.`, 'color:var(--amber)'); return; }
+    if (a.state === 'on' || a.state === 'leaving') { const f = d.first || {};
+      line(a.state === 'leaving' ? `LEAVING: the goodbye is booked for ${fmt(d.byeAt)} (${d.leaveBy === 'director' ? 'you ended it' : 'the viewer quit'}).` : `ON THE SHOW as ${w.title} (cast id "${a.castId || ''}"). First scene ${f.at > Date.now() ? 'booked: ' + fmt(f.at) : 'was ' + fmt(f.at)} at ${f.place}.${d.onNow ? ` "On now" pushes today: ${d.onNow.n}.` : ''}`, 'color:var(--amber)');
+      const why = cxEl('input'); why.placeholder = 'reason (optional; the viewer sees it with End now)'; box.appendChild(why);
+      if (a.state === 'on') bar.appendChild(cxBtn('End with a goodbye', () => { if (confirm(`End ${a.name.first}? A goodbye scene is booked within 7 days, then ${a.name.first} leaves the cast.`)) audDo({action: 'audEnd', n: a.n, reason: why.value.trim()}, 'Goodbye booked.'); }, true));
+      bar.appendChild(cxBtn('End now', () => { if (confirm(`Take ${a.name.first} off the show straight away (no goodbye scene)?`)) audDo({action: 'audEnd', n: a.n, now: true, reason: why.value.trim()}, 'Ended.'); }, true));
+      bar.appendChild(cxBtn('End now and ban', () => { if (confirm(`Take ${a.name.first} off now AND ban this account from new Auditions?`)) audDo({action: 'audEnd', n: a.n, now: true, ban: true, reason: why.value.trim()}, 'Ended and banned.'); }, true));
+      box.appendChild(bar); return; }
+    if (a.state === 'left') { line(`Left the show ${fmt(d.left)}${d.leftWhy ? ' · ' + d.leftWhy : ''}. The card stays in the show's history; the answers go 30 days after leaving${d.answersGone ? ' (gone)' : ''}.`, 'opacity:.8'); return; }
     if (a.state === 'testDone') { const x = d.would || {}; line(`Test green light: as a real one it would have joined the cast as "${x.id}" with the first scene ${fmt(x.at)} at ${x.place}. Nothing was booked.`, 'color:var(--amber)'); if (x.goal) line('The goal: ' + x.goal, 'font-size:15px;opacity:.85'); return; }
     if (a.state === 'stopped') { line('You stopped it' + (d.reason ? ': ' + d.reason : '.'), 'opacity:.8'); return; }
     // greenlight: everything set; the director's last word
@@ -382,7 +389,7 @@
     const box = cxEl('div', null, 'margin-top:6px'), d = a.director || {};
     if (a.state === 'interview') return box;
     if (a.state === 'offered') { const w = a.ways[d.way] || {}; box.appendChild(cxEl('div', `Offered: ${w.title}${w.linkText ? ' (' + w.linkText + ')' : ''}. Waiting for the viewer until ${fmt(d.offerUntil)}.`, 'color:var(--amber)')); return box; }
-    if (['accepted', 'reading', 'tuning', 'greenlight', 'on', 'testDone', 'stopped'].includes(a.state)) { audRead(a, box); return box; }
+    if (['accepted', 'reading', 'tuning', 'greenlight', 'on', 'testDone', 'stopped', 'leaving', 'left'].includes(a.state)) { audRead(a, box); return box; }
     if (a.state !== 'submitted') { box.appendChild(cxEl('div', a.state === 'rejected' ? 'You rejected it' + (d.reason ? ': ' + d.reason : '.') : a.state === 'declinedOffer' ? 'The viewer turned the role down.' : 'The viewer didn\'t answer the offer in 7 days.', 'opacity:.8')); return box; }
     if (!a.card) {
       box.appendChild(cxEl('div', 'The card is being written from the answers (within a few minutes; it waits while Gemini is paused for the day).', 'opacity:.85'));

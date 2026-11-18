@@ -305,9 +305,15 @@
       if (v.stage === 'readSoon') c.append(el('h2', 'THE TABLE READ IS BEING WRITTEN'), el('p', `A short rehearsal of ${nm} as ${v.role.title}, on the real set at ${v.role.place}, with a stand-in for Ishai. We'll tell you in the 👤 inbox when it's ready (usually within the hour).`), back());
       if (v.stage === 'readDone' || v.stage === 'waiting') c.append(el('h2', v.stage === 'readDone' ? 'THAT\'S A WRAP!' : 'WAITING FOR THE GREEN LIGHT'),
         el('p', v.stage === 'readDone' || !v.tuned ? `Thank you! ${nm}'s card is being fine-tuned from your picks. Then ${nm} waits for the director's final green light.` : `${nm} is tuned and ready. The director gives the final green light; we'll tell you the time of the first scene.`), back());
-      if (v.stage === 'on') { const f = v.first || {}; c.append(el('h2', v.test ? 'GREEN LIGHT (TEST)' : 'ON THE SHOW!'),
-        el('p', `${nm} ${v.test ? 'would join' : 'joins'} Watching Ishai as ${v.role.title}.` + (f.at ? ` First scene: ${new Date(f.at).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'})}.` : '')),
-        el('p', v.test ? 'It\'s a test, so nothing was booked and no one joined the cast.' : 'From here the show writes ' + nm + '. Watch it live!', 'muted'), back()); }
+      if (v.stage === 'on') { const f = v.first || {}, when = t => new Date(t).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'});
+        c.append(el('h2', v.test ? 'GREEN LIGHT (TEST)' : v.left ? 'LEFT THE SHOW' : v.leaving ? 'LEAVING THE SHOW' : 'ON THE SHOW!'),
+          el('p', v.left ? `${nm} has left Watching Ishai. Thank you for bringing ${v.name.gender === 'm' ? 'him' : 'her'} to the neighbourhood.`
+            : v.leaving ? `${nm}'s last appearance${v.leaving.at ? ': ' + when(v.leaving.at) : ' is booked'}.`
+            : `${nm} ${v.test ? 'would join' : 'is on'} Watching Ishai as ${v.role.title}.` + (f.at && f.at > Date.now() ? ` First scene: ${when(f.at)}.` : '')),
+          el('p', v.test ? 'It\'s a test, so nothing was booked and no one joined the cast.' : v.left || v.leaving ? '' : `The show writes ${nm} from here; you watch like everyone else. ${nm} stands at work at ${v.role.place} in working hours, and has a scene with Ishai every few days. To leave, use Quit show in the 👤 menu.`, 'muted'), back());
+        if ((v.replay || []).length) { const r = el('div', null, 'card'); r.appendChild(el('h3', 'YOUR TABLE READ'));
+          v.replay.forEach((x, i) => r.appendChild(el('p', `${i + 1}. ${x.situation} · ${x.dial}: ${x.setting}${x.self ? ` (${nm} chose)` : ''} — "${x.say}"`, 'muted'))); app.appendChild(r); }
+      }
       return;
     }
     toRead(v); stage('empty'); RD.i = (v.picks || []).length;

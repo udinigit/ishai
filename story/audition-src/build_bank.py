@@ -118,6 +118,7 @@ for k in R['kinds']:
     for f,v in k['uniform'].items():
         for x in (v if isinstance(v,list) else [v]): assert x in LOOKV[f],(k['id'],f,x)
     assert len(k['situations'])>=4 and len(k['dials'])>=3,k['id']
+    assert set(k['hours'])==set(k['places']) and all(len(v)%2==0 for v in k['hours'].values()),('hours',k['id'])
 bank['roles']=R
 print('roles',len(R['kinds']))
 json.dump(bank,open(OUT,'w'),ensure_ascii=False,indent=1)

@@ -1302,7 +1302,23 @@
     });
   }
   const dog = { x:0, loc:null, last:0, lastBark:0, bikeBarks:new Set() }, LEASH = 16;   // LEASH: px from Ishai's x the dog can be outside
-  function liveLayer(t, scene){ if (DREAMING) return; zAdd(scene.walkY + 22.1, () => { compUpdate(t, scene); dogUpdate(t, scene); courierUpdate(t); }); }
+  // Auditions step 6: viewers' characters (from: audience) stand at their post in their hours, in their work clothes, like the regulars
+  const MEMBER_X = {cafe: 70, foodcourt: 120, bar: 150, market: 100, store: 120, mall: 120, shops: 100, kiosk: 120, gym: 90, campus: 110, corridor: 130};
+  function memberHere(c){
+    const p = c.post; if (!p || !p.hours) return false;
+    if (actor.loc !== (PLACE_SCREENS[p.place] ? PLACE_SCREENS[p.place][0] : p.place)) return false;
+    if (comp.id === c.id || actor.with === c.id || awayFrom(c.id, p.place)) return false;
+    if (hash(Math.floor((NOW() + 7200000) / 86400000) * 7 + strHash(c.id)) > .85) return false;   // a day off now and then
+    const h0 = hourNow(), h = h0 < 6 ? h0 + 24 : h0;
+    for (let i = 0; i < p.hours.length; i += 2) if (h >= p.hours[i] && h < p.hours[i + 1]) return true;
+    return false;
+  }
+  function memberLayer(t, scene){
+    for (const c of Object.values(CAST)) { if (c.from !== 'audience' || !memberHere(c)) continue;
+      const x = MEMBER_X[c.post.place] || 120, y = scene.walkY || 66; markHead(c.id, x, y);
+      zAdd(y + 22, () => person(c.workLook || c.look, x, y, t, {muted: true, seed: strHash(c.id) % 90})); }
+  }
+  function liveLayer(t, scene){ if (DREAMING) return; try { memberLayer(t, scene); } catch (e) {} zAdd(scene.walkY + 22.1, () => { compUpdate(t, scene); dogUpdate(t, scene); courierUpdate(t); }); }
   // ---- ateBite: the (fake) food delivery app. Orange, a round logo with a bite taken out of it ----
   const ATE = {o:'#ff6a2a', d:'#c94e18', w:'#fff4ea'};
   function ateHelmet(x, y){ R(x+1,y-1,8,3,ATE.o); R(x+2,y-2,6,1,ATE.o); R(x+7,y+1,2,1,ATE.d); }
@@ -1609,7 +1625,7 @@
   // nameless locals for small talk when he is out (story/locals.json, filled in by the build): a tourist, a vendor, the man at the next table
   const LOCAL = (/*__LOCALS__*/{}).locals || {};
   const lookOf = id => { if (LOCAL[id] && !CAST[id]) return LOCAL[id].look;
-    const L = CAST[id] && CAST[id].look; if (!L) return null;
+    const C0 = CAST[id], L = C0 && (C0.workLook && C0.post && storyLoc(actor.loc) === C0.post.place ? C0.workLook : C0.look); if (!L) return null;   // a viewer's character at their post wears their work clothes
     let f = null; try { f = outfitOf(id, actor.loc, actor.action); } catch(e){} return f ? Object.assign({}, L, {_fit: f}) : L; };
   // the person currently with Ishai (or a generic stranger when he talks to someone unnamed)
   function companionLook(a){
@@ -6272,7 +6288,7 @@
     Object.values(CAST).forEach(c=>{
       const live = visible.has(c.id);
       const d = card(c.look, c.name.toUpperCase(), tint(CLOTH[c.look?.shirt]||CLOTH.gray,.45),
-        `${c.role.charAt(0).toUpperCase()+c.role.slice(1)}. ${c.personality ? c.personality.charAt(0).toUpperCase()+c.personality.slice(1)+'.' : ''}${live ? NOW_TAG : ''}`,
+        `${c.from === 'audience' ? (MBR.v && MBR.v.offer && MBR.v.offer.castId === c.id ? '★ MY CHARACTER · ' : '') + 'FROM THE AUDIENCE · ' : ''}${c.role.charAt(0).toUpperCase()+c.role.slice(1)}. ${c.personality ? c.personality.charAt(0).toUpperCase()+c.personality.slice(1)+'.' : ''}${live ? NOW_TAG : ''}`,
         c.relationship||0, 'MEMORY: ' + (c.memory||'—'));
       castExtra(d, c.id, live);
       d.dataset.id = c.id; fold(d, c.id, live);
@@ -7818,7 +7834,7 @@
     $('memAdult').checked = m.adult; $('memAdult').disabled = m.state !== 'none' && m.state !== 'declined' && m.state !== 'left';
     const b = $('memAud'), t = $('memAudT'); b.textContent = MEM_BTN[m.state] || m.state.toUpperCase();
     const asking = ['none', 'declined', 'left'].includes(m.state);
-    b.disabled = m.banned || (asking ? !m.canAsk && !(m.why && /avatar|18\+/.test(m.why)) : !['approved', 'interview', 'offered', 'reading', 'greenlight'].includes(m.state));
+    b.disabled = m.banned || (asking ? !m.canAsk && !(m.why && /avatar|18\+/.test(m.why)) : !['approved', 'interview', 'offered', 'reading', 'greenlight', 'on'].includes(m.state));
     const iv = v.interview;
     t.textContent = m.banned ? 'This account can\'t request Auditions.'
       : m.state === 'requested' ? `Asked on ${memDate(m.asked)}. The director will decide; the answer comes to your inbox below.`
@@ -7828,7 +7844,9 @@
       : m.state === 'offered' && v.offer ? `${v.offer.name} has a role: ${v.offer.title}. Accept or decline by ${memDate(v.offer.until)}.`
       : m.state === 'reading' && v.offer ? (v.offer.aud === 'reading' ? `${v.offer.name}'s table read is ready: a short rehearsal as ${v.offer.title}, once only${v.offer.readUntil ? ', by ' + memDate(v.offer.readUntil) : ''}.` : v.offer.aud === 'tuning' ? 'Table read done. The card is being tuned.' : `You accepted: ${v.offer.name} as ${v.offer.title}. The table read is being written; we'll tell you in the inbox.`)
       : m.state === 'greenlight' && v.offer ? `${v.offer.name} is ready and waits for the director's final green light.`
-      : m.state === 'on' && v.offer ? `${v.offer.name} is on the show as ${v.offer.title}!${v.offer.first ? ' First scene: ' + new Date(v.offer.first).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'}) + '.' : ''}`
+      : m.state === 'on' && v.offer ? `${v.offer.name} is on the show as ${v.offer.title}!${v.offer.first && v.offer.first > NOW() ? ' First scene: ' + new Date(v.offer.first).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'}) + '.' : ''} You can't steer ${v.offer.name}; Quit show books a goodbye within a week.`
+      : m.state === 'leaving' && v.offer ? `${v.offer.name} is leaving the show.${v.offer.byeAt ? ' Last appearance: ' + new Date(v.offer.byeAt).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'}) + '.' : ''}`
+      : m.state === 'left' ? 'Your character has left the show.' + (m.nextAt ? ` You can ask for a new Audition on ${memDate(m.nextAt)}.` : '')
       : m.state === 'declined' ? 'The director said no this time.' + (m.note ? ' Reason: ' + m.note : '') + (m.nextAt ? ` You can ask again on ${memDate(m.nextAt)}.` : '')
       : asking ? (m.canAsk ? 'Needs: your avatar saved and the 18+ box ticked. Ready.' : m.why) : '';
     const dv = $('memDev'); dv.textContent = '';
@@ -7867,6 +7885,9 @@
   $('memAud').onclick = async () => {
     const m = MBR.v && MBR.v.member; if (!m) return;
     if (['approved', 'interview', 'offered', 'reading', 'greenlight'].includes(m.state)){ location.href = '/audition'; return; }
+    if (m.state === 'on'){ const nm = MBR.v.offer ? MBR.v.offer.name : 'Your character';
+      if (!confirm(`Quit the show? ${nm} gets a last appearance within a week (a goodbye that fits the role), then leaves the cast for good. You can ask for a new Audition 30 days after that.`)) return;
+      await memPost({action: 'quit'}); memFill(); return; }
     if (MBR.dirty || !m.avatar){ $('memAudT').textContent = 'Save your avatar first (it is the starting look of your character).'; return; }
     if (!m.adult){ $('memAudT').textContent = 'Tick "I\'m 18 or older" first: the interview is long and its answers go to an AI.'; return; }
     if (!confirm('Ask the director for an Audition? You can ask once a month.')) return;
