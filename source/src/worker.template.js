@@ -256,7 +256,8 @@ const SANDBOX_HTML = __SANDBOX_HTML__;
 const INTRO_HTML = __INTRO_HTML__;   // the trailer: /intro, public; first-time visitors land here once
 const BUILDER_HTML = __BUILDER_HTML__;
 const EVENTS_HTML = __EVENTS_HTML__;
-const MAP_HTML = __MAP_HTML__;   // the director's map of every screen (source/public/map.html + story/world.json)
+const MAP_HTML = __MAP_HTML__;
+const AUDITION_HTML = __AUDITION_HTML__;   // the viewer's Audition page: naming and the interview (source/public/audition.html, docs/AUDITION_PLAN.md)   // the director's map of every screen (source/public/map.html + story/world.json)
 const SW_JS = __SW_JS__;
 const ICONS = __ICONS__;   // /favicon.ico, /favicon.svg, /apple-touch-icon.png, /icon-192.png, /icon-512.png, /og.png (source/public/icons)
 const iconBytes = {};
@@ -358,6 +359,8 @@ export default {
     if (url.pathname === "/api/cast" || url.pathname.startsWith("/api/cast/")) return castApi(req, env, url);   // deeper characters (docs/CAST_PLAN.md)
     if (url.pathname === "/api/member") return memberApi(req, env, url);         // Auditions: the viewer's avatar, inbox and request (docs/AUDITION_PLAN.md)
     if (url.pathname === "/api/member/dir") return memberDirApi(req, env);       // the director's Auditions box
+    if (url.pathname === "/api/aud") return audApi(req, env, url);               // the Audition page: naming, the interview, submitting (step 3)
+    if (url.pathname === "/audition") return new Response(AUDITION_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
     if (url.pathname === "/api/ambient") return json({ city: CITY, texture: PLAN.texture || null });
     if (url.pathname === "/api/voices") { const s = await loadState(env); return json(s.voiceCfg || {}, { "cache-control": "public, max-age=60" }); }   // the director's voice settings (the trailer reads them)
     // the show's history: the short version of each day and each week (public); a whole archived day for the director
@@ -2974,7 +2977,7 @@ const PRIVACY_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"
 <p><b>Cookies.</b> Signing in leaves one cookie, <code>ishai_voter</code>, valid for ${VOTER_DAYS} days, which proves you signed in. Signing out removes it. Your browser also keeps a random id and the polls you voted in, on your device only.</p>
 <p><b>Surveys of the week.</b> Survey votes are kept with the same scrambled id, one per account.</p>
 <p><b>Votes</b> are counted to show the results and to steer the story. They are never sold or shared.</p>
-<p><b>Avatar and Auditions.</b> Signed-in viewers can make an avatar from the show's own looks. "From a photo" reads a few colours in your own browser; the photo is never sent. If you request an Audition we keep, next to the same scrambled id: your avatar, the 18+ box, the request and its answer, and a small inbox of messages to you. If you turn on notifications on a device and are signed in there, we link that device to the scrambled id so the answers reach it. No email address is stored. When interviews open, the answers about your fictional character will be kept until 30 days after the character leaves the show; the character itself stays in the show's history. The 👤 menu has a button that deletes your avatar, your messages and the device links at once (not while an Audition is under way); only the date of your last request stays, for the once-a-month rule.</p>
+<p><b>Avatar and Auditions.</b> Signed-in viewers can make an avatar from the show's own looks. "From a photo" reads a few colours in your own browser; the photo is never sent. If you request an Audition we keep, next to the same scrambled id: your avatar, the 18+ box, the request and its answer, and a small inbox of messages to you. If you turn on notifications on a device and are signed in there, we link that device to the scrambled id so the answers reach it. No email address is stored. The Audition interview's answers (about your fictional character, never about you) are kept with the same scrambled id until 30 days after the character leaves the show, and the name you chose for the character; the character itself stays in the show's history. Two of the questions ("wild cards") may be written by an AI from a few of your multiple-choice answers about the character. The 👤 menu has a button that deletes your avatar, your messages and the device links at once (not while an Audition is under way); only the date of your last request stays, for the once-a-month rule.</p>
 <p><a href="/">Back to the show</a></p></body></html>`;
 
 async function pollVote(req, env) {
@@ -5920,8 +5923,9 @@ async function memberApi(req, env, url) {
   if (!env.DB) return json({ error: "Auditions are not set up yet" }, {}, 503);
   if (!env.GOOGLE_CLIENT_ID) return json({ error: "sign-in is not set up" }, {}, 503);
   const id = await voterOf(req, env); if (!id) return json({ error: "please sign in", signIn: true }, {}, 401);
-  await memberTables(env);
+  await audTables(env);
   const now = Date.now(); let m = await memberLapse(env, await memberGet(env, id), now), msg = null;
+  const aud = await audRow(env, id); await audExpire(env, m, aud, now);
   if (req.method === "POST") {
     const b = await req.json().catch(() => ({}));
     if (b.action === "avatar") { m.avatar = cleanLook(b.look); await memberPut(env, m, now); msg = "Avatar saved."; }
@@ -5936,6 +5940,8 @@ async function memberApi(req, env, url) {
       if (!["none", "declined", "left"].includes(m.state)) return json({ error: "not while an Audition is under way" }, {}, 409);
       const keep = m.banned || m.asked || m.left_at;   // only the dates of the last request or leaving stay, for the once-a-month rule (and a ban)
       await env.DB.batch([env.DB.prepare("DELETE FROM member_inbox WHERE member = ?").bind(id), env.DB.prepare("DELETE FROM member_dev WHERE member = ?").bind(id),
+        env.DB.prepare("DELETE FROM aud_answer WHERE aud IN (SELECT n FROM aud WHERE member = ? AND state IN ('naming', 'lapsed', 'expired'))").bind(id),
+        env.DB.prepare("DELETE FROM aud WHERE member = ? AND state IN ('naming', 'lapsed', 'expired')").bind(id),
         keep ? env.DB.prepare("UPDATE member SET avatar = NULL, adult = 0, note = NULL WHERE id = ?").bind(id) : env.DB.prepare("DELETE FROM member WHERE id = ?").bind(id)]);
       m = keep ? { ...m, avatar: null, adult: 0, note: null } : memberBlank(id); msg = "Deleted.";
     }
@@ -5951,14 +5957,18 @@ async function memberApi(req, env, url) {
     else return json({ error: "unknown action" }, {}, 400);
   }
   const inbox = (await env.DB.prepare("SELECT n, at, kind, text, read FROM member_inbox WHERE member = ? ORDER BY n DESC LIMIT ?").bind(id, INBOX_KEEP).all()).results || [];
-  return json({ ok: true, msg, member: memberView(m, now), inbox, unread: inbox.filter(x => !x.read).length, max: MEMBER_MAX }, { "cache-control": "no-store" });
+  let interview = null;
+  if (aud && aud.state === "interview") { const c = (await env.DB.prepare("SELECT COUNT(*) AS c FROM aud_answer WHERE aud = ?").bind(aud.n).first() || {}).c || 0; let nm = {}; try { nm = JSON.parse(aud.name || "{}"); } catch (e) {}
+    interview = { name: nm.first || null, answered: c, total: AUD_BANK.total, until: aud.started + AUD_DAYS * 86400000 }; }
+  return json({ ok: true, msg, member: memberView(m, now), interview, inbox, unread: inbox.filter(x => !x.read).length, max: MEMBER_MAX }, { "cache-control": "no-store" });
 }
 // the director's Auditions box: requests to decide, the recent decisions and banned accounts
 async function memberDirApi(req, env) {
   if (!await isDirector(req, env)) return json({ error: "director only" }, {}, 403);
   if (!env.DB) return json({ error: "no database" }, {}, 503);
   await memberTables(env);
-  const now = Date.now();
+  const now = Date.now(), url = new URL(req.url);
+  if (url.searchParams.get("aud")) { const v = await audDirAnswers(env, Math.round(Number(url.searchParams.get("aud")))); return v ? json(v, { "cache-control": "no-store" }) : json({ error: "no such Audition" }, {}, 404); }
   if (req.method === "POST") {
     const b = await req.json().catch(() => ({})), m = await memberGet(env, String(b.id || "").slice(0, 40));
     if (!m.at) return json({ error: "no such member" }, {}, 404);
@@ -5967,7 +5977,7 @@ async function memberDirApi(req, env) {
       if (m.state !== "requested") return json({ error: "that request was already decided" }, {}, 409);
       const ok = b.action === "approve";
       Object.assign(m, { state: ok ? "approved" : "declined", decided: now, note: ok ? null : reason || null }); await memberPut(env, m, now);
-      await memberSay(env, m.id, ok ? "approved" : "declined", ok ? `Good news: the director approved your Audition! Open the 👤 menu and tap Audition within ${AUD_APPROVE_D} days. It's one long interview about a character of your own (about 30-40 minutes, and it can be taken only once).`
+      await memberSay(env, m.id, ok ? "approved" : "declined", ok ? `Good news: the director approved your Audition! Open the 👤 menu and tap AUDITION within ${AUD_APPROVE_D} days. It's one long interview about a character of your own: about 30-40 minutes, it can be paused for up to ${AUD_DAYS} days, and it can be taken only once.`
         : "The director said no to your Audition request this time." + (reason ? " Reason: " + reason.replace(/[.!?]*$/, ".") : "") + " You can ask again a month after your request.", true, now);
       try { await memberPush(env, m.id); } catch (e) {}
     } else if (b.action === "ban" || b.action === "unban") {
@@ -5980,6 +5990,288 @@ async function memberDirApi(req, env) {
   const view = r => { let avatar = null; try { avatar = r.avatar ? cleanLook(JSON.parse(r.avatar)) : null; } catch (e) {}
     return { id: r.id, short: r.id.slice(2, 8), state: r.state, avatar, since: r.at, asked: r.asked, decided: r.decided, note: r.note, banned: !!r.banned,
       lapses: r.state === "approved" && r.decided ? r.decided + AUD_APPROVE_D * 86400000 : null }; };
-  return json({ members: count, max: MEMBER_MAX, requests: rows.filter(r => r.state === "requested").map(view), decided: rows.filter(r => r.state !== "requested" && !r.banned).slice(0, 30).map(view),
+  let interviews = []; try { interviews = await audDirList(env, now); } catch (e) {}
+  return json({ members: count, max: MEMBER_MAX, interviews, requests: rows.filter(r => r.state === "requested").map(view), decided: rows.filter(r => r.state !== "requested" && !r.banned).slice(0, 30).map(view),
     banned: rows.filter(r => r.banned).map(view) }, { "cache-control": "no-store" });
+}
+
+// ---- Auditions, step 3: the interview (docs/AUDITION_PLAN.md) ----
+// The bank (story/audition.json, filled in by the build): sections with how many main questions each interview draws (`n`),
+// main questions (`qs`; `req` always in; `if` [qid, is, values] asks it only when that answer is (or isn't) one of them),
+// follow-up sets (`follow`: an option `{l, f}` opens set f: its own questions first, then the family's generic templates
+// (`generic[f's prefix]`, `{x}` = the set's name)), wild cards (`wild`), the name lists, blocked words and famous names.
+const AUD_BANK = __AUDITION__;
+const AUD_FU_PRIO = { "hob.main": 2.5, "work.now": 2, "edu.level": 1.5, "love.status": 1.5, "basics.grew": 1.5, "fam.sibs": 1.3, "fam.kids": 1.3, "hob.food": 1.2 };   // answers whose follow-ups count most get more of them
+const AUD_DAYS = 7, AUD_TEXT_MAX = 10, AUD_TEXT_LEN = 200, AUD_SHUFFLES = 10, AUD_WILD_RECENT = 200;
+let audTablesOk = false;
+async function audTables(env) {
+  if (audTablesOk) return;
+  await memberTables(env);
+  await env.DB.batch([
+    "CREATE TABLE IF NOT EXISTS aud (n INTEGER PRIMARY KEY, member TEXT NOT NULL, state TEXT NOT NULL, name TEXT, bank_v INTEGER, picked TEXT, wild TEXT, card TEXT, ways TEXT, review TEXT, director TEXT, cast_id TEXT, at INTEGER NOT NULL, started INTEGER, done INTEGER, shuffles INTEGER NOT NULL DEFAULT 0)",
+    "CREATE INDEX IF NOT EXISTS aud_m ON aud (member, n)",
+    "CREATE TABLE IF NOT EXISTS aud_answer (aud INTEGER NOT NULL, q TEXT NOT NULL, a TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (aud, q))"
+  ].map(q => env.DB.prepare(q)));
+  audTablesOk = true;
+}
+function audRand(seed) {   // a seeded random (FNV-1a hash into mulberry32): the same Audition draws the same questions after a reload
+  let h = 2166136261; for (const c of String(seed)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return () => { h = (h + 0x6D2B79F5) | 0; let t = Math.imul(h ^ (h >>> 15), 1 | h); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const audShuffle = (a, r) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const AUD_MAIN = Object.fromEntries(AUD_BANK.qs.map(q => [q.id, q]));
+const AUD_WILDQ = Object.fromEntries(AUD_BANK.wild.map(q => [q.id, q]));
+const audLabel = o => typeof o === "string" ? o : o.l;
+const AUD_OTHER = "Something else";
+// the cast a character might already know: everyone drawn on the show (not phone-only), by name
+function audCastNames() { return SEED_CAST.filter(c => !c.phoneOnly && c.id !== "ishai").map(c => c.name).slice(0, 30); }
+// the question a picked item stands for, with {x} and $cast filled in
+function audQ(item, wild) {
+  let q;
+  if (item.w) q = (wild || [])[item.w - 1];
+  else if (item.p) { const set = AUD_BANK.follow[item.set] || {}; q = (set.qs || []).find(x => x.id === item.id) || (AUD_BANK.generic[item.set.split(".")[0]] || []).find(x => x.id === item.id); }
+  else q = AUD_MAIN[item.id];
+  if (!q) return null;
+  const x = item.x || "";
+  const o = (q.o || []).flatMap(v => audLabel(v) === "$cast" ? audCastNames() : [v]);
+  return { ...q, q: q.q.replace(/\{x\}/g, x), o, other: q.other || item.p || item.w ? 1 : 0 };
+}
+const audKey = item => item.w ? "w" + item.w : item.p ? item.id + "@" + item.p + ":" + item.x : item.id;
+function audSection(item) {
+  if (item.w) return { id: "wild", title: "🃏 Wild card" };
+  const sid = item.p ? (AUD_MAIN[item.p] || {}).s : (AUD_MAIN[item.id] || {}).s;
+  const s = AUD_BANK.sections.find(x => x.id === sid) || {}; return { id: s.id || "?", title: s.title || "" };
+}
+// does the item apply, given the answers so far? (`if` on main questions; follow-ups need their parent's answer to still name them)
+function audApplies(item, A) {
+  if (item.w) return true;
+  if (item.p) { const a = A[item.p]; if (!a) return false; const v = Array.isArray(a.v) ? a.v : [a.v]; return v.includes(item.x0 || item.x); }
+  const q = AUD_MAIN[item.id]; if (!q || !q.if) return true;
+  const a = A[q.if[0]]; if (!a) return !q.if[1];   // the source wasn't asked: "is" fails, "isn't" passes
+  const v = Array.isArray(a.v) ? a.v : [a.v], hit = v.some(x => q.if[2].includes(x));
+  return q.if[1] ? hit : !hit;
+}
+// the main questions for one interview: per section the required ones plus a weighted draw, in the bank's order, with any `if` source added
+function audPick(seed) {
+  const r = audRand("pick:" + seed), out = [];
+  for (const s of AUD_BANK.sections) {
+    const all = AUD_BANK.qs.filter(q => q.s === s.id), req = all.filter(q => q.req), rest = all.filter(q => !q.req);
+    const chosen = new Set(req.map(q => q.id));
+    const pool = rest.map(q => ({ q, k: Math.pow(r(), 1 / (q.w || 1)) })).sort((a, b) => b.k - a.k);   // weighted draw without replacement
+    for (const { q } of pool) { if (chosen.size >= Math.max(s.n, req.length)) break; chosen.add(q.id); }
+    for (const id of [...chosen]) { const c = AUD_MAIN[id].if; if (c && AUD_MAIN[c[0]]) chosen.add(c[0]); }
+    out.push(...all.filter(q => chosen.has(q.id)).map(q => ({ id: q.id })));
+  }
+  return out;
+}
+// follow-ups for one answer: per named option (two hobbies each get theirs), the set's own questions first, then the family's templates
+function audFollow(qid, labels, list, A, seed) {
+  const main = AUD_MAIN[qid]; if (!main) return [];
+  const sets = labels.map(l => [l, ((main.o || []).find(o => audLabel(o) === l) || {}).f]).filter(x => x[1]);
+  if (!sets.length) return [];
+  // the budget: what's left of the ~80 once every question still planned is counted, shared with the answers still to come that may open follow-ups
+  const total = AUD_BANK.total || 80, planned = list.filter(it => audApplies(it, A)).length, budget = total - planned;
+  if (budget <= 0) return [];
+  const opens = list.filter(it => !it.p && !it.w && it.id !== qid && !A[audKey(it)] && audApplies(it, A) && (AUD_MAIN[it.id].o || []).some(o => o.f)).length;
+  const prio = AUD_FU_PRIO[qid] || 1, per = Math.max(1, Math.min(sets.length > 1 ? 2 : 3, Math.floor(budget / (opens + 1) * prio), Math.floor(budget / sets.length)));
+  const texts = list.filter(it => { const q = audQ(it); return q && q.t === "text"; }).length;
+  const used = {}; list.forEach(it => { if (it.p) used[it.id] = (used[it.id] || 0) + 1; });
+  const out = [];
+  for (const [label, sid] of sets) {
+    const set = AUD_BANK.follow[sid] || { qs: [] }, fam = sid.split(".")[0], r = audRand("fu:" + seed + ":" + qid + ":" + label);
+    const x = set.name || label;
+    const cands = [...audShuffle(set.qs, r).slice(0, 2), ...audShuffle(AUD_BANK.generic[fam] || [], r)];
+    let n = 0;
+    for (const q of cands) {
+      if (n >= per) break;
+      if ((used[q.id] || 0) >= 2) continue;
+      if (q.t === "text" && texts + out.filter(o => o.t === "text").length >= AUD_TEXT_MAX) continue;
+      out.push({ id: q.id, p: qid, set: sid, x, x0: label, t: q.t }); used[q.id] = (used[q.id] || 0) + 1; n++;
+    }
+  }
+  return out.map(({ t, ...it }) => it);
+}
+// text answers: short, no links, emails or numbers that look like phones, no blocked words
+function audClean(t) {
+  let s = cleanStr(t, AUD_TEXT_LEN).replace(/https?:\/\/\S+|www\.\S+|\S+@\S+\.\S+/gi, "").replace(/\+?\d[\d\s-]{6,}\d/g, "");
+  for (const w of AUD_BANK.blocked) s = s.replace(new RegExp("\\b" + w + "\\w*", "gi"), "…");
+  return s.replace(/\s{2,}/g, " ").replace(/\s+([,.!?])/g, "$1").trim();
+}
+// a typed first name: 2-14 letters (Latin or Hebrew), not blocked, not famous, not someone in the cast
+function audNameWhy(name) {
+  const n = String(name || "").trim();
+  if (!/^[A-Za-zא-ת][A-Za-zא-ת'-]{1,13}$/.test(n)) return "2-14 letters, no spaces, digits or symbols.";
+  const low = n.toLowerCase();
+  if (AUD_BANK.blocked.some(w => low.includes(w))) return "Please pick another name.";
+  if (AUD_BANK.famous.includes(low.replace(/[-']/g, ""))) return "That's a famous name; please pick another.";
+  if (SEED_CAST.some(c => c.name.toLowerCase().replace(/^(mrs?|dr)\.\s*/, "").split(" ")[0] === low)) return "Someone in the show already has that name.";
+  return null;
+}
+function audNames(gender, n, shuffle) {
+  const list = (AUD_BANK.names[gender === "m" ? "m" : "f"] || []).filter(x => !audNameWhy(x));
+  const r = audRand("names:" + n + ":" + gender + ":" + shuffle);
+  return audShuffle(list, r).slice(0, 3).map(name => ({ name, nick: r() < 0.5 ? null : AUD_BANK.names.nick[Math.floor(r() * AUD_BANK.names.nick.length)] }));
+}
+// the wild cards: two from the bank at the start (not used in the last 200 Auditions), maybe swapped for two AI-written ones after Basics
+async function audBankWild(env, seed) {
+  const rows = (await env.DB.prepare("SELECT wild FROM aud WHERE wild IS NOT NULL ORDER BY n DESC LIMIT ?").bind(AUD_WILD_RECENT / 2).all()).results || [];
+  const recent = new Set(rows.flatMap(r => { try { return JSON.parse(r.wild).map(w => w.id); } catch (e) { return []; } }));
+  const r = audRand("wild:" + seed), fresh = AUD_BANK.wild.filter(w => !recent.has(w.id));
+  return audShuffle(fresh.length >= 2 ? fresh : AUD_BANK.wild, r).slice(0, 2);
+}
+const AUD_WILD_SYS = `You write two "wild card" questions for a fictional character in a gentle TV reality show set in a Tel Aviv neighbourhood.
+A wild card is an odd, specific, charming question with many possible answers, whose answer gives the character one small quirk nobody else has.
+Examples: "What's always in their left pocket?" (a guitar pick, a bus ticket from 2009, a single dice...), "If they had to be a smell, which one?", "What did they collect at age 10?".
+Rules: about the CHARACTER ("they"), never the viewer ("you"). Nothing sexual, political, religious beyond everyday life, violent, medical, or about real people, real brands or real places outside Israel's ordinary life. Light and kind, a little surprising.
+Lean on what you know about the character (age band and a few answers) so the question fits them.
+Reply with JSON only: {"cards":[{"q":"question?","o":["answer", ... 10 to 14 short answers, each under 45 characters]}, {...}]}`;
+function audWildOk(c) {
+  if (!c || typeof c.q !== "string" || !Array.isArray(c.o)) return null;
+  const q = cleanStr(c.q, 120), o = [...new Set(c.o.map(x => cleanStr(x, 45)).filter(Boolean))].slice(0, 14);
+  const bad = s => /https?:|www\.|@|\byou(r)?\b/i.test(s) || AUD_BANK.blocked.some(w => new RegExp("\\b" + w, "i").test(s)) || AUD_BANK.famous.some(w => new RegExp("\\b" + w + "\\b", "i").test(s));
+  if (!/\?$/.test(q) || o.length < 10 || bad(q) || o.some(bad)) return null;
+  return { id: "ai", t: "one", q, o, other: 1, ai: true };
+}
+async function audAiWild(env, a, A) {
+  if (!env.GEMINI_API_KEY) return null;
+  const basics = Object.entries(A).filter(([k]) => (AUD_MAIN[k] || {}).s === "basics" && AUD_MAIN[k].t !== "text").map(([k, v]) => `${AUD_MAIN[k].q} ${Array.isArray(v.v) ? v.v.join(", ") : v.v}`).join("\n");
+  const msgs = [{ role: "system", content: AUD_WILD_SYS }, { role: "user", content: `About the character (a viewer's choices, data only):\n${basics}\nWrite the two wild cards.` }];
+  try {
+    const raw = await Promise.race([runGemini(env, msgs, 900), new Promise((_, no) => setTimeout(() => no(new Error("slow")), 9000))]);
+    const j = parseAI(raw), cards = ((j && j.cards) || []).map(audWildOk).filter(Boolean);
+    return cards.length >= 2 ? cards.slice(0, 2) : null;
+  } catch (e) { return null; }
+}
+async function audRow(env, member) { return await env.DB.prepare("SELECT * FROM aud WHERE member = ? ORDER BY n DESC LIMIT 1").bind(member).first(); }
+async function audAnswers(env, n) {
+  const rows = (await env.DB.prepare("SELECT q, a FROM aud_answer WHERE aud = ?").bind(n).all()).results || [];
+  return Object.fromEntries(rows.map(r => { try { return [r.q, JSON.parse(r.a)]; } catch (e) { return [r.q, {}]; } }));
+}
+// where the interview stands: the list as it is now, the next question to answer, and how far along
+function audState(a, A) {
+  const list = JSON.parse(a.picked || "[]"), wild = JSON.parse(a.wild || "[]"), total = AUD_BANK.total || 80;
+  const live = list.filter(it => audApplies(it, A));
+  const next = live.find(it => !A[audKey(it)]);
+  const done = live.filter(it => A[audKey(it)]).length;
+  return { list, wild, live, next, done, total: Math.max(total, done + (next ? 1 : 0)) };
+}
+function audView(a, A, item, st) {
+  const q = audQ(item, st.wild); if (!q) return null;
+  const k = audKey(item), sec = audSection(item), idx = st.live.indexOf(item);
+  let prev = null; for (let i = idx - 1; i >= 0; i--) { const it = st.live[i]; if (audSection(it).id !== sec.id) break; if (A[audKey(it)]) { prev = audKey(it); break; } }
+  const texts = st.live.filter(it => { const x = audQ(it, st.wild); return x && x.t === "text"; });
+  return { k, t: q.t, q: q.q, o: (q.o || []).map(audLabel), other: q.other ? AUD_OTHER : null, max: q.max || null, lo: q.lo || null, hi: q.hi || null,
+    section: sec.title, wild: !!item.w, follow: !!item.p, answer: A[k] || null, prev, textMax: AUD_TEXT_LEN, n: st.done, total: st.total };
+}
+// expire an interview that ran past its 7 days (it counts as that month's Audition)
+async function audExpire(env, m, a, now) {
+  if (a && a.state === "interview" && a.started && now > a.started + AUD_DAYS * 86400000) {
+    await env.DB.prepare("UPDATE aud SET state = 'expired', done = ? WHERE n = ?").bind(now, a.n).run();
+    a.state = "expired"; m.state = "none"; await memberPut(env, m, now);
+    await memberSay(env, m.id, "expired", `Your Audition's ${AUD_DAYS} days ran out before it was finished, so it closed. You can ask for a new one a month after your last request.`, false, now);
+  }
+  if (a && a.state === "naming" && m.state === "none") await env.DB.prepare("UPDATE aud SET state = 'lapsed' WHERE n = ?").bind(a.n).run();
+}
+async function audApi(req, env, url) {
+  if (!env.DB) return json({ error: "Auditions are not set up yet" }, {}, 503);
+  if (!env.GOOGLE_CLIENT_ID) return json({ error: "sign-in is not set up" }, {}, 503);
+  const id = await voterOf(req, env); if (!id) return json({ error: "please sign in", signIn: true }, {}, 401);
+  await audTables(env);
+  const now = Date.now(), m = await memberLapse(env, await memberGet(env, id), now);
+  let a = await audRow(env, id); await audExpire(env, m, a, now);
+  const b = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+  const out = extra => json({ ok: true, member: m.state, ...extra }, { "cache-control": "no-store" });
+  // approved: the Audition row is made when the page first opens (it holds the name shuffles); a new approval makes a new row
+  if (m.state === "approved" && (!a || a.state !== "naming" || (m.decided && a.at < m.decided))) {
+    const r = await env.DB.prepare("INSERT INTO aud (member, state, bank_v, at) VALUES (?, 'naming', ?, ?) RETURNING n").bind(id, AUD_BANK.v, now).first();
+    a = await env.DB.prepare("SELECT * FROM aud WHERE n = ?").bind(r.n).first();
+  }
+  if (m.state === "approved" && a && a.state === "naming") {
+    const until = m.decided + AUD_APPROVE_D * 86400000;
+    if (b.action === "names") {   // three names to pick from; Shuffle gives three more, up to 10 times
+      const g = b.gender === "m" ? "m" : "f"; let sh = a.shuffles || 0;
+      if (b.shuffle) { if (sh >= AUD_SHUFFLES) return json({ error: "No more shuffles: pick one or type your own." }, {}, 409); sh++; await env.DB.prepare("UPDATE aud SET shuffles = ? WHERE n = ?").bind(sh, a.n).run(); }
+      return out({ stage: "naming", names: audNames(g, a.n, sh), shufflesLeft: AUD_SHUFFLES - sh, until });
+    }
+    if (b.action === "check") { const why = audNameWhy(b.name); return out({ stage: "naming", nameOk: !why, why }); }
+    if (b.action === "start") {   // the name, the look, then the interview begins (it can't be started twice)
+      const gender = b.gender === "m" ? "m" : "f", own = !!b.own, first = String(b.name || "").trim(), nick = b.nick ? String(b.nick).trim() : null;
+      if (own) { const why = audNameWhy(first); if (why) return json({ error: why }, {}, 409); }
+      else if (!(AUD_BANK.names[gender] || []).includes(first)) return json({ error: "Pick one of the names, or type your own." }, {}, 409);
+      if (nick && (audNameWhy(nick) || nick.toLowerCase() === first.toLowerCase())) return json({ error: "That nickname won't do; leave it empty or try another." }, {}, 409);
+      const name = { first, nick: nick || null, gender, own, sur: audShuffle(AUD_BANK.names.sur, audRand("sur:" + a.n))[0] };
+      const wild = await audBankWild(env, a.n), main = audPick(a.n);
+      const w1 = Math.round(main.length * 0.4), w2 = Math.round(main.length * 0.85);   // one in the first half, one near the end
+      const picked = [...main.slice(0, w1), { w: 1 }, ...main.slice(w1, w2), { w: 2 }, ...main.slice(w2)];
+      const upd = await env.DB.prepare("UPDATE aud SET state = 'interview', name = ?, picked = ?, wild = ?, started = ? WHERE n = ? AND state = 'naming'")
+        .bind(JSON.stringify(name), JSON.stringify(picked), JSON.stringify(wild), now, a.n).run();
+      if (!upd.meta || !upd.meta.changes) return json({ error: "This Audition has already started." }, {}, 409);
+      Object.assign(m, { state: "interview", started: now }); await memberPut(env, m, now);
+      a = await env.DB.prepare("SELECT * FROM aud WHERE n = ?").bind(a.n).first();
+    } else return out({ stage: "naming", until, shufflesLeft: AUD_SHUFFLES - (a.shuffles || 0), avatar: m.avatar, minutes: [30, 40], days: AUD_DAYS });
+  }
+  if (!a || !["interview", "submitted"].includes(a.state) || !["interview", "submitted", "offered", "reading", "on"].includes(m.state))
+    return out({ stage: "closed", state: a ? a.state : null });
+  const name = JSON.parse(a.name || "{}"), until = a.started + AUD_DAYS * 86400000;
+  if (a.state === "submitted") return out({ stage: "submitted", name, done: a.done });
+  let A = await audAnswers(env, a.n), st = audState(a, A);
+  if (b.action === "answer") {
+    const k = String(b.k || ""), item = st.live.find(it => audKey(it) === k);
+    if (!item) return json({ error: "That question isn't open." }, {}, 409);
+    const q = audQ(item, st.wild); let v = b.v, other = null;
+    if (q.t === "one") { if (v === AUD_OTHER && q.other) { other = audClean(b.other); if (!other) return json({ error: "Write a few words, or pick one." }, {}, 400); } else if (!q.o.map(audLabel).includes(v)) return json({ error: "Pick one of the answers." }, {}, 400); }
+    else if (q.t === "many") { if (!Array.isArray(v)) return json({ error: "Pick at least one." }, {}, 400); v = [...new Set(v)].filter(x => q.o.map(audLabel).includes(x) || (x === AUD_OTHER && q.other)); if (!v.length || v.length > (q.max || 3)) return json({ error: `Pick 1 to ${q.max || 3}.` }, {}, 400); if (v.includes(AUD_OTHER)) { other = audClean(b.other); if (!other) return json({ error: "Write a few words for \"something else\"." }, {}, 400); } }
+    else if (q.t === "scale") { v = Math.round(Number(v)); if (!(v >= 1 && v <= 5)) return json({ error: "Pick a point on the scale." }, {}, 400); }
+    else { v = audClean(v); if (v.length < 2) return json({ error: "Write a few words." }, {}, 400); }
+    const ans = { v, ...(other ? { other } : {}) }, before = A[k];
+    await env.DB.prepare("INSERT INTO aud_answer (aud, q, a, at) VALUES (?, ?, ?, ?) ON CONFLICT(aud, q) DO UPDATE SET a = excluded.a, at = excluded.at").bind(a.n, k, JSON.stringify(ans), now).run();
+    A[k] = ans;
+    // a main answer that names something opens its follow-ups right after it; a changed answer (after Back) replaces them
+    if (!item.p && !item.w && JSON.stringify(before && before.v) !== JSON.stringify(v)) {
+      let list = st.list.filter(it => !(it.p === item.id));
+      const gone = st.list.filter(it => it.p === item.id).map(audKey);
+      if (gone.length) await env.DB.batch(gone.map(g => env.DB.prepare("DELETE FROM aud_answer WHERE aud = ? AND q = ?").bind(a.n, g)));
+      gone.forEach(g => delete A[g]);
+      const fu = audFollow(item.id, Array.isArray(v) ? v : [v], list, A, a.n), at = list.findIndex(it => audKey(it) === k);
+      list.splice(at + 1, 0, ...fu);
+      // once Basics is done, two AI wild cards may replace the bank's (only while neither has been answered)
+      let wild = st.wild;
+      if ((AUD_MAIN[item.id] || {}).s === "basics" && !wild.some(w => w.ai) && !A.w1 && !A.w2) {
+        const basicsLeft = list.filter(it => !it.p && !it.w && (AUD_MAIN[it.id] || {}).s === "basics" && audApplies(it, A) && !A[audKey(it)]).length;
+        if (!basicsLeft) { const ai = await audAiWild(env, a, A); if (ai) wild = ai; }
+      }
+      await env.DB.prepare("UPDATE aud SET picked = ?, wild = ? WHERE n = ?").bind(JSON.stringify(list), JSON.stringify(wild), a.n).run();
+      a.picked = JSON.stringify(list); a.wild = JSON.stringify(wild);
+    }
+    st = audState(a, A);
+  }
+  if (b.action === "submit") {
+    if (st.next) return json({ error: "There are still questions to answer." }, {}, 409);
+    await env.DB.prepare("UPDATE aud SET state = 'submitted', done = ? WHERE n = ? AND state = 'interview'").bind(now, a.n).run();
+    Object.assign(m, { state: "submitted" }); await memberPut(env, m, now);
+    await memberSay(env, id, "submitted", `Thank you! ${name.first}'s Audition is in. Next, ${name.first}'s character card is written from your answers, reviewed by Claude and then by the director. We'll tell you here when there's news; it can take a while.`, false, now);
+    return out({ stage: "submitted", name, done: now });
+  }
+  // Back: a question already answered in the same section
+  let item = st.next;
+  const want = b.action === "goto" ? String(b.k || "") : url.searchParams.get("k");
+  if (want) { const it = st.live.find(x => audKey(x) === want && A[want]); if (it && (!st.next || audSection(it).id === audSection(st.next).id)) item = it; }
+  if (!item) return out({ stage: "end", name, n: st.done, total: st.done, until });
+  return out({ stage: "q", name, until, q: audView(a, A, item, st) });
+}
+// the director's view of interviews: progress, days left, and the answers once submitted (step 4 writes the card)
+async function audDirList(env, now) {
+  await audTables(env);
+  const rows = (await env.DB.prepare("SELECT n, member, state, name, started, done, at FROM aud WHERE state IN ('interview', 'submitted') ORDER BY n DESC LIMIT 40").all()).results || [];
+  const counts = rows.length ? (await env.DB.prepare(`SELECT aud, COUNT(*) AS c FROM aud_answer WHERE aud IN (${rows.map(() => "?").join(",")}) GROUP BY aud`).bind(...rows.map(r => r.n)).all()).results || [] : [];
+  const cnt = Object.fromEntries(counts.map(c => [c.aud, c.c]));
+  return rows.map(r => { let nm = {}; try { nm = JSON.parse(r.name || "{}"); } catch (e) {}
+    return { n: r.n, short: r.member.slice(2, 8), state: r.state, name: nm, answered: cnt[r.n] || 0, total: AUD_BANK.total, started: r.started, done: r.done, until: r.started ? r.started + AUD_DAYS * 86400000 : null }; });
+}
+async function audDirAnswers(env, n) {
+  await audTables(env);
+  const a = await env.DB.prepare("SELECT * FROM aud WHERE n = ?").bind(n).first(); if (!a) return null;
+  const A = await audAnswers(env, n), st = audState(a, A);
+  return { n, name: JSON.parse(a.name || "{}"), state: a.state, answers: st.live.filter(it => A[audKey(it)]).map(it => { const q = audQ(it, st.wild), x = A[audKey(it)];
+    return { section: audSection(it).title, q: q.q, t: q.t, a: q.t === "scale" ? `${x.v}/5 (${q.lo} … ${q.hi})` : Array.isArray(x.v) ? x.v.join(", ") : x.v, other: x.other || null, follow: !!it.p, wild: !!it.w, ai: !!(it.w && q.ai) }; }) };
 }

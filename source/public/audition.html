@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Your Audition · Watching Ishai</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#050705;--phos:#4dff7a;--dim:#2a9a4c;--faint:#123d20;--amber:#ffb84d;--red:#ff6b6b;--card:#081108}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--phos);font-family:'VT323',ui-monospace,Menlo,monospace;font-size:20px;line-height:1.25}
+  main{max-width:640px;margin:0 auto;padding:14px 14px 90px}
+  header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+  header a{color:var(--dim);text-decoration:none;font-size:18px}
+  h1{font-weight:normal;font-size:30px;margin:0;letter-spacing:1px;color:var(--amber)}
+  h2{font-weight:normal;font-size:24px;margin:14px 0 6px;color:var(--amber)}
+  p{margin:6px 0}
+  .muted{color:var(--dim)} .err{color:var(--red);min-height:1.2em} .ok{color:var(--phos)}
+  .card{background:var(--card);border:1px solid var(--faint);border-radius:8px;padding:12px;margin:10px 0}
+  ul.rules{margin:6px 0;padding-left:20px} ul.rules li{margin:4px 0}
+  button,.btn{font:inherit;font-size:20px;color:var(--bg);background:var(--phos);border:0;border-radius:6px;padding:8px 14px;cursor:pointer;letter-spacing:1px}
+  button.ghost{background:transparent;color:var(--phos);border:1px solid var(--dim)}
+  button:disabled{opacity:.4;cursor:default}
+  .foot button{white-space:nowrap;flex:none} #saved{flex:1;text-align:center;min-width:0}
+  button:focus-visible,.opt:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .seg{display:flex;gap:6px} .seg button{flex:1}
+  .seg button[aria-pressed=false]{background:transparent;color:var(--phos);border:1px solid var(--dim)}
+  .names{display:grid;gap:8px;margin:8px 0}
+  .opt{display:block;width:100%;text-align:left;font:inherit;font-size:20px;color:var(--phos);background:transparent;border:1px solid var(--faint);border-radius:6px;padding:9px 12px;cursor:pointer}
+  .opt:hover{border-color:var(--dim)}
+  .opt[aria-pressed=true]{background:var(--faint);border-color:var(--phos);box-shadow:0 0 6px rgba(77,255,122,.35)}
+  .opt small{color:var(--dim);margin-left:6px}
+  input[type=text],textarea{width:100%;font:inherit;font-size:20px;background:#020402;color:var(--phos);border:1px solid var(--dim);border-radius:6px;padding:8px}
+  textarea{min-height:96px;resize:vertical}
+  .bar{height:10px;background:var(--faint);border-radius:5px;overflow:hidden;margin:6px 0 2px}
+  .bar i{display:block;height:100%;background:var(--phos);transition:width .3s}
+  .meta{display:flex;justify-content:space-between;font-size:17px;color:var(--dim)}
+  .sec{font-size:18px;color:var(--amber);letter-spacing:1px;text-transform:uppercase}
+  .q{font-size:26px;margin:10px 0 12px}
+  .wild{border-color:var(--amber)} .wild .q{color:var(--amber)}
+  .scale{display:flex;justify-content:space-between;gap:6px;margin:8px 0}
+  .scale button{flex:1;padding:12px 0;background:transparent;color:var(--phos);border:1px solid var(--dim)}
+  .scale button[aria-pressed=true]{background:var(--phos);color:var(--bg)}
+  .ends{display:flex;justify-content:space-between;font-size:17px;color:var(--dim);gap:12px} .ends span:last-child{text-align:right}
+  .foot{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding:18px 14px 14px}
+  .foot .in{max-width:640px;margin:0 auto;display:flex;gap:8px;justify-content:space-between;align-items:center}
+  .count{font-size:16px;color:var(--dim);text-align:right}
+  dialog{background:var(--card);color:var(--phos);border:1px solid var(--dim);border-radius:8px;max-width:440px;font:inherit}
+  dialog::backdrop{background:rgba(0,0,0,.7)}
+</style>
+</head>
+<body>
+<main>
+  <header><h1>YOUR AUDITION</h1><a href="/">✕ BACK TO THE SHOW</a></header>
+  <div id="app" aria-live="polite"><p class="muted">Loading…</p></div>
+</main>
+<div class="foot" id="foot" hidden><div class="in"><button class="ghost" id="back" hidden>← BACK</button><span class="muted" id="saved" style="font-size:16px"></span><button id="next">NEXT →</button></div></div>
+<dialog id="dlg"><p id="dlgT"></p><div class="row" style="justify-content:flex-end"><button class="ghost" id="dlgNo">NOT YET</button><button id="dlgYes">YES, START</button></div></dialog>
+<script>
+(() => {
+  const $ = id => document.getElementById(id), app = $('app');
+  const el = (tag, txt, cls) => { const e = document.createElement(tag); if (txt != null) e.textContent = txt; if (cls) e.className = cls; return e; };
+  const date = ms => new Date(ms).toLocaleDateString('en-GB', {timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'long'});
+  let V = null, pick = null, other = '', busy = false;
+  async function api(body, k){
+    const r = await fetch('/api/aud' + (k ? '?k=' + encodeURIComponent(k) : ''), body ? {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)} : {cache: 'no-store'});
+    const j = await r.json().catch(() => ({error: 'No answer from the show, try again.'})); if (!r.ok) { const e = new Error(j.error || 'Error ' + r.status); e.j = j; throw e; } return j;
+  }
+  function msg(text, err){ const m = $('msg'); if (m){ m.textContent = text || ''; m.className = err ? 'err' : 'ok'; } }
+  async function load(k){ try { show(await api(null, k)); } catch(e){ if (e.j && e.j.signIn) return signin(); app.textContent = ''; app.appendChild(el('p', e.message, 'err')); } }
+  function signin(){ $('foot').hidden = true; app.textContent = ''; const c = el('div', null, 'card'); c.append(el('p', 'Please sign in on the show first (the 👤 button), then come back here.'));
+    const a = el('a', 'GO TO THE SHOW', 'btn'); a.href = '/'; a.style.textDecoration = 'none'; a.style.display = 'inline-block'; a.style.marginTop = '8px'; c.appendChild(a); app.appendChild(c); }
+  function show(v){
+    V = v; pick = null; other = ''; app.textContent = ''; $('foot').hidden = true; window.scrollTo(0, 0);
+    if (v.stage === 'naming') return naming(v);
+    if (v.stage === 'q') return question(v);
+    if (v.stage === 'end') return ending(v);
+    if (v.stage === 'submitted') return submitted(v);
+    const c = el('div', null, 'card');
+    c.appendChild(el('p', v.member === 'requested' ? 'Your Audition request is waiting for the director. You\'ll hear back in the 👤 menu.'
+      : v.member === 'none' || v.member === 'declined' || v.member === 'left' ? 'You don\'t have an open Audition. You can ask for one in the 👤 menu on the show.'
+      : 'This Audition is closed.'));
+    app.appendChild(c);
+  }
+  // ---- naming and the start screen ----
+  let G = 'f', NAMES = [], CHOSEN = null, OWN = false;
+  function naming(v){
+    const intro = el('div', null, 'card');
+    intro.append(el('h2', 'BEFORE YOU START'), (() => { const u = el('ul', null, 'rules');
+      [`It takes about ${v.minutes[0]}-${v.minutes[1]} minutes: about 80 questions, one per screen, most of them just a tap.`,
+       `You can stop and come back: every answer is saved at once, on any device. You have ${v.days} days from the start.`,
+       'It can be taken only once for this Audition, and it can\'t be restarted.',
+       'The questions are about your character, not about you. Please don\'t use real details about yourself or anyone you know.',
+       'Afterwards your character\'s card is written from your answers, reviewed by Claude and then approved (or not) by the director. If approved, you\'ll be offered a role and a first appearance to accept.'
+      ].forEach(t => u.appendChild(el('li', t))); return u; })());
+    if (v.until) intro.appendChild(el('p', `Your approval is open until ${date(v.until)}.`, 'muted'));
+    app.appendChild(intro);
+    const c = el('div', null, 'card'); c.appendChild(el('h2', 'NAME YOUR CHARACTER'));
+    const seg = el('div', null, 'seg'); [['f', 'A WOMAN'], ['m', 'A MAN']].forEach(([g, t]) => { const b = el('button', t); b.setAttribute('aria-pressed', g === G); b.onclick = () => { G = g; CHOSEN = null; OWN = false; seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); names(false); }; seg.appendChild(b); });
+    c.append(el('p', 'Your character is…', 'muted'), seg, el('p', 'Pick a name (a surname comes with it):', 'muted'));
+    const box = el('div', null, 'names'); box.id = 'names'; c.appendChild(box);
+    const sh = el('button', '🔀 SHUFFLE', 'ghost'); sh.id = 'shuffle'; sh.onclick = () => names(true);
+    const ownB = el('button', '✎ TYPE YOUR OWN', 'ghost'); ownB.onclick = () => { OWN = true; CHOSEN = null; ownBox.hidden = false; box.querySelectorAll('.opt').forEach(o => o.setAttribute('aria-pressed', false)); $('ownName').focus(); ready(); };
+    const r = el('div', null, 'row'); r.append(sh, ownB, el('span', '', 'muted')); r.lastChild.id = 'shLeft'; c.appendChild(r);
+    const ownBox = el('div'); ownBox.hidden = true; ownBox.style.marginTop = '10px';
+    const on = el('input'); on.type = 'text'; on.id = 'ownName'; on.maxLength = 14; on.placeholder = 'First name (2-14 letters)'; on.autocomplete = 'off';
+    const nn = el('input'); nn.type = 'text'; nn.id = 'ownNick'; nn.maxLength = 14; nn.placeholder = 'Nickname (optional)'; nn.autocomplete = 'off'; nn.style.marginTop = '6px';
+    let t = 0; on.oninput = () => { clearTimeout(t); t = setTimeout(async () => { const n = on.value.trim(); if (!n) { msg(''); return ready(); } try { const j = await api({action: 'check', name: n}); msg(j.nameOk ? 'That name works.' : j.why, !j.nameOk); } catch(e){ msg(e.message, true); } ready(); }, 350); };
+    nn.oninput = ready;
+    ownBox.append(el('p', 'First name only, no surname. The director always sees a name typed here and may change it.', 'muted'), on, nn); c.appendChild(ownBox);
+    c.appendChild(el('p', '', 'err')).id = 'msg';
+    app.appendChild(c);
+    $('foot').hidden = false; $('back').hidden = true; $('saved').textContent = ''; $('next').textContent = 'START →'; $('next').onclick = start;
+    names(false, v.shufflesLeft);
+  }
+  async function names(shuffle){
+    try { const j = await api({action: 'names', gender: G, shuffle}); NAMES = j.names; $('shLeft').textContent = j.shufflesLeft ? `${j.shufflesLeft} shuffles left` : 'no shuffles left'; $('shuffle').disabled = !j.shufflesLeft;
+      const box = $('names'); box.textContent = '';
+      NAMES.forEach(n => { const b = el('button', null, 'opt'); b.append(document.createTextNode(n.name)); if (n.nick) b.appendChild(el('small', `"${n.nick}"`));
+        b.setAttribute('aria-pressed', false); b.onclick = () => { CHOSEN = n; OWN = false; box.querySelectorAll('.opt').forEach(o => o.setAttribute('aria-pressed', o === b)); ready(); }; box.appendChild(b); });
+      CHOSEN = null; ready();
+    } catch(e){ msg(e.message, true); }
+  }
+  function ready(){ $('next').disabled = !(CHOSEN || (OWN && $('ownName').value.trim().length >= 2)); }
+  function start(){
+    const name = OWN ? $('ownName').value.trim() : CHOSEN && CHOSEN.name, nick = OWN ? $('ownNick').value.trim() : CHOSEN && CHOSEN.nick;
+    if (!name) return;
+    $('dlgT').textContent = `Start ${name}'s Audition now? It can be taken only once, and you'll have ${V.days} days to finish it (you can stop and come back).`;
+    $('dlg').showModal(); $('dlgNo').onclick = () => $('dlg').close();
+    $('dlgYes').onclick = async () => { $('dlg').close(); if (busy) return; busy = true; $('next').disabled = true;
+      try { show(await api({action: 'start', gender: G, own: OWN, name, nick: nick || null})); } catch(e){ msg(e.message, true); ready(); } busy = false; };
+  }
+  // ---- one question per screen ----
+  function question(v){
+    const q = v.q, c = el('div', null, 'card' + (q.wild ? ' wild' : ''));
+    const pct = Math.min(99, Math.round(100 * q.n / q.total));
+    const top = el('div'); top.append(el('div', q.wild ? '🃏 WILD CARD' : q.section, 'sec'));
+    const bar = el('div', null, 'bar'); const i = el('i'); i.style.width = pct + '%'; bar.appendChild(i); bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-valuenow', pct); bar.setAttribute('aria-valuemin', 0); bar.setAttribute('aria-valuemax', 100);
+    const meta = el('div', null, 'meta'); meta.append(el('span', `${v.name.first} · ${q.n} of about ${q.total}`), el('span', `open until ${date(v.until)}`));
+    top.append(bar, meta); app.appendChild(top);
+    c.appendChild(el('div', q.q, 'q'));
+    const A = q.answer;
+    if (q.t === 'one' || q.t === 'many'){
+      const many = q.t === 'many', sel = new Set(A ? (Array.isArray(A.v) ? A.v : [A.v]) : []);
+      if (many) c.appendChild(el('p', `Pick up to ${q.max || 3}.`, 'muted'));
+      const opts = q.other ? [...q.o, q.other] : q.o, list = el('div', null, 'names');
+      const otherIn = el('input'); otherIn.type = 'text'; otherIn.maxLength = 80; otherIn.placeholder = 'A few words…'; otherIn.hidden = true; otherIn.value = (A && A.other) || ''; otherIn.oninput = () => { other = otherIn.value; okNext(); };
+      opts.forEach(o => { const b = el('button', o, 'opt'); b.setAttribute('aria-pressed', sel.has(o));
+        b.onclick = () => { if (many){ if (sel.has(o)) sel.delete(o); else { if (sel.size >= (q.max || 3)) return; sel.add(o); } } else { sel.clear(); sel.add(o); }
+          list.querySelectorAll('.opt').forEach(x => x.setAttribute('aria-pressed', sel.has(x.textContent))); otherIn.hidden = !sel.has(q.other); if (!otherIn.hidden) otherIn.focus();
+          pick = many ? [...sel] : o; okNext(); };
+        list.appendChild(b); });
+      c.append(list, otherIn);
+      if (sel.size){ pick = many ? [...sel] : [...sel][0]; otherIn.hidden = !sel.has(q.other); other = otherIn.value; }
+    } else if (q.t === 'scale'){
+      const s = el('div', null, 'scale'); for (let n = 1; n <= 5; n++){ const b = el('button', String(n)); b.setAttribute('aria-pressed', !!(A && A.v === n)); b.setAttribute('aria-label', n + ' of 5');
+        b.onclick = () => { pick = n; s.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); okNext(); }; s.appendChild(b); }
+      const ends = el('div', null, 'ends'); ends.append(el('span', '1: ' + q.lo), el('span', '5: ' + q.hi));
+      c.append(s, ends); if (A) pick = A.v;
+    } else {
+      const ta = el('textarea'); ta.maxLength = q.textMax; ta.placeholder = 'Write it as your character would…'; ta.value = (A && A.v) || '';
+      const cnt = el('div', '', 'count'); const upd = () => { pick = ta.value; cnt.textContent = `${ta.value.length} / ${q.textMax}`; okNext(); }; ta.oninput = upd;
+      c.append(ta, cnt); setTimeout(() => ta.focus(), 50); upd();
+    }
+    c.appendChild(el('p', '', 'err')).id = 'msg';
+    app.appendChild(c);
+    $('foot').hidden = false; $('next').textContent = 'NEXT →'; $('next').onclick = send;
+    $('back').hidden = !q.prev; $('back').onclick = () => load(q.prev);
+    $('saved').textContent = q.answer ? 'saved ✓' : 'saved as you go';
+    okNext();
+  }
+  function okNext(){
+    const q = V && V.q; if (!q) return; let ok = false;
+    if (q.t === 'text') ok = String(pick || '').trim().length >= 2;
+    else if (q.t === 'many') ok = Array.isArray(pick) && pick.length > 0 && (!pick.includes(q.other) || other.trim().length > 0);
+    else if (q.t === 'scale') ok = pick >= 1;
+    else ok = pick != null && (pick !== q.other || other.trim().length > 0);
+    $('next').disabled = !ok || busy;
+  }
+  async function send(){
+    if (busy) return; busy = true; $('next').disabled = true; $('saved').textContent = 'saving…';
+    try { show(await api({action: 'answer', k: V.q.k, v: pick, other})); }
+    catch(e){ msg(e.message, true); $('saved').textContent = ''; }
+    busy = false; okNext();
+  }
+  function ending(v){
+    const c = el('div', null, 'card'); c.append(el('h2', 'THAT\'S EVERY QUESTION'), el('p', `${v.name.first} is ready. Send the Audition to the director? After this the answers can't be changed.`),
+      el('p', 'Next: your character\'s card is written from your answers, Claude reviews it, and the director decides. We\'ll tell you in the 👤 menu.', 'muted'));
+    c.appendChild(el('p', '', 'err')).id = 'msg'; app.appendChild(c);
+    $('foot').hidden = false; $('back').hidden = true; $('saved').textContent = ''; $('next').textContent = 'SEND ✓'; $('next').disabled = false;
+    $('next').onclick = async () => { if (busy) return; busy = true; $('next').disabled = true; try { show(await api({action: 'submit'})); } catch(e){ msg(e.message, true); $('next').disabled = false; } busy = false; };
+  }
+  function submitted(v){
+    const c = el('div', null, 'card'); c.append(el('h2', 'SENT. THANK YOU!'), el('p', `${v.name.first}'s Audition is with the director now${v.done ? ' (sent ' + date(v.done) + ')' : ''}.`),
+      el('p', 'You\'ll get a message in the 👤 menu on the show (and a notification on the devices you linked) when there\'s news.', 'muted'));
+    const a = el('a', 'BACK TO THE SHOW', 'btn'); a.href = '/'; a.style.textDecoration = 'none'; a.style.display = 'inline-block'; a.style.marginTop = '8px'; c.appendChild(a);
+    app.appendChild(c);
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !$('foot').hidden && !$('next').disabled && document.activeElement.tagName !== 'TEXTAREA' && !$('dlg').open) { e.preventDefault(); $('next').click(); } });
+  load();
+})();
+</script>
+</body>
+</html>

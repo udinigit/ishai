@@ -134,9 +134,10 @@
     </section>
     <section class="tab" data-tab="cast" hidden>
     <div class="box" id="audBox"><div style="font-size:24px" id="audT">Auditions</div>
-      <div class="muted" style="font-size:16px">Viewers' own characters (docs/AUDITION_PLAN.md). Requests wait here; approve or decline each, with an optional reason the viewer sees. Steps 1-2 are built: the interview page (step 3) is not yet, so an approval now only waits (it lapses after 14 days).</div>
+      <div class="muted" style="font-size:16px">Viewers' own characters (docs/AUDITION_PLAN.md). Requests wait here; approve or decline each, with an optional reason the viewer sees. Steps 1-3 are built: an approved viewer names their character and takes the interview (7 days). Writing the card from the answers is step 4, so sent Auditions wait here with their answers.</div>
       <div id="audSum" class="muted" style="font-size:16px"></div>
       <div id="audReq" style="font-size:17px"></div><div id="audMsg" class="muted" style="font-size:16px"></div>
+      <details style="margin-top:6px" open><summary>Interviews (in progress and sent)</summary><div id="audIv" style="font-size:16px"></div></details>
       <details style="margin-top:6px"><summary>Decided lately</summary><div id="audDone" style="font-size:16px"></div></details>
       <details style="margin-top:6px"><summary>Banned accounts</summary><div id="audBan" style="font-size:16px"></div></details></div>
     <div class="box" id="cxRevBox"><div style="font-size:24px" id="cxRevT">Waiting for review</div>
@@ -375,6 +376,20 @@
     const rq = $('audReq'); rq.textContent = ''; v.requests.forEach(m => rq.appendChild(audRow(m, audDecide(m)))); if (!v.requests.length) rq.appendChild(cxEl('div', 'No requests waiting.', 'opacity:.7'));
     const dn = $('audDone'); dn.textContent = ''; v.decided.forEach(m => dn.appendChild(audRow(m))); if (!v.decided.length) dn.appendChild(cxEl('div', 'None yet.', 'opacity:.7'));
     const bn = $('audBan'); bn.textContent = ''; v.banned.forEach(m => bn.appendChild(audRow(m, (() => { const b = cxEl('div'); b.className = 'bar'; b.appendChild(cxBtn('Lift the ban', () => audDo({action: 'unban', id: m.id}, 'Ban lifted.'), true)); return b; })()))); if (!v.banned.length) bn.appendChild(cxEl('div', 'None.', 'opacity:.7'));
+    const iv = $('audIv'); iv.textContent = '';
+    (v.interviews || []).forEach(a => { const d = cxEl('div'); d.className = 'inb';
+      const nm = a.name && a.name.first ? `${a.name.first}${a.name.nick ? ' "' + a.name.nick + '"' : ''} ${a.name.sur || ''}${a.name.own ? ' (name typed by the viewer: check it)' : ''}` : 'unnamed';
+      d.appendChild(cxEl('div', `${nm} · viewer #${a.short} · ${a.state === 'submitted' ? 'SENT ' + fmt(a.done) : 'answering'} · ${a.answered} of about ${a.total}${a.state === 'interview' && a.until ? ' · open until ' + fmt(a.until) : ''}`));
+      const det = cxEl('details'), sum = cxEl('summary', 'Answers'); det.appendChild(sum); const body = cxEl('div', 'Loading…', 'font-size:15px'); det.appendChild(body);
+      det.ontoggle = async () => { if (!det.open || det.dataset.loaded) return; det.dataset.loaded = 1;
+        try { const r = await fetch('/api/member/dir?aud=' + a.n, {headers: {'x-admin-key': KEY}}); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
+          body.textContent = ''; let sec = '';
+          j.answers.forEach(x => { if (x.section !== sec){ sec = x.section; body.appendChild(cxEl('div', sec, 'color:var(--amber);margin-top:6px')); }
+            body.appendChild(cxEl('div', `${x.follow ? '  ↳ ' : x.wild ? '🃏 ' : ''}${x.q} — ${x.a}${x.other ? ' (' + x.other + ')' : ''}${x.ai ? ' [AI wild card]' : ''}`, x.follow ? 'opacity:.85;padding-left:12px' : '')); });
+          if (!j.answers.length) body.textContent = 'No answers yet.';
+        } catch (e) { body.textContent = e.message; delete det.dataset.loaded; } };
+      d.appendChild(det); iv.appendChild(d); });
+    if (!(v.interviews || []).length) iv.appendChild(cxEl('div', 'None yet.', 'opacity:.7'));
     if (window.LAST_V) renderInbox(window.LAST_V);
   }
   async function audLoad(){ try { audRender(await audApi()); } catch (e) { $('audMsg').className = 'err'; $('audMsg').textContent = e.message; } }

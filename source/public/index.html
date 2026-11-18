@@ -7805,10 +7805,13 @@
     $('memAdult').checked = m.adult; $('memAdult').disabled = m.state !== 'none' && m.state !== 'declined' && m.state !== 'left';
     const b = $('memAud'), t = $('memAudT'); b.textContent = MEM_BTN[m.state] || m.state.toUpperCase();
     const asking = ['none', 'declined', 'left'].includes(m.state);
-    b.disabled = m.banned || (asking ? !m.canAsk && !(m.why && /avatar|18\+/.test(m.why)) : m.state !== 'approved');
+    b.disabled = m.banned || (asking ? !m.canAsk && !(m.why && /avatar|18\+/.test(m.why)) : !['approved', 'interview'].includes(m.state));
+    const iv = v.interview;
     t.textContent = m.banned ? 'This account can\'t request Auditions.'
       : m.state === 'requested' ? `Asked on ${memDate(m.asked)}. The director will decide; the answer comes to your inbox below.`
-      : m.state === 'approved' ? `Approved! Your Audition is open until ${memDate(m.approvedUntil)}.`
+      : m.state === 'approved' ? `Approved! Start your Audition by ${memDate(m.approvedUntil)}: about 30-40 minutes, and it can be taken only once.`
+      : m.state === 'interview' && iv ? `${iv.name ? iv.name + ': ' : ''}${iv.answered} of about ${iv.total} answered. Open until ${memDate(iv.until)}.`
+      : m.state === 'submitted' ? 'Sent! The card is being written and reviewed; the answer comes to your inbox below.'
       : m.state === 'declined' ? 'The director said no this time.' + (m.note ? ' Reason: ' + m.note : '') + (m.nextAt ? ` You can ask again on ${memDate(m.nextAt)}.` : '')
       : asking ? (m.canAsk ? 'Needs: your avatar saved and the 18+ box ticked. Ready.' : m.why) : '';
     const dv = $('memDev'); dv.textContent = '';
@@ -7846,7 +7849,7 @@
   $('memAdult').onchange = async () => { const j = await memPost({action: 'adult', on: $('memAdult').checked}); if (j) memFill(); };
   $('memAud').onclick = async () => {
     const m = MBR.v && MBR.v.member; if (!m) return;
-    if (m.state === 'approved'){ $('memAudT').textContent = `The Audition page is still being built. Your approval is kept until ${memDate(m.approvedUntil)}; we'll message you here when it opens.`; return; }
+    if (m.state === 'approved' || m.state === 'interview'){ location.href = '/audition'; return; }
     if (MBR.dirty || !m.avatar){ $('memAudT').textContent = 'Save your avatar first (it is the starting look of your character).'; return; }
     if (!m.adult){ $('memAudT').textContent = 'Tick "I\'m 18 or older" first: the interview is long and its answers go to an AI.'; return; }
     if (!confirm('Ask the director for an Audition? You can ask once a month.')) return;
