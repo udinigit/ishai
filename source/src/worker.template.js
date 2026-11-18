@@ -59,14 +59,14 @@ const sameRun = evs => { const l = evs[evs.length - 1]; let n = 0;
 // --- keep the hosts from repeating themselves ---
 // content words only: names and filler words are shared by almost every line about the same scene
 const STOP = new Set("the and but for with that this his her him she he's she's they them their you your was are is it's its not just like what when then than from have has had into out about over again still very really more some been will would could there here who how why all one get got going gonna yeah okay ishai noa dana moshe levi avi zohar oren falafel".split(" "));
-const words = t => String(t || "").toLowerCase().replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(w => w.length > 3 && !STOP.has(w));
+const words = t => String(t || "").toLowerCase().replace(/[^a-z0-9'\u05D0-\u05EA ]/g, " ").split(/\s+/).filter(w => w.length > (/[\u05D0-\u05EA]/.test(w) ? 2 : 3) && !STOP.has(w));   // v274: Hebrew words count too (the hosts in Hebrew)
 function similar(a, b) {
   const A = new Set(words(a)), B = new Set(words(b));
   if (Math.min(A.size, B.size) < 3) return A.size >= 2 && A.size === B.size && [...A].every(w => B.has(w)) ? 1 : 0; // short lines: same words = same joke
   let n = 0; A.forEach(w => B.has(w) && n++); return n / Math.min(A.size, B.size);
 }
 const recentHostLines = (s, n = 24) => s.events.slice(-30).flatMap(e => (e.commentary || []).map(c => c.say)).slice(-n);
-const opening = t => String(t || "").toLowerCase().replace(/[^a-z' ]/g, " ").split(/\s+/).filter(Boolean).slice(0, 5).join(" ");
+const opening = t => String(t || "").toLowerCase().replace(/[^a-z'\u05D0-\u05EA ]/g, " ").split(/\s+/).filter(Boolean).slice(0, 5).join(" ");
 const isRepeat = (say, prev) => prev.some(p => similar(say, p) >= 0.75 || (opening(say).split(" ").length >= 5 && opening(say) === opening(p)));
 
 // The hosts come in two styles (v260), switched on the director page (MORE → The hosts, action "hostsStyle", s.hostsStyle):
@@ -104,7 +104,14 @@ function hostsEarlier(s, now) {
   } catch (e) { return ""; } }
 const hostsByGemini = s => !s || s.hostsWriter !== "cloudflare";
 const hostsSports = s => !s || s.hostsStyle !== "classic";
-const hostsOf = s => hostsSports(s) ? HOSTS_SPORTS : HOSTS;
+// the hosts' language (v274, director: MORE → The hosts, action "hostsLang", s.hostsLang): "en" (default) or "he". Only the AI-written host
+// lines change (every prompt that takes hostsOf(s).rules: the hosts' call, the story writer's COMMENTATORS); the hand-written lines,
+// recaps, callers and the cast's talk stay English. The page reads a Hebrew line with a Hebrew device voice and right to left.
+const hostsHe = s => !!s && s.hostsLang === "he";
+const HOSTS_HE = `LANGUAGE: the hosts speak HEBREW. Write every "say" in natural, spoken, everyday Israeli Hebrew, in Hebrew letters, like two Tel Aviv TV commentators (slang is fine, never translated-sounding English).
+  Everything else stays as it is: JSON keys and "who" values in English ("zohar", "oren"), people's names in Hebrew letters (ישי, דנה, נועה, זוהר, אורן...), the show's brands in their Latin spelling (Cooola, ateBite, Café Nahat...).
+  A husky dog is always "hascii", written in Latin letters, never האסקי. Short lines: Hebrew words count the same as English ones.`;
+const hostsOf = s => { const H = hostsSports(s) ? HOSTS_SPORTS : HOSTS; return hostsHe(s) ? { ...H, rules: H.rules + "\n- " + HOSTS_HE } : H; };
 
 // Fictional "sponsors" the hosts plug shamelessly now and then (never real brands)
 const SPONSORS = [
@@ -323,7 +330,7 @@ export default {
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
-        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
+        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), auditions: { cardErr: s.audCardErr || null, cardTries: s.audCardTry || {}, readErr: s.audReadErr || null, readTries: s.audReadTry || {}, lifeErr: s.memberErr || null }, life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), when busy " + (env.GEMINI_BACKUP ? "gemini (" + env.GEMINI_BACKUP + ")" : "the other Gemini Flash models") + ", then Cloudflare", hosts: hostsByGemini(s) ? "gemini, backup Cloudflare" : "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
@@ -1290,7 +1297,7 @@ Reply with ONLY JSON: {"moments":[{${briefs.some(Boolean) ? '"pre":[{"who":"zoha
       while ((m = re.exec(raw))) { const items = []; const ri = /\{\s*"who"\s*:\s*"(zohar|oren)"\s*,\s*"say"\s*:\s*"((?:[^"\\]|\\.)*)"/gi; let k;
         while ((k = ri.exec(m[1]))) items.push({ who: k[1], say: k[2].replace(/\\"/g, '"') }); out.push({ commentary: items }); }
       return out; };
-    const maxTok = 300 + moments.length * (sports ? 520 : 200);
+    const maxTok = Math.round((300 + moments.length * (sports ? 520 : 200)) * (hostsHe(s) ? 1.8 : 1));   // Hebrew takes more tokens a word
     const gemFirst = hostsByGemini(s);   // v261: the director's choice (MORE → The hosts): Gemini writes the hosts' lines, Cloudflare backs up; or the other way round as before
     let arr = readHosts(await runModel(env, msgs, maxTok, gemFirst ? "hostsG" : "hosts"));
     if (!gemFirst && arr.filter(x => (x.commentary || []).length).length < Math.ceil(moments.length / 2) && env.GEMINI_API_KEY && Date.now() >= geminiOutUntil) {
@@ -5097,6 +5104,8 @@ async function directorApi(req, env) {
       s.hostsStyle = b.style === "classic" ? "classic" : "sports";
     } else if (b.action === "hostsWriter") {   // who writes the hosts' lines (v261): "gemini" (Cloudflare backs up) or "cloudflare" (as up to v260, Gemini backs up)
       s.hostsWriter = b.writer === "cloudflare" ? "cloudflare" : "gemini";
+    } else if (b.action === "hostsLang") {   // the hosts' language (v274): "en" or "he" (AI-written host lines only)
+      s.hostsLang = b.lang === "he" ? "he" : "en";
     } else if (b.action === "pollsOff") {
       s.pollsOff = !!b.off;
     } else if (b.action === "pollBank") {     // replace the coming poll with a stock one
@@ -5145,7 +5154,7 @@ function directorView(s, bugs) {
   return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), kitchen: kitchenHealth(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { name: s.cast[s.scene.w]?.name || s.scene.w, type: s.scene.type || null, loc: s.scene.loc || null, lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse().map(dirGoal), lastError: s.lastError || null,
-    hosts: { style: hostsSports(s) ? "sports" : "classic", writer: hostsByGemini(s) ? "gemini" : "cloudflare", by: s.hostsBy || null },
+    hosts: { style: hostsSports(s) ? "sports" : "classic", writer: hostsByGemini(s) ? "gemini" : "cloudflare", lang: hostsHe(s) ? "he" : "en", by: s.hostsBy || null },
     polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t },
     ...directorNow(s, Date.now()) };

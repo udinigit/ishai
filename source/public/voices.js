@@ -46,9 +46,21 @@ const Voices = (() => {
   const vScore = v => { const n = v.name + ' ' + (v.voiceURI || '');
     return (/natural|neural/i.test(n) ? 100 : /online/i.test(n) ? 90 : /google/i.test(n) ? 80 : /premium/i.test(n) ? 75 : /enhanced|siri/i.test(n) ? 65 : 30)
       - (V_BAD.test(v.name) ? 300 : 0) + (/en[-_](us|gb)/i.test(v.lang) ? 5 : 0); };
-  function loadDevice(){ try { voices = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); voiceFor = {}; } catch(e){} }
+  // Hebrew (v274, the hosts in Hebrew): a line in Hebrew letters is read by a Hebrew device voice (Carmit, Hila, Avri, Asaf, Google עברית...); HD (Kokoro) has no Hebrew
+  const isHe = t => /[\u0590-\u05FF]/.test(String(t || ''));
+  const V_HE_F = /\b(carmit|hila|female|woman)\b|google/i, V_HE_M = /\b(asaf|avri|male|man)\b/i;
+  let heVoices = [], heFor = {};
+  function loadDevice(){ try { const all = speechSynthesis.getVoices(); voices = all.filter(v => /^en/i.test(v.lang)); heVoices = all.filter(v => /^(he|iw)/i.test(v.lang)); voiceFor = {}; heFor = {}; } catch(e){} }
+  function pickHe(id){
+    if (id in heFor) return heFor[id];
+    const g = genderOf(id), vg = v => V_HE_M.test(v.name) ? 'm' : V_HE_F.test(v.name) ? 'f' : '';
+    let pool = heVoices.filter(v => vg(v) === g); if (!pool.length) pool = heVoices;
+    const best = Math.max(-1, ...pool.map(vScore)), tier = pool.filter(v => vScore(v) >= best - 15);
+    return (heFor[id] = tier.length ? tier[hsh(id) % tier.length] : null);
+  }
   if (typeof speechSynthesis !== 'undefined'){ loadDevice(); try { speechSynthesis.addEventListener('voiceschanged', loadDevice); } catch(e){ speechSynthesis.onvoiceschanged = loadDevice; } }
-  function pickVoice(id){
+  function pickVoice(id, text){
+    if (text !== undefined && isHe(text)) return pickHe(id);
     if (id in voiceFor) return voiceFor[id];
     const ok = voices.filter(v => vScore(v) > 0), g = genderOf(id);
     let pool = ok.filter(v => vGender(v) === g); if (!pool.length) pool = ok.filter(v => !vGender(v)); if (!pool.length) pool = ok;
@@ -133,7 +145,7 @@ self.onmessage = async ({data: m}) => {
   }
   // make a line ahead of time; `at` orders the work (earliest first), `keep` never drops it for being late
   function prefetch(id, text, at, base, keep){
-    if (HD.state === 'failed' || !text) return; if (!HD.w) start();
+    if (HD.state === 'failed' || !text || isHe(text)) return; if (!HD.w) start();
     const k = keyOf(id, text, base); if (HD.cache.has(k) || HD.want.has(k) || HD.doing === k) return;
     HD.want.set(k, {text: String(text).slice(0, 400), voice: kVoice(id), speed: tone(id, base).rate, at: at ?? nowMs(), keep: !!keep}); pump();
   }
@@ -149,19 +161,19 @@ self.onmessage = async ({data: m}) => {
   // speak a line with the device's voice (used by the trailer and the director's preview; the show page has its own queue rules)
   function deviceSay(id, text, base, opts = {}){
     if (typeof speechSynthesis === 'undefined') return null;
-    const u = new SpeechSynthesisUtterance(text), v = pickVoice(id), t = tone(id, base);
-    if (v) u.voice = v; u.pitch = t.pitch; u.rate = t.rate; u.volume = opts.vol ?? 1;
+    const u = new SpeechSynthesisUtterance(text), v = pickVoice(id, text), t = tone(id, base);
+    if (isHe(text)) u.lang = 'he-IL'; if (v) u.voice = v; u.pitch = t.pitch; u.rate = t.rate; u.volume = opts.vol ?? 1;
     if (opts.cancel) speechSynthesis.cancel(); speechSynthesis.speak(u); return u;
   }
   // how fast the HD voice is on this device, in words: "0.3× speech time" = it makes a 10-second line in 3 seconds
   const speed = () => HD.rtf ? (HD.rtf < 1 ? `${HD.rtf.toFixed(2)}× speech time` : `${HD.rtf.toFixed(1)}× slower than speech`) : '';
   function info(){
-    return `${voices.length} English voices` + (HD.state !== 'off' ? ` · HD ${HD.state}${HD.state === 'loading' ? ' ' + HD.pct + '%' : ''}${HD.device ? ' on ' + (HD.device === 'webgpu' ? 'GPU' : 'CPU') : ''}${speed() ? ', ' + speed() : ''}, ${HD.made} made, ${HD.want.size} waiting${HD.err ? ' (last error: ' + HD.err + ')' : ''}` : '');
+    return `${voices.length} English voices, ${heVoices.length} Hebrew` + (HD.state !== 'off' ? ` · HD ${HD.state}${HD.state === 'loading' ? ' ' + HD.pct + '%' : ''}${HD.device ? ' on ' + (HD.device === 'webgpu' ? 'GPU' : 'CPU') : ''}${speed() ? ', ' + speed() : ''}, ${HD.made} made, ${HD.want.size} waiting${HD.err ? ' (last error: ' + HD.err + ')' : ''}` : '');
   }
   return {
-    genderOf, tone, baseOf, pickVoice, kVoice, deviceSay, K_LIST, KVOICE, GENDER,
-    setConfig(c){ cfg = (c && typeof c === 'object') ? c : {}; voiceFor = {}; changed(); }, config: () => cfg,
-    setCast(f){ castOf = typeof f === 'function' ? f : () => null; voiceFor = {}; },
+    genderOf, tone, baseOf, pickVoice, isHe, kVoice, deviceSay, K_LIST, KVOICE, GENDER,
+    setConfig(c){ cfg = (c && typeof c === 'object') ? c : {}; voiceFor = {}; heFor = {}; changed(); }, config: () => cfg,
+    setCast(f){ castOf = typeof f === 'function' ? f : () => null; voiceFor = {}; heFor = {}; },
     start, prefetch, get, wav, info, onChange(f){ listeners.push(f); },
     hd: () => ({state: HD.state, pct: HD.pct, made: HD.made, waiting: HD.want.size, err: HD.err, device: HD.device, rtf: HD.rtf, speed: speed()}),
     phone: PHONE, hdAllowed: () => !PHONE && typeof Worker !== 'undefined',

@@ -231,7 +231,7 @@
     <section class="tab" data-tab="more" hidden>
     <div class="box">
       <div class="bar" style="justify-content:space-between"><span style="font-size:24px">The hosts</span>
-        <span><button id="hostsStyle" class="ghost">…</button> <button id="hostsWriter" class="ghost">…</button></span></div>
+        <span><button id="hostsStyle" class="ghost">…</button> <button id="hostsWriter" class="ghost">…</button> <button id="hostsLang" class="ghost">…</button></span></div>
       <div id="hostsNow" style="margin-top:6px">—</div>
       <div id="hostsWho" style="margin-top:4px">—</div>
       <div class="muted" style="font-size:16px">Sports: Oren calls the play in short lines, Zohar gives the opinion and drama and sometimes asks Oren something (he answers, or now and then a sarcastic comeback); host lines come during the talk, with more energy when it matters. Classic: Zohar and Oren exactly as they were up to v259 (lines only after the talk). Switching changes the next lines written, within a few minutes.</div>
@@ -833,6 +833,10 @@
     $('hostsWho').textContent = (gm ? 'Written by: GEMINI (Cloudflare as backup).' : 'Written by: CLOUDFLARE (Gemini as backup, as up to v260).') + (h.by ? ' Last lines by ' + h.by + '.' : '');
     $('hostsWriter').textContent = gm ? 'Write with Cloudflare' : 'Write with Gemini';
     $('hostsWriter').onclick = async () => render(await api({action:'hostsWriter', writer: gm ? 'cloudflare' : 'gemini'}));
+    const he = h.lang === 'he';   // v274: the hosts' language (AI-written lines only)
+    $('hostsWho').textContent += he ? ' Language: HEBREW (AI-written lines; the rest stays English).' : ' Language: ENGLISH.';
+    $('hostsLang').textContent = he ? 'Hosts in English' : 'Hosts in Hebrew';
+    $('hostsLang').onclick = async () => render(await api({action:'hostsLang', lang: he ? 'en' : 'he'}));
   }
   function collapsible(){
     document.querySelectorAll('#main .box').forEach(box => {

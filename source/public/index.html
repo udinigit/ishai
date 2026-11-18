@@ -418,7 +418,7 @@
     </div>
     <div class="over" id="over" hidden aria-hidden="true"><span id="overText"></span><small id="overTag">overheard</small></div>
     <div class="chatC" id="chatC" hidden aria-hidden="true"><small>HERZL ST. BUILDING CHAT</small><b id="chatWho"></b> <span id="chatSay"></span></div>
-    <div class="say" id="say" hidden><b id="sayWho"></b><span id="sayText"></span></div>
+    <div class="say" id="say" hidden><b id="sayWho"></b><span id="sayText" dir="auto"></span></div>
     <div class="nosig" id="nosig"><span id="nosigText">[ SUBJECT NOT IN FRAME ]</span></div>
     <div class="hud bot"><span id="place">ISHAI // APARTMENT</span><span id="hudAction">--</span></div>
     </div>
@@ -5455,7 +5455,7 @@
         // the speaker's own voice first; a voice that fails or never starts gives way once to the device's default voice
         const speak = (own) => {
           const u = new SpeechSynthesisUtterance(text); let started = false;
-          const pv = own ? Voices.pickVoice(id) : null, gv = Voices.tone(id, v); if (pv) u.voice = pv;
+          const pv = own ? Voices.pickVoice(id, text) : null, gv = Voices.tone(id, v); if (pv) u.voice = pv; if (Voices.isHe(text)) u.lang = 'he-IL';
           const mv = moodVoice(id); u.pitch = Math.max(.1, Math.min(2, gv.pitch * mv[1] * hy[1])); u.rate = Math.max(.5, Math.min(2, gv.rate * mv[0] * hy[0])); u.volume = hy[2];
           const fallback = () => { u.onerror = u.onend = null; try { speechSynthesis.cancel(); } catch(e){} speak(false); };
           u.onstart = () => { started = true; voiceState = own ? 'speaking' : 'speaking (default voice)'; };
@@ -6106,7 +6106,7 @@
     const body = document.createElement('div');
     const hn = document.createElement('div'); hn.className = 'hn'; hn.style.color = HOSTS[m.who].color; hn.textContent = HOSTS[m.who].name + ' ';
     const tag = document.createElement('span'); tag.textContent = '· ' + fmtHM.format(new Date(m.t)); hn.appendChild(tag);
-    const line = document.createElement('div'); line.className = 'hl';
+    const line = document.createElement('div'); line.className = 'hl'; line.dir = 'auto';   // a Hebrew host line reads right to left (v274)
     body.append(hn, line); card.append(faceCanvas(m.who), body); booth.appendChild(card);
     card.classList.toggle('ad', /cooola|hummusprime|fluffnap|leaflove|sockwise|zenbrick|butcher is born|wee laddie|virgin scotch|atebite|kfar kofi|tahini tower|herzl hardware|yalla yoga|nesflicks|8bittv|boolify|rgbeat|picsell/i.test(m.say));
     while (booth.querySelectorAll('.host').length > 10) booth.removeChild(booth.querySelector('.host'));
@@ -6930,7 +6930,7 @@
   function fsPush(who, say, nm, col){
     const sp = nm ? {name: nm, color: col || '#ffd36a'} : speaker(who); FS.push({name: sp.name, color: sp.color, say, at: NOW()}); if (FS.length > 2) FS.shift();
     const el = $('fsCap'); el.textContent = '';
-    FS.forEach(x => { const d = document.createElement('div'); const b = document.createElement('b'); b.style.color = x.color; b.textContent = x.name + ': '; d.append(b, document.createTextNode(x.say)); el.appendChild(d); });
+    FS.forEach(x => { const d = document.createElement('div'); const b = document.createElement('b'); b.style.color = x.color; b.textContent = x.name + ': '; const t = document.createElement('bdi'); t.textContent = x.say; d.append(b, t); el.appendChild(d); });
   }
   function setFs(on){
     camEl.classList.toggle('fs', on); document.body.classList.toggle('fsOn', on);
