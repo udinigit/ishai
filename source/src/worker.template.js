@@ -5102,7 +5102,8 @@ async function dirStatus(s, env, now, bugs) {
   const gFail = (s.geminiErrs || []).filter(f => now - f.at < 30 * 60000 && !GEMINI_WHERE.test(f.msg || "")).length;
   const gemini = !env.GEMINI_API_KEY ? { state: "off" } : now < (s.geminiOutUntil || 0) ? { state: "paused", until: s.geminiOutUntil } : gFail ? { state: "failing", fails: gFail } : { state: "ok" };
   let cast = 0, auditions = 0; try { if (env.DB) cast = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM cast_pending WHERE state = 'pending'").first()) || {}).n || 0; } catch (e) {}
-  try { if (env.DB) { await memberTables(env); auditions = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM member WHERE state = 'requested'").first()) || {}).n || 0; } } catch (e) {}
+  try { if (env.DB) { await memberTables(env); auditions = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM member WHERE state = 'requested'").first()) || {}).n || 0;
+    await audTables(env); auditions += ((await env.DB.prepare("SELECT COUNT(*) AS n FROM aud WHERE state = 'submitted'").first()) || {}).n || 0; } } catch (e) {}
   const waiting = { bugs: (bugs || []).filter(b => b.status === "new").length, cast, auditions, art: (s.director || []).filter(g => g.status === "needs-art").length,
     film: N.filmLate ? 1 : 0, aiError: s.lastError && now - s.lastError.at < 6 * 3600000 ? 1 : 0, autoFix: (N.autoFix ? 1 : 0) + (s.autoFixErr ? 1 : 0) };
   const neurons = neuronsOf(s.usage);
@@ -6013,7 +6014,7 @@ async function memberDirApi(req, env) {
 // (`generic[f's prefix]`, `{x}` = the set's name)), wild cards (`wild`), the name lists, blocked words and famous names.
 const AUD_BANK = __AUDITION__;
 const AUD_FU_PRIO = { "hob.main": 2.5, "work.now": 2, "edu.level": 1.5, "love.status": 1.5, "basics.grew": 1.5, "fam.sibs": 1.3, "fam.kids": 1.3, "hob.food": 1.2 };   // answers whose follow-ups count most get more of them
-// No written answers since v268 (the director's choice): every question is choices, plus a few-word "something else" (AUD_OTHER_LEN)
+// Choices only since v269 (the director's choice): no written answers (v268) and no "something else" either; audQ() sets other to 0 for every question
 const AUD_OTHER_LEN = 60;
 const AUD_DAYS = 7, AUD_TEXT_MAX = 10, AUD_TEXT_LEN = 200, AUD_SHUFFLES = 10, AUD_WILD_RECENT = 200;
 let audTablesOk = false;
@@ -6047,7 +6048,7 @@ function audQ(item, wild) {
   if (!q) return null;
   const x = item.x || "";
   const o = (q.o || []).flatMap(v => audLabel(v) === "$cast" ? audCastNames() : [v]);
-  return { ...q, q: q.q.replace(/\{x\}/g, x), o, other: q.other || item.p || item.w ? 1 : 0 };
+  return { ...q, q: q.q.replace(/\{x\}/g, x), o, other: 0 };
 }
 const audKey = item => item.w ? "w" + item.w : item.p ? item.id + "@" + item.p + ":" + item.x : item.id;
 function audSection(item) {
@@ -6093,7 +6094,7 @@ function audFollow(qid, labels, list, A, seed) {
   for (const [label, sid] of sets) {
     const set = AUD_BANK.follow[sid] || { qs: [] }, fam = sid.split(".")[0], r = audRand("fu:" + seed + ":" + qid + ":" + label);
     const x = set.name || label;
-    const cands = [...audShuffle(set.qs, r).slice(0, 2), ...audShuffle(AUD_BANK.generic[fam] || [], r)];
+    const cands = set.nogen ? audShuffle(set.qs, r) : [...audShuffle(set.qs, r).slice(0, 2), ...audShuffle(AUD_BANK.generic[fam] || [], r)];   // nogen: the family's templates don't fit (a single, a widow, between jobs)
     let n = 0;
     for (const q of cands) {
       if (n >= per) break;

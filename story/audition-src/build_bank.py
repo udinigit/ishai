@@ -22,7 +22,7 @@ def head(h):
     p=h.split(); t,i=p[0],p[1]; q={"id":i,"t":t}
     for f in p[2:]:
         if f=='req': q['req']=1
-        elif f=='other': q['other']=1
+        elif f=='other': pass   # no open answers since v269: choices only
         elif f.startswith('to='): q['to']=f[3:]
         elif f.startswith('max='): q['max']=int(f[4:])
         elif f.startswith('w='): q['w']=float(f[2:])
@@ -60,15 +60,16 @@ for l in open('follow.txt').read().split('\n'):
         cur=bank['generic'].setdefault(l.split()[1],[]); continue
     if l.startswith('@follow'):
         p=l.split(None,2); sid=p[1]; d={"qs":[]}
-        if len(p)>2 and p[2].startswith('name='): d['name']=p[2][5:]
+        rest=p[2] if len(p)>2 else ''
+        if rest.endswith('nogeneric'): d['nogen']=1; rest=rest[:-9].strip()
+        if rest.startswith('name='): d['name']=rest[5:]
         bank['follow'][sid]=d; cur=d['qs']; continue
     q=qline(l)
-    if q['t']!='text': q['other']=1
     cur.append(q)
 for l in open('wild.txt').read().split('\n'):
     if not l.strip(): continue
     i,q,o=[x.strip() for x in l.split(' | ')]
-    bank['wild'].append({"id":i,"t":"one","q":q,"o":opts(o),"other":1})
+    bank['wild'].append({"id":i,"t":"one","q":q,"o":opts(o)})
 bank['names']={
  "f":"Maya Noga Shira Tamar Yael Michal Dalia Ronit Hila Keren Liat Orly Sigal Efrat Tali Inbal Shani Neta Adi Lior Yarden Romi Hadas Galit Orna Ruti Ilana Zehava Miriam Esther Rivka Sarah Leah Rachel Hanna Naama Gili Mor Stav Agam Ella Mia Sophie Lucia Anna Nadia Olga Katya Leila Amira Rana Sivan Bracha Pnina Tova Yaffa Dorit Margalit Avital Ayelet".split(),
  "m":"Amit Omer Itay Yoni Eyal Guy Ronen Erez Tal Nir Ido Asaf Eitan Uri Ariel Ofer Gal Shai Doron Gil Yaron Elad Roi Barak Koby Shlomi Zvi Haim Yossef Menachem Ezra Nissim Shimon Reuven Amnon Ilan Yigal Dudi Motti Benny Sasha Misha Dima Felix Marco Pablo Leo Hugo Jonah Sami Karim Rami Yehuda Natan Yair Noam Alon Hagai Kfir Tzachi".split(),

@@ -159,7 +159,6 @@
    "id": "basics.why",
    "t": "one",
    "to": "backstory",
-   "other": 1,
    "q": "Why did they come to Tel Aviv?",
    "o": [
     "Work",
@@ -5573,8 +5572,7 @@
       "Ukulele",
       "Nothing, they listen, seriously",
       "Their voice, in the shower"
-     ],
-     "other": 1
+     ]
     },
     {
      "id": "fu.music.band",
@@ -5586,8 +5584,7 @@
       "They're starting one",
       "Never, they'd be too shy",
       "Their band was almost famous once"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "music"
@@ -5606,8 +5603,7 @@
       "Soup for any problem",
       "Lasagne for twenty",
       "Burnt rice, famously"
-     ],
-     "other": 1
+     ]
     },
     {
      "id": "fu.cook.who",
@@ -5619,8 +5615,7 @@
       "A partner who never thanks them",
       "Their parents, in return",
       "Anyone who looks hungry"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "cooking"
@@ -5638,8 +5633,7 @@
       "Cookies for the whole building",
       "Challah on Fridays",
       "Cakes that always sink"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "baking"
@@ -5656,8 +5650,7 @@
       "10 km on weekends",
       "Half marathons",
       "A marathon once, never again"
-     ],
-     "other": 1
+     ]
     },
     {
      "id": "fu.run.route",
@@ -5669,8 +5662,7 @@
       "On the treadmill at the gym",
       "Through the empty streets at night",
       "Wherever the dog pulls"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "running"
@@ -5687,8 +5679,7 @@
       "A city bike with a basket",
       "A folding bike",
       "Borrowed, for three years now"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "cycling"
@@ -5704,8 +5695,7 @@
       "In the sea, only in summer",
       "A pool, early morning laps",
       "They float more than they swim"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "swimming"
@@ -5721,8 +5711,7 @@
       "A class twice a week",
       "Videos at home, mostly lying down",
       "Serious, they want to teach it"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "yoga"
@@ -5739,8 +5728,7 @@
       "Take every class there is",
       "Talk more than train",
       "Go for the sauna"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "the gym"
@@ -5756,8 +5744,7 @@
       "Watching every match, loudly",
       "Coaching kids",
       "A team they suffer for since childhood"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "football"
@@ -5773,8 +5760,7 @@
       "Watching the big leagues at night",
       "Their whole teenage years",
       "Shooting hoops alone to think"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "basketball"
@@ -5790,8 +5776,7 @@
       "In the park with old men",
       "A favourite opening they always play",
       "They lose to their nephew, always"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "chess"
@@ -5807,8 +5792,7 @@
       "The kiosk owner",
       "Anyone brave enough",
       "Alone on the phone app"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "backgammon"
@@ -5825,8 +5809,7 @@
       "Cactuses, only cactuses",
       "A lemon tree in a pot",
       "Too many plants, all with names"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "gardening"
@@ -5844,8 +5827,7 @@
       "Old buildings",
       "Food, before anyone eats",
       "Their friends, who hate it"
-     ],
-     "other": 1
+     ]
     },
     {
      "id": "fu.photo.cam",
@@ -5856,8 +5838,7 @@
       "An old film camera",
       "A big camera they carry everywhere",
       "A cheap camera from a flea market"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "photography"
@@ -5875,8 +5856,7 @@
       "Abstract shapes",
       "The view from their window, again and again",
       "Tiny drawings in the margins"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "painting"
@@ -5894,8 +5874,7 @@
       "Funny posts online",
       "Letters to people they never send",
       "Songs"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "writing"
@@ -5913,8 +5892,7 @@
       "Science fiction",
       "Biographies",
       "Anything with a dragon"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "reading"
@@ -5931,8 +5909,7 @@
       "Football games with friends",
       "Puzzle games on the bus",
       "Strategy games, all night"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "video games"
@@ -5948,8 +5925,7 @@
       "Monopoly with family, ending in a fight",
       "Complicated games with 300-page rules",
       "Cards and rummikub with neighbours"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "board games"
@@ -5965,8 +5941,7 @@
       "Scarves for everyone, every winter",
       "Repairs for the whole building",
       "Costumes for the kids' Purim"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "sewing"
@@ -5982,8 +5957,7 @@
       "A table they eat at every day",
       "Toys for the kids in the family",
       "Boxes, many boxes"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "woodwork"
@@ -6000,8 +5974,7 @@
       "Furniture from the street",
       "Anything anyone brings them",
       "Watches"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "fixing old things"
@@ -6018,8 +5991,7 @@
       "Wild at weddings",
       "Ballet as a child, still the posture",
       "Only in the kitchen"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "dancing"
@@ -6036,8 +6008,7 @@
       "In the shower, beautifully",
       "At family dinners, by request",
       "In the street, unaware"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "singing"
@@ -6053,8 +6024,7 @@
       "Every premiere in town",
       "Backstage, building sets",
       "A dream they gave up"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "theatre"
@@ -6071,8 +6041,7 @@
       "Romantic comedies, every one",
       "Horror, alone at night",
       "Strange films nobody's heard of"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "films"
@@ -6088,8 +6057,7 @@
       "Up north, migration season",
       "From their balcony",
       "Wherever they go, binoculars ready"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "birdwatching"
@@ -6105,8 +6073,7 @@
       "The marina",
       "A lake up north",
       "They mostly sit and think"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "fishing"
@@ -6122,8 +6089,7 @@
       "Up north, by the streams",
       "The whole Israel Trail, someday",
       "Anywhere with a view and a sandwich"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "hiking"
@@ -6139,8 +6105,7 @@
       "Weekends when the waves are good",
       "Still learning, mostly falling",
       "They teach it to kids"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "surfing"
@@ -6157,8 +6122,7 @@
       "Helping old people with shopping",
       "Teaching kids to read",
       "Cleaning the beach"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "volunteering"
@@ -6177,8 +6141,7 @@
       "Bus tickets",
       "Postcards from places they've never been",
       "Rubber ducks"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "collecting"
@@ -6197,8 +6160,7 @@
       "French",
       "Korean, from the series",
       "Yiddish, from grandma's letters"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "languages"
@@ -6214,8 +6176,7 @@
       "Apps that name every star",
       "Desert nights with friends",
       "Books about space, at bedtime"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "astronomy"
@@ -6231,8 +6192,7 @@
       "Jigsaws of a thousand pieces",
       "Sudoku on the bus",
       "Riddles they torture friends with"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "puzzles"
@@ -6250,8 +6210,7 @@
       "A road trip in the desert",
       "Their parents' home town abroad",
       "They haven't yet, it's all planned"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "travel"
@@ -6269,8 +6228,7 @@
       "Science",
       "Two friends chatting about nothing",
       "Self-improvement"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "podcasts"
@@ -6286,8 +6244,7 @@
       "Trying open-mic nights, terrified",
       "Funny videos, all day",
       "Telling the same three jokes, perfectly"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "comedy"
@@ -6303,8 +6260,7 @@
       "An app that tells them to breathe",
       "A retreat once a year",
       "They fall asleep every time"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "meditation"
@@ -6320,8 +6276,7 @@
       "A motorbike they ride on Saturdays",
       "Watching races",
       "Knowing every model on the street"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "cars and motorbikes"
@@ -6338,8 +6293,7 @@
       "Better, more alive",
       "They hate the scooters",
       "It hasn't, not where it matters"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "Tel Aviv"
@@ -6355,8 +6309,7 @@
       "Close to the border, tense",
       "Near the lake",
       "Small, everyone knew them"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "the north"
@@ -6372,8 +6325,7 @@
       "On the edge of the desert",
       "Near the sea",
       "Small and proud"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "the south"
@@ -6389,8 +6341,7 @@
       "Too serious",
       "Beautiful, they miss it",
       "Their grandparents' house"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "Jerusalem"
@@ -6406,8 +6357,7 @@
       "Stairs, so many stairs",
       "Quiet and friendly",
       "The port"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "Haifa"
@@ -6423,8 +6373,7 @@
       "Hard, they left at 18",
       "The children's house, they still talk about it",
       "The dining hall and its gossip"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "the kibbutz"
@@ -6440,8 +6389,7 @@
       "Flowers",
       "Chickens, many chickens",
       "Nothing, they had a garage"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "the moshav"
@@ -6461,8 +6409,7 @@
       "Poland",
       "Spain",
       "Somewhere small they'd have to explain"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "Europe"
@@ -6480,8 +6427,7 @@
       "Mexico",
       "Canada",
       "Ethiopia, then America (a long story)"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "the Americas"
@@ -6499,8 +6445,7 @@
       "India",
       "Morocco",
       "Somewhere they don't talk about"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "abroad"
@@ -6517,8 +6462,7 @@
       "Money trouble",
       "Their family is just restless",
       "They never really knew"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "moving around"
@@ -6534,8 +6478,7 @@
       "They hated sitting still",
       "A job came along",
       "They had a plan of their own"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "high school"
@@ -6554,8 +6497,7 @@
       "Carpenter",
       "Plumber",
       "Graphic design"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "trade school"
@@ -6573,8 +6515,7 @@
       "Design",
       "Social work",
       "Tourism"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "college"
@@ -6590,14 +6531,24 @@
       "Endless exams and coffee",
       "Mostly the student union",
       "Studying at night, working by day"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "university"
   },
   "edu.drop": {
    "qs": [
+    {
+     "id": "fu.drop.regret",
+     "t": "one",
+     "q": "Do they regret it?",
+     "o": [
+      "Never",
+      "Sometimes, late at night",
+      "Yes, they might go back one day",
+      "They tell everyone it was the best thing they did"
+     ]
+    },
     {
      "id": "fu.drop.why",
      "t": "one",
@@ -6608,10 +6559,10 @@
       "They hated it",
       "Love, a long story",
       "A family crisis"
-     ],
-     "other": 1
+     ]
     }
    ],
+   "nogen": 1,
    "name": "dropping out"
   },
   "edu.self": {
@@ -6627,14 +6578,24 @@
       "How to fix anything",
       "Music",
       "Accounting, sadly"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "teaching themselves"
   },
   "edu.teacher": {
    "qs": [
+    {
+     "id": "fu.teacher.now",
+     "t": "one",
+     "q": "Are they still in touch with that teacher?",
+     "o": [
+      "Yes, a card every holiday",
+      "They lost touch",
+      "The teacher passed away",
+      "They'd love to find them again"
+     ]
+    },
     {
      "id": "fu.teacher.what",
      "t": "one",
@@ -6645,10 +6606,10 @@
       "Told them they'd be something",
       "Was strict and fair",
       "Let them sing in the class play"
-     ],
-     "other": 1
+     ]
     }
    ],
+   "nogen": 1,
    "name": "a teacher"
   },
   "work.office": {
@@ -6663,8 +6624,7 @@
       "A government office",
       "An agency",
       "A law firm's front desk"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "office work"
@@ -6681,8 +6641,7 @@
       "Design apps",
       "Sell software",
       "Fix everyone's computers"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "tech"
@@ -6700,8 +6659,7 @@
       "Flowers",
       "Second-hand books",
       "Spices"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "a shop"
@@ -6718,8 +6676,7 @@
       "Waiting tables",
       "Washing up, for now",
       "Running the place"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "cafés and restaurants"
@@ -6736,8 +6693,7 @@
       "Adults learning Hebrew",
       "Music lessons at home",
       "University students"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "teaching"
@@ -6755,8 +6711,7 @@
       "Physiotherapist",
       "Hospital porter",
       "A doctor, very tired"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "health care"
@@ -6773,8 +6728,7 @@
       "Painter",
       "Builder",
       "Handyman for the whole street"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "building and repairs"
@@ -6790,8 +6744,7 @@
       "A delivery scooter",
       "A bus",
       "A truck to the market at dawn"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "driving"
@@ -6807,8 +6760,7 @@
       "Some bills",
       "Nothing yet",
       "In exposure, they joke"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "art"
@@ -6825,14 +6777,35 @@
       "Online shop",
       "A cleaning company",
       "Tours for tourists"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "their own business"
   },
   "work.none": {
    "qs": [
+    {
+     "id": "fu.none.last",
+     "t": "one",
+     "q": "Their last job?",
+     "o": [
+      "An office",
+      "A shop or café",
+      "A factory",
+      "Their own business that closed",
+      "The army"
+     ]
+    },
+    {
+     "id": "fu.none.long",
+     "t": "one",
+     "q": "How long since they worked?",
+     "o": [
+      "A few weeks",
+      "A few months",
+      "Over a year"
+     ]
+    },
     {
      "id": "fu.none.how",
      "t": "one",
@@ -6842,14 +6815,26 @@
       "Enjoy the break, guiltily",
       "Help a friend's business for free",
       "Think about a total change"
-     ],
-     "other": 1
+     ]
     }
    ],
+   "nogen": 1,
    "name": "between jobs"
   },
   "work.retired": {
    "qs": [
+    {
+     "id": "fu.ret.days",
+     "t": "one",
+     "q": "What fills their days now?",
+     "o": [
+      "Grandchildren",
+      "Volunteering",
+      "The park and the newspaper",
+      "A hobby they never had time for",
+      "Still helping at the old workplace"
+     ]
+    },
     {
      "id": "fu.ret.was",
      "t": "one",
@@ -6861,10 +6846,10 @@
       "A nurse",
       "A shop owner",
       "A clerk, 40 years in one office"
-     ],
-     "other": 1
+     ]
     }
    ],
+   "nogen": 1,
    "name": "retirement"
   },
   "work.student": {
@@ -6879,8 +6864,7 @@
       "Private lessons",
       "Babysitting",
       "Delivery"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "studying"
@@ -6896,14 +6880,46 @@
       "A paralegal",
       "They left law and don't regret it",
       "Still deciding"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "law"
   },
   "love.single": {
    "qs": [
+    {
+     "id": "fu.single.last",
+     "t": "one",
+     "q": "When were they last with someone?",
+     "o": [
+      "Recently, it still stings",
+      "A few years ago",
+      "So long ago they've lost count",
+      "Never, not really"
+     ]
+    },
+    {
+     "id": "fu.single.want",
+     "t": "one",
+     "q": "Do they want someone?",
+     "o": [
+      "Yes, very much",
+      "Maybe, if it happens by itself",
+      "Not now, life is busy",
+      "No, they're happy alone"
+     ]
+    },
+    {
+     "id": "fu.single.friends",
+     "t": "one",
+     "q": "What do their friends say about it?",
+     "o": [
+      "They keep setting up blind dates",
+      "It's about time",
+      "Leave them be",
+      "They're jealous of the freedom"
+     ]
+    },
     {
      "id": "fu.single.how",
      "t": "one",
@@ -6913,14 +6929,37 @@
       "Lonely on Fridays",
       "A project, they're working on it",
       "Fine, but their mother disagrees"
-     ],
-     "other": 1
+     ]
     }
    ],
+   "nogen": 1,
    "name": "being single"
   },
   "love.dating": {
    "qs": [
+    {
+     "id": "fu.dating.long",
+     "t": "one",
+     "q": "How long with the person they're seeing now?",
+     "o": [
+      "A few weeks",
+      "A few months",
+      "On and off for years",
+      "Nobody steady, just dates"
+     ]
+    },
+    {
+     "id": "fu.dating.worst",
+     "t": "one",
+     "q": "Their worst date?",
+     "o": [
+      "The other one talked about an ex all night",
+      "Nobody showed up",
+      "The bill, a long story",
+      "They fell asleep",
+      "No bad one yet"
+     ]
+    },
     {
      "id": "fu.dating.how",
      "t": "one",
@@ -6930,33 +6969,64 @@
       "Friends' blind dates",
       "Someone from work, secretly",
       "An ex who keeps coming back"
-     ],
-     "other": 1
+     ]
     }
    ],
+   "nogen": 1,
    "name": "dating"
   },
   "love.together": {
    "qs": [
     {
-     "id": "fu.together.how",
+     "id": "fu.together.friends",
      "t": "one",
-     "q": "How did they meet?",
+     "q": "What do friends say about them as a couple?",
      "o": [
-      "At work",
-      "Through friends",
-      "On an app",
-      "At the army",
-      "On a bus",
-      "At a wedding"
-     ],
-     "other": 1
+      "Perfect together",
+      "A strange match that works",
+      "They fight too much",
+      "Nobody's met the partner yet"
+     ]
+    },
+    {
+     "id": "fu.together.live",
+     "t": "one",
+     "q": "Do they live together?",
+     "o": [
+      "Yes, a small flat full of their stuff",
+      "Not yet, soon",
+      "No, and they like it that way"
+     ]
     }
    ],
+   "nogen": 1,
    "name": "the relationship"
   },
   "love.married": {
    "qs": [
+    {
+     "id": "fu.married.kids",
+     "t": "one",
+     "q": "Children?",
+     "o": [
+      "Not yet",
+      "One",
+      "Two or three",
+      "A big family",
+      "Grown up and gone"
+     ]
+    },
+    {
+     "id": "fu.married.secret",
+     "t": "one",
+     "q": "What keeps it going?",
+     "o": [
+      "Laughing at the same things",
+      "Separate hobbies",
+      "Friday dinners, always",
+      "Honestly, habit"
+     ]
+    },
     {
      "id": "fu.married.how",
      "t": "one",
@@ -6966,14 +7036,47 @@
       "Comfortable",
       "Busy, with kids",
       "Going through a rough patch"
-     ],
-     "other": 1
+     ]
     }
    ],
+   "nogen": 1,
    "name": "the marriage"
   },
   "love.divorced": {
    "qs": [
+    {
+     "id": "fu.div.long",
+     "t": "one",
+     "q": "How long were they married?",
+     "o": [
+      "A year or two",
+      "Many years",
+      "Most of their life, it feels"
+     ]
+    },
+    {
+     "id": "fu.div.end",
+     "t": "one",
+     "q": "How did it end?",
+     "o": [
+      "Quietly, they grew apart",
+      "A big fight",
+      "Someone else came along",
+      "Money",
+      "Nobody really knows"
+     ]
+    },
+    {
+     "id": "fu.div.now",
+     "t": "one",
+     "q": "Love since then?",
+     "o": [
+      "Nobody yet",
+      "Dating, carefully",
+      "Someone new, serious",
+      "Never again, they say"
+     ]
+    },
     {
      "id": "fu.div.how",
      "t": "one",
@@ -6983,14 +7086,45 @@
       "Never speak to the ex",
       "Share the kids, politely",
       "Moved to Tel Aviv to start again"
-     ],
-     "other": 1
+     ]
     }
    ],
+   "nogen": 1,
    "name": "the divorce"
   },
   "love.widowed": {
    "qs": [
+    {
+     "id": "fu.wid.long",
+     "t": "one",
+     "q": "How long were they together?",
+     "o": [
+      "A few years",
+      "Many years",
+      "Most of their life"
+     ]
+    },
+    {
+     "id": "fu.wid.when",
+     "t": "one",
+     "q": "When did it happen?",
+     "o": [
+      "This year",
+      "A few years ago",
+      "Long ago now"
+     ]
+    },
+    {
+     "id": "fu.wid.keep",
+     "t": "one",
+     "q": "What do they keep of them?",
+     "o": [
+      "A ring they still wear",
+      "Their recipes",
+      "A photo by the bed",
+      "An old chair nobody sits in"
+     ]
+    },
     {
      "id": "fu.wid.how",
      "t": "one",
@@ -7000,10 +7134,10 @@
       "Talk to their late partner at night",
       "Their friends helped",
       "They've started to smile again"
-     ],
-     "other": 1
+     ]
     }
    ],
+   "nogen": 1,
    "name": "being widowed"
   },
   "fam.sibs": {
@@ -7018,8 +7152,7 @@
       "A brother, older",
       "A brother, younger",
       "None of them, really"
-     ],
-     "other": 1
+     ]
     },
     {
      "id": "fu.sibs.fight",
@@ -7030,8 +7163,7 @@
       "Money from the parents",
       "A partner nobody liked",
       "Nothing, they're lucky"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "their siblings"
@@ -7047,8 +7179,7 @@
       "Completely different",
       "Living abroad",
       "Their best friend and worst critic"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "their twin"
@@ -7064,8 +7195,7 @@
       "In another city",
       "Abroad",
       "Together in the same old flat"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "their parents"
@@ -7082,8 +7212,7 @@
       "Their stubbornness",
       "A ring, a watch or a book",
       "Their laugh"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "their grandparents"
@@ -7100,8 +7229,7 @@
       "Teenagers",
       "Grown up and gone",
       "A mix"
-     ],
-     "other": 1
+     ]
     },
     {
      "id": "fu.kids.how",
@@ -7113,8 +7241,7 @@
       "Worried all the time",
       "Tired",
       "Proud, showing photos to strangers"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "their children"
@@ -7134,8 +7261,7 @@
       "Moshe",
       "Lola",
       "Captain"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "their dog"
@@ -7153,8 +7279,7 @@
       "Mrs. Cohen",
       "Tiger",
       "Kugel"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "their cat"
@@ -7171,8 +7296,7 @@
       "A rude word they regret teaching",
       "The phone ringing",
       "Nothing, it judges silently"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "the parrot"
@@ -7215,8 +7339,7 @@
       "Jachnun",
       "Cholent",
       "A cake with a secret"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "that dish"
@@ -7245,8 +7368,7 @@
       "A partner started it",
       "A film they saw",
       "They just like vegetables"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "vegan food"
@@ -7263,8 +7385,7 @@
       "Their kids",
       "A rainy day",
       "They don't know, it feels good"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "saving"
@@ -7282,8 +7403,7 @@
       "Gadgets",
       "Travel",
       "Coffee, a lot of coffee"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "spending"
@@ -7299,8 +7419,7 @@
       "Strangers who leave notes",
       "A couple who fight",
       "A student who never sleeps"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "the shared flat"
@@ -7318,8 +7437,7 @@
       "At themselves",
       "At a referee on TV",
       "They can't remember"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "anger"
@@ -7335,8 +7453,7 @@
       "A family story",
       "They don't know, it's just there",
       "They watched a parent go through it"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "that fear"
@@ -7353,8 +7470,7 @@
       "A teacher",
       "A neighbour from childhood",
       "An actor they can't name"
-     ],
-     "other": 1
+     ]
     }
    ],
    "name": "who Ishai reminds them of"
@@ -7374,8 +7490,7 @@
      "A teacher",
      "A video online",
      "Nobody, they just tried it one day"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.hob.good",
@@ -7387,8 +7502,7 @@
      "Good, people ask them for tips",
      "Very good, they've won something",
      "Terrible, and they love it anyway"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.hob.when",
@@ -7400,8 +7514,7 @@
      "Weekends only",
      "Whenever they're stressed",
      "Once a month, when they remember"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.hob.where",
@@ -7423,8 +7536,7 @@
      "Herzl Gym",
      "Tel Herzl University",
      "Herzl Street itself"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.hob.thing",
@@ -7436,8 +7548,7 @@
      "Something far too expensive",
      "Something they made themselves",
      "A gift from someone they miss"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.hob.oops",
@@ -7450,8 +7561,7 @@
      "They got the day wrong and missed it all",
      "Someone from work caught them at it",
      "Nothing yet (it's coming)"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.hob.with",
@@ -7463,8 +7573,7 @@
      "With a group or a club",
      "Teaching others",
      "With family, like it or not"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.hob.ishai",
@@ -7475,8 +7584,7 @@
      "Only if he asks nicely",
      "Never, it's their thing",
      "They'd try, but they're a terrible teacher"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.hob.hour",
@@ -7489,8 +7597,7 @@
      "After a long day, to switch off",
      "Outdoors, whatever the weather",
      "When nobody's watching"
-    ],
-    "other": 1
+    ]
    }
   ],
   "place": [
@@ -7506,8 +7613,7 @@
      "Total silence at night",
      "Rain on a tin roof",
      "Bells and calls to prayer far away"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.place.friend",
@@ -7518,8 +7624,7 @@
      "Yes, on birthdays",
      "They lost touch and miss them",
      "They'd rather forget everyone from there"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.place.miss",
@@ -7532,8 +7637,7 @@
      "How direct people were",
      "Nothing at all",
      "The weather"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.place.back",
@@ -7544,8 +7648,7 @@
      "Rarely, it's far",
      "Never, they don't want to",
      "They will, one day, to stay"
-    ],
-    "other": 1
+    ]
    }
   ],
   "edu": [
@@ -7559,8 +7662,7 @@
      "They're still going",
      "No, life got in the way",
      "No, and they're glad"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.edu.learn",
@@ -7572,8 +7674,7 @@
      "How to party",
      "That they were in the wrong place",
      "A real trade they still use"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.edu.person",
@@ -7585,8 +7686,7 @@
      "A first love",
      "A rival who did better",
      "Nobody, they moved on"
-    ],
-    "other": 1
+    ]
    }
   ],
   "work": [
@@ -7600,8 +7700,7 @@
      "Sales",
      "Something completely different",
      "Nothing, this was their first job"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.work.secret",
@@ -7614,8 +7713,7 @@
      "Numbers",
      "Making the coffee everyone loves",
      "Looking busy"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.work.colleague",
@@ -7627,8 +7725,7 @@
      "The one who takes credit",
      "The one who's always happy",
      "They like everyone, suspiciously"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.work.got",
@@ -7641,8 +7738,7 @@
      "They started it themselves",
      "Pure luck",
      "They don't really know"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.work.boss",
@@ -7655,8 +7751,7 @@
      "A bit slow, but careful",
      "Everyone asks for them",
      "Hard to manage, worth it"
-    ],
-    "other": 1
+    ]
    }
   ],
   "love": [
@@ -7673,8 +7768,7 @@
      "Quietly, they grew apart",
      "A big fight",
      "It's still going"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.love.long",
@@ -7685,8 +7779,7 @@
      "A year or two",
      "Many years",
      "Forever, it feels like"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.love.friends",
@@ -7697,8 +7790,7 @@
      "It's a mistake",
      "It's none of their business",
      "Nothing, nobody knows"
-    ],
-    "other": 1
+    ]
    }
   ],
   "fam": [
@@ -7711,8 +7803,7 @@
      "Close at holidays",
      "Polite, nothing more",
      "An old argument that never got settled"
-    ],
-    "other": 1
+    ]
    }
   ],
   "music": [
@@ -7726,8 +7817,7 @@
      "One they danced to in the army",
      "One they can't hear without crying",
      "One they sing badly at karaoke"
-    ],
-    "other": 1
+    ]
    },
    {
     "id": "fu.music.live",
@@ -7738,8 +7828,7 @@
      "Once a year, the big one",
      "Small bars only",
      "Never, crowds are too much"
-    ],
-    "other": 1
+    ]
    }
   ],
   "food": [
@@ -7753,8 +7842,7 @@
      "Their mother's",
      "A tiny place nobody knows",
      "The place by the beach"
-    ],
-    "other": 1
+    ]
    }
   ]
  },
@@ -7776,8 +7864,7 @@
     "A rubber band",
     "Sunflower seeds",
     "Nothing, it has a hole"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.smell",
@@ -7796,8 +7883,7 @@
     "A wood fire",
     "Laundry drying in the sun",
     "The sea after a storm"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.fire",
@@ -7816,8 +7902,7 @@
     "Their laptop, sadly",
     "A teddy bear named Professor",
     "A jar of buttons"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.animal",
@@ -7836,8 +7921,7 @@
     "A bear",
     "A fox",
     "A goat, somehow"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.collect10",
@@ -7856,8 +7940,7 @@
     "Keychains",
     "Nothing, they gave things away",
     "Autographs of nobody famous"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.lift",
@@ -7876,8 +7959,7 @@
     "The national radio jingle",
     "A song in a language nobody speaks",
     "Whatever makes him laugh"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.lastbite",
@@ -7896,8 +7978,7 @@
     "Dip it in coffee",
     "Feed it to the pigeons",
     "Argue about who gets it"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.belief",
@@ -7916,8 +7997,7 @@
     "The best ideas come in the shower",
     "Lost things come back in spring",
     "Bread tastes better on Fridays"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.superpower",
@@ -7936,8 +8016,7 @@
     "Folding fitted sheets",
     "Remembering every face",
     "Never getting a song stuck in their head"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.ringtone",
@@ -7956,8 +8035,7 @@
     "A film theme",
     "A bicycle bell",
     "Something that scares everyone on the bus"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.object",
@@ -7976,8 +8054,7 @@
     "A boat in a bottle",
     "A lamp from their grandmother's wedding",
     "A sign from an old shop"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.nickname",
@@ -7996,8 +8073,7 @@
     "The Mayor",
     "Bubbles",
     "Tiny (they were not)"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.drawer",
@@ -8016,8 +8092,7 @@
     "Matches",
     "Seeds they never planted",
     "A love letter"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.walk",
@@ -8036,8 +8111,7 @@
     "Counting their steps",
     "Taking the long way",
     "Backwards on empty streets"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.weather",
@@ -8056,8 +8130,7 @@
     "Spring, three days a year",
     "Humid, honestly",
     "Snow they've seen once"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.hat",
@@ -8076,8 +8149,7 @@
     "No hats, ever",
     "Their father's old hat",
     "A bandana in summer"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.dream",
@@ -8096,8 +8168,7 @@
     "A dinner with everyone they ever knew",
     "Being late to their own party",
     "Finding money in the sand"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.cereal",
@@ -8116,8 +8187,7 @@
     "Frozen peas",
     "The kids' snacks",
     "Hummus with a finger"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.talent",
@@ -8136,8 +8206,7 @@
     "Opening jars no one else can",
     "Knowing what time it is without a watch",
     "Spotting four-leaf clovers"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.tshirt",
@@ -8156,8 +8225,7 @@
     "A joke in Yiddish",
     "Their name, misspelled",
     "A cartoon from the 90s"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.sound",
@@ -8176,8 +8244,7 @@
     "A cat purring",
     "Shuffled cards",
     "Bicycle bells"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.window",
@@ -8196,8 +8263,7 @@
     "Other windows, other lives",
     "A building site that never ends",
     "A schoolyard"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.wish",
@@ -8216,8 +8282,7 @@
     "One more summer as a kid",
     "To always find the remote",
     "To never feel cold"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.keychain",
@@ -8236,8 +8301,7 @@
     "A rubber duck",
     "A souvenir from a trip that went wrong",
     "Just keys, sensibly"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.radio",
@@ -8256,8 +8320,7 @@
     "Old Hits, New Tears",
     "Stories From the Bus",
     "Quiet Please"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.sign",
@@ -8276,8 +8339,7 @@
     "Love lives here",
     "Wrong door, probably",
     "Ring for coffee"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.colour",
@@ -8296,8 +8358,7 @@
     "Black, always",
     "White, like a clean page",
     "Brown, like coffee"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.number",
@@ -8316,8 +8377,7 @@
     "9",
     "21",
     "2, always pairs"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.saving",
@@ -8336,8 +8396,7 @@
     "A fortune cookie paper",
     "A library card",
     "Nothing, they clean it weekly"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.zoo",
@@ -8356,8 +8415,7 @@
     "The bats",
     "The bears",
     "The fish"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.secretskill",
@@ -8376,8 +8434,7 @@
     "Nothing, they'd burn the house",
     "Coffee, Turkish style",
     "Pasta"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.mirror",
@@ -8396,8 +8453,7 @@
     "Their mother's advice",
     "\"Five more minutes\"",
     "Something in a language they're learning"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.flight",
@@ -8416,8 +8472,7 @@
     "Help with everyone's bags",
     "Bring their own sandwich",
     "Never fly, they take boats"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.queue",
@@ -8436,8 +8491,7 @@
     "Complain softly",
     "Give up and leave",
     "Let others go first"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.firstjob",
@@ -8456,8 +8510,7 @@
     "Fixing neighbours' computers",
     "Tutoring",
     "Painting fences"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.dish",
@@ -8476,8 +8529,7 @@
     "Coffee with cardamom and cinnamon",
     "Fried bread with sugar",
     "A salad with too many seeds"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.sleepside",
@@ -8496,8 +8548,7 @@
     "A radio",
     "Their phone, face down",
     "Nothing, it's very clean"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.stamp",
@@ -8516,8 +8567,7 @@
     "Dancing",
     "Hugging a dog",
     "Waving"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.bus",
@@ -8536,8 +8586,7 @@
     "Next to the old lady with the shopping",
     "On the steps, by mistake",
     "Wherever they can see the sea"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.umbrella",
@@ -8556,8 +8605,7 @@
     "Very old, inherited",
     "Transparent",
     "From a hotel they never stayed at"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.cupboard",
@@ -8576,8 +8624,7 @@
     "Flags from every World Cup",
     "Trophies",
     "A sewing kit from their grandmother"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.morning",
@@ -8596,8 +8643,7 @@
     "Snooze, three times",
     "Make coffee before opening their eyes",
     "Write one line in a notebook"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.inventor",
@@ -8616,8 +8662,7 @@
     "Coffee that tastes like the first sip all day",
     "A cat translator",
     "Shoes that never squeak"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.gift",
@@ -8636,8 +8681,7 @@
     "A second chance",
     "A box of their favourite sweets",
     "A song written for them"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.ritual",
@@ -8656,8 +8700,7 @@
     "Avoiding the colour green",
     "Washing their face with cold water",
     "Not talking to anyone"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.weird",
@@ -8676,8 +8719,7 @@
     "Bridges",
     "Very quiet rooms",
     "Ducks, specifically"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.text",
@@ -8696,8 +8738,7 @@
     "\"Happy birthday!\"",
     "\"OK\"",
     "\"Sorry, wrong number\""
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.walls",
@@ -8716,8 +8757,7 @@
     "Postcards",
     "A calendar from 2018",
     "A mirror shaped like the sun"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.statue",
@@ -8736,8 +8776,7 @@
     "In the middle of Herzl Street",
     "On a roundabout",
     "Nowhere, they'd hate it"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.voice",
@@ -8756,8 +8795,7 @@
     "Their best friend",
     "Their ex, annoyingly",
     "Nobody, silence"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.sock",
@@ -8776,8 +8814,7 @@
     "Never, barefoot",
     "Gifts from their aunt",
     "Fluffy, even in summer"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.yearbook",
@@ -8796,8 +8833,7 @@
     "Write a book",
     "Adopt twenty cats",
     "Never leave the neighbourhood"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.bench",
@@ -8816,8 +8852,7 @@
     "On the promenade near the lifeguard tower",
     "A bench they carved their name into",
     "Their own balcony chair"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.lost",
@@ -8836,8 +8871,7 @@
     "A bet",
     "A game of chess they should have won",
     "Their sense of direction"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.tattoo",
@@ -8856,8 +8890,7 @@
     "A word in Hebrew",
     "A musical note",
     "Never, they'd faint"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.photo",
@@ -8876,8 +8909,7 @@
     "A blank screen",
     "A city they want to visit",
     "A painting"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.kiosk",
@@ -8896,8 +8928,7 @@
     "Batteries",
     "A bus card top-up",
     "Nothing, they just chat"
-   ],
-   "other": 1
+   ]
   },
   {
    "id": "wild.closet",
@@ -8916,8 +8947,7 @@
     "Jeans that fit again",
     "A dress from their mother",
     "Running shoes held with tape"
-   ],
-   "other": 1
+   ]
   }
  ],
  "names": {

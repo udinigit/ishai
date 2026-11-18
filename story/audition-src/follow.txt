@@ -134,11 +134,13 @@ one fu.trade.what | Which trade? | Electrician; Cook; Hairdresser; Car mechanic;
 one fu.college.what | Their diploma is in... | Practical engineering; Nursing; Accounting; Design; Social work; Tourism
 @follow edu.uni name=university
 one fu.uni.life | University was... | The best years of their life; Endless exams and coffee; Mostly the student union; Studying at night, working by day
-@follow edu.drop name=dropping out
+@follow edu.drop name=dropping out nogeneric
+one fu.drop.regret | Do they regret it? | Never; Sometimes, late at night; Yes, they might go back one day; They tell everyone it was the best thing they did
 one fu.drop.why | Why did they drop out? | Money; A job too good to refuse; They hated it; Love, a long story; A family crisis
 @follow edu.self name=teaching themselves
 one fu.self.what | What did they teach themselves? | Programming; Cooking; Languages; How to fix anything; Music; Accounting, sadly
-@follow edu.teacher name=a teacher
+@follow edu.teacher name=a teacher nogeneric
+one fu.teacher.now | Are they still in touch with that teacher? | Yes, a card every holiday; They lost touch; The teacher passed away; They'd love to find them again
 one fu.teacher.what | What did that teacher do? | Gave them a book that changed everything; Stayed after class to help; Told them they'd be something; Was strict and fair; Let them sing in the class play
 
 @generic work
@@ -167,9 +169,12 @@ one fu.drive.what | What do they drive? | A taxi; A delivery scooter; A bus; A t
 one fu.art.what | Their art pays... | All the bills, proudly; Some bills; Nothing yet; In exposure, they joke
 @follow work.business name=their own business
 one fu.biz.what | What's the business? | A small café; A repair shop; Online shop; A cleaning company; Tours for tourists
-@follow work.none name=between jobs
+@follow work.none name=between jobs nogeneric
+one fu.none.last | Their last job? | An office; A shop or café; A factory; Their own business that closed; The army
+one fu.none.long | How long since they worked? | A few weeks; A few months; Over a year
 one fu.none.how | Between jobs, they... | Send ten CVs a day; Enjoy the break, guiltily; Help a friend's business for free; Think about a total change
-@follow work.retired name=retirement
+@follow work.retired name=retirement nogeneric
+one fu.ret.days | What fills their days now? | Grandchildren; Volunteering; The park and the newspaper; A hobby they never had time for; Still helping at the old workplace
 one fu.ret.was | What did they do before retiring? | A teacher; A bus driver; An engineer; A nurse; A shop owner; A clerk, 40 years in one office
 @follow work.student name=studying
 one fu.stu.job | Their part-time job? | A café; A call centre; Private lessons; Babysitting; Delivery
@@ -180,17 +185,31 @@ one fu.law.what | Their law work? | A young lawyer, many hours; A paralegal; The
 one fu.love.line | How did it begin (or end)? | At a party, by chance; Through friends; Slowly, as friends first; Fast, and then all at once; With a long talk at night; Quietly, they grew apart; A big fight; It's still going
 one fu.love.long | How long? | A few weeks; A year or two; Many years; Forever, it feels like
 one fu.love.friends | What do friends say about it? | It's perfect; It's a mistake; It's none of their business; Nothing, nobody knows
-@follow love.single name=being single
+@follow love.single name=being single nogeneric
+one fu.single.last | When were they last with someone? | Recently, it still stings; A few years ago; So long ago they've lost count; Never, not really
+one fu.single.want | Do they want someone? | Yes, very much; Maybe, if it happens by itself; Not now, life is busy; No, they're happy alone
+one fu.single.friends | What do their friends say about it? | They keep setting up blind dates; It's about time; Leave them be; They're jealous of the freedom
 one fu.single.how | Being single is... | Freedom; Lonely on Fridays; A project, they're working on it; Fine, but their mother disagrees
-@follow love.dating name=dating
+@follow love.dating name=dating nogeneric
+one fu.dating.long | How long with the person they're seeing now? | A few weeks; A few months; On and off for years; Nobody steady, just dates
+one fu.dating.worst | Their worst date? | The other one talked about an ex all night; Nobody showed up; The bill, a long story; They fell asleep; No bad one yet
 one fu.dating.how | Their dating life? | Apps, endlessly; Friends' blind dates; Someone from work, secretly; An ex who keeps coming back
-@follow love.together name=the relationship
-one fu.together.how | How did they meet? | At work; Through friends; On an app; At the army; On a bus; At a wedding
-@follow love.married name=the marriage
+@follow love.together name=the relationship nogeneric
+one fu.together.friends | What do friends say about them as a couple? | Perfect together; A strange match that works; They fight too much; Nobody's met the partner yet
+one fu.together.live | Do they live together? | Yes, a small flat full of their stuff; Not yet, soon; No, and they like it that way
+@follow love.married name=the marriage nogeneric
+one fu.married.kids | Children? | Not yet; One; Two or three; A big family; Grown up and gone
+one fu.married.secret | What keeps it going? | Laughing at the same things; Separate hobbies; Friday dinners, always; Honestly, habit
 one fu.married.how | The marriage is... | Happy, after many years; Comfortable; Busy, with kids; Going through a rough patch
-@follow love.divorced name=the divorce
+@follow love.divorced name=the divorce nogeneric
+one fu.div.long | How long were they married? | A year or two; Many years; Most of their life, it feels
+one fu.div.end | How did it end? | Quietly, they grew apart; A big fight; Someone else came along; Money; Nobody really knows
+one fu.div.now | Love since then? | Nobody yet; Dating, carefully; Someone new, serious; Never again, they say
 one fu.div.how | After the divorce they... | Are friends with the ex; Never speak to the ex; Share the kids, politely; Moved to Tel Aviv to start again
-@follow love.widowed name=being widowed
+@follow love.widowed name=being widowed nogeneric
+one fu.wid.long | How long were they together? | A few years; Many years; Most of their life
+one fu.wid.when | When did it happen? | This year; A few years ago; Long ago now
+one fu.wid.keep | What do they keep of them? | A ring they still wear; Their recipes; A photo by the bed; An old chair nobody sits in
 one fu.wid.how | How do they live with it? | Keep busy; Talk to their late partner at night; Their friends helped; They've started to smile again
 
 @generic fam

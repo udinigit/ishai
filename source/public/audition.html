@@ -46,6 +46,7 @@
   .wild{border-color:var(--amber)} .wild .q{color:var(--amber)}
   #stage{display:block;width:100%;aspect-ratio:192/108;border:1px solid var(--faint);border-radius:6px;background:#050705;margin-bottom:6px}
   .stageCap{font-size:15px;color:var(--dim);margin:0 0 6px}
+  .ruti{font-size:19px;color:var(--amber);min-height:2.4em;margin:0 0 8px} .ruti b{color:#ffd166}
   .look{display:flex;gap:12px;align-items:flex-start}
   .look img{width:84px;height:162px;image-rendering:pixelated;background:#8d9b93;border:1px solid var(--faint);border-radius:4px;flex:none}
   .lookEd{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;flex:1;font-size:16px}
@@ -69,6 +70,7 @@
   <header><h1>YOUR AUDITION</h1><a href="/">✕ BACK TO THE SHOW</a></header>
   <iframe id="stage" src="/?casting" title="The casting room: Ruti Kaspi, the casting director, at her table"></iframe>
   <p class="stageCap" id="stageCap">THE CASTING ROOM · Ruti Kaspi, casting</p>
+  <p class="ruti" id="ruti" hidden></p>
   <div id="app" aria-live="polite"><p class="muted">Loading…</p></div>
 </main>
 <div class="foot" id="foot" hidden><div class="in"><button class="ghost" id="back" hidden>← BACK</button><span class="muted" id="saved" style="font-size:16px"></span><button id="next">NEXT →</button></div></div>
@@ -96,8 +98,9 @@
     if (v.stage === 'naming') return naming(v);
     if (v.stage === 'q') { stageQuestion(v); $('stageCap').textContent = `THE CASTING ROOM · Ruti Kaspi, casting · ${v.name.first}`; return question(v); }
     if (v.stage === 'naming') stage('empty');
-    if (v.stage === 'end') stage('listen', v.name && v.name.look);
-    if (v.stage === 'submitted') stage(CAST.entered ? 'leave' : 'empty', v.name && v.name.look);
+    if (v.stage === 'end') { stage('listen', v.name && v.name.look); CAST.entered = true; ruti(`That's everything I need, ${v.name.first}. Thank you! When you're ready, press SEND.`); }
+    if (v.stage === 'submitted') { const bye = `Thank you, ${v.name.first}. We'll go through it all and let you know. Keep an eye on the 👤 menu on the show.`;
+      if (CAST.entered) ruti(bye, () => stage('leave')); else { stage('empty', v.name && v.name.look); rutiType(bye); } }
     if (v.stage === 'end') return ending(v);
     if (v.stage === 'submitted') return submitted(v);
     const c = el('div', null, 'card');
@@ -157,13 +160,24 @@
   });
   // ---- the casting room (the ?casting frame above): what it shows follows the page ----
   const CAST = {look: null, phase: 'empty', answeredAt: 0, entered: false};
-  function stage(phase, look, again){ if (look) CAST.look = look; if (phase) CAST.phase = phase; const f = $('stage'); if (f && f.contentWindow) f.contentWindow.postMessage({cast: {look: CAST.look, phase: CAST.phase, again: !!again}}, location.origin); }
+  function stage(phase, look, again, dur){ if (look) CAST.look = look; if (phase) CAST.phase = phase; const f = $('stage'); if (f && f.contentWindow) f.contentWindow.postMessage({cast: {look: CAST.look, phase: CAST.phase, again: !!again, dur: dur || 0}}, location.origin); }
+  // what Ruti says, typed out under the room; ruti() also has her talk in the room for as long as it takes, then runs `then`
+  let sayTok = 0;
+  function rutiType(text){ const tok = ++sayTok, box = $('ruti'); box.hidden = false; let i = 0;
+    const put = () => { box.textContent = ''; const b = el('b', 'RUTI: '); box.append(b, document.createTextNode(text.slice(0, i))); };
+    const step = () => { if (tok !== sayTok) return; i = Math.min(text.length, i + 2); put(); if (i < text.length) setTimeout(step, 45); }; step(); return tok; }
+  function ruti(text, then){ const tok = rutiType(text), dur = Math.max(2400, Math.min(10000, text.length * 60)); stage('talk', null, true, dur);
+    if (then) setTimeout(() => { if (tok === sayTok) then(); }, dur + 400); return tok; }
   window.addEventListener('message', e => { if (e.origin === location.origin && e.data && e.data.castingReady) stage(null, null, false); });
   function stageQuestion(v){
-    const first = !CAST.entered; CAST.entered = true;
-    if (first && v.q.n === 0) { stage('enter', v.name.look); setTimeout(() => stage(v.q.wild ? 'wild' : 'ask'), 4400); return; }   // just started: walks in first
+    const first = !CAST.entered, nm = v.name.first; CAST.entered = true;
+    const ask = () => { rutiType(v.q.wild ? 'A wild card! ' + v.q.q : v.q.q); stage(v.q.wild ? 'wild' : 'ask', v.name.look, true); };
+    if (first) { stage('enter', v.name.look);   // walks in first, then Ruti's hello (or welcome back, when an interview goes on)
+      const hello = v.q.n === 0 ? `Hi ${nm}, come in! Stand on the tape for me. I'm Ruti, I do the casting for 8bitTV. I'll ask you about your life, the little things too. There are no wrong answers, just be yourself. Let's begin.`
+        : `Welcome back, ${nm}. Stand on the tape... Now, where were we?`;
+      const tok = ++sayTok; setTimeout(() => { if (tok === sayTok) ruti(hello, ask); }, 4400); return; }
     const wait = Math.max(0, 1600 - (Date.now() - CAST.answeredAt));   // let the answer play before the next question
-    setTimeout(() => stage(v.q.wild ? 'wild' : 'ask', v.name.look, true), wait);
+    const tok = ++sayTok; setTimeout(() => { if (tok === sayTok) ask(); }, wait);
   }
   function lookDraw(){ const f = $('looks'); if (!f || !f.contentWindow || !OPTS) return; lookN++; f.contentWindow.postMessage({lookReq: lookN, look: LOOK}, location.origin); }
   function lookCard(){

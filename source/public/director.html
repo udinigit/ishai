@@ -338,13 +338,13 @@
       if (s) { const c = document.createElement('canvas'); c.width = s.w; c.height = s.h; c.getContext('2d').drawImage(s.canvas, 0, 0); PORTRAIT[id] = {canvas: c, w: s.w, h: s.h}; paint(); } } catch (e) {} });
   }
   // ---- Auditions (docs/AUDITION_PLAN.md, steps 1-2): /api/member/dir ----
-  let AUD = null; const AUD_ART = {};
+  let AUD = null; const AUD_ART = {}, AUD_OPEN = new Set();
   async function audApi(body){
     const r = await fetch('/api/member/dir', {method: body ? 'POST' : 'GET', headers: {'x-admin-key': KEY, 'content-type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
     const j = await r.json().catch(() => ({error: 'bad response (' + r.status + ')'})); if (!r.ok) throw new Error(j.error || 'error ' + r.status); return j;
   }
   function audFace(look){   // the avatar, drawn by the hidden builder frame
-    const cv = document.createElement('canvas'); cv.width = 40; cv.height = 64; cv.style.cssText = 'image-rendering:pixelated;background:#8d9b93;border:1px solid var(--faint);flex:none';
+    const cv = document.createElement('canvas'); cv.width = 40; cv.height = 64; cv.style.cssText = 'image-rendering:pixelated;background:#8d9b93;border:1px solid var(--faint);flex:none;width:40px;height:64px;align-self:flex-start';
     if (!look) return cv; const k = JSON.stringify(look);
     cxArt().then(B => { if (!B) return; try { const s = AUD_ART[k] || (AUD_ART[k] = B.sprite({kind: 'person', look, pose: 'stand', face: 'ahead', frame: 0})); if (!s) return;
       const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; const f = Math.max(1, Math.min(Math.floor(40 / s.w), Math.floor(64 / s.h))); x.drawImage(s.canvas, Math.floor((40 - s.w * f) / 2), 64 - s.h * f, s.w * f, s.h * f); } catch (e) {} });
@@ -380,19 +380,19 @@
     const dn = $('audDone'); dn.textContent = ''; v.decided.forEach(m => dn.appendChild(audRow(m))); if (!v.decided.length) dn.appendChild(cxEl('div', 'None yet.', 'opacity:.7'));
     const bn = $('audBan'); bn.textContent = ''; v.banned.forEach(m => bn.appendChild(audRow(m, (() => { const b = cxEl('div'); b.className = 'bar'; b.appendChild(cxBtn('Lift the ban', () => audDo({action: 'unban', id: m.id}, 'Ban lifted.'), true)); return b; })()))); if (!v.banned.length) bn.appendChild(cxEl('div', 'None.', 'opacity:.7'));
     const iv = $('audIv'); iv.textContent = '';
-    (v.interviews || []).forEach(a => { const d = cxEl('div'); d.className = 'inb'; if (a.name && a.name.look) { d.style.display = 'flex'; d.style.gap = '10px'; d.appendChild(audFace(a.name.look)); }
+    (v.interviews || []).forEach(a => { const d = cxEl('div'); d.className = 'inb'; if (a.name && a.name.look) { d.style.display = 'flex'; d.style.gap = '10px'; d.style.alignItems = 'flex-start'; d.appendChild(audFace(a.name.look)); }
       const col = cxEl('div'); col.style.flex = '1'; d.appendChild(col); const dd = d; { const d = col;
       const nm = a.name && a.name.first ? `${a.name.first}${a.name.nick ? ' "' + a.name.nick + '"' : ''} ${a.name.sur || ''}${a.name.own ? ' (name typed by the viewer: check it)' : ''}` : 'unnamed';
       d.appendChild(cxEl('div', `${nm} · viewer #${a.short} · ${a.state === 'submitted' ? 'SENT ' + fmt(a.done) : 'answering'} · ${a.answered} of about ${a.total}${a.state === 'interview' && a.until ? ' · open until ' + fmt(a.until) : ''}`));
-      const det = cxEl('details'), sum = cxEl('summary', 'Answers'); det.appendChild(sum); const body = cxEl('div', 'Loading…', 'font-size:15px'); det.appendChild(body);
-      det.ontoggle = async () => { if (!det.open || det.dataset.loaded) return; det.dataset.loaded = 1;
+      const det = cxEl('details'), sum = cxEl('summary', 'Answers'); det.id = 'audAns' + a.n; det.appendChild(sum); const body = cxEl('div', 'Loading…', 'font-size:15px'); det.appendChild(body);
+      det.ontoggle = async () => { if (det.open) AUD_OPEN.add(a.n); else AUD_OPEN.delete(a.n); if (!det.open || det.dataset.loaded) return; det.dataset.loaded = 1;
         try { const r = await fetch('/api/member/dir?aud=' + a.n, {headers: {'x-admin-key': KEY}}); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
           body.textContent = ''; let sec = '';
           j.answers.forEach(x => { if (x.section !== sec){ sec = x.section; body.appendChild(cxEl('div', sec, 'color:var(--amber);margin-top:6px')); }
             body.appendChild(cxEl('div', `${x.follow ? '  ↳ ' : x.wild ? '🃏 ' : ''}${x.q} — ${x.a}${x.other ? ' (' + x.other + ')' : ''}${x.ai ? ' [AI wild card]' : ''}`, x.follow ? 'opacity:.85;padding-left:12px' : '')); });
           if (!j.answers.length) body.textContent = 'No answers yet.';
         } catch (e) { body.textContent = e.message; delete det.dataset.loaded; } };
-      d.appendChild(det); } iv.appendChild(dd); });
+      d.appendChild(det); if (AUD_OPEN.has(a.n)) det.open = true; } iv.appendChild(dd); });
     if (!(v.interviews || []).length) iv.appendChild(cxEl('div', 'None yet.', 'opacity:.7'));
     if (window.LAST_V) renderInbox(window.LAST_V);
   }
@@ -690,6 +690,9 @@
     (CX ? CX.pending : []).forEach(p => { const d = el('div', null, 'inb cast'); d.appendChild(el('div', `Cast #${p.n} ${p.kind}: ${cxChange(p)}`)); d.appendChild(el('div', 'Why: ' + (p.why || '—'), 'why')); d.appendChild(cxReviewBar(p)); box.appendChild(d); });
     window.LAST_V = v;
     (AUD ? AUD.requests : []).forEach(m => { const d = el('div', null, 'inb'); d.appendChild(el('div', `Audition request · viewer #${m.short} · ${fmt(m.asked)}`)); d.appendChild(audDecide(m)); box.appendChild(d); });
+    (AUD && AUD.interviews || []).filter(a => a.state === 'submitted').forEach(a => { const nm = a.name && a.name.first ? `${a.name.first} ${a.name.sur || ''}`.trim() : 'unnamed';
+      inboxItem(box, '', `Audition sent · ${nm} · ${a.test ? 'your test' : 'viewer #' + a.short} · ${fmt(a.done)}`, `${a.answered} answers. Writing the card is step 4 (not built yet); the answers are on the CAST tab.`,
+        [['Read the answers', () => { DirBar.tab('cast'); setTimeout(() => { const d = $('audAns' + a.n); if (d) { d.open = true; d.scrollIntoView({behavior: 'smooth', block: 'center'}); } }, 400); }]]); });
     (v.goals || []).filter(g => g.status === 'needs-art').forEach(g => inboxItem(box, '', 'Goal waiting for art: ' + g.goal, 'Art needed: ' + (g.art || '—'),
       [['Release (art is ready)', () => act({action: 'release', id: g.id})]]));
     if (v.filmLate) { const f = v.filmLate; inboxItem(box, 'red', `The film isn't written: ${f.title} (${f.done}${f.of ? ' of ' + f.of : ''} parts), Saturday ${hm(f.at)}`, 'Not ready by Friday noon, an older film comes back instead.',
@@ -768,7 +771,7 @@
   let refreshing = false;
   async function refresh(){
     if (document.hidden || $('main').hidden || refreshing) return; refreshing = true;
-    try { render(await api()); if (DirBar.current() === 'now') { cxLoad(); audLoad(); } } catch(e){} finally { refreshing = false; }
+    try { render(await api()); if (DirBar.current() === 'now' || DirBar.current() === 'cast') { cxLoad(); audLoad(); } } catch(e){} finally { refreshing = false; }
   }
   setInterval(refresh, 60000);
   let hiddenAt = 0; document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = Date.now(); else if (Date.now() - hiddenAt > 55000) refresh(); });

@@ -8217,18 +8217,18 @@
   if (params.has('syncdebug')) window.__ishaiSync = () => ({loc: actor.loc, x: actor.x, a: actor.action, hidden: actor.hidden, comp: comp.id ? comp.x : null, dog: dog.loc ? dog.x : null, cam: SCENES[actor.loc].cam, ride: !!actor.ride, sw: !!actor.switching, sim: simT});
   // ?casting: the Audition page's casting room (public; docs/AUDITION_PLAN.md). The show's own art on the show's own canvas, nothing else runs:
   // Ruti Kaspi, the casting director (never part of the story), at her table; the viewer's character walks in through the door to the tape mark.
-  // The Audition page (the parent) sends {cast: {look, phase}}: empty (before the start), enter, listen, ask, answer, wild, leave.
+  // The Audition page (the parent) sends {cast: {look, phase, dur}}: empty (before the start), enter, talk (Ruti speaks for dur ms: the intro, the goodbye), listen, ask, answer, wild, leave.
   if (params.has('casting')) {
     BUILDER = true; demoMode = true; TUNING = false;
     const cv = $('scene'); document.body.appendChild(cv);
     const st = document.createElement('style'); st.textContent = 'html,body{margin:0;background:#050705;overflow:hidden} body>*:not(#scene){display:none!important} #scene{display:block;width:100vw;height:auto;image-rendering:pixelated}'; document.head.appendChild(st);
     const DIR = {hair:'bun', hairColor:'auburn', skin:'fair', shirt:'teal', pants:'navy', top:'sweater', bottom:'trousers', hat:'none', hatColor:'black', extras:['glasses','necklace']};
-    const MARK = 100, DOOR = 182, WALK_MS = 4200, CS = {look: null, phase: 'empty', at: performance.now(), x: null};
+    const MARK = 100, DOOR = 182, WALK_MS = 4200, CS = {look: null, phase: 'empty', at: performance.now(), x: null, dur: 0};
     window.addEventListener('message', e => { if (e.origin !== location.origin || !e.data || !e.data.cast) return;
       const c = e.data.cast, now = performance.now();
-      if (c.look) CS.look = c.look;
+      if (c.look) CS.look = c.look; if (c.dur) CS.dur = c.dur;
       if (c.phase && c.phase !== CS.phase) { CS.phase = c.phase; CS.at = now; }   // only a real change restarts (a resend after loading changes nothing)
-      else if (c.phase && c.again && (c.phase === 'ask' || c.phase === 'wild')) CS.at = now;   // the next question: ask again
+      else if (c.phase && c.again && (c.phase === 'ask' || c.phase === 'wild' || c.phase === 'talk')) CS.at = now;   // the next question: ask again
     });
     const ease = k => k < 0 ? 0 : k > 1 ? 1 : k * k * (3 - 2 * k);
     function castFrame(){
@@ -8248,7 +8248,7 @@
       R(155,60,1,30,'#2a2a2e'); R(150,90,12,1,'#2a2a2e'); R(152,72,1,18,'#2a2a2e'); R(159,72,1,18,'#2a2a2e');
       R(149,50,15,10,'#2a2a2e'); R(143,52,6,6,'#3a3a40'); R(142,53,1,4,'#6a8aa8'); R(160,51,2,2, Math.floor(now/600)%2 ? '#ff4040' : '#5a1010');
       // Ruti at her table: she asks (talks), listens, nods and writes after an answer, holds up a card for a wild card
-      const asking = (CS.phase === 'ask' || CS.phase === 'wild') && el < 2600, after = CS.phase === 'answer' && el > 1500 && el < 4200;
+      const asking = ((CS.phase === 'ask' || CS.phase === 'wild') && el < 2600) || (CS.phase === 'talk' && el < (CS.dur || 3000)), after = CS.phase === 'answer' && el > 1500 && el < 4200;
       SPEAKING = asking ? 'castdir' : (CS.phase === 'answer' && el < 1500) ? 'member' : null;
       person(DIR, 26, 58, t, {legs:'sit', face:1, talkPhase: asking, fid: asking ? 'gesture' : after ? 'nod' : undefined, seed: 41});
       if (CS.phase === 'wild' && el < 3200) { R(38,60,6,8,'#f4f0e4'); R(39,61,4,6,'#c23b3b'); if (Math.floor(now/250)%2) R(45,57,1,1,'#ffd166'); }
@@ -8256,13 +8256,13 @@
       R(42,72,14,6,'#2a2f38'); R(43,73,12,4, '#8fb8d8');   // the laptop
       R(14,75,11,3,'#f4f0e4'); R(15,74,9,1,'#e8e4d8'); R(60,73,3,5,'#f2f0ea'); R(63,74,1,2,'#f2f0ea');   // scripts, coffee
       R(24,81,30,7,'#1d2430'); word('CASTING',26,82,'#ffd166');
-      if (asking) { R(36,46,11,7,'#f4f0e4'); R(38,53,2,2,'#f4f0e4'); const d = Math.floor(now/300)%4; for (let i = 0; i < 3; i++) if (i < d) R(38+i*3,49,2,2,'#1d2430'); }
+      if (asking && CS.phase !== 'talk') { R(36,46,11,7,'#f4f0e4'); R(38,53,2,2,'#f4f0e4'); const d = Math.floor(now/300)%4; for (let i = 0; i < 3; i++) if (i < d) R(38+i*3,49,2,2,'#1d2430'); }
       // the character: walks in to the mark, stands there, answers (talks), walks out at the end
       if (CS.look && CS.phase !== 'empty') {
-        let x = MARK, walk = false, face = -1;
-        if (CS.phase === 'enter' && el < WALK_MS) { x = DOOR - (DOOR - MARK) * ease(el / WALK_MS); walk = true; }
+        let x = MARK, walk = false, face = 0;   // on the mark: facing the camera like the look's preview
+        if (CS.phase === 'enter' && el < WALK_MS) { x = DOOR - (DOOR - MARK) * ease(el / WALK_MS); walk = true; face = -1; }
         if (CS.phase === 'leave') { if (el > WALK_MS * 1.1) x = null; else { x = MARK + (DOOR - MARK) * ease(el / WALK_MS); walk = true; face = 1; } }
-        if (x != null) person(CS.look, Math.round(x), 64, t, {walk, face, talkPhase: SPEAKING === 'member', fid: SPEAKING === 'member' ? 'gesture' : undefined, seed: 7});
+        if (x != null) person(CS.look, Math.round(x), 64, t, {walk, face, talkPhase: SPEAKING === 'member', fid: SPEAKING === 'member' ? 'gesture' : undefined, still: !walk && SPEAKING !== 'member', seed: 7});   // still: no idle fidgets (they turned the character round)
       }
       requestAnimationFrame(castFrame);
     }
