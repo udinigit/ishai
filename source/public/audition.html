@@ -19,6 +19,7 @@
   header a{color:var(--dim);text-decoration:none;font-size:18px}
   h1{font-weight:normal;font-size:30px;margin:0;letter-spacing:1px;color:var(--amber)}
   h2{font-weight:normal;font-size:24px;margin:14px 0 6px;color:var(--amber)}
+  h3{font-weight:normal;font-size:20px;margin:12px 0 4px;color:var(--amber)} .role{font-size:20px;color:#ffd166} .card b{font-weight:normal;color:var(--amber)}
   p{margin:6px 0}
   .muted{color:var(--dim)} .err{color:var(--red);min-height:1.2em} .ok{color:var(--phos)}
   .card{background:var(--card);border:1px solid var(--faint);border-radius:8px;padding:12px;margin:10px 0}
@@ -103,6 +104,14 @@
       if (CAST.entered) ruti(bye, () => stage('leave')); else { stage('empty', v.name && v.name.look); rutiType(bye); } }
     if (v.stage === 'end') return ending(v);
     if (v.stage === 'submitted') return submitted(v);
+    if (v.stage === 'offer' || v.stage === 'accepted') return offer(v);
+    if (v.stage === 'declined' || v.stage === 'rejected') {
+      const c = el('div', null, 'card'); c.append(el('h2', v.stage === 'declined' ? 'ROLE TURNED DOWN' : 'NOT THIS TIME'),
+        el('p', v.stage === 'declined' ? `You turned the role down, so ${v.name.first} won't join the show. Thank you for the Audition.` : `${v.name.first} won't be joining the show this time. The director's note is in your 👤 inbox. Thank you for the Audition.`),
+        el('p', 'You can ask for a new Audition a month after your last request.', 'muted'));
+      const a = el('a', 'BACK TO THE SHOW', 'btn'); a.href = '/'; a.style.textDecoration = 'none'; a.style.display = 'inline-block'; a.style.marginTop = '8px'; c.appendChild(a);
+      app.appendChild(c); if (!CAST.entered) stage('empty'); return;
+    }
     const c = el('div', null, 'card');
     c.appendChild(el('p', v.member === 'requested' ? 'Your Audition request is waiting for the director. You\'ll hear back in the 👤 menu.'
       : v.member === 'none' || v.member === 'declined' || v.member === 'left' ? 'You don\'t have an open Audition. You can ask for one in the 👤 menu on the show.'
@@ -264,6 +273,43 @@
     try { show(await api({action: 'answer', k: V.q.k, v: pick, other})); }
     catch(e){ msg(e.message, true); $('saved').textContent = ''; }
     busy = false; okNext();
+  }
+  // ---- the offer (step 5): the role, who the character is, and what the viewer doesn't control; Accept / Decline ----
+  function offer(v){
+    const nm = `${v.name.first} ${v.name.sur || ''}`.trim(), r = v.role || {}, cd = v.card || {}, acc = v.stage === 'accepted';
+    $('stageCap').textContent = `THE CASTING ROOM · Ruti Kaspi, casting · ${v.name.first}`;
+    if (!CAST.entered){ stage('listen', v.name.look); CAST.entered = true;
+      ruti(acc ? `${v.name.first}, welcome back. The table read isn't ready yet; I'll call you.`
+        : `${v.name.first}! Good news: the director wants you on the show, as ${r.title || 'one of us'}${r.link ? ', ' + r.link : ''}. Read it over, and tell me: are you in?`); }
+    const c = el('div', null, 'card');
+    c.append(el('h2', acc ? 'YOU ACCEPTED' : 'YOUR ROLE'), el('p', `${nm.toUpperCase()} · ${(r.title || '').toUpperCase()}`, 'role'));
+    if (r.link) c.appendChild(el('p', `In the story: ${r.link}.`));
+    if (r.scene) { c.appendChild(el('h3', 'THE FIRST SCENE')); c.appendChild(el('p', r.scene)); }
+    if (r.often) c.appendChild(el('p', 'How often: ' + r.often, 'muted'));
+    const who = el('div', null, 'card'); who.appendChild(el('h3', `WHO ${v.name.first.toUpperCase()} IS`));
+    const line = (k, t) => { if (!t) return; const p = el('p'); p.append(el('b', k + ' '), document.createTextNode(t)); who.appendChild(p); };
+    line('Age:', cd.age ? String(cd.age) : ''); line('In short:', cd.role); line('Personality:', cd.personality); line('Talks:', cd.speech); line('Lives:', cd.lives);
+    line('Story so far:', cd.backstory); line('Habits:', (cd.habits || []).join('; '));
+    if (cd.talk && cd.talk.samples && cd.talk.samples.length) line('Sounds like:', cd.talk.samples.map(x => `"${x}"`).join('  '));
+    const fine = el('div', null, 'card'); fine.append(el('h3', 'WHAT YOU DON\'T CONTROL'),
+      el('p', `Once ${v.name.first} is on the show, the show writes ${v.name.gender === 'm' ? 'him' : 'her'}: what happens, who ${v.name.gender === 'm' ? 'he' : 'she'} becomes, and when ${v.name.gender === 'm' ? 'he appears' : 'she appears'}. Claude reviews any change to the character, as for everyone in the cast. You watch, like everyone else, and you can quit any time.`, 'muted'),
+      el('p', `Next: the table read, a short rehearsal of the role that fine-tunes how ${v.name.first} plays it. Then the director gives the final green light, and only then ${v.name.first} joins the show. We'll tell you the time of the first scene.`, 'muted'));
+    app.append(c, who, fine);
+    if (acc){ const p = el('p', `Accepted on ${date(v.accepted)}. The table read isn't open yet: we'll tell you in the 👤 inbox when it is.`); c.appendChild(p);
+      const a = el('a', 'BACK TO THE SHOW', 'btn'); a.href = '/'; a.style.textDecoration = 'none'; a.style.display = 'inline-block'; a.style.marginTop = '8px'; c.appendChild(a); return; }
+    c.appendChild(el('p', `Please answer by ${date(v.until)}. If you don't, the offer lapses.`, 'muted'));
+    c.appendChild(el('p', '', 'err')).id = 'msg';
+    $('foot').hidden = false; $('saved').textContent = '';
+    $('back').hidden = false; $('back').textContent = 'DECLINE'; $('next').textContent = 'ACCEPT ✓'; $('next').disabled = false;
+    const answer = async yes => { if (busy) return; busy = true; $('next').disabled = true; $('back').disabled = true;
+      try { const j = await api({action: yes ? 'accept' : 'decline'});
+        if (yes) ruti(`Wonderful! Welcome aboard, ${v.name.first}. See you at the table read.`, () => stage('leave')); else ruti(`I understand. Thank you, ${v.name.first}. Take care.`, () => stage('leave'));
+        CAST.entered = true; const keep = sayTok; show(j); sayTok = keep; }
+      catch(e){ msg(e.message, true); $('next').disabled = false; $('back').disabled = false; } busy = false; };
+    $('next').onclick = () => { $('dlgT').textContent = `Accept the role for ${v.name.first}? Next comes the table read, then the director's green light.`; $('dlgYes').textContent = 'YES, ACCEPT'; $('dlgNo').textContent = 'NOT YET';
+      $('dlg').showModal(); $('dlgNo').onclick = () => $('dlg').close(); $('dlgYes').onclick = () => { $('dlg').close(); answer(true); }; };
+    $('back').onclick = () => { $('dlgT').textContent = `Turn the role down? ${v.name.first} won't join the show, and it counts as this month's Audition.`; $('dlgYes').textContent = 'YES, DECLINE'; $('dlgNo').textContent = 'KEEP IT';
+      $('dlg').showModal(); $('dlgNo').onclick = () => $('dlg').close(); $('dlgYes').onclick = () => { $('dlg').close(); answer(false); }; };
   }
   function ending(v){
     const c = el('div', null, 'card'); c.append(el('h2', 'THAT\'S EVERY QUESTION'), el('p', `${v.name.first} is ready. Send the Audition to the director? After this the answers can't be changed.`),

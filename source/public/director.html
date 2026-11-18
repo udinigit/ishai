@@ -134,7 +134,7 @@
     </section>
     <section class="tab" data-tab="cast" hidden>
     <div class="box" id="audBox"><div style="font-size:24px" id="audT">Auditions</div>
-      <div class="muted" style="font-size:16px">Viewers' own characters (docs/AUDITION_PLAN.md). Requests wait here; approve or decline each, with an optional reason the viewer sees. Steps 1-3 are built: an approved viewer names their character and takes the interview (7 days). Writing the card from the answers is step 4, so sent Auditions wait here with their answers.</div>
+      <div class="muted" style="font-size:16px">Viewers' own characters (docs/AUDITION_PLAN.md). Requests wait here; approve or decline each, with an optional reason the viewer sees. An approved viewer names their character and takes the interview (7 days). A sent Audition gets its card and three ways in from the AI; Claude reviews it with the weekly cast review; you pick a way in, edit what you like, and approve (the viewer gets the offer and accepts or declines within 7 days) or reject. The table read and your final green light come next (not built yet).</div>
       <div id="audSum" class="muted" style="font-size:16px"></div>
       <div class="bar" style="margin:6px 0"><button id="audTest">🧪 Try an Audition yourself</button><span id="audTestT" class="muted" style="font-size:15px"></span></div>
       <div id="audReq" style="font-size:17px"></div><div id="audMsg" class="muted" style="font-size:16px"></div>
@@ -338,7 +338,52 @@
       if (s) { const c = document.createElement('canvas'); c.width = s.w; c.height = s.h; c.getContext('2d').drawImage(s.canvas, 0, 0); PORTRAIT[id] = {canvas: c, w: s.w, h: s.h}; paint(); } } catch (e) {} });
   }
   // ---- Auditions (docs/AUDITION_PLAN.md, steps 1-2): /api/member/dir ----
-  let AUD = null; const AUD_ART = {}, AUD_OPEN = new Set();
+  let AUD = null; const AUD_ART = {}, AUD_OPEN = new Set(), AUD_ROWS = new Map();
+  const AUD_STATE = {submitted: 'SENT', offered: 'OFFERED', accepted: 'ACCEPTED', rejected: 'REJECTED', declinedOffer: 'TURNED DOWN BY THE VIEWER', offerExpired: 'OFFER LAPSED'};
+  // steps 4-5: what comes after the answers: the card being written, the card to approve (with Claude's review and three ways in), the offer
+  function audStep(a){
+    const box = cxEl('div', null, 'margin-top:6px'), d = a.director || {};
+    if (a.state === 'interview') return box;
+    if (a.state === 'offered') { const w = a.ways[d.way] || {}; box.appendChild(cxEl('div', `Offered: ${w.title}${w.linkText ? ' (' + w.linkText + ')' : ''}. Waiting for the viewer until ${fmt(d.offerUntil)}.`, 'color:var(--amber)')); return box; }
+    if (a.state === 'accepted') { const w = a.ways[d.way] || {}; box.appendChild(cxEl('div', `Accepted ${fmt(d.accepted)}: ${w.title}. Next is the table read (step 5b, not built yet), then your green light.`, 'color:var(--amber)')); return box; }
+    if (a.state !== 'submitted') { box.appendChild(cxEl('div', a.state === 'rejected' ? 'You rejected it' + (d.reason ? ': ' + d.reason : '.') : a.state === 'declinedOffer' ? 'The viewer turned the role down.' : 'The viewer didn\'t answer the offer in 7 days.', 'opacity:.8')); return box; }
+    if (!a.card) {
+      box.appendChild(cxEl('div', 'The card is being written from the answers (within a few minutes; it waits while Gemini is paused for the day).', 'opacity:.85'));
+      const b = cxEl('div'); b.className = 'bar'; b.appendChild(cxBtn('Write it now', () => audDo({action: 'audWrite', n: a.n}, 'Card written.'))); box.appendChild(b); return box;
+    }
+    const c = a.card, rv = a.review, det = cxEl('details'); det.id = 'audCard' + a.n; det.appendChild(cxEl('summary', 'TO APPROVE: the card and three ways in'));
+    if (AUD_OPEN.has('c' + a.n) || !AUD_OPEN.has('x' + a.n)) det.open = true;
+    det.ontoggle = () => { AUD_OPEN.add((det.open ? 'c' : 'x') + a.n); AUD_OPEN.delete((det.open ? 'x' : 'c') + a.n); };
+    det.appendChild(cxEl('div', rv ? `Claude: ${rv.verdict}${rv.way ? ' · recommends way ' + rv.way : ''}${rv.reason ? ' · ' + rv.reason : ''}` : 'Claude hasn\'t reviewed it yet (the weekly cast review, Sundays). You can decide without it.', 'color:' + (rv ? (rv.verdict === 'reject' ? 'var(--bad, #ff6b6b)' : 'var(--amber)') : 'var(--dim)')));
+    const card = cxEl('div', null, 'font-size:15px;margin:6px 0;border-left:2px solid var(--faint);padding-left:8px'), L = (k, v) => { if (v) card.appendChild(cxEl('div', k + ': ' + v)); };
+    L('Age', c.age); L('In short', c.role); L('Personality', c.personality); L('Talks', c.speech); L('Lives', c.lives); L('Works', c.works); L('Backstory', c.backstory);
+    const ins = c.inside || {}; L('Wants', [ins.wantsWeek, ins.wantsLong].filter(Boolean).join(' / ')); L('Fears', ins.fears); L('Proud of', ins.proud); L('Ashamed of', ins.ashamed);
+    L('Habits', (c.habits || []).join('; ')); if (c.talk) { L('How they talk', c.talk.how); L('Sample lines', (c.talk.samples || []).map(x => '"' + x + '"').join('  ')); L('Loves talking about', (c.talk.loves || []).join(', ')); L('Avoids', (c.talk.avoids || []).join(', ')); }
+    L('Moods', Object.entries(c.moods || {}).map(([m, x]) => m + ': ' + (x.say || '')).join(' · ')); L('Built on', a.cardWhy);
+    det.appendChild(card);
+    const dirty = () => { const row = det.closest('.inb'); if (row) row.dataset.dirty = 1; };
+    det.addEventListener('input', dirty);
+    const nb = cxEl('div'); nb.className = 'bar'; nb.appendChild(cxEl('span', 'Name:', 'opacity:.8'));
+    const inp = (v, ph, w) => { const i = cxEl('input'); i.value = v || ''; i.placeholder = ph; i.style.width = w; return i; };
+    const fi = inp(a.name.first, 'first', '110px'), ni = inp(a.name.nick, 'nickname', '100px'), si = inp(a.name.sur, 'surname', '130px'); nb.append(fi, ni, si); det.appendChild(nb);
+    det.appendChild(cxEl('div', 'Ways in (pick one; the first scene and how often can be edited):', 'margin-top:6px'));
+    const pickWay = rv && rv.way ? rv.way - 1 : 0, ways = a.ways.map((w, i) => {
+      const r = cxEl('div', null, 'margin:4px 0 4px 4px'); const lab = cxEl('label', null, 'display:flex;gap:6px;align-items:baseline');
+      const rb = cxEl('input'); rb.type = 'radio'; rb.name = 'audWay' + a.n; rb.value = i; rb.checked = i === pickWay; rb.style.width = 'auto';
+      lab.append(rb, cxEl('span', `${i + 1}. ${w.title}${w.linkText ? ' · ' + w.linkText : ' · no link'}${rv && rv.way === i + 1 ? '  ★ Claude' : ''}`));
+      const sc = cxEl('textarea'); sc.value = w.scene; sc.style.cssText = 'min-height:44px;font-size:15px;margin-top:2px'; const of = inp(w.often, 'how often', '100%');
+      r.append(lab, sc, of); det.appendChild(r); return {rb, w, sc, of}; });
+    const adv = cxEl('details'); adv.appendChild(cxEl('summary', 'Advanced: the card as JSON')); const ta = cxEl('textarea'); ta.value = JSON.stringify(c, null, 1); ta.style.cssText = 'min-height:160px;font-size:14px'; adv.appendChild(ta); det.appendChild(adv);
+    const why = inp('', 'reason the viewer sees (for Reject)', '100%'); why.style.marginTop = '6px'; det.appendChild(why);
+    const bar = cxEl('div'); bar.className = 'bar';
+    bar.appendChild(cxBtn('Approve and offer', () => { const k = ways.findIndex(x => x.rb.checked); if (k < 0) return alert('Pick a way in.');
+      const w = ways[k].w; if (!confirm(`Offer ${fi.value} ${si.value} the role "${w.title}"? The viewer gets it straight away.`)) return;
+      let card; try { card = JSON.parse(ta.value); } catch (e) { return alert('The card JSON is not valid.'); }
+      audDo({action: 'audApprove', n: a.n, way: k, name: {first: fi.value.trim(), nick: ni.value.trim() || null, sur: si.value.trim()}, card, ways: ways.map(x => ({...x.w, link: x.w.link, scene: x.sc.value.trim(), often: x.of.value.trim()}))}, 'Offer sent.'); }));
+    bar.appendChild(cxBtn('Write again', () => { if (confirm('Throw this card away and write a new one from the answers?')) audDo({action: 'audWrite', n: a.n}, 'A new card is written.'); }, true));
+    bar.appendChild(cxBtn('Reject', () => { if (confirm(`Reject this Audition? ${a.name.first} won't join the show and the viewer is told${why.value.trim() ? ' your reason' : ''}.`)) audDo({action: 'audReject', n: a.n, reason: why.value.trim()}, 'Rejected.'); }, true));
+    det.appendChild(bar); box.appendChild(det); return box;
+  }
   async function audApi(body){
     const r = await fetch('/api/member/dir', {method: body ? 'POST' : 'GET', headers: {'x-admin-key': KEY, 'content-type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
     const j = await r.json().catch(() => ({error: 'bad response (' + r.status + ')'})); if (!r.ok) throw new Error(j.error || 'error ' + r.status); return j;
@@ -369,7 +414,7 @@
     bar.append(cxBtn('Approve', () => open('approve')), cxBtn('Decline', () => open('decline'), true), cxBtn('Ban', () => open('ban'), true));
     wrap.append(bar, ed); return wrap;
   }
-  async function audDo(body, msg){ const m = $('audMsg'); m.className = 'muted'; m.textContent = 'Saving…';
+  async function audDo(body, msg){ const m = $('audMsg'); m.className = 'muted'; m.textContent = 'Saving…'; if (body && body.n) AUD_ROWS.delete(body.n);
     try { audRender(await audApi(body)); m.className = 'ok'; m.textContent = msg; } catch (e) { m.className = 'err'; m.textContent = e.message; } }
   function audRender(v){
     AUD = v; $('audT').textContent = 'Auditions' + (v.requests.length ? ` (${v.requests.length} waiting)` : '');
@@ -383,7 +428,7 @@
     (v.interviews || []).forEach(a => { const d = cxEl('div'); d.className = 'inb'; if (a.name && a.name.look) { d.style.display = 'flex'; d.style.gap = '10px'; d.style.alignItems = 'flex-start'; d.appendChild(audFace(a.name.look)); }
       const col = cxEl('div'); col.style.flex = '1'; d.appendChild(col); const dd = d; { const d = col;
       const nm = a.name && a.name.first ? `${a.name.first}${a.name.nick ? ' "' + a.name.nick + '"' : ''} ${a.name.sur || ''}${a.name.own ? ' (name typed by the viewer: check it)' : ''}` : 'unnamed';
-      d.appendChild(cxEl('div', `${nm} · viewer #${a.short} · ${a.state === 'submitted' ? 'SENT ' + fmt(a.done) : 'answering'} · ${a.answered} of about ${a.total}${a.state === 'interview' && a.until ? ' · open until ' + fmt(a.until) : ''}`));
+      d.appendChild(cxEl('div', `${nm} · viewer #${a.short} · ${a.state === 'interview' ? 'answering' : (AUD_STATE[a.state] || a.state) + ' · sent ' + fmt(a.done)} · ${a.answered} of about ${a.total}${a.state === 'interview' && a.until ? ' · open until ' + fmt(a.until) : ''}`));
       const det = cxEl('details'), sum = cxEl('summary', 'Answers'); det.id = 'audAns' + a.n; det.appendChild(sum); const body = cxEl('div', 'Loading…', 'font-size:15px'); det.appendChild(body);
       det.ontoggle = async () => { if (det.open) AUD_OPEN.add(a.n); else AUD_OPEN.delete(a.n); if (!det.open || det.dataset.loaded) return; det.dataset.loaded = 1;
         try { const r = await fetch('/api/member/dir?aud=' + a.n, {headers: {'x-admin-key': KEY}}); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
@@ -392,7 +437,9 @@
             body.appendChild(cxEl('div', `${x.follow ? '  ↳ ' : x.wild ? '🃏 ' : ''}${x.q} — ${x.a}${x.other ? ' (' + x.other + ')' : ''}${x.ai ? ' [AI wild card]' : ''}`, x.follow ? 'opacity:.85;padding-left:12px' : '')); });
           if (!j.answers.length) body.textContent = 'No answers yet.';
         } catch (e) { body.textContent = e.message; delete det.dataset.loaded; } };
-      d.appendChild(det); if (AUD_OPEN.has(a.n)) det.open = true; } iv.appendChild(dd); });
+      d.appendChild(det); if (AUD_OPEN.has(a.n)) det.open = true; d.appendChild(audStep(a)); }
+      const old = AUD_ROWS.get(a.n); if (old && old.dataset.dirty && old.dataset.state === a.state) { iv.appendChild(old); return; }   // keep a row being edited through the minute's refresh
+      dd.dataset.state = a.state; AUD_ROWS.set(a.n, dd); iv.appendChild(dd); });
     if (!(v.interviews || []).length) iv.appendChild(cxEl('div', 'None yet.', 'opacity:.7'));
     if (window.LAST_V) renderInbox(window.LAST_V);
   }
@@ -691,8 +738,8 @@
     window.LAST_V = v;
     (AUD ? AUD.requests : []).forEach(m => { const d = el('div', null, 'inb'); d.appendChild(el('div', `Audition request · viewer #${m.short} · ${fmt(m.asked)}`)); d.appendChild(audDecide(m)); box.appendChild(d); });
     (AUD && AUD.interviews || []).filter(a => a.state === 'submitted').forEach(a => { const nm = a.name && a.name.first ? `${a.name.first} ${a.name.sur || ''}`.trim() : 'unnamed';
-      inboxItem(box, '', `Audition sent · ${nm} · ${a.test ? 'your test' : 'viewer #' + a.short} · ${fmt(a.done)}`, `${a.answered} answers. Writing the card is step 4 (not built yet); the answers are on the CAST tab.`,
-        [['Read the answers', () => { DirBar.tab('cast'); setTimeout(() => { const d = $('audAns' + a.n); if (d) { d.open = true; d.scrollIntoView({behavior: 'smooth', block: 'center'}); } }, 400); }]]); });
+      inboxItem(box, '', `Audition sent · ${nm} · ${a.test ? 'your test' : 'viewer #' + a.short} · ${fmt(a.done)}`, a.card ? `${a.answered} answers. The card and three ways in are ready for you to approve${a.review ? ' (Claude: ' + a.review.verdict + ')' : ''}.` : `${a.answered} answers. The card is being written from them.`,
+        [[a.card ? 'Open it' : 'Read the answers', () => { DirBar.tab('cast'); setTimeout(() => { const d = $((a.card ? 'audCard' : 'audAns') + a.n); if (d) { d.open = true; d.scrollIntoView({behavior: 'smooth', block: 'center'}); } }, 400); }]]); });
     (v.goals || []).filter(g => g.status === 'needs-art').forEach(g => inboxItem(box, '', 'Goal waiting for art: ' + g.goal, 'Art needed: ' + (g.art || '—'),
       [['Release (art is ready)', () => act({action: 'release', id: g.id})]]));
     if (v.filmLate) { const f = v.filmLate; inboxItem(box, 'red', `The film isn't written: ${f.title} (${f.done}${f.of ? ' of ' + f.of : ''} parts), Saturday ${hm(f.at)}`, 'Not ready by Friday noon, an older film comes back instead.',

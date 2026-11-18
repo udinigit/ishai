@@ -106,5 +106,19 @@ for w in bank['wild']: assert 12<=len(w['o'])<=16,(w['id'],len(w['o']))
 n=lambda: sum(1 for _ in allq())
 print('main',len(bank['qs']),'generic',sum(len(g) for g in bank['generic'].values()),'specific',sum(len(f['qs']) for f in bank['follow'].values()),'wild',len(bank['wild']),'sets',len(bank['follow']),'total',n())
 print('text main', sum(1 for q in bank['qs'] if q['t']=='text'))
+# the role kinds (roles.json): places must be story places, uniforms look options
+R=json.load(open('roles.json')); R.pop('_about',None)
+W=json.load(open('../world.json')); WP=W.get('places',W)
+story={k for k,v in WP.items() if v.get('kind')=='story'}
+LOOKV={'hat':"none cap beanie fedora bucket sunhat kippah headband bandana headscarf".split(),'top':"tshirt shirt polo hoodie sweater stripes jacket tank dress".split(),
+  'extras':"glasses sunglasses beard stubble mustache freckles earring headphones necklace tie scarf apron watch bag backpack".split()}
+for p in R['places']: assert p in story,('roles: not a story place',p)
+for k in R['kinds']:
+    for p in k['places']: assert p in R['places'] and p in k['jobs'],(k['id'],p)
+    for f,v in k['uniform'].items():
+        for x in (v if isinstance(v,list) else [v]): assert x in LOOKV[f],(k['id'],f,x)
+    assert len(k['situations'])>=4 and len(k['dials'])>=3,k['id']
+bank['roles']=R
+print('roles',len(R['kinds']))
 json.dump(bank,open(OUT,'w'),ensure_ascii=False,indent=1)
 print('wrote',OUT)
