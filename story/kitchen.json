@@ -10,7 +10,7 @@
   "maxActiveMin": 150,
   "maxPassiveMin": 210,
   "maxAwayMin": 300,
-  "earliest": 9,
+  "earliest": 10,
   "doneBy": 21,
   "mealAt": { "Breakfast": [10], "default": [13, 19] },
   "guestPct": 100,

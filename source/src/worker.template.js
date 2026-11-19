@@ -333,6 +333,7 @@ export default {
         history: { lastArchived: s.lastArchived || null, weekDue: s.weekDue || null, lastWeek: s.lastWeek || null, err: s.historyErr || null },
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
+        sleep: (() => { try { return sleepHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (10-16 lines)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), auditions: { cardErr: s.audCardErr || null, cardTries: s.audCardTry || {}, readErr: s.audReadErr || null, readTries: s.audReadTry || {}, lifeErr: s.memberErr || null }, life: (s.life || []).slice(-6),
@@ -682,8 +683,88 @@ Reply with ONLY JSON:
   return { today, show: { id: id + "-show", t: storyMs, lines: show, sponsors: [sp.name] }, pip: pip.length >= 3 ? { id, t: storyMs, lines: pip } : null };
 }
 
+// ---------- the day's shape: sleep, naps, the Thursday night out (v276, docs/ALIVE_PLAN.md step 1) ----------
+// A night is named by the evening it starts on (weekday 0 = Sunday). Minutes from that evening's midnight: bed [from, to],
+// wake [from, to] (from the next morning's midnight); the exact minute is picked by the date, so every isolate agrees.
+const SLEEP = {
+  nights: [0, 1, 2, 3, 4, 5, 6].map(wd => wd === 4
+    ? { bed: [25 * 60 + 30, 26 * 60], wake: [10 * 60 + 20, 10 * 60 + 40], out: true }   // Thursday: a night out, to bed at 01:30-02:00, up later on Friday
+    : { bed: [23 * 60, 23 * 60 + 30], wake: [9 * 60 + 20, 9 * 60 + 40] }),
+  naps: { 4: [14 * 60 + 30, 15 * 60 + 30], 5: "fri", 6: [14 * 60, 15 * 60 + 30] },   // Thursday before improv, Friday before the Shabbat cooking, the Shabbat nap
+  friNap: [12 * 60 + 30, 13 * 60 + 30],   // Friday without a candle time; with one, the nap ends 2.5 hours before the candles
+  windDown: 30,                           // minutes before bed: guests leave, he winds down
+  napWarn: 30,                            // minutes before a nap: be home and alone
+  nightOut: { at: [21, 0], len: 150, where: "bar" },
+};
+let SLEEP_S = null;   // the state, for napOf() where a caller has none (set at the start of tick)
+const seedOf = str => { let h = 2166136261; for (const c of String(str)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return ((h >>> 0) % 1000) / 1000; };
+const dayAdd = (day, k) => { const [y, m, d] = day.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d + k)).toISOString().slice(0, 10); };
+const atMin = (day, min) => atLocal(day, Math.floor(min / 60), min % 60);
+function nightFor(day) {   // the night that starts on the evening of `day`
+  const wd = weekdayOf(day), n = SLEEP.nights[wd], pick = (r, k) => r[0] + Math.round(seedOf(day + k) * (r[1] - r[0]) / 5) * 5;
+  return { day, wd, out: !!n.out, bed: atMin(day, pick(n.bed, "bed")), wake: atMin(dayAdd(day, 1), pick(n.wake, "wake")) };
+}
+function sleepOf(ms) {   // the night he is in, or the next one
+  const day = dayOfTZ(ms), prev = nightFor(dayAdd(day, -1));
+  return ms < prev.wake ? prev : nightFor(day);
+}
+const asleepAt = ms => { const n = sleepOf(ms); return ms >= n.bed && ms < n.wake; };
+const bedSoon = ms => { const n = sleepOf(ms); return ms >= n.bed - SLEEP.windDown * 60000 && ms < n.wake; };
+// bedtime or the night itself, but not the morning: a beat may have woken him early, and he stays up (from 18:00 to 06:00 only)
+const lateAt = ms => { const h = storyClock(ms).hour; return bedSoon(ms) && (h >= 18 || h < 6); };
+const lastWake = ms => nightFor(dayAdd(sleepOf(ms).day, -1)).wake;
+// awake at ms, at least afterWake minutes after getting up and beforeBed minutes before bed
+function awakeFor(ms, afterWake = 0, beforeBed = 0) {
+  const n = sleepOf(ms); if (ms >= n.bed) return false;
+  return ms >= lastWake(ms) + afterWake * 60000 && ms <= n.bed - beforeBed * 60000;
+}
+const hm5 = ms => storyClock(ms).label.slice(-5);
+function napOf(s, ms) {   // today's nap window {from, to}, or null
+  const day = dayOfTZ(ms), wd = weekdayOf(day), r = SLEEP.naps[wd]; if (!r) return null;
+  if (r === "fri") { const sh = s && s.world && s.world.shabbat;
+    if (sh && sh.start && dayOfTZ(sh.start) === day) { const to = sh.start - 150 * 60000; return { from: to - 60 * 60000, to }; }
+    return { from: atMin(day, SLEEP.friNap[0]), to: atMin(day, SLEEP.friNap[1]) }; }
+  return { from: atMin(day, r[0]), to: atMin(day, r[1]) };
+}
+const inNap = (s, ms) => { const n = napOf(s, ms); return !!n && ms >= n.from && ms < n.to; };
+// keeps outings, visits and polls clear of the nap (and its warning before it)
+const napClash = (s, from, to) => { const n = napOf(s, from); return !!n && from < n.to && to > n.from - SLEEP.napWarn * 60000; };
+const NAP_DOWN = ["Ishai kicks off his shoes, pulls the blanket over himself and lies down for a nap.", "He draws the curtain halfway and stretches out on the bed for a nap.", "Ishai sets his phone face down and lies down for an afternoon nap."];
+const NAP_TEXTS = ["Ishai naps, one arm over his eyes.", "He dozes; the street hums below the window.", "Ishai sleeps lightly, the afternoon light across the blanket.", "He turns over in his nap and mumbles something.", "A car horn outside; Ishai sleeps through it.", "Ishai naps on, breathing slow."];
+const NAP_OK = ["idle", "working", "reading", "listening", "watching", "drinking", "eating", "waking", "sleeping"];
+// an afternoon nap (no AI): at home, alone, nothing planned; out or with company there's no nap that day
+function napEvent(s, last, goal, ms) {
+  const n = napOf(s, ms); if (!n || ms < n.from || ms >= n.to || goal) return null;
+  if (last.location !== "apartment" || last.with || !NAP_OK.includes(last.action)) return null;
+  const dog = s.unlocked.includes("dog"), pool = NAP_TEXTS.concat(dog ? ["Falafel curls up at the foot of the bed for the nap too."] : []);
+  if (last.action !== "sleeping") { if (n.to - ms < 25 * 60000) return null;
+    return { location: "apartment", action: "sleeping", text: NAP_DOWN[Math.floor(seedOf(dayOfTZ(ms)) * NAP_DOWN.length)], with: null, lines: [{ who: "ishai", say: "Just twenty minutes. Maybe forty." }], src: "nap (no AI)",
+      commentary: [{ who: "oren", say: "And he's down. The afternoon nap." }, { who: "zohar", say: "Back by " + hm5(n.to) + ". Probably." }] }; }
+  const recent = new Set(s.events.slice(-6).map(e => e.text)), fresh = pool.filter(t => !recent.has(t));
+  return { location: "apartment", action: "sleeping", text: (fresh.length ? fresh : pool)[Math.floor(Math.random() * (fresh.length || pool.length))], with: null, lines: [], commentary: [], src: "nap (no AI)" };
+}
+// Thursday's night out: an outing to the bar with a friend at 21:00, unless the plan already has the evening (no AI)
+function nightOutTick(s, now, last) {
+  const story = now + DELAY_MIN * 60000, day = dayOfTZ(story), n = nightFor(day); if (!n.out) return;
+  const o = SLEEP.nightOut, at = atLocal(day, o.at[0], o.at[1]), id = `night-${day.slice(5)}`;
+  if (story < at || story > at + 90 * 60000 || s.director.some(g => g.id === id)) return;
+  s.nightOut = { date: day, at: story };
+  if ((s.world?.holidays || []).some(h => h.date === day) || last.action === "sleeping") { s.nightOut.why = "holiday or asleep"; return; }
+  if (s.director.some(g => g.status === "active" || (g.status === "waiting" && g.startAfter < at + o.len * 60000 && g.startAfter > at - 60 * 60000))) { s.nightOut.why = "the evening is planned"; return; }
+  const r = (PLACE_RULES.places || {})[o.where] || {}, who = last.with && s.cast[last.with] && !s.cast[last.with].phoneOnly ? last.with : pickPerson(s, now, r, "with");
+  const g = outingGoal(s, now, o.where, who ? "with" : "alone", who, 0);
+  g.id = id; g.deadlineAt = now + 3 * 60000 + o.len * 60000; g.nightOut = true;
+  g.goal = (who ? `Thursday night out: ${s.cast[who].name} and Ishai go out to The Black Candle after his improv week` : "Thursday night out: Ishai goes out to The Black Candle on his own") +
+    ` — music, a drink, pool or darts, people from the neighbourhood; a late, lively night with lots of talk. They stay late (he goes to bed around ${hm5(n.bed)}) and may move on somewhere else later.`;
+  s.nightOut.who = who || null; s.nightOut.id = id;
+}
+function sleepHealth(s, now) {
+  const ms = now + DELAY_MIN * 60000, n = sleepOf(ms), nap = napOf(s, ms), f = t => storyClock(t).label;
+  return { asleep: asleepAt(ms), bed: f(n.bed), wake: f(n.wake), nightOut: n.out, nap: nap ? f(nap.from) + "-" + hm5(nap.to) : null, lastNightOut: s.nightOut || null };
+}
+
 async function tick(env, force) {
-  const s = await loadState(env);
+  const s = await loadState(env); SLEEP_S = s;
   await hostsLangLoad(env, s);   // v275: the director's language switch, from its own key
   const now = Date.now();
   const storyMs = now + DELAY_MIN * 60000;
@@ -691,7 +772,7 @@ async function tick(env, force) {
   const last = s.events[s.events.length - 1];
 
   // save budget at night while he sleeps
-  if (!force && last.action === "sleeping" && (clock.hour < 6 || clock.hour >= 23) && now - (last.created || last.t) < 15 * 60000)
+  if (!force && last.action === "sleeping" && asleepAt(storyMs) && storyMs < sleepOf(storyMs).wake - 15 * 60000 && now - (last.created || last.t) < 15 * 60000)
     return s;
 
   if (!s.world || now - s.world.at > 55 * 60000) await refreshWorld(s, now);
@@ -725,7 +806,8 @@ async function tick(env, force) {
   }
   // AI out of budget (no backup AI): Ishai feels unwell, goes home and rests until the allowance resets
   cfOutUntil = Math.max(cfOutUntil, s.aiOutUntil || 0);
-  if (!ev) ev = nightEvent(s, last, clock);                                   // asleep at night: no AI
+  if (!ev) ev = nightEvent(s, last, clock, storyMs, goal);                    // asleep at night: no AI
+  if (!ev) ev = napEvent(s, last, goal, storyMs);                             // the afternoon nap (Thu-Sat): no AI
   if (!ev && now < (s.aiOutUntil || 0) && !env.BACKUP_AI_KEY && !(env.GEMINI_API_KEY && now >= geminiOutUntil)){ ev = sickEvent(s, last, clock.hour); ev.src = "sick day (AI out of budget)"; }
   if (!ev && goal && goal.script) ev = scriptEvent(s, last, goal, now);       // the daily plan's scene, as written (no AI)
   if (!ev && goal && goal.outing) { ev = outingStep(s, last, goal, now); if (goal.status === "done") goal = null; }   // an outing: he goes there (no AI)
@@ -760,6 +842,7 @@ async function tick(env, force) {
   if (!force) try { await surveyTick(env, s, ev, now); } catch (e) { s.surveyErr = { at: now, msg: String(e && e.message || e).slice(0, 160) }; }
   try { surveyHosts(s, ev, now); } catch (e) {}
   if (!force) try { outingTick(s, now, ev); } catch (e) { s.outingErr = { at: now, msg: String(e && e.message || e).slice(0, 160) }; }   // a random outing, from story/places.json
+  if (!force) try { nightOutTick(s, now, ev); } catch (e) { s.outingErr = { at: now, msg: "night out: " + String(e && e.message || e).slice(0, 160) }; }   // Thursday's night out
   if (!force) try { homeLifeTick(s, now, ev); } catch (e) { s.homeErr = String(e && e.message || e).slice(0, 160); }   // visits and dog walks   // viewers' poll: count the last one, write the next
   if (goal && goal.status !== "done" && ev.complete === goal.id) { finishGoal(s, goal, "story", now); ev.unlocks = goal.unlock || null; }
 
@@ -898,7 +981,7 @@ function autoFixNote(s, now, storyMs, last) {
   const h = storyClock(storyMs).hour, guest = s.scene && s.scene.w ? (s.cast[s.scene.w]?.name || s.scene.w) : null;
   const bye = guest ? `${guest} says goodbye and leaves; ` : "";
   const home = last.location === "apartment";
-  if (h >= 6 && h < 23) {
+  if (!lateAt(storyMs)) {
     const nx = comingUp(s, now, 3)[0];
     if (nx) {
       const at = storyClock(nx.at).label.slice(-5);
@@ -907,9 +990,9 @@ function autoFixNote(s, now, storyMs, last) {
         : `${bye}Ishai ${home ? "gets up and goes out to do something new outside the apartment" : "moves on and does something new somewhere else"}; later: ${nx.what} at ${at}.`;
     }
   }
-  if (h < 6) return `${bye}Ishai goes back to bed and sleeps until morning.`;
-  if (h >= 21 && guest) return `${guest} says good night and leaves.`;
-  if (h >= 23) return "Ishai winds down and goes to bed.";
+  if (asleepAt(storyMs) && storyClock(storyMs).hour < 6) return `${bye}Ishai goes back to bed and sleeps until morning.`;
+  if (guest && !awakeFor(storyMs, 0, 120)) return `${guest} says good night and leaves.`;
+  if (lateAt(storyMs)) return "Ishai winds down and goes to bed.";
   return `${bye}Ishai ${home ? "gets up and does something new outside the apartment" : "moves on and does something new somewhere else"}.`;
 }
 function autoFix(s, ev, goal, now, storyMs) {
@@ -924,7 +1007,7 @@ function autoFix(s, ev, goal, now, storyMs) {
 // While the backup host writes the story (Gemini missing, paused or failing), the prompt pushes harder to move on.
 function backupPush(s, now, clock, last) {
   if (!TALK.brake || !s.talkBrake || /^Cloudflare over/.test(s.talkBrake)) return "";
-  if (last.action === "sleeping" || clock.hour < 6) return "";
+  if (last.action === "sleeping" || asleepAt(now + DELAY_MIN * 60000)) return "";
   const last3 = s.events.slice(-3).map(e => `- "${String(e.text || "").slice(0, 160)}"`).join("\n");
   const nx = comingUp(s, now, 6)[0];
   return `\nMOVE THE STORY FORWARD. The last 3 moments were:\n${last3}\nDo NOT repeat these, retell them or have him look at the same things again: something NEW must happen (a new action, a new topic, a new place, someone calls or comes over, he goes out).` +
@@ -934,8 +1017,7 @@ function backupPush(s, now, clock, last) {
 function sceneOverdue(sc, storyMs, stuck) {
   if (!sc) return false;
   if (stuck >= 2) return true;   // the story is going in circles: wrap it up
-  const h = storyClock(storyMs).hour;
-  return sc.lines >= sc.target * 1.4 || storyMs - (sc.startedAt || storyMs) > 100 * 60000 || h >= 23 || h < 6;
+  return sc.lines >= sc.target * 1.4 || storyMs - (sc.startedAt || storyMs) > 100 * 60000 || lateAt(storyMs);
 }
 // the city's own timetable, in Israel time. days: 0 = Sunday. from: minutes after midnight. The page plays it (sound, caption, hosts) with no AI; the story prompt names what is on.
 const hm = (h, m = 0) => h * 60 + m;
@@ -983,18 +1065,20 @@ const VISITS = {   // [why they come, what happens if the story never gets to it
   avi: [["brings a bag of leftover falafel at the end of his shift, and a bone for Falafel", "Avi knocks with a bag of leftover falafel and something for the dog."]]
 };
 const VISIT_WEIGHT = { levi: 3, noa: 3, tomer: 2, avi: 1 };
-const WALKS = [["m", 7, 9.5, "park", "the morning walk: quick and sleepy, round to the park and back"],
+// the morning walk ("m") is in the first 0-2 hours after he gets up (v276, sleepOf), not by the clock
+const WALKS = [["m", 0, 2, "park", "the morning walk: quick and sleepy, round to the park and back"],
   ["n", 12.5, 14.5, "street", "the midday walk: a short one along Herzl Street, past Avi's kiosk, and back up"],
   ["e", 18, 21, "park", "the evening walk: a longer one to the park, sniffing everything; they may run into someone"]];
 function homeLifeTick(s, now, last) {
   const h = storyClock(now).hour, day = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now));
   const hl = s.homeLife && s.homeLife.date === day ? s.homeLife : (s.homeLife = { date: day, visits: 0, lastVisit: (s.homeLife || {}).lastVisit || 0, walks: [], log: [] });
-  if (last.action === "sleeping" || h < 7 || h >= 22) return;
-  const busy = from => !pollFree(s, from, from + 50 * 60000);
+  const story = now + DELAY_MIN * 60000;
+  if (last.action === "sleeping" || !awakeFor(story, 0, 60)) return;
+  const busy = from => !pollFree(s, from, from + 50 * 60000) || napClash(s, from, from + 50 * 60000);
   const at = (ms, len) => ({ startAt: new Date(ms).toISOString(), deadlineAt: new Date(ms + len * 60000).toISOString() });
   // Falafel's walks
   if (s.unlocked.includes("dog")) {
-    const w = WALKS.find(x => h >= x[1] && h < x[2]);
+    const up = (story - lastWake(story)) / 3600000, w = WALKS.find(x => x[0] === "m" ? up >= x[1] && up < x[2] : h >= x[1] && h < x[2]);
     const since = (now + DELAY_MIN * 60000 - (s.done.dogwalk || 0)) / 3600000;
     if (w && !hl.walks.includes(w[0]) && since > 3.5 && ["apartment", "corridor"].includes(last.location) && !busy(now)) {
       const start = now + 3 * 60000, id = `walk-${day.slice(5)}-${w[0]}`;
@@ -1005,7 +1089,7 @@ function homeLifeTick(s, now, last) {
     }
   }
   // a friend or neighbour knocks
-  if (hl.visits >= VISITS_A_DAY || h < 9 || h >= 21 || last.location !== "apartment" || last.with || now - hl.lastVisit < VISIT_GAP_MIN * 60000 || busy(now)) return;
+  if (hl.visits >= VISITS_A_DAY || !awakeFor(story, 60, 120) || last.location !== "apartment" || last.with || now - hl.lastVisit < VISIT_GAP_MIN * 60000 || busy(now)) return;
   let alone = 0; for (let i = s.events.length - 1; i >= 0 && !s.events[i].with; i--) alone = (now - (s.events[i].created || s.events[i].t)) / 60000;
   if (alone < VISIT_ALONE_MIN || Math.random() > .4) return;
   const recent = new Set(s.events.filter(e => e.with && now - (e.created || e.t) < 4 * 3600000).map(e => e.with));
@@ -1107,17 +1191,23 @@ function buildMessages(s, clock, now, goal, opt = {}) {
   const evs = s.events, hourNow = clock.hour;
   let sinceMove = 0; for (let i = evs.length - 1; i >= 0 && evs[i].location === last.location; i--) sinceMove = (now - (evs[i].created || evs[i].t)) / 60000;
   let sinceTalk = 0; for (let i = evs.length - 1; i >= 0 && !evs[i].with; i--) sinceTalk = (now - (evs[i].created || evs[i].t)) / 60000;
-  const awake = hourNow >= 7 && hourNow < 23 && last.action !== "sleeping";
+  const sMs = now + DELAY_MIN * 60000, night = sleepOf(sMs), nap = napOf(s, sMs);
+  const awake = awakeFor(sMs) && last.action !== "sleeping";
   const pacing = [
     awake && sinceMove > 100 && last.location !== "offscreen" ? `He has been at the ${last.location} for about ${(sinceMove / 60).toFixed(1)} hours. Time for a change soon: he goes out (step by step through the neighbors rule) or someone comes over.` : "",
-    (hourNow >= 23 || hourNow < 6) && last.action !== "sleeping" ? (last.location === "apartment"
-      ? `It is late (${clock.label.slice(-5)}). He is tired: guests say goodnight and leave, he winds down (bathroom, glass of water) and goes to bed — "sleeping" in this or the next moment.`
-      : `It is late (${clock.label.slice(-5)}). He heads home now, place by place, to go to bed.`) : "",
+    lateAt(sMs) && last.action !== "sleeping" ? (last.location === "apartment"
+      ? `It is late (${clock.label.slice(-5)}); he goes to bed at about ${hm5(night.bed)}. He is tired: guests say goodnight and leave, he winds down (bathroom, glass of water) and goes to bed — "sleeping" in this or the next moment.`
+      : `It is late (${clock.label.slice(-5)}); he goes to bed at about ${hm5(night.bed)}. He heads home now, place by place, to go to bed.`) : "",
+    awake && night.out && sMs < night.bed - 60 * 60000 && storyClock(sMs).hour >= 18 ? `It is Thursday: his night out. He stays up late (bed at about ${hm5(night.bed)}): no early night, no winding down before midnight.` : "",
+    last.action === "sleeping" && !asleepAt(sMs) && !inNap(s, sMs) ? (nap && sMs >= nap.to && sMs < nap.to + 3 * 3600000
+      ? `He wakes up from his afternoon nap now (action "waking"): a bit groggy, then back to the day.`
+      : `It is morning (${clock.label.slice(-5)}): he wakes up now (action "waking"), slowly, and starts the day.`) : "",
+    awake && nap && sMs < nap.from && sMs >= nap.from - SLEEP.napWarn * 60000 ? `At ${hm5(nap.from)} he lies down for his afternoon nap (until about ${hm5(nap.to)}): by then he is home and alone (a guest leaves, he heads home). Don't start anything new.` : "",
     (() => { const run = sameRun(evs), cap = RUN_CAP[last.action]; if (!cap || last.with || run < Math.max(3, cap - 1)) return "";
       return run >= cap
         ? `He has been ${last.action} for ${run * DELAY_MIN} minutes, the same thing over and over. In THIS moment he finishes it and does something clearly different (another action, or goes out, or calls someone). Do not write another "${last.action}" moment.`
         : `He has been ${last.action} for a while. Wrap it up soon and change what he is doing (gets up for a drink, tidies, waters Moshe, calls someone, steps out, a neighbor knocks).`; })(),
-    awake && s.unlocked.includes("dog") && (hourNow >= 7 && hourNow < 9 || hourNow >= 18 && hourNow < 21) && (s.done.dogwalk ? hrs("dogwalk") : 99) > 5
+    awake && s.unlocked.includes("dog") && ((sMs - lastWake(sMs)) < 2 * 3600000 || hourNow >= 18 && hourNow < 21) && (s.done.dogwalk ? hrs("dogwalk") : 99) > 5
       ? `Falafel needs his walk: Ishai takes him out on the leash (down the stairs, the street, the park), now or very soon.` : "",
     awake && sinceTalk > 55 ? `Nobody has interacted with him for about ${(sinceTalk / 60).toFixed(1)} hours. In this or the next moment someone should call, visit (a friend knocks and comes in through the front door), or he should meet someone.` : ""
   ].filter(Boolean).join(" ");
@@ -1194,7 +1284,7 @@ newCharacter format: {"name":"...","role":"...","personality":"...","speech":"..
 He is currently at: ${last.location} (${last.action}${last.with ? " with " + name(last.with) : ""}).
 Plot notes: ${s.notes || "none"}${storySoFar(s)}${cityNote(now, s.world && s.world.shabbat)}${courseNote(s, now, cw)}${eventNote(s, now, cw)}
 ${body}
-${real}${media}${placesNote(now + DELAY_MIN * 60000)}${stayNote(s, now + DELAY_MIN * 60000, goal)}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${backupPush(s, now, clock, last)}${clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : ""}${s.stuck && (clock.hour < 6 || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(clock.hour < 6 || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
+${real}${media}${placesNote(now + DELAY_MIN * 60000)}${stayNote(s, now + DELAY_MIN * 60000, goal)}${pacing ? "\nPACING: " + pacing : ""}${s.fixNote && now < s.fixNote.until ? "\nDIRECTOR NOTE: " + s.fixNote.text : ""}${backupPush(s, now, clock, last)}${asleepAt(now + DELAY_MIN * 60000) ? (clock.hour < 6 ? `\nIT IS NIGHT (${clock.label.slice(-5)}): dark outside, no sunrise before about 06:00. He sleeps in his bed.` : `\nHE IS STILL ASLEEP (${clock.label.slice(-5)}; he gets up at about ${hm5(sleepOf(now + DELAY_MIN * 60000).wake)}): he sleeps in his bed.`) : ""}${s.stuck && (asleepAt(now + DELAY_MIN * 60000) || last.action === "sleeping") ? "\nKeep him asleep in his bed; describe the night differently each time (a sound outside, he turns over, a dream)." : ""}${s.stuck && !(asleepAt(now + DELAY_MIN * 60000) || last.action === "sleeping") ? "\nTHE STORY IS GOING IN CIRCLES: the last moments repeated themselves. Make a clear change NOW: finish what he started, end the conversation, change activity or place." : ""}
 Recent events:
 ${recent}${castCtx}${gap}${goneNote}${s.recoverUntil && now < s.recoverUntil ? "\nNOTE: Earlier Ishai felt unwell and rested at home. He feels better now, still a little slow; let that show naturally (and he may mention it to someone)." : ""}${convo}${sceneBrief}
 ${cue ? "\n" + liveText(cue, s, last) : ""}
@@ -1660,11 +1750,12 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
         if (!allowNoHosts) return { ev, problem: `${nm} parted from Ishai at ${placeName(p.loc)} only ${ago} minutes ago and could not be at ${placeName(ev.location)} yet (about ${need} minutes away): nobody is in two places. Pick someone else, or nobody` };
         ev.with = null; ev.lines = ev.lines.filter(l => l.who === "ishai").slice(0, 1); ev.update = null; if (ev.action === "talking") ev.action = "idle";
       } } }
-  { const h = storyClock(Date.now() + DELAY_MIN * 60000).hour, LATE_OK = ["sleeping", "bathroom", "drinking"];
-    if (h >= 1 && h < 6 && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts)
-      return { ev, problem: `it is after 01:00 and he is home: he goes to bed now ("sleeping"), or at most a quick bathroom or water break` };
-    // once he has gone to bed for the night (from 22:00) he sleeps until morning; only a quick bathroom or water trip
-    const night = h >= 22 || h < 6;
+  { const vMs = Date.now() + DELAY_MIN * 60000, nt = sleepOf(vMs), LATE_OK = ["sleeping", "bathroom", "drinking"];
+    // v276: the night follows sleepOf() (bed 23:00-23:30, Thursday 01:30-02:00; up about 09:30)
+    if (vMs >= nt.bed + 30 * 60000 && lateAt(vMs) && ev.location === "apartment" && !LATE_OK.includes(ev.action) && !allowNoHosts && !planned && !goal)
+      return { ev, problem: `it is past his bedtime (${hm5(nt.bed)}) and he is home: he goes to bed now ("sleeping"), or at most a quick bathroom or water break` };
+    // once he has gone to bed for the night he sleeps until morning; only a quick bathroom or water trip (an early planned beat may wake him)
+    const night = vMs >= nt.bed - SLEEP.windDown * 60000 && vMs < nt.wake && !planned && !goal;
     if (night && (last.action === "sleeping" || BATH_ACTIONS.includes(last.action) && s.events.slice(-3).some(e => e.action === "sleeping")) && ev.location === "apartment" && !LATE_OK.includes(ev.action)) {
       if (!allowNoHosts) return { ev, problem: `he is asleep for the night: keep him "sleeping" (a short bathroom or water trip is the only exception)` };
       ev.action = "sleeping"; ev.with = null; ev.lines = []; ev.text = ev.text && /sleep|dream|snor|turns over|blanket/i.test(ev.text) ? ev.text : "Ishai sleeps on, breathing slowly."; } }
@@ -1870,7 +1961,7 @@ function sickEvent(s, last, hour) {
   const n = s.sickN = (s.sickN || 0) + 1;
   const pick = (a) => a[(n + a.length - 1) % a.length];
   const nm = (id) => s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
-  const night = hour < 7 || hour >= 23;
+  const night = lateAt(Date.now() + DELAY_MIN * 60000) || asleepAt(Date.now() + DELAY_MIN * 60000) && last.action === "sleeping";   // v276: by sleepOf(), not the clock
   const HOSTS_SAY = [
     { who: "zohar", say: "Our boy is not okay. Somebody bring that man soup." },
     { who: "oren", say: "Sick day on live TV. Respect the blanket." },
@@ -1929,7 +2020,7 @@ function sickEvent(s, last, hour) {
   return { with: null, lines: [], ...ev, commentary: relayHosts(s, ev.text, n, SICK_JOKES) };
 }
 function fallback(last, hour, s) {
-  const night = hour < 7 || hour >= 23;
+  const night = lateAt(Date.now() + DELAY_MIN * 60000) || asleepAt(Date.now() + DELAY_MIN * 60000) && last.action === "sleeping";   // v276: by sleepOf(), not the clock
   const home = { bus: "street", taxi: "street", offscreen: "street", street: "corridor", shops: "street", market: "street", store: "market", campus: "street", classroom: "campus", park: "street", plaza: "park", arena: "plaza", promenade: "street", mall: "promenade", foodcourt: "mall", apt2: "corridor", cafe: "shops", kiosk: "shops", gym: "street", bar: "street", corridor: "apartment" }[last.location];
   if (night && home) {
     const T = { mall: "He leaves The Big S as the shutters come down.", promenade: "He walks along the dark promenade to the bus stop, the sea loud in the dark.", kiosk: "He walks back from the kiosk along the dark, quiet street.", park: "He walks back through the dark park toward Herzl Street.", plaza: "He walks out of the Pump House into the night air.", promenade: "He walks along the dark promenade to the bus stop, the sea loud in the dark.", campus: "He walks out into the dark courtyard.", market: "He walks out of the store into the dark, empty market.", street: "Ishai heads back along Herzl Street toward home.", shops: "He walks back past the dark shop windows toward his building.", corridor: "He walks into his building and climbs the stairs, yawning.", apartment: "He lets himself in, yawning, and gets ready for bed." };
@@ -1990,9 +2081,9 @@ const NIGHT_TEXTS = ["Ishai sleeps, one arm hanging off the bed.", "He turns ove
   "Somewhere a cat argues with another cat. Ishai sleeps through it.", "His phone lights up once on the desk. He doesn't notice.", "Ishai smiles in his sleep at something only he can see.",
   "Rain taps on the window; Ishai sleeps through it.", "The street is quiet. Ishai breathes slow and heavy."];
 const NIGHT_JOKES = ["Night shift report: still horizontal.", "Ratings are low, but so is he. Goodnight, Ishai.", "Moshe has the night watch. Respect.", "Peak content. Truly.", "Sleep tracker says: eight out of ten.", "If anyone needs us, we're also asleep."];
-function nightEvent(s, last, clock) {
-  const h = clock.hour;
-  if (last.action !== "sleeping" || !(h >= 22 || h < 6)) return null;
+function nightEvent(s, last, clock, ms, goal) {
+  if (last.action !== "sleeping" || !asleepAt(ms) || inNap(s, ms)) return null;
+  if (goal && goal.startAfter <= Date.now() && !goal.outing) return null;   // an early appointment wakes him
   const wet = !!(s.world && s.world.weather && s.world.weather.rain), dog = s.unlocked.includes("dog");
   const pool = NIGHT_TEXTS.filter(t => wet || !/^Rain/.test(t)).concat(dog ? ["Falafel snores in his little bed by the window.", "Falafel twitches, chasing something in a dream."] : []);
   const recent = new Set(s.events.slice(-8).map(e => e.text)), fresh = pool.filter(t => !recent.has(t));
@@ -2589,7 +2680,7 @@ function courseNote(s, now, company) {
 const POLL_AT_MIN = 20, POLL_SEC = 600, POLL_SHOW_MIN = 10;      // opens at hh:20, 10 minutes of voting, the result stays on screen 10 minutes
 const POLL_FROM_H = 8, POLL_TO_H = 20;                             // the first poll opens at 08:20, the last at 20:20
 const POLL_DELAY_MIN = 60, POLL_LEN_MIN = 90, POLL_LOOK_H = 6;     // the result starts an hour or more after the vote, in a free 90-minute gap within 6 hours
-const POLL_AWAKE = [8, 22];                                        // results only play out between 08:00 and 22:00
+const POLL_AWAKE = [10, 22];                                       // results only play out between 10:00 and 22:00 (v276: he sleeps until ~09:30)
 const POLL_IP_MAX = 5;                                             // votes per internet connection per poll (a family on one Wi-Fi)
 const POLL_KINDS = {
   serve: "serves or makes Ishai something at their own place (a dish, a drink, a coffee); Ishai has to go there",
@@ -2799,7 +2890,7 @@ function outingTick(s, now, last) {
   const o = s.outings && s.outings.date === day ? s.outings : (s.outings = { date: day, n: 0, last: (s.outings || {}).last || 0, log: [], slot: null });
   chainTick(s, now, last, o);
   if (o.slot === slot) return; o.slot = slot;                                          // one roll an hour
-  const why = last.action === "sleeping" || h < 7 || h >= 23 ? "asleep or late" : last.location !== "apartment" ? "not at home" : last.with ? "has company"
+  const why = last.action === "sleeping" || !awakeFor(story, 20, 75) ? "asleep or late" : napClash(s, story, story + 70 * 60000) ? "nap soon" : last.location !== "apartment" ? "not at home" : last.with ? "has company"
     : o.n >= (PLACE_RULES.maxPerDay || 4) ? "enough outings today" : now - o.last < (PLACE_RULES.gapMin || 120) * 60000 ? "went out not long ago"
     : !pollFree(s, now, now + 90 * 60000) ? "something is planned" : null;
   let home = 0; for (let i = s.events.length - 1; i >= 0 && s.events[i].location === "apartment"; i--) home = (now - (s.events[i].created || s.events[i].t)) / 60000;
@@ -2824,7 +2915,7 @@ function chainTick(s, now, last, o) {
   const r = stayRule(loc), min = r ? r[0] : OUT_STAY_DEFAULT; if (stayMins(s, loc, ms) < min) return;
   g.chainRolled = true;
   const friend = g.outing.mode === "with" && last.with === g.outing.who ? g.outing.who : null;
-  if ((g.outing.chain || 0) >= CHAIN_MAX || h >= 22 || h < 7 || (last.with && !friend) || Math.random() * 100 >= CHAIN_PCT) { o.lastChain = { at: now, from: loc, to: null }; return; }
+  if ((g.outing.chain || 0) >= CHAIN_MAX || !awakeFor(ms, 0, 60) || (last.with && !friend) || Math.random() * 100 >= CHAIN_PCT) { o.lastChain = { at: now, from: loc, to: null }; return; }
   const seen = new Set((s.director || []).filter(d => d.outing && now - (d.createdAt || 0) < 6 * 3600000).map(d => d.outing.where));
   const near = Object.keys(PR).filter(k => k !== loc && !seen.has(k) && !PR[k].event && PR[k].rate && placeOpen(k, ms) && placeOpen(k, ms + 45 * 60000) && !["gym", "street"].includes(k)   // on, not back home
     && ((WALK[loc] || {})[k] ?? 99) <= 16).map(k => [k, Math.max(1, outingRate(s, k, ms))]);
@@ -2861,7 +2952,7 @@ function outingStep(s, last, g, now) {
   return { location: to, action: LOCATIONS[to].includes(OUTING_ACT[to]) ? OUTING_ACT[to] : "walking", text, with: w, lines, commentary: [], src: "outing: on the way (no AI)" };
 }
 const pollShabbat = (s, ms) => { const sh = s.world && s.world.shabbat; return !!sh && ms >= sh.start - 30 * 60000 && ms <= (sh.end || sh.start + 26 * 3600000); };
-const pollAwake = ms => { const h = storyClock(ms).hour; return h >= POLL_AWAKE[0] && h < POLL_AWAKE[1]; };
+const pollAwake = ms => { const h = storyClock(ms).hour; return h >= POLL_AWAKE[0] && h < POLL_AWAKE[1] && awakeFor(ms, 30, 60) && !napClash(SLEEP_S, ms, ms + 30 * 60000); };   // v276: and he is up (sleepOf), not napping
 // nothing else is planned or running then (planned beats, lectures, other poll results)
 function pollFree(s, from, to) {
   return !(s.director || []).some(g => g.status !== "done" && g.status !== "needs-art" && !(g.startAfter >= to) &&
@@ -4644,7 +4735,7 @@ function cookSlot(s, r, shopMin, from, ms) {
   const fits = t => {
     if (shopMin) { const e = t + shopMin * 60000; if (!placeOpen("market", t + 25 * 60000) || !placeOpen("market", e - 25 * 60000) || !pollFree(s, t, e)) return null; t = e; }
     let at = t;
-    for (const g of segs) { const e = at + g.min * 60000; if (g.k === "home" && (!pollFree(s, at, e) || kShabbat(s, at, e))) return null; at = e; }
+    for (const g of segs) { const e = at + g.min * 60000; if (g.k === "home" && (!pollFree(s, at, e) || kShabbat(s, at, e) || napClash(s, at, e))) return null; at = e; }
     return kAwake(t - (shopMin || 0) * 60000, at) ? { start: t - (shopMin || 0) * 60000, cookAt: t, doneAt: at } : null;
   };
   let best = null;
