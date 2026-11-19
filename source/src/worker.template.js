@@ -6670,27 +6670,38 @@ function audWorkLook(look, kind) {
 }
 const AUD_READ_SYS = `You write a TABLE READ for "Watching Ishai" (a realistic slice of life in a Tel Aviv neighbourhood): a short rehearsal of a new character doing the job they were offered, before they join the show. The viewer who created the character picks the character's lines. It is NOT part of the story: nothing in it happens to anyone; a STAND-IN plays Ishai (a friendly 31-year-old freelance designer) as a customer, classmate, neighbour or fellow regular, and nameless extras play everyone else (another customer, the boss).
 First choose the DIALS: 3-4 personality traits that most define this character and are still vague, and 3-4 role dials from the role's list. Each dial has 3-4 settings that are kinds or degrees of the SAME trait, every one inside the personality from the card (a shy character only gets kinds of shy, never a loud bold line). "self" is the setting the card already points to.
-Then write a short working shift from 4-5 of the role's situations: 6-8 TURNS. In each turn: "situation", "setup" (one short stage direction), "before" (1-3 lines said to the character, by "standin" or "extra"), "dial" (one dial id; use every dial at least once), "choices" (one per setting of that dial, each key = the setting's k: the character's line, under 22 words, saying the same thing at that setting; "act" may add a tiny action), "after" (the stand-in's or extra's short answer to each choice, by key). Lines are everyday and believable; fictional brands only; nobody mentions cameras, viewers or a show; no romance.
+Then write a short working shift from 4-5 of the role's situations: exactly 6 TURNS. In each turn: "situation", "setup" (one short stage direction), "before" (1-3 lines said to the character, by "standin" or "extra"), "dial" (one dial id; use every dial at least once), "choices" (one per setting of that dial, in the same order, each key = the setting's k: the character's line, under 18 words, saying the same thing at that setting; "act" may add a tiny action), "after" (the stand-in's or extra's short answer to each choice, by key, under 10 words). Keep it compact: the whole reply must fit easily. Lines are everyday and believable; fictional brands only; nobody mentions cameras, viewers or a show; no romance.
 Reply with JSON only:
 {"extra":"who the extras are, in a few words","dials":[{"id":"short_id","name":"Name","kind":"personality|role","settings":[{"k":"a","label":"a dry aside"},{"k":"b","label":"..."},{"k":"c","label":"..."}],"self":"a"}],"turns":[{"situation":"...","setup":"...","before":[{"who":"standin","say":"..."}],"dial":"short_id","choices":[{"k":"a","say":"...","act":"..."}],"after":{"a":{"who":"standin","say":"..."}}}]}`;
-function audReadClean(o) {
-  if (!o || typeof o !== "object") return null;
-  const S = castStr, bad = t => CAST_META.test(t) || audBad(t);
+function audReadClean(o, why) {
+  why = why || {};
+  if (!o || typeof o !== "object") { why.err = "no JSON object"; return null; }
+  const S = castStr, bad = t => CAST_META.test(t) || audBad(t), KS = ["a", "b", "c", "d"];
+  // settings keep their order; their keys become a-d whatever the model called them
   const dials = (Array.isArray(o.dials) ? o.dials : []).map(d => { if (!d || typeof d !== "object") return null;
-    const id = S(d.id, 24).toLowerCase().replace(/[^a-z0-9_]/g, "_"), sets = (Array.isArray(d.settings) ? d.settings : []).map(x => x && { k: S(x.k, 2).toLowerCase(), label: S(x.label, 60) }).filter(x => x && /^[a-d]$/.test(x.k) && x.label);
-    if (!id || sets.length < 3 || sets.length > 4 || new Set(sets.map(x => x.k)).size !== sets.length) return null;
-    return { id, name: S(d.name, 30) || id, kind: d.kind === "role" ? "role" : "personality", settings: sets, self: sets.some(x => x.k === d.self) ? d.self : sets[0].k }; }).filter(Boolean).slice(0, 8);
+    const id = S(d.id || d.name, 24).toLowerCase().replace(/[^a-z0-9_]/g, "_"), raw = (Array.isArray(d.settings) ? d.settings : []).filter(x => x && (x.label || typeof x === "string")).slice(0, 4);
+    if (!id || raw.length < 2) return null;
+    const sets = raw.map((x, i) => ({ k: KS[i], label: S(typeof x === "string" ? x : x.label, 60), was: String(typeof x === "string" ? "" : x.k || "").toLowerCase() }));
+    const self = sets.find(x => x.was && x.was === String(d.self || "").toLowerCase()) || sets.find(x => x.label === d.self) || sets[0];
+    return { id, name: S(d.name, 30) || id, kind: d.kind === "role" ? "role" : "personality", settings: sets.map(({ k, label }) => ({ k, label })), self: self.k, _was: sets.map(x => x.was) }; }).filter(Boolean).slice(0, 8);
   const D = Object.fromEntries(dials.map(d => [d.id, d]));
-  const line = l => l && typeof l === "object" && S(l.say, 180) && !bad(l.say) ? { who: l.who === "extra" ? "extra" : "standin", say: S(l.say, 180) } : null;
-  const turns = (Array.isArray(o.turns) ? o.turns : []).map(t => { if (!t || typeof t !== "object" || !D[t.dial]) return null;
-    const d = D[t.dial], ch = d.settings.map(x => { const c = (Array.isArray(t.choices) ? t.choices : []).find(y => y && String(y.k).toLowerCase() === x.k);
-      return c && S(c.say, 180) && !bad(c.say) ? { k: x.k, say: S(c.say, 180), ...(S(c.act, 60) && !bad(c.act) ? { act: S(c.act, 60) } : {}) } : null; });
-    if (ch.some(x => !x)) return null;
-    const before = (Array.isArray(t.before) ? t.before : []).map(line).filter(Boolean).slice(0, 3);
-    const after = Object.fromEntries(ch.map(c => [c.k, line(t.after && t.after[c.k]) || { who: (before[0] || {}).who || "standin", say: "Mm. Okay." }]));
-    return { situation: S(t.situation, 60), setup: S(t.setup, 140), before, dial: d.id, choices: ch, after }; }).filter(Boolean).slice(0, 8);
-  if (dials.length < 4 || turns.length < 5) return null;
-  return { extra: S(o.extra, 60) || "another customer", dials: dials.filter(d => turns.some(t => t.dial === d.id)), turns };
+  const line = (l, dflt) => l && typeof l === "object" && S(l.say, 180) && !bad(l.say) ? { who: l.who === "extra" ? "extra" : "standin", say: S(l.say, 180) } : typeof l === "string" && S(l, 180) && !bad(l) ? { who: dflt, say: S(l, 180) } : null;
+  const drop = {};
+  const turns = (Array.isArray(o.turns) ? o.turns : []).map(t => { if (!t || typeof t !== "object") return null;
+    const dkey = String(t.dial || "").toLowerCase().replace(/[^a-z0-9_]/g, "_"), d = D[dkey] || dials.find(x => x.name.toLowerCase() === String(t.dial || "").toLowerCase());
+    if (!d) { drop.dial = (drop.dial || 0) + 1; return null; }
+    const cs = Array.isArray(t.choices) ? t.choices.filter(c => c && (c.say || typeof c === "string")) : [];
+    // a choice by its key if the keys match the settings, else by its place in the list
+    const ch = d.settings.map((x, i) => { const c = cs.find(y => y.k && String(y.k).toLowerCase() === d._was[i]) || cs.find(y => y.k && String(y.k).toLowerCase() === x.k) || cs[i];
+      const say = c && S(typeof c === "string" ? c : c.say, 180); return say && !bad(say) ? { k: x.k, say, ...(c.act && S(c.act, 60) && !bad(c.act) ? { act: S(c.act, 60) } : {}), _was: c.k ? String(c.k).toLowerCase() : null } : null; });
+    if (ch.some(x => !x)) { drop.choices = (drop.choices || 0) + 1; return null; }
+    const before = (Array.isArray(t.before) ? t.before : [t.before]).map(l => line(l, "standin")).filter(Boolean).slice(0, 3);
+    const A = t.after && typeof t.after === "object" ? t.after : {}, Aa = Array.isArray(t.after) ? t.after : null;
+    const after = Object.fromEntries(ch.map((c, i) => [c.k, line(Aa ? Aa[i] : (A[c._was] || A[c.k]), (before[0] || {}).who || "standin") || { who: (before[0] || {}).who || "standin", say: ["Mm. Okay.", "Right.", "Ha, okay.", "Got it."][i % 4] }]));
+    return { situation: S(t.situation, 60) || "at work", setup: S(t.setup, 140), before: before.length ? before : [{ who: "standin", say: "Hi." }], dial: d.id, choices: ch.map(({ _was, ...c }) => c), after }; }).filter(Boolean).slice(0, 8);
+  const used = dials.filter(d => turns.some(t => t.dial === d.id)).map(({ _was, ...d }) => d);
+  if (used.length < 3 || turns.length < 4) { why.err = `${(o.dials || []).length} dials (${used.length} usable), ${(o.turns || []).length} turns (${turns.length} usable)` + (drop.dial ? `, ${drop.dial} with an unknown dial` : "") + (drop.choices ? `, ${drop.choices} with missing choices` : ""); return null; }
+  return { extra: S(o.extra, 60) || "another customer", dials: used, turns };
 }
 async function audReadWrite(env, a, now) {
   const nm = audJ(a.name, {}), c = audJ(a.card, {}).card || {}, d = audJ(a.director, {}), w = audJ(a.ways, [])[d.way] || {}, k = AUD_KIND[w.kind] || {};
@@ -6699,9 +6710,10 @@ THE ROLE: ${w.title} (${k.label}). Place: ${AUD_ROLES.places[w.place] || w.place
 The role's situations: ${(k.situations || []).join("; ")}.
 The role's dials: ${(k.dials || []).join("; ")}.
 JSON only.`;
-  let raw; try { raw = await runGemini(env, [{ role: "system", content: AUD_READ_SYS }, { role: "user", content: u }], 4000); }
+  let raw; try { raw = await runGemini(env, [{ role: "system", content: AUD_READ_SYS }, { role: "user", content: u }], 8000); }
   catch (e) { noteGemini(e, "auditions"); throw new Error("Gemini is busy: " + String(e && e.message || e).slice(0, 80)); }
-  const sc = audReadClean(parseAI(raw)); if (!sc) throw new Error("the table read came back unusable");
+  const why = {}, sc = audReadClean(parseAI(raw), why);
+  if (!sc) throw new Error(`the table read came back unusable: ${why.err || "?"} (reply ${String(raw || "").length} chars, ends "${String(raw || "").slice(-40).replace(/\s+/g, " ")}")`);
   await env.DB.prepare("INSERT INTO aud_read (aud, script, picks, ready) VALUES (?, ?, '[]', ?) ON CONFLICT(aud) DO UPDATE SET script = excluded.script, picks = '[]', ready = excluded.ready, started = NULL, done = NULL, tune = NULL, tuned = NULL, review = NULL")
     .bind(a.n, JSON.stringify(sc), now).run();
   await env.DB.prepare("UPDATE aud SET state = 'reading' WHERE n = ? AND state IN ('accepted', 'reading')").bind(a.n).run();
@@ -6757,9 +6769,9 @@ async function audReadTick(env, s, now) {
   if (!env.GEMINI_API_KEY || Date.now() < geminiOutUntil) return;
   const tries = s.audReadTry || (s.audReadTry = {});
   const step = async (key, a, fn) => { if ((tries[key] || 0) >= 3) return; tries[key] = (tries[key] || 0) + 1;
-    try { await fn(); delete tries[key]; s.audReadErr = null; } catch (e) { if (/^Gemini is busy/.test(String(e && e.message))) tries[key]--; s.audReadErr = { n: a.n, at: now, what: key, err: String(e && e.message || e).slice(0, 200) }; } };
+    try { await fn(); delete tries[key]; s.audReadErr = null; } catch (e) { if (/^Gemini is busy/.test(String(e && e.message))) tries[key]--; s.audReadErr = { n: a.n, at: now, what: key, err: String(e && e.message || e).slice(0, 400) }; } };
   const acc = await env.DB.prepare("SELECT a.* FROM aud a LEFT JOIN aud_read r ON r.aud = a.n WHERE a.state = 'accepted' AND r.script IS NULL ORDER BY a.n LIMIT 1").first();
-  if (acc) return step("w" + acc.n, acc, () => audReadWrite(env, acc, now));
+  if (acc) return step("rw" + acc.n, acc, () => audReadWrite(env, acc, now));   // "rw": v273's fresh tries (the 4,000-token replies were cut off)
   // a table read never finished in 5 days closes with the picks made (none: the card stays as approved, with atWork from the role)
   const late = await env.DB.prepare("SELECT a.n, r.ready FROM aud a JOIN aud_read r ON r.aud = a.n WHERE a.state = 'reading' AND r.done IS NULL AND r.ready < ?").bind(now - AUD_READ_D * 86400000).first();
   if (late) { await env.DB.prepare("UPDATE aud_read SET done = ? WHERE aud = ?").bind(now, late.n).run(); await env.DB.prepare("UPDATE aud SET state = 'tuning' WHERE n = ?").bind(late.n).run(); }
