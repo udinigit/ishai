@@ -5927,13 +5927,13 @@
     const r = prevLoc && !PREVIEW && prevLoc !== (ev.location || 'apartment') ? route(prevLoc, ev.location || 'apartment') : [], onBoard = r.some(x => VEH.has(x)) && !VEH.has(prevLoc) && !VEH.has(ev.location);
     // a gallery night: after the break the curtain rises first (CURTAIN_MS), then a few seconds of looking before anyone speaks or a picture is shown
     const afterCurtain = ev.art && !ev.art.curtain && prevEv && prevEv.art && prevEv.art.curtain ? CURTAIN_MS + CURTAIN_PAUSE : 0;
-    const lead = onBoard ? RIDE_LEAD + RIDE_MS + RIDE_LAND : afterCurtain; let t = lead, tail = 0;
+    const lead = onBoard ? RIDE_LEAD + RIDE_MS + RIDE_LAND : afterCurtain; let t = lead, tail = 0, thenAt = null;
     // the hosts' setup before a scene (v252): "pre" lines play after the arrival and before the first spoken line; the talk starts once they are said
     const pre = hosts.filter(c => c.pre), post = hosts.filter(c => !c.pre), hi = c => hosts.indexOf(c);
     if (pre.length && !PREVIEW){ t = lead + (prevLoc && prevLoc !== (ev.location || 'apartment') ? 9000 : 1500);
       pre.forEach((c, i) => { if (i) t += linePause(pre[i-1].say); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i: hi(c), host: true, pre: true}); t += ms; }); t += 1400; }
     if (PREVIEW || lines.length < 2) lines.forEach((l, i) => { if (i) t += linePause(lines[i-1].say) + gap; const ms = lineMs(l.say); plan.push({at: t, ms, l, i}); t += ms; });
-    else { const lp = livePlan(ev, lines, gap, plan, t); t = lp.t; tail = lp.tail; }   // quick turns, cut-ins and short "Ha!"s, the rest of the time as pauses between exchanges
+    else { const lp = livePlan(ev, lines, gap, plan, t); t = lp.t; tail = lp.tail; if (lp.split) thenAt = lp.split - 4000; }   // quick turns, cut-ins and short "Ha!"s, the rest of the time as pauses between exchanges
     // sports-style hosts (v260): a line with "after": N is said right after spoken line N, before the next one; everything after it moves on by its length (out of the quiet at the end)
     const inl = PREVIEW || lines.length < 2 ? [] : post.filter(c => Number.isInteger(c.after) && c.after >= 1 && c.after < lines.length).sort((a, b) => a.after - b.after);
     for (const c of inl){
@@ -5957,7 +5957,7 @@
       const t0 = t; t = Math.max(t + 4000, lead + 150000); tail = Math.max(0, tail - (t - t0));
       later.forEach((c, i) => { if (i) t += hgap(later[i-1], c, 50 + i); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i: hi(c), host: true}); t += ms; });
     }
-    return {plan, ms: t + tail, ride: onBoard ? r : null};
+    return {plan, ms: t + tail, ride: onBoard ? r : null, thenAt};
   }
   // ---- live talk (v250, no AI): real people answer quickly, cut in, laugh or say "Right." while the other goes on, then fall quiet for a while.
   // The old way spread every line evenly over the moment (up to 12 s of silence between each). Now the same total time is used,
@@ -6004,27 +6004,39 @@
       const ok = pre[i] > 0 && !/\?\s*["']?\s*$/.test(lines[i-1].say) && !back.has(i);
       if (ok && run >= want){ beats.push(i); run = 0; want = 2 + Math.floor(hash(seed + i * 11) * 2); } }
     if (!beats.length) for (let i = 1; i < n; i++) if (pre[i] > 0 && !back.has(i)) beats.push(i);
-    const extra = new Map(), BEAT_MAX = 28000;
+    const extra = new Map(), BEAT_MAX = 3500;   // v277: short beats only (was 28 s); the rest of the time goes to the second half, or stays quiet at the end
     if (beats.length && spare > 0){
       const w = beats.map(i => .6 + hash(seed + i * 17)), tot = w.reduce((a, b) => a + b, 0);
       beats.forEach((i, k) => { const add = Math.min(BEAT_MAX, spare * w[k] / tot); extra.set(i, add); });
       spare -= [...extra.values()].reduce((a, b) => a + b, 0);
     }
-    let t = t0;
+    // v277: two halves. A long talk (12+ lines, not a big night, not radio/TV) breaks after the first half: they get on with what they are doing
+    // (the moment's "then" lands just before the second half), then talk again. The writer marks the first line of the second half with "half";
+    // otherwise the line nearest the middle that doesn't answer a question, cut in or follow a short reaction.
+    let split = -1;
+    const solo = [...who].some(w => w === 'radio' || w === 'tv');
+    if (n >= 12 && !NO_LIVE.has(ev.action) && !ev.art && !solo){
+      const ok = i => i >= 4 && i <= n - 4 && pre[i] > 0 && !cut[i-1] && !back.has(i) && !/\?\s*["']?\s*$/.test(lines[i-1].say);
+      const h = lines.findIndex(l => l.half); if (h > 0 && ok(h)) split = h;
+      else { let best = 1e9; for (let i = Math.ceil(n * .4); i <= Math.floor(n * .62); i++) if (ok(i) && Math.abs(i - n / 2) < best){ best = Math.abs(i - n / 2); split = i; } }
+    }
+    let t = t0, splitAt = null;
+    const total = t0 + ms.reduce((a, b) => a + b, 0) + quick + spare + [...extra.values()].reduce((a, b) => a + b, 0);   // when the old plan would have ended
     lines.forEach((l, i) => {
       if (i){
         if (back.has(i)){ const b = back.get(i), bm = lineMs(b.say); t += 200; plan.push({at: t, ms: bm, l: b, i: i - 1, x: true}); t += bm; }
-        t += pre[i] + (extra.get(i) || 0);
+        if (i === split){ splitAt = Math.min(200000, Math.max(t - t0 + 60000, 150000)); t = t0 + splitAt; }   // the break: a minute at least; the second half 2:30-3:20 in, so talk covers both halves of the 6-minute moment
+        else t += pre[i] + (extra.get(i) || 0);
       }
       plan.push({at: t, ms: ms[i], l, i}); t += ms[i];
     });
-    return {t, tail: spare};   // what the beats couldn't take (each at most 28 s) stays quiet at the end of the moment
+    return {t, tail: Math.max(0, total - t), split: splitAt};   // without a second half the leftover time stays quiet at the end of the moment
   }
   function schedule(events){
     [...events].sort((a,b)=>a.t-b.t).forEach(e => {
       if (TL.has(e.id)) return;
       const p = talkPlan(e, tlLast && (tlLast.ev.location || 'apartment'), tlLast && tlLast.ev), start = Math.max(e.t, tlLast ? tlLast.end : 0);   // a long talk finishes before the next moment starts
-      tlLast = {ev: e, start, end: start + p.ms, plan: p.plan, ride: p.ride}; TL.set(e.id, tlLast);
+      tlLast = {ev: e, start, end: start + p.ms, plan: p.plan, ride: p.ride, thenAt: p.thenAt}; TL.set(e.id, tlLast);
     });
     while (TL.size > 60) TL.delete(TL.keys().next().value);
   }
@@ -6040,7 +6052,7 @@
     if (forceLoc) return;
     const c = tlNow(); if (!c) return; const e = c.e, ev = e.ev, t = ev && ev.then;
     if (!t || !t.action || e.thenDone) return;
-    const due = e.start + THEN_MS, now = NOW(); if (now < due) return;
+    const due = e.start + (e.thenAt != null ? e.thenAt : THEN_MS), now = NOW(); if (now < due) return;   // v277: just before the talk's second half
     e.thenDone = true;
     const loc = screenFor(ev);
     if (actor.loc !== loc || actor.travelling || actor.pending || actor.ride || actor.switching || actor.hidden) return;   // not settled where the moment is: skip it

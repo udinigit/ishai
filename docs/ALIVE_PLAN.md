@@ -1,6 +1,6 @@
 # More alive: more action, more talk, something always happening — plan
 
-Proposed 2026-11-18, with the director's answers the same night and on 2026-11-19 (see "Decisions"). **Step 1 built in v276 (2026-11-19).**
+Proposed 2026-11-18, with the director's answers the same night and on 2026-11-19 (see "Decisions"). **Step 1 built in v276 (2026-11-19), step 2 in v277 (2026-11-19).**
 
 ## Why the show feels quiet (measured 2026-11-18)
 - **Half of prime time had nobody talking.** Of the 25 moments from 20:11 to 22:35, 13 had no spoken lines (only hosts). From 21:59, six silent moments in a row: Noa fell asleep in the armchair and Ishai worked alone.
@@ -36,7 +36,8 @@ One table drives everything: `SLEEP` in the worker, read by `sleepOf(ms)` (the n
 - **The planner** (`story/season.md`): no beats before 10:00 (11:00 on Friday) unless he is woken on purpose; Thursday night is a night out; nap times stay free.
 - Health: `/api/health` → `sleep` (tonight's bed and wake, the next nap, whether he is asleep now, the night out).
 
-## Step 2 — talk that sounds like talk
+## Step 2 — talk that sounds like talk (built, v277)
+*As built:* beats at most 3.5 s; the second half starts at the line the writer marks `"half": true` (or the middle), at least a minute after the first half and 2:30-3:20 into the moment, with the `then` switching 4 s before it; 14-22 lines (braked 10-14), up to 24 kept; `with2` (groups) is left for later.
 - **Natural pace.** `livePlan()` keeps its quick turns and cut-ins but drops the long beats (at most 3-4 s, only after a laugh or big news), and `convoGap()` no longer stretches a talk to 3 minutes: 14 lines take about 70-90 s.
 - **No more quiet tail: more talk instead.** Each moment with someone carries two bursts: 14-22 lines, with a `then` (an action change in the same place) between them, so they talk, do something, talk again. `TALK` goes to 14-22 (braked: 10-14). The page plays the second burst from ~3 minutes in.
 - **Talk while doing.** The story prompt asks for talk over an activity (cooking together, setting the table, walking the dog, waiting for the bus) instead of talking still.
@@ -76,7 +77,7 @@ Games give action and talk cheaply: the play (dice, shots, scores) is worked out
 
 ## Order
 1. The day's shape (sleep, naps, Thursday night out). **Done.**
-2. Talk pace and two bursts per moment.
+2. Talk pace and two bursts per moment. **Done.**
 3. The 12-minute rule and the looser nets.
 4. Talking alone, video calls.
 5. Incidents and background talk.

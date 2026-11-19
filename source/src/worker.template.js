@@ -878,7 +878,7 @@ async function tick(env, force) {
   else if (s.scene && s.scene.w === ev.with){ s.scene.lines += (ev.lines || []).length; s.scene.mood = (s.scene.mood || 0) + evMood; if ((ev.lines || []).some(l => FAREWELL.test(l.say))) s.scene.leaving = true; }
   else { if (s.scene && s.scene.w) castSceneEnd(s, s.scene, storyMs);   // someone else: the last scene is over
     s.scene = { w: ev.with, loc: ev.location, startedAt: storyMs, lines: (ev.lines || []).length, mood: evMood,
-    ...(ev.scene || { type: "small talk", why: "they ran into each other", ishaiWants: "a pleasant chat", theyWant: "a pleasant chat", beats: "greet, catch up, part", ending: "a natural goodbye", target: 14 }) }; }
+    ...(ev.scene || { type: "small talk", why: "they ran into each other", ishaiWants: "a pleasant chat", theyWant: "a pleasant chat", beats: "greet, catch up, part", ending: "a natural goodbye", target: 22 }) }; }
   s.stuck = ev.stuck ? (s.stuck || 0) + 1 : 0;
   try { if (autoFix(s, ev, goal, now, storyMs)) dropQueue(s, "automatic loop fix"); } catch (e) { s.autoFixErr = { at: now, msg: String(e && e.message || e).slice(0, 160) }; }   // the story went in circles: end the scene and move the plot on
   if (ev.notes) s.notes = ev.notes;
@@ -1254,10 +1254,10 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - He is social: at least one moment in two involves another person: in person, a phone call, or a text or email. Friends visit and call, strangers start conversations, regulars say something. ${(() => { let n = 0; for (let i = s.events.length - 1; i >= 0 && n < 8; i--) { const e = s.events[i]; if (e.with || (e.lines || []).length > 1 || e.action === "sleeping") break; n++; } return n >= 3 ? `He has been alone for ${n} moments: in THIS moment someone calls, texts or talks to him.` : ""; })()}
 - GADI, his boss in all but name, is NEVER seen in person. He only phones (action "phoning", "with": "gadi") or sends a text or email: add "message":{"from":"gadi","kind":"text"|"email","say":"max 25 words"} and Ishai reacts out loud in "lines", alone or with whoever is there. Friends can text the same way. A message needs no "with".
 - REGULARS are people he doesn't know well yet, usually found in one place: ${SEED_CAST.filter(c => c.regular).map(c => `${c.name} ("${c.id}", ${c.regular})`).join(", ")}. If he is there at their hours, they can start a short exchange (use "with"), and he gets to know them over time. Kobi at the bar gets drunker with the hour; Mr. Zelig also talks to himself.${localsNote(last.location)}
-- "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of ${TALK.min} to ${TALK.max} lines (each max 25 words) that fills these 4 minutes: small talk, questions and follow-up questions, stories, teasing, short answers ("yeah", "wait, what?"), interruptions, a topic that drifts to another, a pause filled by someone. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
-- "then" (optional, use it in most moments that stay in one place): what visibly changes about 3 minutes into this moment, in the SAME place with the SAME people: {"action": another action allowed in this place, "text": one short sentence}. E.g. he works at the desk, then gets up and waters Moshe; Noa sits talking, then they both start cooking. Never sleeping, bathroom, showering, the radio or the TV, and leave it out when the moment ends with him leaving. The next moment follows on from the "then".
+- "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of ${TALK.min} to ${TALK.max} lines that fills these 6 minutes. It plays in TWO HALVES: the first half, then they do something (the "then", or carry on with what they are doing) and talk again; put "half": true on the first line of the second half (about the middle), which picks the talk up again ("Anyway...", a new question, back to what was left open, a reaction to what they are doing). Make it sound like real people talking, not a reading: most lines 3-12 words, none over 22; at most 2 lines in a row from one person; questions get answered (or dodged on purpose); people cut in ("Wait—", "Hold on"), trail off ("I just thought..."), laugh, tease, change the subject, bring up something from earlier today or what is planned; small talk AND real stakes; talk while doing (cooking, walking, tidying, eating), not standing still. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
+- "then" (optional, use it in most moments that stay in one place): what visibly changes about halfway through this moment (between the two halves of the talk), in the SAME place with the SAME people: {"action": another action allowed in this place, "text": one short sentence}. E.g. he works at the desk, then gets up and waters Moshe; Noa sits talking, then they both start cooking. Never sleeping, bathroom, showering, the radio or the TV, and leave it out when the moment ends with him leaving. The next moment follows on from the "then".
 - EVERY CONVERSATION IS A SCENE WITH A PURPOSE. When a conversation with someone STARTS (their "with" differs from the last moment), fill "scene":
-  {"type":"small talk"|"practical"|"plot","why":"the real reason they are talking now (who started it and why)","ishaiWants":"...","theyWant":"...","beats":"3-5 short steps the conversation goes through","ending":"how it ends","lines":12-60 total lines across moments}
+  {"type":"small talk"|"practical"|"plot","why":"the real reason they are talking now (who started it and why)","ishaiWants":"...","theyWant":"...","beats":"3-5 short steps the conversation goes through","ending":"how it ends","lines":20-90 total lines across moments}
   Ground it in the place, the time of day, both characters' personalities, memories and relationship, and ongoing plot threads. Small talk is fine but still has a reason (bored, lonely, being polite, avoiding work). Plot scenes move an arc forward. Otherwise "scene": null.
   While a scene runs, every line serves it: people pursue what they want, dodge, change the subject, give in or push back, like real people.
 - "feel" (optional): when someone's mood clearly turns in this moment (a fight, bad news, a laugh that changes everything), {"who": "ishai" or the "with" id, "mood": "angry"|"sad"|"happy"|"nervous"|"tired"|"tipsy"|"embarrassed", "why": "a few words"}; otherwise null. Their body language changes at once.
@@ -1361,8 +1361,8 @@ async function addHosts(env, s, moments, clock, now) {
       try { return castBrief(s, w); } catch (e) { return ""; } });
     const list = moments.map((m, i) => { const loc = String(m.location || "").toLowerCase(), act = String(m.action || "").toLowerCase(), w = m.with ? String(m.with).toLowerCase() : null;
       const pl = w && !briefs[i] ? (() => { const p = castPair("ishai", w), md = castMoodLine(w).split(";")[0]; return (p ? ` | between them: ${p.label || "?"}${p.thread ? ", open: " + clip(p.thread, 90) : ""}` : "") + (md ? ` | ${nm(w)} is ${md}` : ""); })() : "";
-      return (briefs[i] ? `   SCENE STARTS (write "pre"): ${briefs[i]}\n` : "") + `#${i + 1} ${storyClock(now + DELAY_MIN * 60000 + i * INTERVAL_MIN * 60000).label.slice(-5)} CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}${dogInMoment(s, m) ? " | Falafel the dog is here" : ""}${pl}\n   what happens: ${String(m.text || "").slice(0, 220)}${m.then && m.then.action ? ` | about 3 minutes in he switches to ${m.then.action}` : ""}` +
-        (Array.isArray(m.lines) && m.lines.length ? "\n   they say: " + m.lines.slice(0, 14).map((l, k) => `${sports ? (k + 1) + ") " : ""}${nm(String(l.who || "").toLowerCase())}: "${String(l.say || "").slice(0, 120)}"`).join(" / ") : "") +
+      return (briefs[i] ? `   SCENE STARTS (write "pre"): ${briefs[i]}\n` : "") + `#${i + 1} ${storyClock(now + DELAY_MIN * 60000 + i * INTERVAL_MIN * 60000).label.slice(-5)} CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}${dogInMoment(s, m) ? " | Falafel the dog is here" : ""}${pl}\n   what happens: ${String(m.text || "").slice(0, 220)}${m.then && m.then.action ? ` | halfway through (between the two halves of the talk) he switches to ${m.then.action}` : ""}` +
+        (Array.isArray(m.lines) && m.lines.length ? "\n   they say: " + m.lines.slice(0, 22).map((l, k) => `${sports ? (k + 1) + ") " : ""}${nm(String(l.who || "").toLowerCase())}: "${String(l.say || "").slice(0, 120)}"`).join(" / ") : "") +
         (ex[i] ? `\n   EXCHANGE${(m.lines || []).length >= 2 ? " (after the talk)" : ""}: ${ex[i].n} lines, topic: ${ex[i].topic}` + (ex[i].later ? `\n   LATER EXCHANGE (mark these "later": true): ${ex[i].later.n} lines, topic: ${ex[i].later.topic}` : "") : "") +
         (qa[i] ? `\n   Q&A HERE: Zohar asks Oren a short question about this moment; Oren ${qa[i] === "sarcastic" ? "doesn't really answer: a dry, sarcastic comeback instead" : "answers it, in his own dry way"}.` : ""); }).join("\n");
     const msgs = [{ role: "system", content:
@@ -1426,7 +1426,7 @@ async function askStory(env, s, clock, now, goal, live) {
   const messages = buildMessages(s, clock, now, goal, { live });
   const allowNew = canAddPerson(s, now);
   for (let attempt = 0; attempt < 2; attempt++) {
-    const raw = await runModel(env, messages, TALK.brake ? 1000 : 1400);
+    const raw = await runModel(env, messages, TALK.brake ? 1000 : 1900);
     const { ev, problem } = validate(raw, s, last, allowNew, goal, attempt === 1);
     // diagnostics for the director page: what the AI returned and why it was sent back
     s.diag = [...(s.diag || []), { at: now, model: lastWriter, attempt, problem: problem || null, with: ev?.with || null, action: ev?.action || null, lines: ev?.lines?.length ?? null, chars: raw.length }].slice(-16);
@@ -1463,7 +1463,7 @@ const USE = { calls: 0, inTok: 0, outTok: 0 };
 let HOSTS_APART = false;
 // how long conversations are. Full: 10-16 lines in every moment with someone. The brake drops back to 8-14 (and lets thin moments through)
 // when the story is not on Gemini or Cloudflare has used 60% of its free daily allowance, so longer talk never pushes a limit.
-const TALK_FULL = { min: 10, max: 16, need: 6, brake: false }, TALK_SAFE = { min: 8, max: 14, need: 4, brake: true };
+const TALK_FULL = { min: 14, max: 22, need: 8, brake: false }, TALK_SAFE = { min: 10, max: 14, need: 5, brake: true };   // v277: two halves of talk per moment (docs/ALIVE_PLAN.md step 2)
 let TALK = TALK_FULL;
 const neuronsOf = u => u ? Math.round((u.inTok || 0) * 4625 / 1e6 + (u.outTok || 0) * 30475 / 1e6) : 0;
 function talkLevel(s, env, now) {
@@ -1662,8 +1662,10 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
     if (planned && k === "hagit" && (ev.location === "arena" || ev.location === "plaza")) return k;   // Hagit hosts the Pump House's events
     const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || LOCALS[ev.with]?.name || "").toLowerCase() === k || (LOCALS[ev.with] && "local-" + k === ev.with)); return c ? ev.with : null; };
   ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => { const x = { who: who(l?.who), say: str(l?.say, 200).replace(/^["']|["']$/g, "") };
-      if (planned && Number.isInteger(l?.piece) && l.piece >= 0 && l.piece < 30) x.piece = l.piece; return x; })   // which picture a line is about (Pump House)
-    .filter(l => l.who && l.say).slice(0, 14);
+      if (planned && Number.isInteger(l?.piece) && l.piece >= 0 && l.piece < 30) x.piece = l.piece;   // which picture a line is about (Pump House)
+      if (l?.half === true) x.half = true; return x; })   // v277: the line the second half of the talk starts with (the page plays it after a break)
+    .filter(l => l.who && l.say).slice(0, 24);
+  { const h = ev.lines.findIndex(l => l.half); ev.lines.forEach((l, i) => { if (l.half && i !== h) delete l.half; }); if (h >= 0 && (h < 4 || h > ev.lines.length - 4)) delete ev.lines[h].half; }
   if (planned && o.art && typeof o.art === "object") ev.art = { ev: str(o.art.ev, 30), set: Number.isInteger(o.art.set) ? o.art.set : undefined, curtain: o.art.curtain === true || undefined, queue: o.art.queue === true || undefined, after: o.art.after === true || undefined };
   // a text or an email: read out first, then he reacts in "lines"
   if (o.message && typeof o.message === "object") { const id = str(o.message.from, 20).toLowerCase(), say = str(o.message.say, 160), via = str(o.message.kind, 10).toLowerCase() === "email" ? "email" : "text";
@@ -1676,7 +1678,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
     if ((fw === "ishai" || fw === ev.with) && CAST_MOODS.includes(fm) && !LOCALS[fw]) ev.feel = { who: fw, mood: fm, why: str(o.feel.why, 100) }; }
   if (o.scene && typeof o.scene === "object" && ev.with) ev.scene = {
     type: str(o.scene.type, 20) || "small talk", why: str(o.scene.why, 200), ishaiWants: str(o.scene.ishaiWants, 150), theyWant: str(o.scene.theyWant, 150),
-    beats: str(o.scene.beats, 300), ending: str(o.scene.ending, 150), target: clamp(Math.round(Number(o.scene.lines) || 16), 8, 80) };
+    beats: str(o.scene.beats, 300), ending: str(o.scene.ending, 150), target: clamp(Math.round(Number(o.scene.lines) || 28), 12, 120) };
   if (ev.with && !LOCALS[ev.with] && o.update && typeof o.update === "object")
     ev.update = { memory: str(o.update.memory, 180), mood: Number(o.update.mood) || 0 };
 
@@ -2167,7 +2169,7 @@ async function askBlock(env, s, clock, now, goal) {
   const nextG = s.director.filter(d => d.status === "waiting" && d.startAfter > now).sort((a, b) => a.startAfter - b.startAfter)[0];
   const n = clamp(nextG ? Math.floor((nextG.startAfter - now) / (INTERVAL_MIN * 60000)) + 1 : BLOCK_N, 1, BLOCK_N);
   if (n === 1) return askAI(env, s, clock, now, goal);
-  const raw = await runModel(env, buildMessages(s, clock, now, goal, { block: n }), 800 + n * (TALK.brake ? 650 : 1000));
+  const raw = await runModel(env, buildMessages(s, clock, now, goal, { block: n }), 800 + n * (TALK.brake ? 650 : 1400));
   const o = parseAI(raw), parsed = Array.isArray(o) ? o : Array.isArray(o?.moments) ? o.moments : o?.location ? [o] : null;
   let arr = (parsed || []).filter(x => x && typeof x === "object").slice(0, n);
   const allowNew = canAddPerson(s, now), written = arr.length;
