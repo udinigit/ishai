@@ -12,7 +12,8 @@ import { jsonrepair } from "./vendor/jsonrepair/regular/jsonrepair.js"; // copie
 const MODELS = ["@cf/qwen/qwen3-30b-a3b-fp8", "@cf/meta/llama-3.1-8b-instruct-fast", "@cf/zai-org/glm-4.7-flash", "@cf/meta/llama-3.2-3b-instruct"];
 const TZ = "Asia/Jerusalem";
 const DELAY_MIN = 5;          // broadcast delay: viewers see events 5 minutes after they are written (not shown on the page)
-const INTERVAL_MIN = 6;       // keep equal to your Cron Trigger (*/6 * * * *)
+const INTERVAL_MIN = 6;       // a planned night's moment (poker, trivia, films, the lecture, the Pump House, cooking scripts) still lasts 6 minutes (docs/PACING_PLAN.md)
+const CRON_MIN = 2;           // keep equal to the Cron Trigger (*/2 * * * *): a run whose moment isn't over yet stops after one cheap check (pacingWait())
 const KEEP_EVENTS = 40;
 const BLOCK_N = 3;            // ordinary moments are written 3 at a time (one AI call per ~18 minutes; fewer thrown away when plans change); radio/TV, weather changes and anything unplanned stay live
 const MAX_CAST = 12;          // the AI can add people until the cast reaches this size
@@ -52,8 +53,8 @@ const NEEDS = { watching: "tv", listening: "radio" }; // actions that need an it
 // how many moments in a row (alone, same place) an activity may run before the story must move on
 const RUN_CAP = { eating: 4, drinking: 3, idle: 4, cooking: 6, bathroom: 2, showering: 3, phoning: 0, talking: 0, walking: 4, waking: 2,
   exercising: 8, reading: 12, working: 20, gaming: 15, watching: 15, listening: 15 };
-const sameRun = evs => { const l = evs[evs.length - 1]; let n = 0;
-  for (let i = evs.length - 1; i >= 0 && evs[i].action === l.action && evs[i].location === l.location && !evs[i].with; i--) n++; return n; };
+const sameRun = evs => { const l = evs[evs.length - 1]; let n = 0;   // in 6-minute units (moments have their own lengths since v279, docs/PACING_PLAN.md)
+  for (let i = evs.length - 1; i >= 0 && evs[i].action === l.action && evs[i].location === l.location && !evs[i].with; i--) n += (evs[i].len || INTERVAL_MIN) / INTERVAL_MIN; return n; };
 
 // The two hosts who comment on the show for viewers (they replace the narration on the public page)
 // --- keep the hosts from repeating themselves ---
@@ -86,7 +87,7 @@ const HOSTS_SPORTS = {
 const hostSay = t => String(t || "").replace(/^\s*\(?\s*(after|pre)(\s*line)?\s*\d*\s*\)?\s*[:\-–]\s*/i, "").replace(/^\s*(zohar|oren)\s*:\s*/i, "");   // a writer that put the cue into the words ("After: ...")
 const hostCue = (x, nLines) => { const o = {}, a = Number(x && x.after), h = Number(x && x.hype);
   if (Number.isInteger(a) && a >= 1 && a < nLines) o.after = a; if (Number.isInteger(h) && h >= 0 && h <= 3) o.hype = h;
-  if (!o.after) { o.ex = 1; if (x && x.later === true) o.later = true; }   // v262: a line of an exchange (tight gaps on the page); "later" = the exchange halfway through a quiet moment
+  if (!o.after) { o.ex = 1; if (x && x.later === true) o.later = true; else if (x && Number(x.later) === 2) o.later = 2; }   // v279: "later": 2 = a long moment's second later exchange   // v262: a line of an exchange (tight gaps on the page); "later" = the exchange halfway through a quiet moment
   return o; };
 const HOSTS_MAX = 10;   // sports style: up to 2 reactions in a talk + an exchange (+ a later one in a quiet moment)
 // one line holding both hosts ("Zohar: '...' Oren: '...'") becomes two lines
@@ -334,6 +335,7 @@ export default {
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
         sleep: (() => { try { return sleepHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
+        pacing: (() => { try { return pacingHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
         usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (14-22 lines, two halves)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), auditions: { cardErr: s.audCardErr || null, cardTries: s.audCardTry || {}, readErr: s.audReadErr || null, readTries: s.audReadTry || {}, lifeErr: s.memberErr || null }, life: (s.life || []).slice(-6),
@@ -594,8 +596,8 @@ function publicState(s, dev) {
   const last = s.events[s.events.length - 1];
   return {
     day: showDay(s.startedAt, Date.now()),
-    build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, notes: dev ? s.notes : "",
-    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined, art: e.art || undefined, feel: e.feel || undefined, then: e.then ? { action: e.then.action, text: dev ? e.then.text : "" } : undefined })),
+    build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, cronMin: CRON_MIN, notes: dev ? s.notes : "",
+    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, len: e.len || undefined, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined, art: e.art || undefined, feel: e.feel || undefined, then: e.then ? { action: e.then.action, text: dev ? e.then.text : "" } : undefined })),
     moods: Object.fromEntries(Object.entries(s.castMoods || {}).filter(([, m]) => m.until > Date.now()).map(([id, m]) => [id, { mood: m.mood, tell: m.tell, body: m.body }])),
     talk: (s.talk || []).slice(-80), dev: !!dev,
     studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
@@ -763,8 +765,101 @@ function sleepHealth(s, now) {
   return { asleep: asleepAt(ms), bed: f(n.bed), wake: f(n.wake), nightOut: n.out, nap: nap ? f(nap.from) + "-" + hm5(nap.to) : null, lastNightOut: s.nightOut || null };
 }
 
+// ---------- pacing: moments of different lengths (v279, docs/PACING_PLAN.md) ----------
+// The cron runs every CRON_MIN minutes. A run makes a moment only once the last one is over (its "len" in minutes);
+// otherwise it stops after one cheap check (pacingWait()), or does the poll's and the pushes' timed work with no moment and no AI story call (sideTick()).
+// Lengths: on the move 2-4, an ordinary moment 6, a real conversation 8-12 (the writer picks, "len"), calm time alone 10-20.
+// Planned scenes and nights (scriptEvent()) keep 6 (INTERVAL_MIN). A moment never runs past the next goal, bed, waking up or the nap (nextDue()).
+const MOMENT_LEN = { move: [2, 4], scene: [6, 6], talk: [8, 12], calm: [10, 20] };
+const LEN_DEFAULT = { move: 2, scene: 6, talk: 8, calm: 12 };
+const CALM_ACTS = new Set(["reading", "watching", "gaming", "listening", "working"]);
+const TALK_KEEP = 44;          // a 12-minute talk keeps up to 44 lines
+const SIDE_MAX = 120;          // at most this many moment-less runs a day (each is one KV write)
+const talkFor = L => ({ min: Math.round(TALK.min * L / 6), max: Math.round(TALK.max * L / 6) });
+const lenRule = () => `2-4 on the move (walking, a ride, arriving somewhere alone), 6 for an ordinary moment, ${TALK.brake ? "6" : "8-12"} for a real conversation (${TALK.brake ? "keep it short now" : "the longer it is, the more lines"}), 10-20 for calm time alone (reading, TV, games, work at the desk). Pick it from what happens; the engine may shorten it.`;
+const isWith = m => !!m.with && !/^(null|none)?$/i.test(String(m.with));
+function lenKind(m, prevLoc) {
+  const act = String(m.action || "").toLowerCase(), loc = String(m.location || "").toLowerCase(), nl = (m.lines || []).length, w = isWith(m);
+  if (act === "sleeping" || act === "waking" || loc === "offscreen") return "scene";
+  if (/^on the way|^outing: on the way/.test(m.src || "") || act === "walking" || loc === "bus" || loc === "taxi") return "move";
+  if (w && nl >= 16) return "talk";                                  // a real conversation: enough lines for more than 6 minutes (a thin one stays an ordinary moment)
+  if (!w && nl <= 1 && prevLoc && loc !== prevLoc) return "move";   // arriving somewhere, alone
+  if (!w && nl <= 1 && CALM_ACTS.has(act)) return "calm";
+  return "scene";
+}
+// the length a moment asks for, before nextDue(): the writer's "len" inside the kind's range, else the kind's default
+function baseLen(m, prevLoc) {
+  const k = lenKind(m, prevLoc), [lo, hi] = TALK.brake && k === "talk" ? [6, 6] : MOMENT_LEN[k], nl = (m.lines || []).length;
+  const loc = String(m.location || "").toLowerCase(), ask = Number(m.lenAsk != null ? m.lenAsk : m.len) || 0;
+  let L = ask || (k === "talk" ? Math.round(nl / 2.6) : k === "move" ? (loc === "bus" || loc === "taxi" || (prevLoc && loc !== prevLoc && String(m.action || "") !== "walking") ? 4 : 2) : LEN_DEFAULT[k]);
+  if (k === "talk") L = Math.min(L, Math.max(lo, Math.floor(nl / 1.8)));   // never a long moment around a thin talk
+  return clamp(Math.round(L), lo, hi);
+}
+const evenUp = L => Math.max(CRON_MIN, Math.ceil(L / CRON_MIN) * CRON_MIN);
+const guessLen = (m, prevLoc) => evenUp(baseLen(m, prevLoc));
+// the next time a moment has to start (real time): a goal's start or deadline, winding down, bed, waking up, the nap
+function nextDue(s, now) {
+  const t = [], sm = now + DELAY_MIN * 60000;
+  for (const g of s.director || []) {
+    if (g.status === "waiting" && g.startAfter > now) t.push(g.startAfter);
+    if (g.status === "active" && !(g.script && g.step > 0)) { const d = deadlineOf(g); if (d > now) t.push(d); }
+  }
+  try { const n = sleepOf(sm); [n.bed - SLEEP.windDown * 60000, n.bed, n.wake].forEach(x => { if (x > sm) t.push(x - DELAY_MIN * 60000); });
+    const nap = napOf(s, sm); if (nap) [nap.from, nap.to].forEach(x => { if (x > sm) t.push(x - DELAY_MIN * 60000); }); } catch (e) {}
+  return t.length ? Math.min(...t) : null;
+}
+function momentLen(s, ev, last, now) {
+  if (ev.lenFixed) return ev.len;                                     // planned nights and beats: as planned
+  let L = guessLen(ev, last.location);
+  const due = nextDue(s, now);
+  if (due != null && due - now < L * 60000) L = Math.max(CRON_MIN, Math.floor((due - now) / (CRON_MIN * 60000)) * CRON_MIN);
+  return L;
+}
+// true: the last moment isn't over yet, so this run makes no moment
+function pacingWait(s, now) {
+  const last = s.events[s.events.length - 1]; if (!last || !last.len) return false;   // a moment from before v279: make one
+  const made = last.created || last.t;
+  if (now >= made + last.len * 60000 - 40000) return false;           // over (40 s early for the cron's jitter)
+  if ((s.director || []).some(g => g.status === "waiting" && g.startAfter <= now && g.startAfter > made)) return false;   // a goal became due since (e.g. the director added one)
+  if ((s.fixLog || []).some(f => f.at > made)) return false;          // a fix or a director note since
+  return true;
+}
+function usageToday(s, now) {
+  const d = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now));
+  return s.usage && s.usage.date === d ? s.usage : (s.usage = { date: d, calls: 0, inTok: 0, outTok: 0, moments: 0, noAI: 0 });
+}
+// timed work that can't wait for the next moment: the poll (written before hh:17, the reminder before hh:20, the result after it closes) and pushes still to send
+function sideDue(s, env, now) {
+  const p = s.poll, key = Math.floor(now / 3600000), opensAt = key * 3600000 + POLL_AT_MIN * 60000, h = storyClock(opensAt).hour;
+  if ((usageToday(s, now).side || 0) >= SIDE_MAX) return null;
+  if (env.DB && !s.pollsOff && s.pollKey !== key && now >= opensAt - 8 * 60000 && now <= opensAt - 3 * 60000 && h >= POLL_FROM_H && h <= POLL_TO_H) return "poll";
+  if (p && !p.done && !p.reminded && now >= p.opensAt - REMIND_AHEAD && now <= p.closesAt - 45000) return "reminder";
+  if (p && !p.done && now > p.closesAt + 5000) return "result";
+  if (env.VAPID_JWK && env.DB && (s.pollPushes || []).some(j => !j.done && now - j.at < 15 * 60000)) return "pushes";
+  if (env.VAPID_JWK && s.alertSend && s.alert && now - s.alert.at < 20 * 60000) return "alert";
+  return null;
+}
+async function sideTick(env, s, now, why) {
+  const last = s.events[s.events.length - 1], fake = { action: last.action, location: last.location, with: null, lines: [], commentary: [], side: true };
+  try { await pollTick(env, s, fake, now, last); } catch (e) { s.pollErr = { at: now, why: [String(e && e.message || e).slice(0, 160)] }; }
+  let pushed = 0;
+  try { remindTick(s, now); pushed = await sendPollPushes(env, s); } catch (e) { console.log("vote push", e && e.message); }
+  try { await sendAlerts(env, s, PUSH_BATCH - pushed); } catch (e) { console.log("alert", e && e.message); }
+  const u = usageToday(s, now); u.side = (u.side || 0) + 1; u.sideWhy = { ...(u.sideWhy || {}), [why]: ((u.sideWhy || {})[why] || 0) + 1 };
+  u.calls += USE.calls; u.inTok += USE.inTok; u.outTok += USE.outTok; USE.calls = USE.inTok = USE.outTok = 0;
+  await saveState(env, s);
+}
+function pacingHealth(s, now) {
+  const u = usageToday(s, now), n = u.lenN || 0, evs = s.events.filter(e => e.len);
+  return { cronMin: CRON_MIN, momentsToday: u.moments || 0, avgLen: n ? Math.round(10 * u.lenSum / n) / 10 : null, shortest: u.lenMin ?? null, longest: u.lenMax ?? null,
+    byKind: u.lenKind || {}, sideRuns: u.side || 0, sideWhy: u.sideWhy || {},
+    waitRunsEst: Math.max(0, Math.round(((now - Date.parse(u.date + "T00:00:00+02:00")) / 60000) / CRON_MIN) - (u.moments || 0) - (u.side || 0)),
+    last: evs.slice(-8).map(e => ({ id: e.id, at: storyClock(e.t).label.slice(-5), action: e.action, with: e.with || null, len: e.len, kind: e.lenKind || null })) };
+}
+
 async function tick(env, force) {
   const s = await loadState(env); SLEEP_S = s;
+  if (!force && pacingWait(s, Date.now())) { const why = sideDue(s, env, Date.now()); if (why) await sideTick(env, s, Date.now(), why); return s; }   // v279: the moment isn't over yet
   await hostsLangLoad(env, s);   // v275: the director's language switch, from its own key
   const now = Date.now();
   const storyMs = now + DELAY_MIN * 60000;
@@ -865,7 +960,8 @@ async function tick(env, force) {
     c.lastSeen = storyMs; c.scenes = (c.scenes || 0) + 1;
     if (c.from === "audience") { if (!c.met) c.met = storyMs; s.memberOnNow = [...(s.memberOnNow || []), { id: c.id, at: now }].slice(-10); }   // Auditions step 6: the first meeting, and "on now" for the owner
   }
-  s.events.push({ id: s.nextId++, t: storyMs, created: now, location: ev.location, action: ev.action, delivery: ev.delivery || undefined,
+  ev.len = momentLen(s, ev, last, now); const lenK = ev.lenFixed ? "planned" : lenKind(ev, last.location);   // v279: this moment's length (docs/PACING_PLAN.md)
+  s.events.push({ id: s.nextId++, t: storyMs, created: now, len: ev.len, lenKind: lenK, location: ev.location, action: ev.action, delivery: ev.delivery || undefined,
     text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null, art: ev.art || undefined, feel: ev.feel || undefined, then: ev.then || undefined, bathFrom: ev.bathFrom || undefined, holdIt: ev.holdIt || undefined });
   // the day's highlights, replayed in Ishai's dreams at night
   { const prevEv = s.events[s.events.length - 2], hl = s.hl || (s.hl = []), lastHl = hl[hl.length - 1];
@@ -887,7 +983,9 @@ async function tick(env, force) {
   if (s.queue) { if (ev.fromBlock) s.queue.afterId = evId; else dropQueue(s, "something else happened: " + (ev.src || "")); }   // any other moment ends the pre-written block
   s.lastRain = !!(s.world && s.world.weather && s.world.weather.rain);
   { const d = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now)); const u = s.usage && s.usage.date === d ? s.usage : (s.usage = { date: d, calls: 0, inTok: 0, outTok: 0, moments: 0, noAI: 0 });
-    u.moments++; if (/^(night|daily plan|on the way|on air|backup|sick|director)/.test(ev.src || "") || / \(block [2-9]/.test(ev.src || "")) u.noAI++; }
+    u.moments++; if (/^(night|daily plan|on the way|on air|backup|sick|director)/.test(ev.src || "") || / \(block [2-9]/.test(ev.src || "")) u.noAI++;
+    u.lenN = (u.lenN || 0) + 1; u.lenSum = (u.lenSum || 0) + ev.len; u.lenMin = Math.min(u.lenMin ?? 99, ev.len); u.lenMax = Math.max(u.lenMax || 0, ev.len);
+    u.lenKind = { ...(u.lenKind || {}), [lenK]: ((u.lenKind || {})[lenK] || 0) + 1 }; }
   (ev.lines || []).forEach((l, i) => s.talk.push({ id: evId + ":" + i, t: storyMs, who: l.who, say: l.say, loc: ev.location, w: ev.with || null }));
   (ev.commentary || []).forEach((c, i) => s.talk.push({ id: evId + ":c" + i, t: storyMs, who: c.who, say: c.say, loc: ev.location, host: true }));
   if (s.talk.length > 120) s.talk = s.talk.slice(-120);
@@ -1205,7 +1303,7 @@ function buildMessages(s, clock, now, goal, opt = {}) {
     awake && nap && sMs < nap.from && sMs >= nap.from - SLEEP.napWarn * 60000 ? `At ${hm5(nap.from)} he lies down for his afternoon nap (until about ${hm5(nap.to)}): by then he is home and alone (a guest leaves, he heads home). Don't start anything new.` : "",
     (() => { const run = sameRun(evs), cap = RUN_CAP[last.action]; if (!cap || last.with || run < Math.max(3, cap - 1)) return "";
       return run >= cap
-        ? `He has been ${last.action} for ${run * DELAY_MIN} minutes, the same thing over and over. In THIS moment he finishes it and does something clearly different (another action, or goes out, or calls someone). Do not write another "${last.action}" moment.`
+        ? `He has been ${last.action} for ${Math.round(run * INTERVAL_MIN)} minutes, the same thing over and over. In THIS moment he finishes it and does something clearly different (another action, or goes out, or calls someone). Do not write another "${last.action}" moment.`
         : `He has been ${last.action} for a while. Wrap it up soon and change what he is doing (gets up for a drink, tidies, waters Moshe, calls someone, steps out, a neighbor knocks).`; })(),
     awake && s.unlocked.includes("dog") && ((sMs - lastWake(sMs)) < 2 * 3600000 || hourNow >= 18 && hourNow < 21) && (s.done.dogwalk ? hrs("dogwalk") : 99) > 5
       ? `Falafel needs his walk: Ishai takes him out on the leash (down the stairs, the street, the park), now or very soon.` : "",
@@ -1230,7 +1328,7 @@ ${world}
 ${castSection(s, last)}
 
 RULES
-${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} minutes apart (story times ${Array.from({ length: block }, (_, k) => storyClock(now + DELAY_MIN * 60000 + k * INTERVAL_MIN * 60000).label.slice(-5)).join(", ")}). Each moment is 1-2 short sentences, max 35 words, present tense, third person, and follows on from the one before (one neighboring place at a time; a conversation may run across several moments, then ends naturally). The radio and TV are written live: if he turns one on, that is the LAST moment you write. EVERY moment where he is with someone or on the phone carries its OWN full conversation of ${TALK.min}-${TALK.max} NEW spoken lines in "lines" (never 1-3 lines spread thin; a short moment of talk is still ${TALK.min}+ lines); use only the listed actions.` : "- Write the NEXT moment only: 1-2 short sentences, max 35 words, present tense, third person."}
+${block ? `- Write the NEXT ${block} MOMENTS, in order; each starts when the one before ends (the first at ${storyClock(now + DELAY_MIN * 60000).label.slice(-5)}). Each moment is 1-2 short sentences, max 35 words, present tense, third person, and follows on from the one before (one neighboring place at a time; a conversation may run across several moments, then ends naturally). The radio and TV are written live: if he turns one on, that is the LAST moment you write. EVERY moment where he is with someone or on the phone carries its OWN full conversation of ${TALK.min}-${TALK.max} NEW spoken lines in "lines" (never 1-3 lines spread thin; a short moment of talk is still ${TALK.min}+ lines); use only the listed actions.` : "- Write the NEXT moment only: 1-2 short sentences, max 35 words, present tense, third person."}
 - Be concrete: viewers only see this one line, so name things plainly (which show, which game, what the news says). Never write vague lines like "an article" or "a new character" without saying what it is.
 - This is reality, not a sitcom and not scripted. Ishai and everyone around him behave like real people: ordinary, believable choices, real pacing, small moments. No slapstick, no staged coincidences, no punchlines in the narration. Humor comes from real life and from the hosts.
 - Ishai does not know he is being filmed. He never talks to or about the camera, the show or the hosts.
@@ -1254,7 +1352,8 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order, about ${INTERVAL_MIN} mi
 - He is social: at least one moment in two involves another person: in person, a phone call, or a text or email. Friends visit and call, strangers start conversations, regulars say something. ${(() => { let n = 0; for (let i = s.events.length - 1; i >= 0 && n < 8; i--) { const e = s.events[i]; if (e.with || (e.lines || []).length > 1 || e.action === "sleeping") break; n++; } return n >= 3 ? `He has been alone for ${n} moments: in THIS moment someone calls, texts or talks to him.` : ""; })()}
 - GADI, his boss in all but name, is NEVER seen in person. He only phones (action "phoning", "with": "gadi") or sends a text or email: add "message":{"from":"gadi","kind":"text"|"email","say":"max 25 words"} and Ishai reacts out loud in "lines", alone or with whoever is there. Friends can text the same way. A message needs no "with".
 - REGULARS are people he doesn't know well yet, usually found in one place: ${SEED_CAST.filter(c => c.regular).map(c => `${c.name} ("${c.id}", ${c.regular})`).join(", ")}. If he is there at their hours, they can start a short exchange (use "with"), and he gets to know them over time. Kobi at the bar gets drunker with the hour; Mr. Zelig also talks to himself.${localsNote(last.location)}
-- "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of ${TALK.min} to ${TALK.max} lines that fills these 6 minutes. It plays in TWO HALVES: the first half, then they do something (the "then", or carry on with what they are doing) and talk again; put "half": true on the first line of the second half (about the middle), which picks the talk up again ("Anyway...", a new question, back to what was left open, a reaction to what they are doing). Make it sound like real people talking, not a reading: most lines 3-12 words, none over 22; at most 2 lines in a row from one person; questions get answered (or dodged on purpose); people cut in ("Wait—", "Hold on"), trail off ("I just thought..."), laugh, tease, change the subject, bring up something from earlier today or what is planned; small talk AND real stakes; talk while doing (cooking, walking, tidying, eating), not standing still. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
+- "len": how many minutes this moment lasts on screen. ${lenRule()}
+- "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of ${TALK.min} to ${TALK.max} lines that fills this moment${TALK.brake ? " (6 minutes)" : `: about 2.5 to 3.5 lines a minute of "len" (6 minutes: ${TALK.min}-${TALK.max}, 10 minutes: ${talkFor(10).min}-${talkFor(10).max}, 12 minutes: ${talkFor(12).min}-${talkFor(12).max})`}. It plays in TWO HALVES: the first half, then they do something (the "then", or carry on with what they are doing) and talk again; put "half": true on the first line of the second half (about the middle), which picks the talk up again ("Anyway...", a new question, back to what was left open, a reaction to what they are doing). Make it sound like real people talking, not a reading: most lines 3-12 words, none over 22; at most 2 lines in a row from one person; questions get answered (or dodged on purpose); people cut in ("Wait—", "Hold on"), trail off ("I just thought..."), laugh, tease, change the subject, bring up something from earlier today or what is planned; small talk AND real stakes; talk while doing (cooking, walking, tidying, eating), not standing still. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
 - "then" (optional, use it in most moments that stay in one place): what visibly changes about halfway through this moment (between the two halves of the talk), in the SAME place with the SAME people: {"action": another action allowed in this place, "text": one short sentence}. E.g. he works at the desk, then gets up and waters Moshe; Noa sits talking, then they both start cooking. Never sleeping, bathroom, showering, the radio or the TV, and leave it out when the moment ends with him leaving. The next moment follows on from the "then".
 - EVERY CONVERSATION IS A SCENE WITH A PURPOSE. When a conversation with someone STARTS (their "with" differs from the last moment), fill "scene":
   {"type":"small talk"|"practical"|"plot","why":"the real reason they are talking now (who started it and why)","ishaiWants":"...","theyWant":"...","beats":"3-5 short steps the conversation goes through","ending":"how it ends","lines":20-90 total lines across moments}
@@ -1276,7 +1375,7 @@ ${(() => { const r = recentHostLines(s, 8); return r.length ? `- The hosts ALREA
 - ${block ? "IN ONE OF THESE MOMENTS" : "THIS MOMENT"}: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
 
 ${block ? `Reply with ONLY this JSON, nothing else: {"moments":[ ...exactly ${block} moments in order... ]}, where EACH moment looks like this:` : "Reply with ONLY this JSON, nothing else:"}
-{${cue && cue.onAir && !cue.onAir.say ? '"onAir":"...",' : ""}"location":"...","action":"...","text":"...","with":null,"delivery":false,"lines":[{"who":"ishai","say":"..."},{"who":"<the with id>","say":"..."}],"commentary":[],"scene":null,"update":null,"feel":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
+{${cue && cue.onAir && !cue.onAir.say ? '"onAir":"...",' : ""}"location":"...","action":"...","text":"...","with":null,"delivery":false,"lines":[{"who":"ishai","say":"..."},{"who":"<the with id>","say":"..."}],"len":6,"commentary":[],"scene":null,"update":null,"feel":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
 "missing": if this moment features an object, animal or place the camera cannot show (not listed above), name it in 1-3 words (e.g. "bicycle", "puppy"); otherwise null.
 newCharacter format: {"name":"...","role":"...","personality":"...","speech":"...","hangouts":["..."],"look":{"hair":"...","hairColor":"...","skin":"...","shirt":"...","pants":"...","extras":[]}}`;
   const user =
@@ -1348,10 +1447,13 @@ async function addHosts(env, s, moments, clock, now) {
     // a moment with no talk gets a second, LATER exchange halfway through. Data for the topics: TODAY'S PLAN and EARLIER TODAY (no AI).
     const planTxt = sports ? comingUpText(s, now, 6) : "", earlier = sports ? hostsEarlier(s, now) : "";
     const pickTopic = (opts, not) => { const o = opts.filter(x => x !== not && (x !== "plan" || planTxt) && (x !== "lookback" || earlier)); return o[Math.floor(Math.random() * o.length)] || "scene"; };
-    const ex = moments.map(m => { if (!sports) return null; const talk = (m.lines || []).length >= 2, act = String(m.action || "").toLowerCase();
+    const lens = moments.map((m, i) => guessLen(m, i ? moments[i - 1].location : (s.events[s.events.length - 1] || {}).location)), at0 = now + DELAY_MIN * 60000;   // v279: moments have their own lengths
+    const startOf = i => at0 + lens.slice(0, i).reduce((a, b) => a + b, 0) * 60000;
+    const ex = moments.map((m, i) => { if (!sports) return null; const talk = (m.lines || []).length >= 2, act = String(m.action || "").toLowerCase(), L = lens[i];
       if (act === "sleeping") return { n: "1-2", topic: "scene" };
-      const a = talk ? { n: "2-4", topic: pickTopic(["react", "react", "lookback", "banter"]) } : { n: "3-5", topic: pickTopic(["scene", "scene", "plan", "lookback", "banter"]) };
-      if (!talk && Math.random() < 0.6) a.later = { n: "2-4", topic: pickTopic(["scene", "plan", "lookback", "banter"], a.topic) };
+      const a = talk ? { n: "2-4", topic: pickTopic(["react", "react", "lookback", "banter"]) } : { n: L <= 4 ? "2-3" : "3-5", topic: pickTopic(["scene", "scene", "plan", "lookback", "banter"]) };
+      if (!talk && L > 4 && (L >= 10 || Math.random() < 0.6)) a.later = { n: "2-4", topic: pickTopic(["scene", "plan", "lookback", "banter"], a.topic) };   // a quiet moment's second exchange; a long one always gets it
+      if (!talk && L >= 14) a.later2 = { n: "2-3", topic: pickTopic(["scene", "plan", "lookback", "banter"], a.later.topic) };   // and a third, near the end of a long quiet stretch
       return a; });
     const sponsor = now - (s.lastAd || 0) > AD_EVERY_MIN * 60000 && Math.random() < 0.35 ? SPONSORS[Math.floor(Math.random() * SPONSORS.length)] : null;
     // a moment that starts a scene (someone joins him, or he walks in on them) gets the pair's brief for the hosts' setup ("pre")
@@ -1361,9 +1463,9 @@ async function addHosts(env, s, moments, clock, now) {
       try { return castBrief(s, w); } catch (e) { return ""; } });
     const list = moments.map((m, i) => { const loc = String(m.location || "").toLowerCase(), act = String(m.action || "").toLowerCase(), w = m.with ? String(m.with).toLowerCase() : null;
       const pl = w && !briefs[i] ? (() => { const p = castPair("ishai", w), md = castMoodLine(w).split(";")[0]; return (p ? ` | between them: ${p.label || "?"}${p.thread ? ", open: " + clip(p.thread, 90) : ""}` : "") + (md ? ` | ${nm(w)} is ${md}` : ""); })() : "";
-      return (briefs[i] ? `   SCENE STARTS (write "pre"): ${briefs[i]}\n` : "") + `#${i + 1} ${storyClock(now + DELAY_MIN * 60000 + i * INTERVAL_MIN * 60000).label.slice(-5)} CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}${dogInMoment(s, m) ? " | Falafel the dog is here" : ""}${pl}\n   what happens: ${String(m.text || "").slice(0, 220)}${m.then && m.then.action ? ` | halfway through (between the two halves of the talk) he switches to ${m.then.action}` : ""}` +
+      return (briefs[i] ? `   SCENE STARTS (write "pre"): ${briefs[i]}\n` : "") + `#${i + 1} ${storyClock(startOf(i)).label.slice(-5)} (${lens[i]} min) CAMERA: ${CAMERA[loc] || loc} | picture: Ishai ${act}${w ? " with " + nm(w) : ""}${m.delivery ? " | an ateBite courier at the door" : ""}${dogInMoment(s, m) ? " | Falafel the dog is here" : ""}${pl}\n   what happens: ${String(m.text || "").slice(0, 220)}${m.then && m.then.action ? ` | halfway through (between the two halves of the talk) he switches to ${m.then.action}` : ""}` +
         (Array.isArray(m.lines) && m.lines.length ? "\n   they say: " + m.lines.slice(0, 22).map((l, k) => `${sports ? (k + 1) + ") " : ""}${nm(String(l.who || "").toLowerCase())}: "${String(l.say || "").slice(0, 120)}"`).join(" / ") : "") +
-        (ex[i] ? `\n   EXCHANGE${(m.lines || []).length >= 2 ? " (after the talk)" : ""}: ${ex[i].n} lines, topic: ${ex[i].topic}` + (ex[i].later ? `\n   LATER EXCHANGE (mark these "later": true): ${ex[i].later.n} lines, topic: ${ex[i].later.topic}` : "") : "") +
+        (ex[i] ? `\n   EXCHANGE${(m.lines || []).length >= 2 ? " (after the talk)" : ""}: ${ex[i].n} lines, topic: ${ex[i].topic}` + (ex[i].later ? `\n   LATER EXCHANGE (mark these "later": true): ${ex[i].later.n} lines, topic: ${ex[i].later.topic}` : "") + (ex[i].later2 ? `\n   LAST EXCHANGE, near the end (mark these "later": 2): ${ex[i].later2.n} lines, topic: ${ex[i].later2.topic}` : "") : "") +
         (qa[i] ? `\n   Q&A HERE: Zohar asks Oren a short question about this moment; Oren ${qa[i] === "sarcastic" ? "doesn't really answer: a dry, sarcastic comeback instead" : "answers it, in his own dry way"}.` : ""); }).join("\n");
     const msgs = [{ role: "system", content:
 `You write the two hosts of a live reality show that secretly films Ishai, a man in Tel Aviv.
@@ -1664,7 +1766,8 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => { const x = { who: who(l?.who), say: str(l?.say, 200).replace(/^["']|["']$/g, "") };
       if (planned && Number.isInteger(l?.piece) && l.piece >= 0 && l.piece < 30) x.piece = l.piece;   // which picture a line is about (Pump House)
       if (l?.half === true) x.half = true; return x; })   // v277: the line the second half of the talk starts with (the page plays it after a break)
-    .filter(l => l.who && l.say).slice(0, 24);
+    .filter(l => l.who && l.say).slice(0, TALK_KEEP);
+  { const n = Number(o.len); if (n > 0 && n < 60) ev.lenAsk = Math.round(n); }   // v279: the writer's length for this moment (momentLen() decides)
   { const h = ev.lines.findIndex(l => l.half); ev.lines.forEach((l, i) => { if (l.half && i !== h) delete l.half; }); if (h >= 0 && (h < 4 || h > ev.lines.length - 4)) delete ev.lines[h].half; }
   if (planned && o.art && typeof o.art === "object") ev.art = { ev: str(o.art.ev, 30), set: Number.isInteger(o.art.set) ? o.art.set : undefined, curtain: o.art.curtain === true || undefined, queue: o.art.queue === true || undefined, after: o.art.after === true || undefined };
   // a text or an email: read out first, then he reacts in "lines"
@@ -2128,7 +2231,7 @@ function scriptEvent(s, last, g, now) {
   if (to !== last.location && !NEXT[last.location].includes(to)) { const hop = pathStep(last.location, to); return hop ? travelEvent(s, last, hop, to) : null; }
   // a scene with a fixed start (a class): he gets close, then waits for the story clock (no AI)
   if (i === 0 && g.sceneAt && now + DELAY_MIN * 60000 < g.sceneAt) { g.held = (g.held || 0) + 1;
-    return { location: last.location, action: LOCATIONS[last.location].includes("idle") ? "idle" : last.action, text: g.held % 2 ? "Ishai checks the time; he has a few minutes yet." : "Ishai looks at his phone and waits a little longer.", with: null, lines: [], commentary: [], src: "on the way to the planned scene, waiting (no AI)" }; }
+    return { len: CRON_MIN, lenFixed: true, location: last.location, action: LOCATIONS[last.location].includes("idle") ? "idle" : last.action, text: g.held % 2 ? "Ishai checks the time; he has a few minutes yet." : "Ishai looks at his phone and waits a little longer.", with: null, lines: [], commentary: [], src: "on the way to the planned scene, waiting (no AI)" }; }
   const end = i === sc.length - 1;
   const r = validate(JSON.stringify({ ...m, location: to, scene: null, newCharacter: null, missing: null, complete: end ? g.id : null }), s, last, false, g, true, true);
   g.step = i + 1;
@@ -2138,7 +2241,7 @@ function scriptEvent(s, last, g, now) {
     const total = sc.reduce((n, x) => n + (x.lines || []).length, 0);
     ev.scene = { type: "plot", why: g.goal.slice(0, 200), ishaiWants: "what the daily plan says", theyWant: "what the daily plan says", beats: "as planned, then it winds down naturally", ending: "a natural goodbye", target: total + 4 };
   }
-  ev.src = `daily plan (scene ${i + 1}/${sc.length})`;
+  ev.src = `daily plan (scene ${i + 1}/${sc.length})`; ev.len = INTERVAL_MIN; ev.lenFixed = true;   // planned nights and beats keep their 6-minute moments
   if (end) { finishGoal(s, g, "script", now); g.scriptDone = true; ev.complete = g.id; ev.unlocks = g.unlock || null; }
   return ev;
 }
@@ -2152,7 +2255,7 @@ function queuedEvent(s, last, goal, now) {
   const q = s.queue; if (!q || !q.items.length) { s.queue = null; return null; }
   const w = s.world && s.world.weather, fix = s.fixNote && now < s.fixNote.until ? s.fixNote.text : null;
   const why = q.afterId !== last.id ? "something else happened" : (goal ? goal.id : null) !== q.goal ? "a planned beat began"
-    : !!(w && w.rain) !== q.rain ? "the weather changed" : fix !== q.fix ? "a director note" : s.stuck ? "the story was stuck" : now - q.at > 45 * 60000 ? "too old" : "";
+    : !!(w && w.rain) !== q.rain ? "the weather changed" : fix !== q.fix ? "a director note" : s.stuck ? "the story was stuck" : now - q.at > 75 * 60000 ? "too old" : "";
   if (why) { dropQueue(s, why); return null; }
   const m = q.items[0];
   if (["listening", "watching"].includes(String(m.action || "").toLowerCase())) { dropQueue(s, "radio/TV: written live"); s.plannedLive = String(m.text || "").slice(0, 200); return null; }  // radio / TV: live
@@ -2169,7 +2272,7 @@ async function askBlock(env, s, clock, now, goal) {
   const nextG = s.director.filter(d => d.status === "waiting" && d.startAfter > now).sort((a, b) => a.startAfter - b.startAfter)[0];
   const n = clamp(nextG ? Math.floor((nextG.startAfter - now) / (INTERVAL_MIN * 60000)) + 1 : BLOCK_N, 1, BLOCK_N);
   if (n === 1) return askAI(env, s, clock, now, goal);
-  const raw = await runModel(env, buildMessages(s, clock, now, goal, { block: n }), 800 + n * (TALK.brake ? 650 : 1400));
+  const raw = await runModel(env, buildMessages(s, clock, now, goal, { block: n }), 800 + n * (TALK.brake ? 650 : 2200));   // v279: a 12-minute talk has up to ~40 lines
   const o = parseAI(raw), parsed = Array.isArray(o) ? o : Array.isArray(o?.moments) ? o.moments : o?.location ? [o] : null;
   let arr = (parsed || []).filter(x => x && typeof x === "object").slice(0, n);
   const allowNew = canAddPerson(s, now), written = arr.length;
@@ -2446,7 +2549,7 @@ async function pushTables(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS push_votes (poll TEXT NOT NULL, dev TEXT NOT NULL, opt INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (poll, dev))")]);
   pushTablesOk = true;
 }
-const REMIND_AHEAD = 6.5 * 60000;   // ticks come every 6 minutes: the one just before hh:20 sends it (hh:18), or the first one inside the 10 minutes
+const REMIND_AHEAD = 6.5 * 60000;   // a run between hh:13:30 and hh:20 sends it (a moment-less run if no moment comes: sideDue()), or the first one inside the 10 minutes
 async function pollRemind(req, env) {   // the vote card's bell: remind this device when the coming poll opens
   if (!env.DB) return json({ error: "voting is not set up yet" }, {}, 503);
   const b = await req.json().catch(() => ({})), ep = String(b.endpoint || ""), key = ep.length < 700 && pushAllowed(ep) ? await pushKey(ep) : null;
@@ -3125,6 +3228,9 @@ async function pollVote(req, env) {
 }
 // in tick(): count a closed poll and hand the winner to the story; write the next poll at the start of each hour
 async function pollTick(env, s, ev, now, last) {
+  if (!ev.side && s.pollSay) { const x = s.pollSay; s.pollSay = null;   // v279: a result counted by a run with no moment (sideTick())
+    if (now - x.at < 40 * 60000) { const pc = { who: x.who, say: x.say };
+      if (ev.action === "lecture" || ev.action === "film" || ev.action === "trivia") s.surveySay = [...(s.surveySay || []), { ...pc, at: now }]; else ev.commentary = [...(ev.commentary || []), pc]; } }
   const p = s.poll;
   if (p && !p.done && now < p.opensAt && p.closesAt !== p.opensAt + POLL_SEC * 1000) p.closesAt = p.opensAt + POLL_SEC * 1000;   // a poll written before POLL_SEC changed gets the new length
   if (p && !p.done && now > p.closesAt + 5000) {
@@ -3145,7 +3251,8 @@ async function pollTick(env, s, ev, now, last) {
     const say = !r.total ? "Nobody voted this hour, so life goes on exactly as planned. Your loss." : o.kind === "none" ? `The votes are in: ${pct}% said "${o.label}". So, nothing. Democracy!`
       : at ? `The votes are in: ${pct}% chose "${o.label}"${r.tie ? " (a tie, settled by the studio coin)" : ""}. Keep watching, it happens later today.` : `The votes are in: "${o.label}" won, but life got too busy for it today.`;
     const pc = { who: pollHash(p.id) % 2 ? "zohar" : "oren", say };
-    if (ev.action === "lecture" || ev.action === "film" || ev.action === "trivia") s.surveySay = [...(s.surveySay || []), { ...pc, at: now }];   // no hosts in class or at the film: it airs after
+    if (ev.side) s.pollSay = { ...pc, at: now };   // v279: no moment in this run: the next one says it
+    else if (ev.action === "lecture" || ev.action === "film" || ev.action === "trivia") s.surveySay = [...(s.surveySay || []), { ...pc, at: now }];   // no hosts in class or at the film: it airs after
     else ev.commentary = [...(ev.commentary || []), pc];
     s.pollLog = [...(s.pollLog || []), { id: p.id, question: p.question, bank: p.bank || null, winner: o ? o.label : null, kind: o ? o.kind : null, pct, total: r.total, goal: goalId, at: at }].slice(-20);
   }

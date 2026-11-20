@@ -17,6 +17,6 @@ database_name = "ishai-polls"
 database_id = "7ec762a4-f13b-4409-a290-6b52a4ab29fe"
 
 [triggers]
-crons = ["*/6 * * * *"]
+crons = ["*/2 * * * *"]   # every 2 minutes: a run makes a moment only once the last one is over (docs/PACING_PLAN.md)
 
 # The ADMIN_KEY secret is set in the Cloudflare dashboard and is kept on every deploy.

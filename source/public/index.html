@@ -515,6 +515,8 @@
   }
 
   let TUNING = false;   // the live feed hasn't answered yet
+  let CUR_EV = null;    // the moment playing now (v279: its length, "len", for the bus ride's plan)
+  const lenMs = ev => Math.max(2, Math.min(30, Number(ev && ev.len) || 6)) * 60000;   // v279: a moment's length (docs/PACING_PLAN.md); 6 minutes before v279
   let CUR_MEDIA = null; // 'ch9', '8bittv', 'nesflicks', 'rgbeat', 'herzl' or 'boolify' when the story's moment says which
   let NEXT_RIDE = null; // 'bus' or 'taxi' when the story's moment says which
   let UNLOCKED = new Set(); // items the story has brought in (tv, radio)
@@ -5068,7 +5070,7 @@
       actor.hidden = false; actor.travelling = false; actor.x = SCENES[hop].entry;
       if (last){ actor.action = fixAction(hop, p.a); actor.with = p.w; actor.pending = null; } else { actor.action = 'idle'; actor.rideUntil = NOW() + RIDE_MS; }
       if (hop === 'bus'){ const ri = actor.rideInfo || {seed: Math.floor(NOW() / 1000), withHim: []}, tt = NOW() % 86400000;   // who rides along, and the stops on the way
-        actor.rideInfo = Object.assign(ri, {plan: busPlan(ri.seed, ri.withHim || [], tt, tt + (last ? 6 * 60000 : RIDE_MS))}); }
+        actor.rideInfo = Object.assign(ri, {plan: busPlan(ri.seed, ri.withHim || [], tt, tt + (last ? lenMs(CUR_EV) : RIDE_MS))}); }
       updateLabels(); return; }
     const link = (MAP[hop]||{})[from] || {entry: SCENES[hop].entry};
     actor.x = link.entry; actor.entryX = link.ride ? null : link.entry;   // the door he came in through (doorBusy)
@@ -5899,7 +5901,7 @@
       if (queue.length && !(ev.lines || []).length){ shown.add(ev.id); if (DEV) addLine(ev, false); continue; }
       const entry = TL.get(ev.id), start = startOf(ev); ev._late = Math.max(0, NOW() - start);
       // already over with more waiting (tab came back): no walking through old moments; well into this one: be where he is by now
-      NEXT_RIDE = ev.ride || null; CUR_MEDIA = ev.media || null;
+      NEXT_RIDE = ev.ride || null; CUR_MEDIA = ev.media || null; CUR_EV = ev;
       if (!forceLoc && !ev._joined && !(queue.length && entry && NOW() >= entry.end)) setState(screenFor(ev), ev.action, ev._late > 20000, ev.with||null);
       actor.hint = homeHint(ev.text); actor.hintUntil = entry ? entry.end : NOW() + 360000;
       actor.delivery = ev.delivery && ev._late < 35000 ? {at: start} : null;   // an ateBite courier at the door
@@ -5922,7 +5924,7 @@
   const WAITS = new Set();    // the sandbox can cut waits short
   const untilT = at => { const ms = at - NOW(); if (ms <= 0) return Promise.resolve(); return new Promise(r => { const f = () => { WAITS.delete(f); clearTimeout(id); r(); }, id = setTimeout(f, ms); WAITS.add(f); }); };
   function talkPlan(ev, prevLoc, prevEv){
-    const lines = ev.lines || [], hosts = ev.action === 'lecture' || ev.action === 'film' || ev.action === 'trivia' ? [] : ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines), plan = [];
+    const LEN = lenMs(ev), lines = ev.lines || [], hosts = ev.action === 'lecture' || ev.action === 'film' || ev.action === 'trivia' ? [] : ev.commentary || [], gap = PREVIEW ? 600 : convoGap(lines, LEN), plan = [];   // v279: each moment has its own length
     // arriving by bus or taxi: the talk waits until he is there
     const r = prevLoc && !PREVIEW && prevLoc !== (ev.location || 'apartment') ? route(prevLoc, ev.location || 'apartment') : [], onBoard = r.some(x => VEH.has(x)) && !VEH.has(prevLoc) && !VEH.has(ev.location);
     // a gallery night: after the break the curtain rises first (CURTAIN_MS), then a few seconds of looking before anyone speaks or a picture is shown
@@ -5945,7 +5947,7 @@
       plan.push({at, ms, l: c, i: hi(c), host: true, after: c.after}); t += push; tail = Math.max(0, tail - push);
     }
     plan.sort((a, b) => a.at - b.at);
-    const late = post.filter(c => !inl.includes(c) && !c.later), later = post.filter(c => !inl.includes(c) && c.later);
+    const late = post.filter(c => !inl.includes(c) && !c.later), later = post.filter(c => !inl.includes(c) && c.later && c.later !== 2), later2 = post.filter(c => !inl.includes(c) && c.later === 2);
     // talkier hosts (v262): the lines of an exchange ("ex") follow each other quickly, 0.2-0.5 s apart, none at all when one cuts in ("Wait", "No, no")
     const hs = k => { let h = 7 + k * 101; for (const ch of String(ev.id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return (h % 1000) / 1000; };
     const hgap = (a, b, k) => a.ex && b.ex ? (CUT_IN.test(b.say) ? 0 : 200 + hs(k) * 300) : linePause(a.say);
@@ -5953,10 +5955,11 @@
       t = Math.max(t + (lines.length ? 1200 : 0), lead + (prevLoc && prevLoc !== (ev.location || 'apartment') ? 17500 : 5000));
       late.forEach((c, i) => { if (i) t += hgap(late[i-1], c, i); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i: hi(c), host: true}); t += ms; });
     }
-    if (later.length){   // a quiet moment's second exchange, about halfway through (2.5 minutes in), out of the quiet at the end
-      const t0 = t; t = Math.max(t + 4000, lead + 150000); tail = Math.max(0, tail - (t - t0));
-      later.forEach((c, i) => { if (i) t += hgap(later[i-1], c, 50 + i); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i: hi(c), host: true}); t += ms; });
-    }
+    // a quiet moment's later exchanges (v279: placed by the moment's length): one about 40% in (2.5 minutes of a 6-minute moment), a long one's second at about 70%, out of the quiet at the end
+    [[later, later2.length ? .33 : LEN <= 360000 ? 150000 / 360000 : .4, 50], [later2, .68, 80]].forEach(([grp, at, k]) => { if (!grp.length) return;
+      const t0 = t; t = Math.max(t + 4000, lead + Math.round(LEN * at)); tail = Math.max(0, tail - (t - t0));
+      grp.forEach((c, i) => { if (i) t += hgap(grp[i-1], c, k + i); const ms = lineMs(c.say); plan.push({at: t, ms, l: c, i: hi(c), host: true}); t += ms; });
+    });
     return {plan, ms: t + tail, ride: onBoard ? r : null, thenAt};
   }
   // ---- live talk (v250, no AI): real people answer quickly, cut in, laugh or say "Right." while the other goes on, then fall quiet for a while.
@@ -6025,7 +6028,7 @@
     lines.forEach((l, i) => {
       if (i){
         if (back.has(i)){ const b = back.get(i), bm = lineMs(b.say); t += 200; plan.push({at: t, ms: bm, l: b, i: i - 1, x: true}); t += bm; }
-        if (i === split){ splitAt = Math.min(200000, Math.max(t - t0 + 60000, 150000)); t = t0 + splitAt; }   // the break: a minute at least; the second half 2:30-3:20 in, so talk covers both halves of the 6-minute moment
+        if (i === split){ const k = lenMs(ev) / 360000; splitAt = Math.min(200000 * k, Math.max(t - t0 + 60000, 150000 * k)); t = t0 + splitAt; }   // the break: a minute at least; the second half 2:30-3:20 into a 6-minute moment (v279: scaled to the moment's length), so talk covers both halves
         else t += pre[i] + (extra.get(i) || 0);
       }
       plan.push({at: t, ms: ms[i], l, i}); t += ms[i];
@@ -6046,13 +6049,12 @@
     [...held.values()].filter(e=>startOf(e)<=now).sort((a,b)=>startOf(a)-startOf(b)).forEach(e=>{ held.delete(e.id); queue.push(e); });
     pump(); thenTick();
   }
-  // the second half of a moment ("then"): ~3 minutes in he switches to another action in the same place, by the clock, the same for every viewer
-  const THEN_MS = 180000;
+  // the second half of a moment ("then"): halfway through (3 minutes of a 6-minute moment) he switches to another action in the same place, by the clock, the same for every viewer
   function thenTick(){
     if (forceLoc) return;
     const c = tlNow(); if (!c) return; const e = c.e, ev = e.ev, t = ev && ev.then;
     if (!t || !t.action || e.thenDone) return;
-    const due = e.start + (e.thenAt != null ? e.thenAt : THEN_MS), now = NOW(); if (now < due) return;   // v277: just before the talk's second half
+    const due = e.start + (e.thenAt != null ? e.thenAt : lenMs(ev) / 2), now = NOW(); if (now < due) return;   // v277: just before the talk's second half
     e.thenDone = true;
     const loc = screenFor(ev);
     if (actor.loc !== loc || actor.travelling || actor.pending || actor.ride || actor.switching || actor.hidden) return;   // not settled where the moment is: skip it
@@ -6171,11 +6173,12 @@
   }
   // natural pause between lines; also counted when a viewer tunes in mid-conversation
   const linePause = say => 900 + Math.min(1600, say.length * 12);
-  // spread a long conversation over the whole moment (about 3 minutes), like real people talking
-  function convoGap(lines){
+  // spread a long conversation over half the moment (about 3 minutes of a 6-minute one), like real people talking
+  // v279 (docs/PACING_PLAN.md): moments have their own length ("len", minutes; 6 before v279 and for planned nights)
+  function convoGap(lines, L = 360000){
     if (!lines || lines.length < 2) return 0;
     const typing = lines.reduce((n, l) => n + lineMs(l.say) + linePause(l.say), 0);
-    return Math.max(0, Math.min(12000, (180000 - typing) / (lines.length - 1)));
+    return Math.max(0, Math.min(12000, (L / 2 - typing) / (lines.length - 1)));
   }
   let sceneKey = null;
   const keyOf = (loc, w) => (loc || '') + '|' + (w || '');
