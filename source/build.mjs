@@ -1,6 +1,7 @@
 import fs from 'fs';
-import { loadWorld, withWorld } from './world.mjs';
-const WORLD = loadWorld('..');   // story/world.json: the map, checked (throws on a broken map)
+import { loadWorld, withWorld, loadCity } from './world.mjs';
+const WORLD = loadWorld('..');
+loadCity('..');   // story/city.json: the city from above (docs/GROWTH_PLAN.md), checked against the map   // story/world.json: the map, checked (throws on a broken map)
 const BUILD = Date.now().toString(36); // lets open pages notice a new deploy
 // the shared voices (voices.js) go into every page that speaks, where it has the /*__VOICES_JS__*/ marker
 const VOICES_JS = fs.readFileSync('public/voices.js','utf8');
@@ -17,7 +18,7 @@ const builder = withBar(fs.readFileSync('public/builder.html','utf8'), 'builder.
 const intro = withVoices(fs.readFileSync('public/intro.html','utf8'), 'intro.html');
 const events = withBar(fs.readFileSync('public/events.html','utf8'), 'events.html');
 // the director's map (/map): story/world.json as it is in this build
-const mapPage = (() => { const src = fs.readFileSync('public/map.html','utf8'), m = '/*__WORLD_JSON__*/{}'; if (src.split(m).length !== 2) throw new Error('map.html needs ' + m + ' exactly once'); return withBar(src.replace(m, () => fs.readFileSync('../story/world.json','utf8').trim()), 'map.html'); })();
+const mapPage = (() => { const src = fs.readFileSync('public/map.html','utf8'), m = '/*__WORLD_JSON__*/{}'; if (src.split(m).length !== 2) throw new Error('map.html needs ' + m + ' exactly once'); const mc = '/*__CITY_JSON__*/{}'; if (src.split(mc).length !== 2) throw new Error('map.html needs ' + mc + ' exactly once'); return withBar(src.replace(m, () => fs.readFileSync('../story/world.json','utf8').trim()).replace(mc, () => fs.readFileSync('../story/city.json','utf8').trim()), 'map.html'); })();
 const sw = fs.readFileSync('public/sw.js','utf8');
 // favicons and the link-preview picture (WhatsApp etc.), served by the worker from memory
 const ICON_TYPES = { '.ico':'image/x-icon', '.svg':'image/svg+xml', '.png':'image/png' };

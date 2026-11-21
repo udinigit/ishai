@@ -37,6 +37,16 @@
   .go{color:var(--amber);cursor:pointer;text-decoration:underline}
   .desc{font-size:16px;color:var(--dim);margin-top:6px}
   .notes{font-size:15px;color:var(--dim);margin-top:4px}
+  /* the city from above (story/city.json) */
+  #cityWrap{overflow:auto;padding-bottom:6px}
+  #city{display:grid;gap:6px;min-width:max-content}
+  .sea{background:repeating-linear-gradient(135deg,#0a2a4a 0 6px,#0c3358 6px 12px);border-radius:6px;color:var(--blue);writing-mode:vertical-rl;text-align:center;font-size:16px;letter-spacing:4px;padding:4px}
+  .dist{width:165px;min-height:120px;border:2px solid var(--faint);border-radius:8px;padding:6px 8px;background:#041004;font-size:16px;line-height:1.1;cursor:pointer}
+  .dist.new{border-style:dashed} .dist.full{opacity:.75} .dist.open{border-color:var(--amber)}
+  .dist b{font-weight:normal;color:var(--phos);font-size:19px} .dist .fl{color:var(--dim);font-size:14px;margin-top:3px}
+  .dist .ch{display:inline-block;border:1px solid var(--dim);border-radius:4px;padding:0 4px;margin:2px 2px 0 0;color:var(--phos)} .dist .ch:hover{border-color:var(--amber)}
+  .dist .more{display:none;color:var(--dim);font-size:14px;margin-top:4px} .dist.open .more{display:block}
+  .empty{width:165px;min-height:120px;border:1px dashed #0c2614;border-radius:8px}
   #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:12px}
 </style>
 </head>
@@ -45,6 +55,11 @@
 <div class="wrap">
   <h1>&gt; MAP // THE WORLD</h1>
   <div class="muted small"><a href="/director">← Director page</a> · Every screen of the show, where its ways out are and where each one leads. Read from <code>story/world.json</code> as of this build; nothing here changes the show. Tap a screen to see it, tap a way out to go where it leads.</div>
+  <div class="box">
+    <h2>The city from above</h2>
+    <div class="legend"><i>West is the sea · Herzl Street runs across the middle row</i><i>dashed: no places yet (opens when the story first needs it)</i><i>tap a district for what fits there; tap a place to jump to it</i></div>
+    <div id="cityWrap"><div id="city"></div></div>
+  </div>
   <div class="box">
     <h2>The whole world</h2>
     <div class="legend"><i>━ walk (edge or door)</i><i style="color:var(--amber)">┅ bus or taxi</i><i>bright frame: a place the story can name · dim: walked through</i><i>above the street: The Big S's floors · below: doors into buildings</i></div>
@@ -57,6 +72,7 @@
 <script>
 (() => {
   const WORLD = /*__WORLD_JSON__*/{};
+  const CITY = /*__CITY_JSON__*/{};
   const P = WORLD.places || {}, $ = id => document.getElementById(id), W = 192, H = 108;
   const COL = ['#4dff7a','#ffb84d','#6bc4ff','#ff8ab0','#c9a0ff','#ffd23f','#7fe0d0','#ff6b6b','#b0e070','#f0a070'];
   const CELL_W = 112, CELL_H = 86;
@@ -147,6 +163,26 @@
     el.classList.add('flash'); const t = $('tile-' + tgt); if (t) t.classList.add('hit');
     marks(tgt, from); el.scrollIntoView({behavior:'smooth', block:'start'});
   }
+  // ---- the city from above: districts on their grid, what's in each, what fits, how much room is left ----
+  function city(){
+    const D = CITY.districts || {}, [GW, GH] = CITY.grid || [0, 0], box = $('city'); if (!GW) return;
+    box.style.gridTemplateColumns = '28px repeat(' + GW + ', 165px)';
+    const at = {}; for (const [id, d] of Object.entries(D)) at[d.grid.join(',')] = id;
+    const sea = document.createElement('div'); sea.className = 'sea'; sea.style.gridRow = '1 / span ' + GH; sea.textContent = 'THE SEA'; box.appendChild(sea);
+    for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++){
+      const id = at[c + ',' + r], el = document.createElement('div'); el.style.gridColumn = String(c + 2); el.style.gridRow = String(r + 1);
+      if (!id){ el.className = 'empty'; box.appendChild(el); continue; }
+      const d = D[id], n = (d.places || []).length;
+      el.className = 'dist' + (n ? '' : ' new') + (d.room ? '' : ' full');
+      el.innerHTML = '<b>' + esc(d.name) + '</b><div class="fl">' + (n ? n + ' place' + (n > 1 ? 's' : '') : 'nothing yet') + ' · room for ' + d.room + ' more</div>' +
+        '<div>' + (d.places || []).map(p => '<span class="ch" data-p="' + p + '">' + esc(cam(p) ? cam(p) + ' ' : '') + esc(short(p)) + '</span>').join('') + '</div>' +
+        '<div class="more">' + esc(d.feel) + '<br><br>Fits: ' + esc((d.fits || []).join(', ')) + '<br>Getting there: ' + esc(d.from) +
+        ((d.grow || []).length ? '<br>Grows from: ' + d.grow.map(g => esc(g.at) + ' (' + esc(g.dir) + ')').join(', ') : '') + '</div>';
+      el.onclick = e => { const p = e.target.closest('.ch'); if (p){ e.stopPropagation(); show(p.dataset.p); return; } el.classList.toggle('open'); };
+      box.appendChild(el);
+    }
+    const h = $('cityWrap'), hz = D.herzl; if (hz) h.scrollLeft = Math.max(0, 28 + hz.grid[0] * 171 - h.clientWidth / 2 + 82);
+  }
   function rides(){
     const v = Object.keys(P).filter(id => P[id].kind === 'vehicle' || P[id].rideOnly);
     $('rides').innerHTML = v.map(id => '<div><b>' + esc(id) + '</b> → ' + Object.keys(P[id].links || {}).map(to => '<span class="go" data-to="' + to + '">' + esc(name(to)) + '</span>').join(', ') + '</div>').join('') +
@@ -165,7 +201,7 @@
     const wait = () => { try { if (f.contentWindow.__builder){ B = f.contentWindow.__builder; } } catch(e){}
       if (!B) return setTimeout(wait, 300);
       for (const s of B.menus().scenes) SC[s.id] = s;
-      overview(); cards(); rides(); Object.keys(P).forEach(id => marks(id)); paint(B);
+      city(); overview(); cards(); rides(); Object.keys(P).forEach(id => marks(id)); paint(B);
       if (location.hash.length > 1) show(location.hash.slice(1));
     };
     wait();
