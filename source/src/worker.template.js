@@ -1253,7 +1253,7 @@ function buildMessages(s, clock, now, goal, opt = {}) {
   const cw = last.with || (BATH_ACTIONS.includes(last.action) && s.scene ? s.scene.w : null); // a guest waits while he is in the bathroom
   const owned = s.unlocked.map(u => ITEMS[u]).filter(Boolean);
   const dogLine = s.unlocked.includes("dog")
-    ? "\n- Falafel, Ishai's scruffy sandy dog (adopted from Avi's kiosk), goes everywhere with him: he walks him, feeds him, Falafel begs at the counter, naps in his own bed, steals socks. Mention Falafel now and then; the hosts adore him."
+    ? "\n- Falafel, Ishai's scruffy sandy dog (adopted from Avi's kiosk), goes almost everywhere with him (never to a bar or the cinema: then he stays at home): he walks him, feeds him, Falafel begs at the counter, naps in his own bed, steals socks. Mention Falafel now and then; the hosts adore him."
     : s.unlocked.includes("stray") ? "\n- A scruffy sandy stray dog hangs around Avi's kiosk on Herzl Street; Avi secretly feeds it falafel balls. Ishai keeps noticing it." : "";
   // v282: the full description only for where he is, the places next to it and the goal's place; the rest in one short clause (the map grows)
   const nearP = new Set([last.location, ...(NEXT[last.location] || []), goal && goal.where].filter(Boolean));
@@ -1417,7 +1417,10 @@ ${block ? `What happens in the next ${block} moments?` : "What happens next?"}`;
 const CAMERA = { apartment: "his apartment", bathroom: "closed bathroom door", corridor: "the building hallway", street: "Herzl Street outside his building", shops: "the shops block of Herzl Street (sidewalk)",
   park: "the park", cafe: "Cafe Nahat", gym: "Herzl Gym", bar: "The Black Candle bar", market: "Shuk Shalom market", store: "the Everything Else store", plaza: "the plaza in front of the Pump House, by the park", apt2: "Boaz's flat, apartment 2, at the poker table", arena: "inside the Pump House hall", campus: "the courtyard of Tel Herzl University", classroom: "a lecture room at the university", bus: "inside the bus, the city going past the windows", taxi: "the back seat of a taxi, the city going past the window", offscreen: "STATIC - no camera, he is out of coverage" };
 // is Falafel the dog in this moment's picture? Only when the moment says so (him, his leash), or at home once adopted
-const dogInMoment = (s, m) => /\bFalafel\b|\bthe dog\b|leash/.test(String(m.text || "") + " " + (m.lines || []).map(l => l.say).join(" ")) ||
+// the director's rule: Falafel never goes to a bar or the cinema (he stays home); grown bars count too
+const NO_DOG = new Set(["bar", "cinema"]);
+const noDogAt = loc => NO_DOG.has(String(loc || "")) || /\bbar\b|\bpub\b|\btavern\b/i.test(String((PLACES[loc] || "")).slice(0, 60));
+const dogInMoment = (s, m) => !noDogAt(m.location) && /\bFalafel\b|\bthe dog\b|leash/.test(String(m.text || "") + " " + (m.lines || []).map(l => l.say).join(" ")) ||
   (String(m.location || "") === "apartment" && (s.unlocked || []).includes("dog"));
 const DOG_WORDS = /\bFalafel\b|\bthe dog\b|\bdoggo\b|\bpup(py)?\b/;
 // what the hosts know about the scene (v260, no AI): the scene so far (the moments just before this block with the same person, or alone at the same place),
@@ -2227,7 +2230,7 @@ const pathStep = (from, to) => { const prev = { [from]: null }, q = [from];
   while (q.length) { const x = q.shift(); if (x === to) break; for (const y of NEXT[x] || []) if (!(y in prev)) { prev[y] = x; q.push(y); } }
   if (!(to in prev)) return null; let x = to; while (prev[x] !== from && prev[x] !== null) x = prev[x]; return x; };
 function travelEvent(s, last, hop, dest) {
-  const wet = !!(s.world && s.world.weather && s.world.weather.rain), dog = s.unlocked.includes("dog"), umb = wet ? " under his umbrella" : "";
+  const wet = !!(s.world && s.world.weather && s.world.weather.rain), dog = s.unlocked.includes("dog") && !noDogAt(dest), umb = wet ? " under his umbrella" : "";
   const T = { "apartment>corridor": `Ishai grabs his keys${dog ? ", clips on Falafel's leash" : ""} and heads out the door.`, "corridor>street": `He goes down the stairs and out onto Herzl Street${umb}.`,
     "street>shops": `He walks east along Herzl Street${umb}, past the hardware shop and the bank.`, "shops>cafe": `He crosses at the lights${umb} and goes into Cafe Nahat.`,
     "shops>street": `He walks back west along Herzl Street${umb} toward his building.`, "shops>kiosk": `He walks on east past Cafe Nahat${umb}, past the brick statue on the little square, to Shmulik's kiosk.`, "kiosk>shops": `He walks back west along Herzl Street${umb}, past the statue, toward the café.`, "kiosk>street": `He walks back west along Herzl Street${umb} toward his building.`, "street>park": `He walks west along Herzl Street${umb}, past PicSell and the bakery, toward the park.`, "street>corridor": "He heads back into his building and up the stairs.",

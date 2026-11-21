@@ -1379,8 +1379,30 @@
     px(9,-19,4,4,'#c18657'); px(9,-20,5,2,helmet); px(12,-17,1,1,'#161616');
     if (night){ px(16,-9,1,1,'#fff3b0'); alpha(.25, () => px(17,-10,6,3,'#fff3b0')); px(0,-8,1,1,'#ff3b3b'); }
   }
+  // the director's rule: Falafel never goes to a bar or the cinema. When this outing (since Ishai last left home) takes in one of them,
+  // or the trip he is on now ends at one, the dog stays at home: he watches Ishai go from the front door and isn't drawn anywhere else
+  const NO_DOG = new Set(['bar', 'cinema', 'pplobby']);
+  const GROW_BAR = id => GROWN_ROOM[id] === 'bar';   // a grown place that is a bar inside
+  const noDog = loc => !!loc && (NO_DOG.has(loc) || NO_DOG.has(storyLoc(loc)) || GROW_BAR(loc) || GROW_BAR(storyLoc(loc)));
+  const HOME_LOCS = new Set(['apartment', 'bathroom']);
+  let dogHomeMemo = {k: '', v: false};
+  function dogStaysHome(){
+    const p = actor.pending, dest = p && p.route && p.route.length ? p.route[p.route.length - 1] : null;
+    if (noDog(dest) || noDog(actor.loc)) return true;
+    const now = NOW(), k = Math.floor(now / 1000) + ':' + TL.size;
+    if (dogHomeMemo.k === k) return dogHomeMemo.v;
+    let v = false;
+    for (const e of TL.values()){
+      if (e.dead) continue; if (e.start > now) break;
+      const loc = e.ev.location || 'apartment';
+      if (HOME_LOCS.has(storyLoc(loc))) v = false; else if (noDog(loc)) v = true;
+    }
+    dogHomeMemo = {k, v}; return v;
+  }
   function dogUpdate(t, scene){
     if (!UNLOCKED.has('dog') || actor.loc==='offscreen' || actor.switching){ dog.loc = null; return; }
+    const stayHome = dogStaysHome();
+    if (stayHome && !HOME_LOCS.has(actor.loc)){ dog.loc = null; return; }   // left at home (no bars, no cinema)
     if (actor.ride && actor.hidden) return; // on the bus with Ishai
     if (actor.loc==='bathroom'){ dog.x = 62; return; }                  // waits outside the bathroom door
     const floor = scene.walkY + 22, a = actor.action, settled = !actor.travelling && !actor.hidden;
@@ -1389,7 +1411,8 @@
     const mdir = actor.travelling ? Math.sign(actor.targetX - actor.x) || 1 : ew ? actor.err.dir : (actor.paceDir || 1);
     if (dog.loc !== actor.loc){ dog.loc = actor.loc; dog.x = actor.x - 12*mdir; }
     let target = actor.x + (actor.x > W-40 ? -12 : 12), pose = 'sit', fy = floor;
-    if (moving) { target = actor.x - 10*mdir; pose = 'walk'; }
+    if (moving && stayHome && actor.loc==='apartment') { target = 122; }   // not coming along this time: sits by the front door and watches him go
+    else if (moving) { target = actor.x - 10*mdir; pose = 'walk'; }
     else if (actor.hidden && BATH.has(a)) { target = 62; }                                   // waits at the bathroom door
     else if (actor.loc==='apartment'){
       if (a==='sleeping' || a==='listening') { target = 52; pose = 'sleep'; fy = 94; }      // his own bed
@@ -3216,6 +3239,8 @@
       // the rows: seats, the audience's backs, Ishai and his friend in the 4th row, middle
       const me = CIN_ROWS[3], ishaiSeat = 6, fx = CIN_SEAT_X0 + ishaiSeat * CIN_SEAT_W, cl = actor.with && companionLook(a);
       const walk = settled && !actor.travelling ? cinWalk() : null, seated = settled && !walk;
+      // while anything is on the screen (the ads, the trailer, the film) everyone in the seats faces it; only with the lights up and the curtain closed do they turn round to talk
+      const watching = !!(show && (show.dark || show.curtain > .5));
       CIN_ROWS.forEach((ry, r) => {
         if (r === 4 && walk){   // between the 4th and 5th rows: past the knees of the 4th row, behind the 5th row's seat backs
           if (cl && compAt(actor.with, cl, walk.frd.x)){ markHead(actor.with, walk.frd.x, walk.frd.y); person(cl, walk.frd.x, walk.frd.y, t + 300, {walk: true, face: walk.frd.face}); if (walk.carry) cooolaCup(walk.frd.x + (walk.frd.face > 0 ? 8 : -1), walk.frd.y + 12); }
@@ -3227,10 +3252,10 @@
           const taken = r === 3 && (k === ishaiSeat || (cl && k === ishaiSeat + 1));
           if (!taken && (show ? show.full : .3) > hash(r * 31 + k * 7 + 3)) { const L = CROWD[(r * 5 + k * 3) % CROWD.length];
             person(L, sx + 1, ry - 13, t + (r * 7 + k) * 391, {muted: true, fid: show && show.react && hash(r*13+k) < .5 ? 'shrug' : 'turn', legs: false}); }
-          if (r === 3 && k === ishaiSeat && seated && !actor.travelling){ const talk = a === 'talking' || a === 'eating' || a === 'drinking';
-            drawIshai(talk ? (a === 'talking' ? 'talking' : a) : 'back', sx + 1, ry - 14, t, {seated:true}); markHead('ishai', sx + 6, ry - 14);
+          if (r === 3 && k === ishaiSeat && seated && !actor.travelling){ const talk = a === 'talking' && !watching;   // eating popcorn or whispering during the show: still facing the screen
+            drawIshai(talk ? 'talking' : 'back', sx + 1, ry - 14, t, {seated:true}); markHead('ishai', sx + 6, ry - 14);
             if (hasSnacks()){ popcornBucket(sx + 8, ry - 4); cooolaCup(sx - 1, ry - 3); } }   // back from the snack bar: the bucket on his lap, the cup in the armrest
-          if (r === 3 && cl && k === ishaiSeat + 1 && seated && compAt(actor.with, cl, sx + 6)){ markHead(actor.with, sx + 6, ry - 14); person(cl, sx + 1, ry - 14, t, {legs:false, fid: a === 'talking' ? undefined : 'turn', face: -1, talkPhase: a === 'talking'}); if (hasSnacks()) cooolaCup(sx + 11, ry - 3); }
+          if (r === 3 && cl && k === ishaiSeat + 1 && seated && compAt(actor.with, cl, sx + 6)){ markHead(actor.with, sx + 6, ry - 14); person(cl, sx + 1, ry - 14, t, {legs:false, fid: a === 'talking' && !watching ? undefined : 'turn', face: -1, talkPhase: a === 'talking' && !watching}); if (hasSnacks()) cooolaCup(sx + 11, ry - 3); }
           cinemaSeat(sx, ry, Math.floor(r / 2));
         }
       });
@@ -6143,7 +6168,7 @@
   // MAP, SCENES, LOCATIONS, PLACE_NAME and WALK are changed IN PLACE, so everything that holds them keeps working. poll() loads them whenever
   // publicState.worldV moves, before it ingests the moments (a moment may already be at a new place). A grown place is drawn by the block kit
   // from its data spec (growScene(); step 4 adds the parts library). Never over a hand-made scene.
-  let GROWN_V = null, GROWN_IDS = [];
+  let GROWN_V = null, GROWN_IDS = [], GROWN_ROOM = {};
   const growX = v => v === 'R' ? W + 8 : v, growLink = l => l.ride ? Object.assign({ride: true}, l.exit != null ? {exit: growX(l.exit), entry: growX(l.entry)} : {}) : {exit: growX(l.exit), entry: growX(l.entry)};
   const setTo = (o, n) => { for (const k of Object.keys(o)) if (!(k in n)) delete o[k]; Object.assign(o, n); };
   // ================= v283: the grown places' parts (docs/GROWTH_PLAN.md step 4) =================
@@ -6376,7 +6401,7 @@
       MAP[id] = Object.fromEntries(Object.entries(g.place.links || {}).map(([to, l]) => [to, growLink(l)]));
       for (const [at, l] of Object.entries(g.attach || {})) if (MAP[at]) MAP[at][id] = growLink(l);
       SCENES[id] = growScene(id, g); PLACE_NAME[id] = g.name || id.toUpperCase(); LOCATIONS[id] = (d.actions || {})[id] || ['walking', 'idle'];
-      GROWN_IDS.push(id);
+      GROWN_IDS.push(id); GROWN_ROOM[id] = g.spec && g.spec.room ? g.spec.room.k : null;
     }
     if (d.WALK) setTo(WALK, d.WALK);
     GROWN_V = d.v || '';
