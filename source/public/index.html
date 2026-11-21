@@ -1708,6 +1708,7 @@
   // ================= scenes =================
   // Each scene: cam, place, stand{action:x}, walkY, entry, exit, draw(t,hf,a,settled,actor)
   const SCENES = {};
+  const GROUND_DRAW = {}, GROUND_FLOOR = {};   // v283: filled by the grown places' kit (growScene()); block() reads them
 
   // ---- dreams: while he sleeps, a thought bubble replays today's highlights ----
   const dreamCv = document.createElement('canvas'); dreamCv.width = W; dreamCv.height = H; const dctx = dreamCv.getContext('2d');
@@ -2357,8 +2358,8 @@
   const KIT = new Set(), WEST = new Set(['west1','west2','west3']);
   function block(scene, cam, place){
     const ground = scene.ground || 'street', id = scene.id;
-    if (id){ KIT.add(id); if (ground !== 'indoor') OUTSIDE.add(id); if ((scene.traffic || (ground === 'indoor' ? 'none' : 'road')) === 'road'){ BIKE_SEED[id] ??= scene.seed + 10; ATE_PLACES.add(id); } }
-    const traffic = scene.traffic || (ground === 'indoor' ? 'none' : 'road');
+    if (id){ KIT.add(id); if (ground !== 'indoor') OUTSIDE.add(id); if ((scene.traffic || (ground === 'indoor' || GROUND_DRAW[ground] ? 'none' : 'road')) === 'road'){ BIKE_SEED[id] ??= scene.seed + 10; ATE_PLACES.add(id); } }
+    const traffic = scene.traffic || (ground === 'indoor' || GROUND_DRAW[ground] ? 'none' : 'road');
     return Object.assign({walkY:66, entry:W+8, exit:-14, stand:{idle:96, walking:96}}, scene, {cam, place,
       draw(t,hf,a,settled,actor){
         const night = isNight(hf);
@@ -2375,6 +2376,10 @@
           waveWalk(72, 88, night); R(0,88,W,4,'#9a4a3c'); for (let x=0;x<W;x+=14) R(x+3,90,6,1,'#e8d8c8');   // the walk; the red bike lane
           R(0,92,W,3,'#bdbdbd'); R(0,95,W,13,'#2f2f33'); for (let x=0;x<W;x+=20) R(x+4,101,10,1,'#e8e8a0');
           if (scene.stop){ zAdd(92, () => { R(146,58,1,34,'#555'); R(143,54,8,7,'#2f6fb5'); R(144,55,6,1,'#f2f2f2'); R(145,57,4,2,'#f2f2f2'); }); }
+        } else if (GROUND_DRAW[ground]){   // v283: the grown places' grounds (alley, square, industrial, park, garden, beach, hill)
+          GROUND_DRAW[ground](t, hf, night, scene);
+          scene.fronts && scene.fronts(t, night, hf);
+          GROUND_FLOOR[ground] && GROUND_FLOOR[ground](t, night, scene);
         } else {   // indoor
           scene.room(t, night);
           if (scene.glass) glassRoof(t, hf, scene.glass);
@@ -6102,10 +6107,217 @@
   let GROWN_V = null, GROWN_IDS = [];
   const growX = v => v === 'R' ? W + 8 : v, growLink = l => l.ride ? {ride: true} : {exit: growX(l.exit), entry: growX(l.entry)};
   const setTo = (o, n) => { for (const k of Object.keys(o)) if (!(k in n)) delete o[k]; Object.assign(o, n); };
+  // ================= v283: the grown places' parts (docs/GROWTH_PLAN.md step 4) =================
+  // A grown place is data (its spec, checked by GROWKIT.clean() from source/growcore.mjs, the same code the worker runs): a ground, building fronts,
+  // props, or a room. These draw them, in the show's style: everything on the clock (t), nothing random, depth through zAdd, lit at night.
+  const GROWKIT = (/*__GROW_KIT__*/null)();
+  const gH = (seed, i) => hash((seed * 2654435761 + i * 40503) >>> 0);   // a stable 0..1 per seed and index
+  const lum = c => { const n = parseInt(String(c).slice(1), 16); return ((n >> 16) * 0.3 + ((n >> 8) & 255) * 0.59 + (n & 255) * 0.11); };
+  const ink = c => lum(c) > 150 ? '#1a1a1a' : '#ffffff';
+  const signAt = (txt, x, w, y, c) => { if (!txt) return; const n = txt.length * 4 - 1; word(txt, x + Math.max(1, Math.floor((w - n) / 2)), y, c); };
+  const glass = (night, k) => night ? (k ? '#f2e6c0' : '#ffd88a') : '#9fc3d8';
+  const GOODS = ['#e0605a', '#7fbf6a', '#ffd36a', '#3b7bc2', '#f4f4f4', '#c98a3a', '#9a5ac2', '#3aa8a8'];
+  // ---- grounds: sky, the back, the ground under the walking line (feet at ~88) ----
+  function blds(sc, night, top, win){
+    (sc.bld || []).forEach(([x, y, w, c], bi) => { R(x, y, w, 72 - y, c); R(x, y, w, 2, '#00000022');
+      for (let wy = y + 6; wy < 34; wy += win.dy) for (let wx = x + 4; wx < x + w - 6; wx += win.dx){ const lit = night && ((wx * 7 + wy * 3 + bi) % 5 < 2); R(wx, wy, win.w, win.h, lit ? '#ffd36a' : (night ? '#1a2238' : win.c)); if (win.sh){ R(wx - 1, wy, 1, win.h, win.sh); R(wx + win.w, wy, 1, win.h, win.sh); } } });
+  }
+  Object.assign(GROUND_DRAW, {
+    alley(t, hf, night, sc){ drawSky(0, 0, W, 14, hf, t); blds(sc, night, 2, {dx: 12, dy: 10, w: 5, h: 7, c: '#4a5a6a', sh: '#4f7a4a'});
+      const ly = 20, sag = x => Math.round(Math.sin(x / W * Math.PI) * 4);   // a washing line across the alley
+      for (let x = 0; x < W; x += 2) R(x, ly + sag(x), 2, 1, '#4a4a4a');
+      [[26, '#e0605a', 7], [40, '#f4f4f4', 6], [54, '#3b7bc2', 8], [118, '#ffd23f', 6], [131, '#f4f4f4', 9], [150, '#7fbf6a', 6]].forEach(([x, c, h], i) => { const sw = Math.round(Math.sin(t / 900 + i) * .8); R(x + sw, ly + 1 + sag(x), 6, h, c); R(x + sw + 1, ly + sag(x), 1, 1, '#a0a0a0'); R(x + sw + 4, ly + sag(x), 1, 1, '#a0a0a0'); }); },
+    square(t, hf, night, sc){ drawSky(0, 0, W, 40, hf, t); blds(sc, night, 10, {dx: 9, dy: 9, w: 4, h: 5, c: '#a9c8dc'}); },
+    industrial(t, hf, night, sc){ drawSky(0, 0, W, 52, hf, t);
+      (sc.bld || []).forEach(([x, y, w, c]) => { const y0 = y + 10;   // a warehouse: a sawtooth roof (a slope, then a glass face), corrugated walls
+        R(x, y0, w, 72 - y0, c); for (let i = x + 1; i < x + w; i += 3) R(i, y0, 1, 72 - y0, '#00000014');
+        for (let i = 0; i < w; i += 16) for (let k = 0; k < 12 && i + k < w; k++){ const h = Math.round(k * 0.7); R(x + i + k, y0 - h, 1, h, c); if (k === 11) R(x + i + 12, y0 - 8, Math.min(4, w - i - 12), 8, night ? '#ffd36a' : '#9fc3d8'); }
+        R(x, y0, w, 2, '#00000033'); }); },
+    park(t, hf, night, sc){ drawSky(0, 0, W, 46, hf, t);
+      for (let x = 0; x < W; x += 14) R(x, 34 + ((x * 7 + sc.seed) % 6), 14, 14, night ? '#1f4a2a' : '#2f6b3a');
+      R(0, 44, W, 64, night ? '#2f5a2a' : '#4f8f3f'); for (let i = 0; i < 40; i++) R((i * 53 + sc.seed * 7) % W, 50 + ((i * 29) % 56), 1, 2, night ? '#24481f' : '#3f7f33'); },
+    garden(t, hf, night, sc){ drawSky(0, 0, W, 40, hf, t);
+      const gx = 120 + Math.floor(gH(sc.seed, 1) * 40);   // the greenhouse
+      R(gx, 22, 40, 18, '#cfe3ee'); for (let i = 0; i <= 40; i += 8) R(gx + i, 22, 1, 18, '#e8f0f4'); R(gx - 2, 20, 44, 2, '#e8f0f4'); R(gx + 2, 30, 36, 8, night ? '#2a4a2a' : '#6fa86a');
+      R(0, 34, W, 20, night ? '#1a3a1f' : '#2a5f2e'); for (let x = 0; x < W; x += 6) R(x, 33 + (x * 5 % 3), 6, 2, night ? '#24482a' : '#3a7a3a');   // the hedge
+      const ax = 30 + Math.floor(gH(sc.seed, 2) * 30); R(ax, 30, 18, 24, night ? '#14281a' : '#1f4a24'); R(ax + 3, 36, 12, 18, night ? '#1f3a1f' : '#6aa860');   // an arch in it
+      R(0, 54, W, 54, night ? '#2f5a2a' : '#5a9a48'); },
+    beach(t, hf, night, sc){ drawSky(0, 0, W, 36, hf, t); seaBand(t, hf, 36, 56, sc.seed); sandBand(t, night, 56, 108, sc.seed); },
+    hill(t, hf, night, sc){ const s = drawSky(0, 0, W, 58, hf, t);
+      R(0, 50, 34, 8, night ? '#12284a' : '#5f93b6');   // the sea far to the west
+      for (let i = 0; i < 26; i++){ const x = 30 + i * 6 + Math.floor(gH(sc.seed, i) * 4), h = 6 + Math.floor(gH(sc.seed, i + 50) * 16);   // the city below, hazy
+        R(x, 58 - h, 6, h, night ? '#1a2238' : '#9aa8b8'); if (night && i % 2) R(x + 2, 58 - h + 3, 1, 1, '#ffd36a'); if (night && i % 3 === 0) R(x + 3, 58 - h + 7, 1, 1, '#ffd36a'); }
+      R(0, 58, W, 8, night ? '#3a4a32' : '#7a8f5a'); }
+  });
+  Object.assign(GROUND_FLOOR, {   // the ground the walking line stands on
+    alley(t, night){ R(0, 72, W, 36, night ? '#6a6458' : '#9a9080'); for (let y = 74; y < H; y += 4) for (let x = ((y / 4) % 2) * 4; x < W; x += 8) R(x, y, 7, 3, night ? '#77705f' : '#aca290'); },
+    square(t, night){ R(0, 72, W, 36, night ? '#8a8270' : '#cfc6b4'); for (let y = 72; y < H; y += 6) R(0, y, W, 1, '#b5ab96'); for (let y = 72, k = 0; y < H; y += 6, k++) for (let x = (k % 2) * 6; x < W; x += 12) R(x, y, 1, 6, '#b5ab96'); },
+    industrial(t, night){ R(0, 72, W, 20, '#6f6f6f'); for (let x = 6; x < W; x += 30) R(x, 80, 14, 1, '#d8c040'); R(0, 92, W, 3, '#9a9a9a'); R(0, 95, W, 13, '#2f2f33'); for (let x = 0; x < W; x += 20) R(x + 4, 101, 10, 1, '#e8e8a0'); },
+    park(t, night){ R(0, 80, W, 12, night ? '#8a7a5a' : '#c8b48a'); R(0, 80, W, 1, '#b09c74'); R(0, 91, W, 1, '#b09c74'); },
+    garden(t, night, sc){ R(0, 80, W, 12, night ? '#7a776a' : '#bdb7a4'); for (let i = 0; i < 50; i++) R((i * 37 + sc.seed) % W, 81 + (i * 13) % 10, 1, 1, '#a09a88');
+      for (let x = 4; x < W; x += 24){ R(x, 94, 18, 10, night ? '#3a2a1a' : '#6a4a2a'); for (let i = 0; i < 6; i++) R(x + 1 + i * 3, 95 + (i % 2) * 3, 2, 2, GOODS[(i + x + sc.seed) % GOODS.length]); } },
+    beach(t, night){ R(0, 80, W, 12, night ? '#6a5236' : '#a8814f'); for (let x = 0; x < W; x += 8) R(x, 80, 1, 12, '#8a6a3f'); R(0, 80, W, 1, '#c09a64'); },
+    hill(t, night){ R(0, 66, W, 6, night ? '#8a8270' : '#cfc6b4'); for (let x = 2; x < W; x += 10) R(x, 62, 3, 4, '#b5ab96'); R(0, 62, W, 1, '#d8d0be');   // the stone wall at the edge
+      R(0, 72, W, 36, night ? '#7a7464' : '#bdb59f'); for (let y = 76; y < H; y += 8) for (let x = ((y / 8) % 2) * 8; x < W; x += 16) R(x, y, 15, 7, night ? '#847d6c' : '#c9c1aa'); }
+  });
+  // ---- building fronts along the back (36-72), each with its way in where it has one (the door's x = f.x + f.w - 13) ----
+  const FRONT = {
+    shop(f, t, night){ const {x, w} = f, c = f.c || '#2f6fb5';
+      R(x, 38, w, 34, '#e2dccf'); R(x, 38, w, 8, c); signAt(f.name, x, w, 40, ink(c));
+      for (let i = 0; i < w; i += 6) R(x + i, 46, Math.min(6, w - i), 3, (i / 6) % 2 ? c : '#f4f4f4'); R(x, 49, w, 1, '#00000033');
+      R(x + 3, 51, w - 19, 15, glass(night, 1)); for (let i = 0; x + 5 + i * 5 < x + w - 20; i++){ R(x + 5 + i * 5, 59 - (i % 2) * 2, 3, 5 + (i % 2) * 2, GOODS[(i + f.x) % GOODS.length]); }
+      FRONT_DOOR(x + w - 13, night, '#3a2a1a'); },
+    cafe(f, t, night){ FRONT.shop(Object.assign({}, f, {c: f.c || '#7a3f2a'}), t, night); const {x, w} = f;
+      for (let i = 0; x + 6 + i * 8 < x + w - 20; i++){ R(x + 6 + i * 8, 58, 4, 4, '#f4f4f4'); R(x + 7 + i * 8, 56, 2, 2, '#d8c8b0'); }   // cups in the window
+      zAdd(86, () => [x + 4, x + w - 34].forEach(tx => { if (tx < x) return; R(tx, 78, 12, 2, '#f4f4f4'); R(tx + 5, 80, 2, 6, '#888'); R(tx - 3, 76, 2, 9, '#9a7048'); R(tx + 13, 76, 2, 9, '#9a7048'); })); },
+    restaurant(f, t, night){ const {x, w} = f, c = f.c || '#7a2a2a';
+      R(x, 38, w, 34, c); R(x + 2, 39, w - 4, 7, '#f2e6c0'); signAt(f.name, x + 2, w - 4, 40, c);
+      R(x + 3, 49, w - 19, 17, night ? '#ffcf80' : '#d8c8a8'); for (let i = 0; x + 6 + i * 12 < x + w - 22; i++){ R(x + 6 + i * 12, 60, 8, 2, '#f4f4f4'); R(x + 9 + i * 12, 57, 2, 3, night ? '#ffe27a' : '#c23b3b'); }
+      FRONT_DOOR(x + w - 13, night, '#4a1a1a');
+      zAdd(84, () => { R(x + w - 20, 76, 6, 8, '#2b2b2b'); R(x + w - 19, 77, 4, 5, '#3f3f3f'); R(x + w - 18, 78, 2, 1, '#f4f4f4'); }); },   // the menu board
+    bar(f, t, night){ const {x, w} = f, c = f.c || '#ff5a9a', on = !night || (Math.floor(t / 2300) % 9) !== 0;
+      R(x, 38, w, 34, '#1e1a20'); signAt(f.name, x, w, 41, on ? (night ? c : '#8a5a6a') : '#4a3a40'); if (night && on) alpha(.25, () => R(x + 4, 39, w - 8, 9, c));
+      R(x + 6, 52, 10, 8, night ? '#a0402a' : '#3a2a2a'); R(x + 7, 53, 8, 6, night ? '#ff9a5a' : '#2a1e1e');
+      FRONT_DOOR(x + w - 13, false, '#4a1218'); },
+    kiosk(f, t, night){ const {x, w} = f, c = f.c || '#e0b04a';
+      R(x, 38, w, 34, '#d8d0c0'); R(x, 38, w, 7, c); signAt(f.name, x, w, 39, ink(c));
+      R(x + 3, 48, w - 16, 14, '#3a3428'); for (let r = 0; r < 2; r++) for (let i = 0; x + 5 + i * 4 < x + w - 15; i++) R(x + 5 + i * 4, 50 + r * 6, 3, 4, GOODS[(i * 3 + r + f.x) % GOODS.length]);
+      R(x + 2, 62, w - 14, 2, '#8a8a8a'); FRONT_DOOR(x + w - 13, night, '#5a5040'); },
+    entrance(f, t, night){ const {x, w} = f, dx = x + Math.floor(w / 2) - 6;
+      R(x, 38, w, 34, '#cfc6b4'); R(dx - 2, 46, 16, 26, '#b5ab96'); R(dx, 48, 12, 24, '#4a3a2a'); R(dx + 1, 49, 10, 10, glass(night, 0)); R(dx + 1, 60, 10, 1, '#3a2a1a');
+      R(dx + 13, 54, 3, 4, '#555'); R(dx + 14, 55, 1, 1, '#7fbf6a'); R(dx - 1, 44, 14, 2, '#8a8270'); word(String(1 + (f.x * 7 % 40)), dx + 3, 40, '#2a2a2a');
+      for (let i = 0; i < 3; i++) R(x + 4, 52 + i * 4, 8, 3, '#8a7a5a'); R(x + w - 10, 64, 6, 8, '#8a6a4a'); R(x + w - 10, 58, 6, 6, '#3f8a3a'); },
+    garage(f, t, night){ const {x, w} = f, c = f.c || '#3a6a9a';
+      R(x, 38, w, 34, '#8a8a84'); R(x, 38, w, 7, c); signAt(f.name, x, w, 39, ink(c));
+      const up = 8 + Math.floor(gH(f.x, 3) * 10); R(x + 4, 47, w - 8, 25, '#2a2a2a'); R(x + 4, 47, w - 8, 25 - up, '#a8a8a0'); for (let y = 49; y < 72 - up; y += 3) R(x + 4, y, w - 8, 1, '#8a8a84');
+      R(x + 8, 72 - up + 4, 14, up - 4, '#c23b3b'); R(x + 10, 72 - up + 6, 4, 3, night ? '#fff3b0' : '#dfe6ea'); },   // a car's nose in the dark
+    gallery(f, t, night){ const {x, w} = f;
+      R(x, 38, w, 34, '#f4f4f0'); signAt(f.name, x, w, 40, '#1a1a1a'); R(x + 3, 48, w - 19, 20, night ? '#fff6dc' : '#e8eef2');
+      for (let i = 0; x + 6 + i * 12 < x + w - 24; i++){ const c = GOODS[(i + f.x) % GOODS.length]; R(x + 6 + i * 12, 52, 9, 10, '#2a2a2a'); R(x + 7 + i * 12, 53, 7, 8, c); R(x + 8 + i * 12, 56, 3, 3, GOODS[(i + 3 + f.x) % GOODS.length]); }
+      FRONT_DOOR(x + w - 13, night, '#2a2a2a'); },
+    mural(f, t, night){ const {x, w} = f, s = f.x + 17, c = f.c || '#3a8a8a', c2 = f.c2 || '#e0b04a';
+      R(x, 38, w, 34, c); const k = Math.floor(gH(s, 1) * 3);
+      if (k === 0){ R(x + 6, 44, 14, 14, c2); R(x + 8, 42, 10, 18, c2); for (let i = 0; i < w; i += 8) R(x + i, 62 + (i % 16 ? 0 : 2), 8, 3, '#f4f4f4'); }   // a sun over the sea
+      else if (k === 1){ for (let i = 0; i < w - 6; i += 10) { R(x + 3 + i, 44 + (i % 20), 8, 8, i % 20 ? c2 : '#f4f4f4'); R(x + 5 + i, 46 + (i % 20), 4, 4, '#2a2a2a'); } }   // cubes
+      else { for (let i = 0; i < 5; i++) R(x, 40 + i * 6, w, 3, [c2, '#f4f4f4', '#c23b3b', '#2f6fb5', '#7fbf6a'][i]); R(x + w / 2 - 6 | 0, 46, 12, 18, '#2a2a2a'); R(x + w / 2 - 4 | 0, 48, 8, 6, '#f2d0b0'); } },   // stripes and a face
+    blank(f, t, night){ const {x, w} = f;
+      R(x, 38, w, 34, f.c2 || '#b8b0a0'); for (let i = 0; i < 3 && x + 4 + i * 14 < x + w - 12; i++){ const c = GOODS[(i + f.x) % GOODS.length]; R(x + 4 + i * 14, 46 + (i % 2) * 3, 10, 13, c); R(x + 5 + i * 14, 48 + (i % 2) * 3, 8, 2, '#f4f4f4'); R(x + 5 + i * 14, 52 + (i % 2) * 3, 6, 1, '#2a2a2a'); }
+      R(x + 2, 64, Math.min(26, w - 4), 2, '#2a2a2a'); R(x + 6, 62, 2, 4, '#2a2a2a'); R(x + 14, 63, 6, 1, '#c23b3b'); },   // a tag
+    arch(f, t, night){ const {x, w} = f, cx = x + Math.floor(w / 2);
+      R(x, 38, w, 34, '#cdbb98'); R(cx - 10, 50, 20, 22, '#2a2218'); R(cx - 8, 47, 16, 3, '#2a2218'); R(cx - 6, 45, 12, 2, '#2a2218'); R(cx - 12, 44, 24, 2, '#b5a582');
+      for (let i = 0; i < 4; i++) R(cx - 9 + i * 2, 66 + i, 18 - i * 4, 1, '#3a3022'); R(cx - 1, 40, 3, 3, night ? '#ffd36a' : '#555'); }
+  };
+  function FRONT_DOOR(x, night, c){ R(x - 1, 48, 12, 24, '#00000033'); R(x, 49, 10, 23, c); R(x + 1, 51, 8, 10, glass(night, 0)); R(x + 7, 63, 2, 2, '#e0c060'); }
+  // ---- props: each sits on the ground and goes through zAdd at the line it stands on ----
+  const PROP = {
+    tree(p, t, night){ const x = p.x, g = night ? ['#1f4a24', '#2a5a30', '#173a1c'] : ['#2f7d3a', '#3f9a48', '#256b30'], sw = Math.round(Math.sin(t / 2200 + x) * .6);
+      zAdd(88, () => { R(x + 6, 50, 4, 38, '#5e4027'); R(x - 4 + sw, 26, 24, 26, g[0]); R(x + sw, 22, 16, 6, g[1]); R(x - 2 + sw, 32, 8, 6, g[1]); R(x + 10 + sw, 40, 9, 6, g[2]); R(x + 4, 86, 8, 2, '#00000022'); }); },
+    palm(p, t, night){ palm(p.x, 88, 40 + (p.n || 0), night); },
+    bush(p, t, night){ zAdd(86, () => { const g = night ? '#1f4a24' : '#3a8a3a'; R(p.x, 76, 18, 10, g); R(p.x + 3, 73, 12, 4, g); R(p.x + 2, 75, 5, 3, night ? '#2a5a30' : '#4fa04a'); if (!night && (p.n || 0) > 5) [[4, 77], [11, 75], [14, 80]].forEach(([dx, dy]) => R(p.x + dx, dy, 1, 1, '#e0605a')); }); },
+    flowers(p, t, night){ zAdd(90, () => { R(p.x, 86, 22, 4, '#6a4a2a'); for (let i = 0; i < 7; i++){ R(p.x + 1 + i * 3, 82 + (i % 2), 1, 4, '#3f8a3a'); R(p.x + i * 3, 81 + (i % 2), 3, 2, GOODS[(i + (p.n || 0)) % GOODS.length]); } }); },
+    bench(p, t, night){ promBench(p.x, night); },
+    lamp(p, t, night){ lampPost(p.x, night); if (night) zAdd(87, () => alpha(.18, () => R(p.x - 9, 42, 20, 44, '#fff3b0'))); },
+    bins(p){ zAdd(86, () => { R(p.x, 76, 7, 10, '#2f6b3a'); R(p.x - 1, 75, 9, 2, '#245a2f'); R(p.x + 9, 76, 7, 10, '#3a5a8a'); R(p.x + 8, 75, 9, 2, '#2f4a74'); }); },
+    bikes(p){ zAdd(86, () => { R(p.x, 82, 28, 1, '#8a8a8a'); [0, 14].forEach((dx, i) => { const c = GOODS[(i + (p.n || 0)) % GOODS.length], bx = p.x + dx;
+      [[bx, 80], [bx + 8, 80]].forEach(([wx, wy]) => { R(wx, wy, 5, 1, '#222'); R(wx, wy + 4, 5, 1, '#222'); R(wx - 1, wy + 1, 1, 3, '#222'); R(wx + 5, wy + 1, 1, 3, '#222'); });
+      R(bx + 3, 79, 8, 1, c); R(bx + 6, 77, 1, 3, c); R(bx + 5, 76, 3, 1, '#222'); R(bx + 10, 77, 2, 1, '#222'); }); }); },
+    planter(p, t, night){ zAdd(86, () => { R(p.x, 78, 14, 8, '#8a6a4a'); R(p.x, 78, 14, 1, '#a08060'); R(p.x + 2, 70, 10, 8, night ? '#1f4a24' : '#3f8a3a'); R(p.x + 4, 68, 6, 3, night ? '#2a5a30' : '#4fa04a'); }); },
+    hydrant(p){ zAdd(86, () => { R(p.x, 78, 4, 8, '#c23b3b'); R(p.x - 1, 77, 6, 2, '#a02a2a'); R(p.x - 1, 80, 1, 2, '#a02a2a'); R(p.x + 4, 80, 1, 2, '#a02a2a'); }); },
+    umbrella(p){ const c = p.c || '#c23b3b'; zAdd(90, () => { R(p.x + 9, 62, 1, 26, '#e8e8e8'); for (let i = 0; i < 20; i += 4) R(p.x + i, 58 + Math.abs(i - 10) / 4, 4, 4, (i / 4) % 2 ? c : '#f4f4f4'); R(p.x + 2, 86, 16, 3, GOODS[(p.n || 0) % GOODS.length]); }); },
+    cart(p, t, night){ const c = p.c || '#3b7bc2'; zAdd(88, () => { R(p.x + 2, 58, 1, 14, '#888'); R(p.x - 4, 54, 14, 4, '#f4f4f4'); R(p.x - 2, 52, 10, 2, c);
+      R(p.x - 2, 72, 22, 12, '#f4f4f4'); for (let i = 0; i < 22; i += 6) R(p.x - 2 + i, 72, 3, 12, c); R(p.x - 2, 70, 22, 2, '#d8d8d8'); R(p.x, 84, 4, 4, '#222'); R(p.x + 14, 84, 4, 4, '#222'); }); },
+    fountain(p, t){ const h = hourNow(); zAdd(72, () => fountain(p.x, 64, t, h >= 6 && h < 23)); },
+    boat(p){ const c = p.c || '#2f6fb5'; zAdd(84, () => { R(p.x + 2, 78, 24, 4, c); R(p.x, 76, 28, 2, '#f4f4f4'); R(p.x + 4, 82, 20, 2, c); R(p.x + 6, 84, 16, 1, '#00000033'); R(p.x + 12, 74, 1, 2, '#8a6a4a'); }); },
+    rock(p, t, night){ zAdd(86, () => { const c = night ? '#5a5a5a' : '#8a8a84'; R(p.x, 80, 14, 6, c); R(p.x + 2, 77, 9, 4, c); R(p.x + 3, 78, 4, 1, '#a8a8a0'); R(p.x + 14, 82, 6, 4, c); }); },
+    stall(p, t){ const c = p.c || '#c23b3b'; zAdd(76, () => stall(p.x, 30, t, c, '#f4f4f4', (x) => { for (let i = 0; i < 6; i++) crate(x + 1 + (i % 3) * 10, 60 - Math.floor(i / 3) * 5, GOODS[(i + (p.n || 0)) % GOODS.length], GOODS[(i + 2) % GOODS.length]); })); },
+    cat(p, t){ zAdd(88, () => drawCat(p.x, 88, t, (Math.floor(t / 60000) + p.x) % 3 ? 'sleep' : 'sit', p.n || 0, p.x > W / 2 ? -1 : 1)); },
+    pigeons(p, t){ zAdd(89, () => { for (let i = 0; i < 3; i++) drawPigeon(p.x + i * 7, 89, t, i + (p.n || 0), false); }); },
+    statue(p, t, night){ zAdd(80, () => { R(p.x, 62, 16, 18, '#cfc6b4'); R(p.x - 1, 61, 18, 2, '#e2dacb'); const b = '#7a6a4a';
+      R(p.x + 6, 44, 5, 17, b); R(p.x + 5, 38, 7, 6, b); R(p.x + 2, 46, 4, 2, b); R(p.x + 11, 42, 2, 6, b); R(p.x + 12, 40, 3, 2, b); }); },   // a figure with an arm up
+    sign(p, t, night){ zAdd(86, () => { R(p.x + 4, 62, 1, 24, '#555'); R(p.x - 3, 58, 16, 6, '#2f6fb5'); R(p.x - 2, 59, 14, 1, '#f4f4f4'); R(p.x - 2, 61, 9, 1, '#f4f4f4'); }); }
+  };
+  // ---- rooms: the back wall (with the door on the left) and what stands in the room; seats where Ishai can sit ----
+  const SEAT_ACTS = ['eating', 'drinking', 'reading', 'talking'];
+  const FLOORS = { wood: ['#9a7048', '#7a5534'], dark: ['#2a2220', '#201a18'], tiles: ['#e6e2da', '#d2cdc2'], carpet: ['#3a2a5a', '#4a3a6a'], concrete: ['#b8b8b0', '#a8a8a0'] };
+  function roomFloor(k){ const [a, b] = FLOORS[GROWKIT.ROOMS[k].floor] || FLOORS.tiles;
+    return (y0, y1, seed) => { R(0, y0, W, y1 - y0, a); if (k === 'arcade'){ for (let i = 0; i < 60; i++) R((i * 37 + seed) % W, y0 + (i * 17) % (y1 - y0), 2, 1, ['#ff5a9a', '#5ad8ff', '#ffd23f'][i % 3]); return; }
+      if (GROWKIT.ROOMS[k].floor === 'wood') for (let y = y0 + 3; y < y1; y += 5) R(0, y, W, 1, b); else for (let x = 0; x < W; x += 16) R(x, y0, 1, y1 - y0, b), R(0, y0 + ((x / 16) % 6) * 6, W, 1, b); }; }
+  const winSky = (x, y, w, h, t, hf, frame) => { R(x - 1, y - 1, w + 2, h + 2, frame || '#5a4030'); drawSky(x, y, w, h, hf, t); R(x + Math.floor(w / 2), y, 1, h, frame || '#5a4030'); };
+  const staff = (idx, x, t) => zAdd(70, () => person(CROWD[idx % CROWD.length], x, 50, t + idx * 977, {face: 0, muted: true}));
+  const counter = (x, w, c, top) => zAdd(80, () => { R(x, 60, w, 16, c); R(x - 1, 58, w + 2, 3, top || '#d8c8a8'); R(x, 74, w, 2, '#00000033'); });
+  const custTable = (x, t, idx, c, n = 2) => zAdd(84, () => { R(x, 78, 24, 2, c || '#f4f4f4'); R(x + 11, 80, 2, 10, '#888');
+    for (let i = 0; i < n; i++) person(CROWD[(idx + i) % CROWD.length], x + (i ? 18 : -4), 66, t + (idx + i) * 977, {legs: false, face: i ? -1 : 1, muted: true}); });
+  const ROOM = {
+    cafe(r, t, night, hf, sd){ winSky(24, 12, 34, 22, t, hf); R(66, 12, 32, 24, '#2a3a2a'); R(65, 11, 34, 1, '#7a5534'); signAt(r.name || 'MENU', 66, 32, 14, '#f4f4f4'); for (let i = 0; i < 4; i++) R(69, 21 + i * 4, 14 + (i * 5) % 10, 1, '#d8d8c8');
+      R(124, 24, 60, 2, '#7a5534'); for (let i = 0; i < 9; i++) R(126 + i * 6, 19, 4, 5, i % 3 ? '#f4f4f4' : '#c98a3a'); },
+    bar(r, t, night, hf, sd){ const c = r.c, on = (Math.floor(t / 2300) % 11) !== 0; signAt(r.name || 'BAR', 10, 80, 14, on ? c : '#4a3a40'); if (on) alpha(.18, () => R(12, 12, 76, 9, c));
+      for (let s = 0; s < 3; s++){ R(118, 18 + s * 12, 66, 2, '#5a3a2a'); for (let i = 0; i < 11; i++) R(120 + i * 6, 11 + s * 12, 3, 7, ['#3a6a3a', '#8a4a2a', '#c8b060', '#5a2a3a'][(i + s) % 4]); } alpha(.12, () => R(118, 10, 66, 38, '#ffb84d')); },
+    restaurant(r, t, night, hf, sd){ for (let i = 0; i < 3; i++){ R(10 + i * 30, 16, 18, 14, '#7a5534'); R(12 + i * 30, 18, 14, 10, GOODS[(i + sd) % GOODS.length]); }
+      R(128, 22, 54, 22, '#3a3028'); R(126, 20, 58, 2, '#7a5534'); signAt(r.name, 120, 70, 12, '#3a2a1a');
+      zAdd(60, () => person(CROWD[(sd + 5) % CROWD.length], 150, 28, t + 4321, {face: 0, muted: true})); const st = Math.floor(t / 400) % 3; R(140 + st, 14, 2, 6, '#e8e8e8'); R(170 - st, 15, 2, 5, '#e8e8e8'); R(126, 42, 58, 3, '#b8b0a0'); },
+    shop(r, t, night, hf, sd){ signAt(r.name, 40, 120, 8, r.c); for (let s = 0; s < 4; s++){ R(50, 18 + s * 12, 140, 2, '#9a9a90'); for (let i = 0; i < 22; i++) R(52 + i * 6, 12 + s * 12, 4, 6 - (i * s) % 3, GOODS[(i * 3 + s + sd) % GOODS.length]); } },
+    books(r, t, night, hf, sd){ for (let s = 0; s < 5; s++){ R(36, 16 + s * 11, 150, 2, '#5e4027'); for (let x = 38; x < 184; x += 3) R(x, 8 + s * 11 + (x * 7 + s) % 3, 2, 8 - (x * 7 + s) % 3, ['#8a2a2a', '#2a4a7a', '#3a6a3a', '#c8a060', '#5a3a6a', '#2a2a2a'][(x * 13 + s * 7 + sd) % 6]); }
+      R(36, 6, 150, 3, '#5e4027'); signAt(r.name, 36, 150, 1, '#3a2a1a'); R(120, 8, 2, 62, '#7a5534'); R(128, 8, 2, 62, '#7a5534'); for (let y = 12; y < 70; y += 7) R(120, y, 10, 1, '#7a5534'); },   // a ladder
+    studio(r, t, night, hf, sd){ R(30, 8, 150, 50, '#cfe0e8'); for (let x = 30; x < 180; x += 30) R(x, 8, 1, 50, '#a8c0cc'); alpha(.25, () => R(40, 10, 12, 46, '#ffffff')); R(30, 44, 150, 2, '#9a7048'); signAt(r.name, 30, 150, 2, '#5a6a72');
+      zAdd(60, () => { [[60, sd], [130, sd + 3]].forEach(([x, i]) => person(CROWD[i % CROWD.length], x, 42, t + i * 977, {face: 0, muted: true, fid: Math.floor(t / 4000) % 2 ? 'stretch' : undefined})); }); },
+    arcade(r, t, night, hf, sd){ const c = r.c; signAt(r.name || 'ARCADE', 20, 150, 6, (Math.floor(t / 700) % 2) ? c : '#ffd23f');
+      for (let i = 0; i < 6; i++){ const x = [16, 40, 64, 116, 140, 164][i], k = GOODS[(i + sd) % GOODS.length]; R(x, 18, 18, 54, '#1a1a1a'); R(x + 1, 19, 16, 6, k); R(x + 3, 28, 12, 10, '#0a0a12');
+        for (let p = 0; p < 4; p++) R(x + 4 + ((Math.floor(t / 300) + p * 3 + i) % 10), 29 + ((p * 7 + Math.floor(t / 500)) % 8), 1, 1, GOODS[(p + i) % GOODS.length]); R(x + 2, 42, 14, 4, '#2a2a2a'); R(x + 5, 43, 2, 2, '#c23b3b'); R(x + 10, 43, 2, 2, '#3b7bc2'); } },
+    laundry(r, t, night, hf, sd){ signAt(r.name || 'LAUNDRY', 20, 150, 4, r.c); for (let i = 0; i < 6; i++){ const x = 24 + i * 22; R(x, 14, 18, 20, '#f4f4f4'); R(x + 4, 18, 10, 10, '#5a6a7a'); R(x, 40, 18, 30, '#f4f4f4'); R(x + 3, 46, 12, 12, '#7a8a9a');
+      const sp = (Math.floor(t / 180) + i) % 4; if ((i + Math.floor(t / 60000)) % 3) R(x + 5 + (sp % 2) * 3, 49 + (sp >> 1) * 3, 4, 4, GOODS[(i + sd) % GOODS.length]); R(x + 13, 62, 3, 2, '#5ad85a'); } },
+    gallery(r, t, night, hf, sd){ signAt(r.name, 20, 150, 4, '#2a2a2a'); for (let i = 0; i < 4; i++){ const w = 18 + Math.floor(gH(sd, i) * 14), h = 14 + Math.floor(gH(sd, i + 9) * 14), x = [12, 52, 120, 156][i], y = 38 - h / 2 | 0;
+      R(x, y, w, h, '#2a2a2a'); R(x + 1, y + 1, w - 2, h - 2, GOODS[(i + sd) % GOODS.length]); R(x + 3, y + 3, w / 2 | 0, h / 3 | 0, GOODS[(i + sd + 3) % GOODS.length]); R(x + w / 2 | 0, 10, 2, 3, '#555'); alpha(.15, () => R(x - 2, 13, w + 4, y - 10, '#fff6dc')); } },
+    home(r, t, night, hf, sd){ winSky(96, 12, 30, 24, t, hf, '#e8e0d0'); R(140, 14, 40, 48, '#7a5534'); for (let s = 0; s < 4; s++){ R(140, 24 + s * 12, 40, 1, '#5e4027'); for (let i = 0; i < 9; i++) R(142 + i * 4, 15 + s * 12 + (i % 3), 3, 8 - (i % 3), GOODS[(i + s + sd) % GOODS.length]); }
+      R(30, 16, 22, 16, '#5a4030'); R(32, 18, 18, 12, GOODS[sd % GOODS.length]); }
+  };
+  // what stands in the room (counters, tables, the staff) and his seat
+  function roomProps(sp, sc){
+    const r = sp.room, k = r.k, sd = sp.seed;
+    return function(t, night){
+      // the toilet door (cabinets and pictures leave 92-114 free for it); wcDoor() puts the blue WC sign over it, but at home it's just the bathroom door
+      if (r.wc){ if (k !== 'home') wcDoor(98, 40, 72, '#7a6a5a', '#c8b8a0'); else { const open = actor.wcDoor && !DREAMING && Math.abs(actor.x + 5 - 104) < 8; R(97, 39, 14, 33, '#7a6a5a'); R(98, 40, 12, 32, open ? '#14100c' : '#c8b8a0'); if (!open) R(107, 56, 2, 2, '#e8e8e8'); } }
+      if (k === 'cafe'){ staff(sd, 158, t); counter(128, 58, '#7a5534'); zAdd(81, () => { R(170, 50, 12, 10, '#9a9a9a'); R(172, 52, 8, 3, '#2a2a2a'); R(136, 52, 22, 8, '#e8f0f4'); R(138, 56, 4, 3, '#c98a3a'); R(144, 56, 4, 3, '#e0b04a'); R(150, 56, 4, 3, '#7a3a2a'); }); custTable(18, t, sd + 1, '#f4f4f4', 2); }
+      else if (k === 'bar'){ staff(sd, 150, t); counter(116, 72, '#3a2218', '#8a6a3a'); zAdd(88, () => { for (let i = 0; i < 4; i++){ R(122 + i * 16, 80, 8, 2, '#5a3a2a'); R(125 + i * 16, 82, 2, 8, '#2a2a2a'); } }); custTable(18, t, sd + 2, '#3a2a22', 2); zAdd(85, () => { R(28, 74, 2, 3, '#f4e8c0'); if (Math.floor(t / 300) % 2) R(28, 72, 2, 2, '#ffb84d'); }); }
+      else if (k === 'restaurant'){ custTable(16, t, sd + 1, '#f4f4f4', 2); custTable(152, t, sd + 4, '#f4f4f4', 2); zAdd(85, () => { [27, 163].forEach(x => { R(x, 74, 2, 4, '#f4e8c0'); R(x, 72, 2, 2, Math.floor(t / 350) % 2 ? '#ffb84d' : '#ffd36a'); }); }); }
+      else if (k === 'shop'){ staff(sd, 30, t); counter(20, 36, '#9a9a90', '#c8c8c0'); zAdd(81, () => { R(24, 52, 10, 8, '#2a2a2a'); R(25, 53, 8, 4, '#5ad85a'); }); zAdd(94, () => { R(130, 70, 56, 18, '#b0b0a8'); for (let i = 0; i < 9; i++) R(132 + i * 6, 64 + (i % 2), 4, 6, GOODS[(i + sd) % GOODS.length]); }); }
+      else if (k === 'books'){ staff(sd, 22, t); counter(14, 32, '#7a5534'); zAdd(86, () => { R(150, 66, 24, 18, '#8a3a2a'); R(150, 62, 6, 22, '#7a2a1a'); R(168, 62, 6, 22, '#7a2a1a'); R(150, 82, 24, 2, '#5a1a10'); }); }
+      else if (k === 'studio'){ zAdd(82, () => { [[40, '#3a8a8a'], [104, '#c2608a'], [150, '#e0b04a']].forEach(([x, c]) => R(x, 80, 28, 3, c)); }); zAdd(86, () => { R(176, 66, 10, 18, '#8a6a4a'); R(176, 54, 10, 12, '#3f8a3a'); }); }
+      else if (k === 'arcade'){ zAdd(70, () => person(CROWD[(sd + 2) % CROWD.length], 52, 50, t, {face: 0, muted: true, fid: 'turn'})); zAdd(88, () => { R(170, 60, 16, 26, '#c23b3b'); R(172, 64, 12, 6, '#ffd23f'); R(174, 74, 8, 2, '#2a2a2a'); }); }
+      else if (k === 'laundry'){ zAdd(86, () => { R(156, 72, 30, 3, '#d8d8d0'); R(158, 75, 2, 12, '#888'); R(182, 75, 2, 12, '#888'); R(160, 69, 10, 3, GOODS[sd % GOODS.length]); }); }
+      else if (k === 'gallery'){ zAdd(84, () => { R(30, 66, 10, 20, '#e8e8e4'); R(32, 56, 6, 10, '#7a6a4a'); R(33, 52, 4, 4, '#7a6a4a'); }); staff(sd, 160, t); }
+      else if (k === 'home'){ zAdd(90, () => { R(46, 88, 76, 12, GOODS[(sd + 2) % GOODS.length]); for (let x = 48; x < 120; x += 6) R(x, 90, 3, 1, '#00000022'); }); }
+      if (!GROWKIT.ROOMS[k].seats) return;
+      const a = actor.action, atSeat = sc.sits(a, !actor.travelling && !actor.hidden && !actor.pending, actor);
+      const cl = atSeat && companionLook(a), seated = cl && wantComp({id: actor.with || 'stranger', look: cl, x: 92, kind: 'seat'});
+      zAdd(86, () => {
+        if (k === 'home' || k === 'laundry'){ const c = k === 'home' ? (GOODS[(sd + 5) % GOODS.length]) : '#7a8a9a'; R(60, 70, 50, 6, c); R(58, 76, 54, 8, c); R(60, 84, 3, 4, '#2a2a2a'); R(107, 84, 3, 4, '#2a2a2a'); }
+        else { R(66, 78, 34, 2, k === 'bar' ? '#3a2a22' : k === 'books' ? '#7a5534' : '#f4f4f4'); R(82, 80, 2, 10, '#888'); }
+        if (atSeat) drawIshai(a === 'talking' ? 'talking' : a, 70, 64, t, {food: a === 'drinking' ? '#d9a03a' : '#e0c060', seated: true, face: seated ? 1 : 0});
+        if (seated){ markHead(actor.with, 92, 64); person(cl, 92, 64, t, {legs: false, face: -1, talkPhase: true}); } });
+    };
+  }
+  // ---- a grown place's scene from its record: the block kit with the parts above ----
   function growScene(id, g){
-    const sp = g.spec || {};
-    return block({id, seed: sp.seed || 1, ground: sp.ground === 'promenade' ? 'promenade' : 'street', amb: sp.ground === 'promenade' ? 'sea' : 'street', bld: sp.bld || [],
-      exitX: nearX => nearX > W/2 ? W + 8 : -18}, g.cam || 'CAM-??', g.name || id.toUpperCase());
+    const sp = GROWKIT.clean(g.spec || {}), G = GROWKIT.GROUNDS[sp.ground], seed = sp.seed || 1;
+    const rows = [[seed, 31000, 61, 1], [seed + 2, 39000, 63, -1], [seed + 4, 47000, 67, 1]].slice(0, sp.crowd);
+    const fronts = (t, night, hf) => (sp.fronts || []).forEach(f => FRONT[f.k] && FRONT[f.k](f, t, night, hf));
+    const props = (t, night) => (sp.props || []).forEach(p => PROP[p.k] && PROP[p.k](p, t, night));
+    if (sp.ground === 'indoor'){
+      const k = sp.room.k, sc = {id, seed, ground: 'indoor', amb: ['books', 'gallery', 'home', 'studio'].includes(k) ? undefined : 'mall', traffic: 'none', crowd: [],
+        entry: 4, exit: 4, stand: {idle: 96, walking: 96, talking: 96, phoning: 96, eating: 72, drinking: 72, reading: 72},
+        room: (t, night) => { R(0, 0, W, 72, sp.room.wall); R(0, 0, W, 5, '#00000022'); R(0, 70, W, 2, '#00000033'); const hf = hourNow(); ROOM[k](sp.room, t, night, hf, seed);
+          R(1, 36, 16, 36, '#5a4030'); R(3, 38, 12, 34, night ? '#1a2238' : '#9fc3d8'); R(13, 54, 1, 3, '#e0c060'); },   // the door, on the left
+        floor: roomFloor(k), exitX: () => -18,
+        sits: (a, settled, actor) => !!(GROWKIT.ROOMS[k].seats && settled && SEAT_ACTS.includes(a) && !actor.err) };
+      sc.props = roomProps(sp, sc);
+      if (sp.room.wc) WC_AT[id] = 99;
+      return block(sc, g.cam || 'CAM-??', g.name || id.toUpperCase());
+    }
+    const sc = {id, seed, ground: sp.ground, bld: sp.bld || [], crowd: rows, stop: !!sp.stop, traffic: G.road ? 'road' : 'none',
+      amb: sp.ground === 'beach' ? 'sea' : ['street', 'alley', 'square', 'industrial'].includes(sp.ground) ? 'street' : undefined,
+      fronts: G.fronts ? fronts : undefined, props, exitX: nearX => nearX > W / 2 ? W + 8 : -18};
+    if (sp.ground === 'street' && !sp.bld) sc.bld = [[0, 12, 64, '#a08e7c'], [64, 18, 64, '#8a7f94'], [128, 10, 64, '#7f8a78']];
+    return block(sc, g.cam || 'CAM-??', g.name || id.toUpperCase());
   }
   function growApply(d){
     for (const id of GROWN_IDS){ delete MAP[id]; delete SCENES[id]; delete LOCATIONS[id]; delete PLACE_NAME[id]; for (const k in MAP) if (MAP[k]) delete MAP[k][id]; }
@@ -7240,6 +7452,11 @@
       locals: () => LOCAL,
       cast: () => Object.values(CAST), setCast: list => setCast([...base, ...list]), reset,
       play(m){ const e = event(m); ingest([e], false); },
+      // v283: preview a grown place (docs/GROWTH_PLAN.md step 4): want = {room} | {ground} | {kind} | {style}; it becomes the screen 'gpreview' (walk in from the left)
+      grow(want, seed, action){ const sp = GROWKIT.spec(want, seed); const nm = (want.name || want.room || want.ground || want.kind || want.style || 'GROWN').toUpperCase();
+        SCENES.gpreview = growScene('gpreview', {spec: sp, name: nm + ' #' + seed, cam: 'CAM-99'}); LOCATIONS.gpreview = ['idle', 'walking', 'talking', 'phoning', 'eating', 'drinking', 'reading'];
+        reset(); setState('gpreview', action || 'idle', true, null); return sp; },
+      growKit: () => ({grounds: Object.keys(GROWKIT.GROUNDS), rooms: Object.keys(GROWKIT.ROOMS), kinds: Object.keys(GROWKIT.KIND), styles: Object.keys(GROWKIT.STYLE)}),
       talk: () => tlLast ? {start: tlLast.start, end: tlLast.end, now: NOW(), speaking: SPEAKING, line: talkNow(), heads: HEADS, plan: tlLast.plan.map(p => ({at: p.at, ms: p.ms, who: p.l.who, say: p.l.say, x: !!p.x, host: !!p.host}))} : null,   // the live talk's plan (v250): turns, cut-ins, short reactions
       arena(a){ ARENA = a || null; arenaPreload(); },
       moods(o){ MOODS = o || {}; return MOODS; },   // v252: pretend moods (body language, voices)

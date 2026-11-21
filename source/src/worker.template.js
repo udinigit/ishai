@@ -7156,6 +7156,7 @@ async function memberLifeTick(env, s, now) {
 // A record: {id: "g...", name, cam, district?, place: {kind: pass|story, links, map, desc?, actions?, notes?}, attach: {at: {exit, entry}}, spec, rules?}
 //   attach = the doors from existing places into it (the way back lives in place.links); spec = how the page draws it (growScene() in the page).
 const WORLD_BASE = __WORLD_JSON__;
+const GROWKIT = (/*__GROW_KIT__*/null)();   // v283: source/growcore.mjs, the same kit the page draws from
 const computeWorld = /*__WORLD_CORE__*/null;
 const GROW_ID = /^g[a-z0-9]{2,23}$/, GROW_MAX_BYTES = 6000;
 let GROWN = { v: "", applied: false, ids: [], recs: [], errs: [], w: null, at: 0 };
@@ -7222,16 +7223,16 @@ function growClean(r) {
   const place = { kind, links, map: p.map };
   if (kind === "story") {
     const known = new Set(Object.values(WORLD_BASE.places).flatMap(x => x.actions || []));
-    const acts = (Array.isArray(p.actions) ? p.actions : []).map(String).filter(a => known.has(a) && a !== "away");
+    const wc = !!(r.spec && r.spec.ground === "indoor" && r.spec.room && r.spec.room.wc && (GROWKIT.ROOMS[r.spec.room.k] || {}).wc);
+    const acts = (Array.isArray(p.actions) ? p.actions : []).map(String).filter(a => known.has(a) && a !== "away" && (a !== "bathroom" || wc));
     if (!acts.length) throw new Error("place.actions: known actions only (" + [...known].slice(0, 12).join(", ") + "...)");
     const desc = String(p.desc || "").replace(/\s+/g, " ").trim().slice(0, 400);
     if (desc.length < 20) throw new Error("place.desc: a sentence or two");
     Object.assign(place, { desc, actions: [...new Set(acts)] });
   }
   if (Array.isArray(p.notes)) place.notes = p.notes.slice(0, 4).map(n => String(n).slice(0, 200));
-  const sp = r.spec || {}, col = c => /^#[0-9a-f]{6}$/i.test(String(c)) ? String(c) : "#8a8a8a";
-  const spec = { ground: sp.ground === "promenade" ? "promenade" : "street", seed: Math.max(0, Math.min(999, Math.round(+sp.seed || 0))),
-    bld: (Array.isArray(sp.bld) ? sp.bld : []).slice(0, 6).map(b => [Math.max(0, Math.min(191, b[0] | 0)), Math.max(4, Math.min(60, b[1] | 0)), Math.max(4, Math.min(192, b[2] | 0)), col(b[3])]) };
+  const spec = GROWKIT.clean(r.spec);   // v283: the parts kit's own checker (grounds, fronts, props, rooms)
+  if (kind === "pass" && spec.ground === "indoor") throw new Error("spec: a walked-through block can't be indoors");
   const out = { id, name: String(r.name || id).toUpperCase().slice(0, 40), cam: /^CAM-\d{2,3}$/.test(r.cam || "") ? r.cam : "CAM-" + (40 + (strHashW(id) % 60)), place, attach, spec };
   if (r.district && /^[a-z][a-z0-9]{0,19}$/.test(r.district)) out.district = r.district;
   if (kind === "story" && r.rules && typeof r.rules === "object") out.rules = JSON.parse(JSON.stringify(r.rules));

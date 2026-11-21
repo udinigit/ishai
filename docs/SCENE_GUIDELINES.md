@@ -177,3 +177,8 @@ Every exit leads to a specific entry in a specific place. The map lives in one f
 - Standing friends take a couple of steps and come back now and then (`wander()`), never while it is their turn to speak.
 - Ishai does small routines inside long moments (`ERRANDS`): every place has its own list, each with a weight alone and a weight with company (e.g. alone he grabs a drink; with a guest he brings drinks for both or shows something on his phone; the guest waits in place). `ERR_CHANCE` sets how often, alone vs. with company. The same routine never runs twice in a row, and a fridge trip before a drink happens at most every 6 minutes.
 - New places must get their own `ERRANDS` entry. All of it runs on the real clock so every viewer sees the same thing. Portraits and dreams stay still.
+
+## 11. Grown places (docs/GROWTH_PLAN.md)
+- Places the story grows are drawn only from the parts kit (`source/growcore.mjs` + `growScene()` in the page): a ground, building fronts, props, or a room. The rules above hold for every part: on the clock, through `zAdd`, lit at night, drawn right with a hidden actor (dreams, the builder).
+- A grown story place sits behind a front with a door in a grown block (the door at the front's `x + w - 13`); a room's door is on its left (4), its toilet door at 98. Keep 92-114 of a room's back wall free for it.
+- A new part goes into the kit's lists and into the page's `FRONT`, `PROP`, `ROOM` or `GROUND_DRAW` in the same push, and gets a look in /sandbox → Grown places, day and night.

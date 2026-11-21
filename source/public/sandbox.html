@@ -76,6 +76,18 @@
     </div>
 
     <div class="box">
+      <h2>Grown places</h2>
+      <div class="bar">
+        <select id="gWhat"></select>
+        <input id="gSeed" type="number" value="1" min="1" style="width:6em">
+        <select id="gAct"><option>idle</option><option>talking</option><option>eating</option><option>drinking</option><option>reading</option><option>walking</option></select>
+        <button id="gShow">Show</button> <button id="gRand">Random seed</button> <button id="gAll">Next kind</button>
+      </div>
+      <div class="muted" style="font-size:15px">The parts kit the growth engine builds new places from (docs/GROWTH_PLAN.md step 4). Same seed, same place, for everyone. Nothing is saved.</div>
+      <pre id="gSpec" style="font-size:12px;max-height:120px;overflow:auto;white-space:pre-wrap"></pre>
+    </div>
+
+    <div class="box">
       <h2>Moment</h2>
       <div class="row">
         <div><label for="loc">Place</label><select id="loc"></select></div>
@@ -323,6 +335,11 @@ Back to the cameras.</textarea>
 
     $('loc').onchange = actions;
     $('addLine').onclick = () => { lines.push({who: lines.length ? lines[lines.length - 1].who : 'ishai', say:''}); drawLines(); };
+    { const K = api.growKit(), opts = [...K.rooms.map(r => ['room:' + r, 'room: ' + r]), ...K.grounds.filter(g => g !== 'indoor').map(g => ['ground:' + g, 'outdoors: ' + g])];   // v283: grown places
+      fill($('gWhat'), opts);
+      const show = () => { running++; const [k, v] = $('gWhat').value.split(':'); const sp = api.grow({[k]: v}, +$('gSeed').value || 1, $('gAct').value); $('gSpec').textContent = JSON.stringify(sp); };
+      $('gShow').onclick = show; $('gRand').onclick = () => { $('gSeed').value = 1 + Math.floor(Math.random() * 9999); show(); };
+      $('gAll').onclick = () => { const s = $('gWhat'); s.selectedIndex = (s.selectedIndex + 1) % s.options.length; show(); }; }
     $('qFilm').onclick = film; $('qTrivia').onclick = trivia;
     $('qImprov').onclick = lesson;
     $('qCampus').onclick = () => { running++; api.go({location:'campus', action:'idle'}); };

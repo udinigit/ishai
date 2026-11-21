@@ -28,6 +28,9 @@ export function computeWorld(world, rules){
       }
     }
     for (const n of p.next || []) if (!P[n] || P[n].kind === 'pass') err(`${id}: next ${n} is not a story place`);
+    { const edges = {};   // one screen edge leads one way (doors may be shared, edges can't: he'd walk off not knowing where)
+      for (const [to, l] of Object.entries(p.links || {})){ if (l.ride || !(l.exit === 'R' || (typeof l.exit === 'number' && l.exit < 0))) continue;
+        const k = l.exit === 'R' ? 'right' : 'left'; if (edges[k] && edges[k] !== to) err(`${id}: its ${k} edge leads both to ${edges[k]} and to ${to}`); edges[k] = to; } }
   }
   // a story place made of several screens (The Big S: 'mall' is six page screens): screens: [...] on the place, of: '<place>' on each screen
   for (const id of ids){

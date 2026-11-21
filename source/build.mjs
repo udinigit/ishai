@@ -1,5 +1,7 @@
 import fs from 'fs';
 import { loadWorld, withWorld, loadCity } from './world.mjs';
+import { growKit } from './growcore.mjs';
+const withKit = (src, name) => { const m = '/*__GROW_KIT__*/null'; if (src.split(m).length !== 2) throw new Error(name + ' needs ' + m + ' exactly once'); return src.replace(m, () => growKit.toString()); };   // the grown places' kit (docs/GROWTH_PLAN.md step 4), same code in the worker and the page
 const WORLD = loadWorld('..');
 loadCity('..');   // story/city.json: the city from above (docs/GROWTH_PLAN.md), checked against the map   // story/world.json: the map, checked (throws on a broken map)
 const BUILD = Date.now().toString(36); // lets open pages notice a new deploy
@@ -9,8 +11,8 @@ const withVoices = (h, name) => { if (!h.includes('/*__VOICES_JS__*/')) throw ne
 // the shared top bar of the director's pages (dirbar.js), at each one's /*__DIR_BAR__*/ marker (docs/DIRECTOR_UI_PLAN.md)
 const DIR_BAR = fs.readFileSync('public/dirbar.js','utf8');
 const withBar = (h, name) => { if (h.split('/*__DIR_BAR__*/').length !== 2) throw new Error(name + ' needs /*__DIR_BAR__*/ exactly once'); return h.replace('/*__DIR_BAR__*/', () => DIR_BAR); };
-const html = withWorld(withVoices(fs.readFileSync('public/index.html','utf8').replace('__BUILD__', BUILD), 'index.html'), 'index.html', WORLD, 'page');
-const tpl = withWorld(fs.readFileSync('src/worker.template.js','utf8'), 'worker.template.js', WORLD, 'worker');
+const html = withKit(withWorld(withVoices(fs.readFileSync('public/index.html','utf8').replace('__BUILD__', BUILD), 'index.html'), 'index.html', WORLD, 'page'), 'index.html');
+const tpl = withKit(withWorld(fs.readFileSync('src/worker.template.js','utf8'), 'worker.template.js', WORLD, 'worker'), 'worker.template.js');
 
 const dir = withBar(withVoices(fs.readFileSync('public/director.html','utf8'), 'director.html'), 'director.html');
 const sandbox = withBar(fs.readFileSync('public/sandbox.html','utf8'), 'sandbox.html');
