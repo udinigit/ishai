@@ -1253,7 +1253,7 @@ function buildMessages(s, clock, now, goal, opt = {}) {
   const cw = last.with || (BATH_ACTIONS.includes(last.action) && s.scene ? s.scene.w : null); // a guest waits while he is in the bathroom
   const owned = s.unlocked.map(u => ITEMS[u]).filter(Boolean);
   const dogLine = s.unlocked.includes("dog")
-    ? "\n- Falafel, Ishai's scruffy sandy dog (adopted from Avi's kiosk), goes almost everywhere with him (never to a bar or the cinema: then he stays at home): he walks him, feeds him, Falafel begs at the counter, naps in his own bed, steals socks. Mention Falafel now and then; the hosts adore him."
+    ? "\n- Falafel, Ishai's scruffy sandy dog (adopted from Avi's kiosk), goes almost everywhere with him (never to a bar or the cinema: then he stays at home): he walks him, feeds him (Kibbutz Kibble, from the yellow bag by his bowl), Falafel begs at the counter, naps in his own bed, steals socks. Mention Falafel now and then; the hosts adore him."
     : s.unlocked.includes("stray") ? "\n- A scruffy sandy stray dog hangs around Avi's kiosk on Herzl Street; Avi secretly feeds it falafel balls. Ishai keeps noticing it." : "";
   // v282: the full description only for where he is, the places next to it and the goal's place; the rest in one short clause (the map grows)
   const nearP = new Set([last.location, ...(NEXT[last.location] || []), goal && goal.where].filter(Boolean));

@@ -330,6 +330,11 @@
   .adb{position:absolute;z-index:5;left:0;right:0;bottom:12%;display:flex;align-items:center;gap:8px;padding:4px 10px 4px 6px;
     transform:translateX(-105%);transition:transform .7s cubic-bezier(.2,.8,.2,1);pointer-events:none;border-top:2px solid;border-bottom:2px solid}
   .adb.on{transform:translateX(0)}
+  .com{position:absolute;z-index:6;top:0;bottom:0;left:0;width:50%;transform:translateX(-102%);pointer-events:none;border-right:3px solid #fff;box-shadow:4px 0 14px rgba(0,0,0,.55);visibility:hidden;background:#000}
+  .com.on{visibility:visible}
+  .com canvas{display:block;width:100%;height:100%;object-fit:contain;image-rendering:pixelated;image-rendering:crisp-edges}
+  .com .ad{position:absolute;top:3px;right:5px;font-size:clamp(9px,2vw,12px);color:#fff;background:rgba(0,0,0,.5);padding:0 4px;border-radius:3px;letter-spacing:1px}
+  .com .cap{position:absolute;left:0;right:0;bottom:0;font-size:clamp(9px,2.1vw,13px);line-height:1.15;padding:1px 5px;color:#fff;background:rgba(0,0,0,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .adb canvas{width:clamp(48px,14vw,84px);image-rendering:pixelated;image-rendering:crisp-edges;flex:none}
   .adb .t{font-size:clamp(12px,3vw,19px);line-height:1.1}
   .adb .t small{display:block;font-size:.75em;opacity:.85}
@@ -401,6 +406,7 @@
 
     <div class="pip" id="pip" aria-hidden="true"><span class="tag" id="pipTag">● LIVE · STUDIO</span><canvas id="pipCv" width="64" height="40"></canvas><ul class="sch" id="pipSch"></ul><div class="cap" id="pipCap"></div></div>
     <div class="guide" id="guide" aria-hidden="true"><span class="tag" id="guideTag"></span><div id="guideB"></div></div>
+    <div class="com" id="com" aria-hidden="true"><canvas id="comCv" width="96" height="108"></canvas><span class="ad">AD</span><div class="cap" id="comCap"></div></div>
     <div class="adb" id="adb" aria-hidden="true"><canvas id="adCv" width="40" height="20"></canvas><div class="t" id="adT"></div><span class="ad">AD</span></div>
     <div class="pvb" id="pvb" hidden></div>
     <div class="callw" id="callw" aria-hidden="true"><span class="tag">📞 ON THE LINE</span><span class="who" id="callWho"></span><canvas id="callCv" width="64" height="30"></canvas><div class="cap" id="callCap"></div></div>
@@ -2126,7 +2132,8 @@
           for (let i=0;i<3;i++){ const ph=(t/1300+i/3)%1; alpha(1-ph,()=>R(152+i*2,60-Math.floor(ph*8),1,1,'#e8f6ff')); } } }
       if (actor.err && actor.err.tag==='kettle') for (let i=0;i<3;i++){ const ph=(t/700+i/3)%1; alpha(1-ph,()=>R(163+i*2,46-Math.floor(ph*10),1,1,'#f2f2f2')); }
       R(96,95,44,10,C.rug); R(98,97,40,6,C.rugLight); R(100,99,36,2,C.rug);
-      if (UNLOCKED.has('dog')){ R(50,90,16,6,'#8a3b3b'); R(51,91,14,3,'#c96a5a'); R(134,93,7,2,'#3b7bc2'); R(135,92,5,1,'#c9a26a'); }
+      if (UNLOCKED.has('dog')){ R(50,90,16,6,'#8a3b3b'); R(51,91,14,3,'#c96a5a'); R(134,93,7,2,'#3b7bc2'); R(135,92,5,1,'#c9a26a');
+        R(127,87,5,8,'#ffd84a'); R(127,87,5,1,'#e8b52a'); R(127,90,5,2,'#2f7d3a'); }   // the Kibbutz Kibble bag by his bowl (v290: the commercial's)
       // bed back
       R(3,60,6,32,C.woodDark); R(4,58,4,2,C.woodDark); R(9,76,40,8,C.sheet); R(10,72,9,5,C.pillow); R(10,76,9,1,'#cfc8b6');
       // armchair back
@@ -5486,7 +5493,7 @@
       noa:{f:330,type:'square',pitch:1.25,rate:1.1}, avi:{f:120,type:'sawtooth',pitch:.6,rate:.85},
       dana:{f:280,type:'triangle',pitch:1,rate:.8}, narrator:{f:160,type:'triangle',pitch:.9,rate:1.05},
       radio:{f:240,type:'square',pitch:1.1,rate:1.15}, tv:{f:180,type:'triangle',pitch:.95,rate:1.1},
-      dj_benny:{f:240,type:'square',pitch:1.1,rate:1.18}, dj_shira:{f:360,type:'triangle',pitch:1.4,rate:1.05}, dj_yoni:{f:130,type:'triangle',pitch:.75,rate:.9}
+      ad_f:{f:380,type:'triangle',pitch:1.3,rate:1.12}, ad_m:{f:150,type:'square',pitch:.8,rate:1.12}, dj_benny:{f:240,type:'square',pitch:1.1,rate:1.18}, dj_shira:{f:360,type:'triangle',pitch:1.4,rate:1.05}, dj_yoni:{f:130,type:'triangle',pitch:.75,rate:.9}
     };
     const hash = id => { let h = 0; for (const ch of String(id)) h = (h*31 + ch.charCodeAt(0)) >>> 0; return h; };
     function voiceOf(id){ if (VOICE[id]) return VOICE[id]; const h = hash(id);
@@ -5713,7 +5720,7 @@
     // the sounds the page can play; the sandbox lists them (`Sound.kinds`)
     const KINDS = ['cork','glug','bag','chop','bubble','whisk','ovendoor','timer','knock','knockhard','knocklevi','buzzer','chime','bikebell','bikeby','carby','busby','scooter','brake','busstop','busgo','cardoor','taxigo',
       'whoosh','riser','hit','sting-adventure','sting-comedy','sting-drama','sting-horror','popcorn','fizz','cash',
-      'waves','birds','wind','owl','drip','bubbles','hooves','tavern','clock','quiz','right','wrong','bark','woof','yip','ooh'];
+      'waves','birds','wind','owl','drip','bubbles','hooves','tavern','clock','quiz','right','wrong','bark','woof','yip','ooh','jingle-shampoo','jingle-kibble','jingle-shmatta'];
     function sfx(kind, o={}){
       if (!on() || !ac) return;
       const r = Math.random, d = o.dir || 1;
@@ -5733,6 +5740,15 @@
         case 'scream': tone(900, .5, 'sawtooth', .012, .05, out, 1.6); noise(.4, {vol:.03, type:'bandpass', freq:1400, q:2, when:.05}); break;
         case 'murmur': noise(3.2, {vol:.04, type:'bandpass', freq: 380 + r()*250, q: .8, buf: brown}); noise(2.5, {vol:.015, type:'bandpass', freq: 900 + r()*400, q: 3, when: .4}); break;   // a room full of people talking
         case 'sticks': for (let i = 0; i < 4; i++) tone(2600, .025, 'square', .05, i * .5); break;   // one, two, three, four
+        // v290: the commercials' jingles (about 5 s, quiet enough to talk over)
+        case 'jingle-shampoo': { const N = [523,659,784,1047,784,880,1047,1319]; for (let rep = 0; rep < 2; rep++) N.forEach((f, i) => { const w = .15 + rep * 2 + i * .24; tone(f, .16, 'triangle', .022, w); if (i % 2 === 0) tone(f / 2, .2, 'sine', .02, w); });
+          [1047,1319,1568,2093].forEach(f => tone(f, 1, 'triangle', .016, 4.2)); for (let i = 0; i < 22; i++) tone(700 + r() * 1400, .05, 'sine', .022, .1 + r() * 4.6, out, 1.9); break; }   // bubbly arpeggio, popping bubbles, a sparkly last chord
+        case 'jingle-kibble': { for (let i = 0; i < 14; i++){ const w = .1 + i * .3; tone(i % 2 ? 262 : 196, .18, 'triangle', .035, w); }
+          [[392,0],[440,.3],[494,.6],[587,.9],[494,1.5],[587,1.8],[659,2.1],[784,2.4],[659,3],[587,3.3],[523,3.6],[784,3.9]].forEach(([f, w]) => tone(f, .22, 'square', .016, w + .1));
+          setTimeout(() => sfx('woof'), 1500); setTimeout(() => sfx('yip'), 4500); break; }                         // an oom-pah, a little tune, Falafel's woof
+        case 'jingle-shmatta': { for (let i = 0; i < 10; i++){ const w = .05 + i * .48; tone(110, .16, 'sine', .07, w, out, .4); noise(.03, {vol:.03, type:'highpass', freq:6000, when: w + .24}); }
+          [55,55,65,73,55,55,82,73].forEach((f, i) => { tone(f * 2, .4, 'sawtooth', .012, .05 + i * .6); });
+          [.75, 2.1, 3.45].forEach(w => noise(.05, {vol:.05, type:'highpass', freq:3500, when: w})); break; }       // a runway beat, a bass line, camera clicks at the poses
         case 'fanfare': [[392,0,.16],[523,.18,.16],[659,.36,.16],[784,.54,.5],[659,.9,.14],[784,1.06,.9]].forEach(([f,w,d]) => { tone(f,d,'square',.026,w); tone(f/2,d,'triangle',.03,w); });   // the studio's card: a little brass in 8 bits
           [523,659,784].forEach(f => tone(f, 1.1, 'square', .012, 1.06)); noise(.25,{vol:.05,type:'lowpass',freq:400,when:1.06,buf:brown}); break;
         case 'trailer': tone(55, 1.8, 'sawtooth', .04, 0, out, .9); tone(82, 1.8, 'sawtooth', .02, 0, out, .9); noise(.5,{vol:.08,type:'lowpass',freq:220,buf:brown}); noise(1.4,{vol:.03,type:'bandpass',freq:900,q:.6,sweep:[300,2400],when:.2}); break;   // the deep "bwaaam" of a trailer
@@ -7034,7 +7050,7 @@
   const AD_EVERY = 6 * 60000, AD_SHOW = 9000; let adOn = null;
   function adTick(){
     const now = NOW(), slot = Math.floor(now / AD_EVERY), e = now % AD_EVERY - 20000;
-    const quiet = !forceLoc && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
+    const quiet = !forceLoc && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !comOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
       && (actor.action === 'sleeping' || !['talking','phoning','improv','lecture','film','trivia'].includes(actor.action));
     const want = e >= 0 && e < AD_SHOW && quiet ? BANNERS[Math.floor(hash(slot * 5 + 11) * BANNERS.length)] : null;
     const el = $('adb');
@@ -7044,6 +7060,166 @@
     if (adOn){ const prev = g; g = actx; try { adOn.draw(wall()); } catch(e){} g = prev; }
   }
   setInterval(adTick, 120);
+  // ================= commercial breaks (v290): ~6 s animated spots in the silent moments =================
+  // A panel slides in from the left over half the picture, plays a little jingle and a voice-over, and slides out. No AI, no writes.
+  // From the clock, like the PiP: one chance in every 15-minute slot (from 2.5 min in, up to 6 min late) at the first 15 s step with no line
+  // of the story or the hosts near it, no song, clear of the ad banner, the TV guide card, the PiP and the studio pieces. Same for every viewer.
+  const COM_EVERY = 15 * 60000, COM_AT = 150000, COM_WAIT = 6 * 60000, COM_MS = 6500, COM_SLIDE = 600;
+  const COM_NOT = ['phoning','improv','lecture','concert','gallery','poker','film','trivia'];
+  const COM_W = 96, COM_H = 108;
+  const lineBetween = (a, b) => { for (const e of TL.values()){ if (e.dead || !e.plan || e.start > b) continue; for (const p of e.plan){ const s = e.start + p.at; if (s < b && s + p.ms > a) return true; } } return false; };
+  // the PiP's own start in slot n as its rules decide it (it never looks at commercials, so the two can't go round in circles)
+  function pipStartNear(T){
+    for (const n of [Math.floor((T - PIP_AT) / PIP_EVERY), Math.floor((T - PIP_AT) / PIP_EVERY) + 1]){
+      const from = n * PIP_EVERY + PIP_AT;
+      for (let s = from; s <= from + PIP_WAIT && s <= T + COM_MS + 2000; s += 15000) if (pipFits(s)){ if (s + PIP_LEN > T - 2000) return true; break; }
+    }
+    return false;
+  }
+  const comFitMemo = new Map(); let comFitSig = '';
+  function comFits(T){   // memoised per step (the scan runs every 100 ms); forgotten whenever new moments arrive
+    const sig = TL.size + ':' + (tlLast ? tlLast.start : 0) + ':' + (STUDIO && STUDIO.t) + ':' + (SHOW && SHOW.t) + ':' + (CALL && CALL.t);
+    if (sig !== comFitSig){ comFitSig = sig; comFitMemo.clear(); }
+    if (comFitMemo.has(T)) return comFitMemo.get(T);
+    const v = comFitsRaw(T); if (comFitMemo.size > 400) comFitMemo.clear(); comFitMemo.set(T, v); return v;
+  }
+  function comFitsRaw(T){
+    const m = momentAt(T); if (!m || COM_NOT.includes(m.ev.action)) return false;
+    const nx = momentAt(T + COM_MS); if (nx && COM_NOT.includes(nx.ev.action)) return false;
+    if (m.ride || (nx && nx.ride)) return false;                                                       // not while he boards or rides
+    if (lineBetween(T - 6000, T + COM_MS + 4000) || songBetween(T - 5000, T + COM_MS + 5000)) return false;
+    const ge = T % GUIDE_EVERY - GUIDE_AT; if (ge > -COM_MS - 3000 && ge < GUIDE_SHOW + 8000) return false;   // the TV guide card's moment
+    const ae = T % AD_EVERY - 20000; if (ae > -COM_MS - 3000 && ae < AD_SHOW + 1500) return false;          // an ad banner's moment
+    if (pipStartNear(T)) return false;
+    return pipClear(STUDIO, true, 15 * 60000, STUDIO ? STUDIO_TIMES(STUDIO.lines).ms : 0, T)
+      && pipClear(SHOW, false, 20 * 60000, SHOW ? SHOW_TIMES(SHOW.lines).ms : 0, T)
+      && pipClear(CALL, null, 4 * 60000, CALL && CALL.lines ? CALL_TIMES(CALL.lines).ms : 0, T);
+  }
+  const comCache = new Map();
+  function comAt(n){   // the slot's start time; null = no break this slot; undefined = not decided yet
+    if (comCache.has(n)) return comCache.get(n);
+    const at = slotAfter(n * COM_EVERY + COM_AT, COM_WAIT, comFits);
+    if (at !== undefined){ comCache.set(n, at); if (comCache.size > 40) comCache.delete(comCache.keys().next().value); }
+    return at;
+  }
+  // a commercial is on now or may start in the next few seconds (the hosts' silence fill stays out of its way)
+  function comSoon(now){
+    const n = Math.floor((now - COM_AT) / COM_EVERY), from = n * COM_EVERY + COM_AT;
+    if (now < from - 12000 || now > from + COM_WAIT + COM_MS + 1000) return false;
+    const at = comAt(n);
+    if (typeof at === 'number') return now > at - 12000 && now < at + COM_MS + 1000;
+    if (at === null) return false;
+    const s0 = from + Math.ceil(Math.max(0, now - from) / 15000) * 15000;
+    for (let s = s0; s < now + 12000 && s <= from + COM_WAIT; s += 15000) if (comFits(s)) return true;
+    return false;
+  }
+  // the three spots: Cooola Shampoo (on Ishai's shower shelf), Kibbutz Kibble (Falafel's bowl), Shmatta (the cast's wardrobe)
+  const HASCII_PAL = {B:'#9aa3ad', D:'#5c6670', W:'#f4f6f8', E:'#3a8fd8', N:'#1e1e1e', K:'#5c6670', T:'#e0606a'};
+  const KK = {bg:'#2f7d3a', fg:'#ffd84a', bag:'#ffd84a', band:'#2f7d3a', dark:'#1f5a28', grass:'#4fa04a'};
+  const SHM = {bg:'#1c1028', fg:'#ff5fa8', run:'#3a2a4a', light:'#fff3d6'};
+  const COM_MODELS = ['noa','dana','tomer','avi','levi','boaz','ronit','shmulik','moti','yossi'];
+  function comModels(n){
+    const have = COM_MODELS.filter(id => CAST[id] && CAST[id].look), out = [];
+    for (let k = 0; have.length && out.length < 3; k++){ const id = have[Math.floor(hash(n * 13 + k * 7 + 3) * have.length)]; if (!out.includes(id)) out.push(id); if (k > 40) break; }
+    return out;
+  }
+  const cname = id => { const w = String(CAST[id] && CAST[id].name || id).split(' '); return /^(mrs?|ms|dr)\.?$/i.test(w[0]) && w[1] ? w[0] + ' ' + w[1] : w[0]; };   // "Mrs. Levi", else the first name
+  const ctext = (s, x, y, c, k = 1) => { if (k === 1) return word(s, x, y, c); g.save(); g.translate(x, y); g.scale(k, k); word(s, 0, 0, c); g.restore(); };
+  const ccenter = (s, y, c, k = 1) => ctext(s, Math.round((COM_W - wordW(s) * k) / 2), y, c, k);
+  function sprite(k, x, y, fn){ g.save(); g.translate(x, y); g.scale(k, k); try { fn(); } finally { g.restore(); } }
+  const COMS = [
+    {id: 'shampoo', voice: 'ad_f', sfx: 'jingle-shampoo', say: () => 'Cooola Shampoo. The one Ishai uses. Wake up your hair!', cap: 'Cooola Shampoo · the one Ishai uses',
+      draw(t){
+        R(0, 0, COM_W, COM_H, COOOLA.bg); R(0, 78, COM_W, 30, COOOLA.dark);
+        for (let i = 0; i < 18; i++){ const sp = 18 + (i * 7) % 13, by = 104 - ((t / 1000 * sp + i * 37) % 112), bx = (i * 29) % 92 + Math.round(Math.sin(t / 400 + i) * 2), s = 2 + i % 3;   // bubbles
+          R(bx, by, s, s, '#d9c8ff'); R(bx, by, 1, 1, '#ffffff'); }
+        ccenter('COOOLA', 6, COOOLA.fg, 2); ccenter('SHAMPOO', 18, '#ffffff');
+        const bob = Math.round(Math.sin(t / 500) * 2), bx = 14, by = 34 + bob;                             // the bottle, the same as on his shower shelf
+        R(bx + 7, by - 6, 8, 4, COOOLA.fg); R(bx + 9, by - 8, 4, 2, COOOLA.fg); R(bx + 3, by - 2, 16, 3, COOOLA.bg);
+        R(bx + 1, by, 20, 38, '#7a3fb0'); R(bx + 2, by + 1, 3, 36, '#9a62d0'); R(bx + 3, by + 12, 16, 14, COOOLA.fg);
+        bolt(bx + 9, by + 15, COOOLA.bg); bolt(bx + 12, by + 17, COOOLA.dark);
+        // a head with the lather standing up, lightning in it
+        const hx = 56, hy = 46, foam = Math.min(1, Math.max(0, (t - 900) / 1200));
+        R(hx, hy, 20, 20, '#e0b48c'); R(hx + 5, hy + 7, 3, 3, '#161616'); R(hx + 13, hy + 7, 3, 3, '#161616'); R(hx + 6, hy + 14, 9, 2, '#b0563c'); R(hx + 4, hy + 20, 12, 10, '#e0b48c'); R(hx - 4, hy + 30, 28, 8, '#f4f6f8');
+        const fh = Math.round(4 + foam * 18);
+        R(hx - 2, hy - fh + 4, 24, fh, '#ffffff'); R(hx + 1, hy - fh, 18, 4, '#ffffff'); R(hx + 5, hy - fh - 3, 10, 3, '#ffffff');
+        for (let i = 0; i < 5; i++) R(hx + 1 + i * 4, hy - fh + 6 + (i % 2) * 3, 2, 2, '#e4ecf4');
+        if (foam > .9 && Math.floor(t / 180) % 2) { bolt(hx + 22, hy - fh, COOOLA.bolt); bolt(hx - 6, hy - fh + 4, COOOLA.bolt); }
+        if (t > 2600) ccenter('WAKE UP YOUR HAIR', 80, COOOLA.fg);
+        if (t > 3700) ccenter('AS USED BY ISHAI', 89, COOOLA.bolt);
+      }},
+    {id: 'kibble', voice: 'ad_m', sfx: 'jingle-kibble', say: () => "Kibbutz Kibble. Falafel's favourite. Hasciis howl for it!", cap: "Kibbutz Kibble · Falafel's favourite. Hasciis howl for it!",
+      draw(t){
+        R(0, 0, COM_W, COM_H, '#8fd0ff'); R(0, 64, COM_W, 44, KK.grass); R(0, 64, COM_W, 2, '#6cc06a');
+        R(70, 8, 10, 10, '#ffe27a'); for (let i = 0; i < 3; i++) R(6 + i * 30 + ((t / 90) | 0) % 6, 30 + (i % 2) * 6, 12, 3, '#ffffff');   // the sun, clouds over the fields
+        R(0, 0, COM_W, 27, KK.bg); ccenter('KIBBUTZ', 3, KK.fg, 2); ccenter('KIBBLE', 18, '#ffffff');
+        // the bag (the one by Falafel's bowl at home)
+        const bx = 4, by = 42; R(bx, by, 22, 30, KK.bag); R(bx, by, 22, 3, '#e8b52a'); R(bx, by + 10, 22, 8, KK.band); word('KK', bx + 4, by + 12, KK.fg);
+        R(bx + 6, by + 21, 10, 3, '#f4ead0'); R(bx + 5, by + 20, 2, 2, '#f4ead0'); R(bx + 15, by + 20, 2, 2, '#f4ead0'); R(bx + 5, by + 23, 2, 2, '#f4ead0'); R(bx + 15, by + 23, 2, 2, '#f4ead0');
+        // the bowl between them, kibble pouring in at the start
+        R(52, 78, 14, 5, '#3b7bc2'); R(54, 77, 10, 2, '#c9a26a');
+        if (t < 1600) for (let i = 0; i < 6; i++){ const fy = 58 + ((t / 25 + i * 7) % 20); R(56 + (i * 3) % 7, fy, 2, 2, '#c9a26a'); }
+        const howl = t > 3000, eat = t > 1400 && !howl;
+        sprite(3, 26, 52 + (eat && Math.floor(t / 200) % 2 ? 1 : 0), () => dogMap(Math.floor(t/260)%2 ? DOG.sitA : DOG.sitB, 0, 0, false));                       // Falafel
+        sprite(3, 64, 52, () => { const keep = Object.assign({}, DOGPAL); Object.assign(DOGPAL, HASCII_PAL); try { dogMap(howl ? DOG.sitB : DOG.sitA, 0, howl ? -1 : 0, true); } finally { Object.assign(DOGPAL, keep); } });   // the hascii
+        if (howl){ for (let i = 0; i < 3; i++){ const ph = ((t - 3000) / 700 + i / 3) % 1; alpha(1 - ph, () => R(70 - i * 2 - Math.round(ph * 6), 48 - Math.round(ph * 14), 2, 2, '#ffffff')); } word('AWOO', 52, 40, '#ffffff'); }
+        R(0, 82, COM_W, 26, KK.dark);
+        ccenter(t < 3000 ? 'FALAFEL LOVES IT' : 'HASCIIS HOWL FOR IT', 85, KK.fg);
+        if (t > 3800) ccenter('...AND SO DOES FALAFEL', 92, '#ffffff');
+      }},
+    {id: 'shmatta', voice: 'ad_f', sfx: 'jingle-shmatta',
+      say: n => { const m = comModels(n).map(cname); return m.length >= 2 ? `Shmatta. We dress ${m.slice(0, -1).join(', ')} and ${m[m.length - 1]}. And half of Herzl Street.` : 'Shmatta. We dress half of Herzl Street.'; },
+      cap: n => 'Shmatta · wardrobe for ' + (comModels(n).map(cname).join(', ') || 'the cast') + ' and half of Herzl Street',
+      draw(t, n){
+        R(0, 0, COM_W, COM_H, SHM.bg);
+        for (let i = 0; i < 4; i++){ const on = Math.floor(t / 300 + i) % 4 === 0; alpha(on ? .25 : .1, () => R(8 + i * 24, 0, 10, 80, SHM.light)); }   // spotlights
+        R(0, 76, COM_W, 32, SHM.run); R(0, 76, COM_W, 1, SHM.fg); for (let i = 0; i < 8; i++) R(i * 13 + 2, 92, 6, 1, '#6a4a7a');
+        ccenter('SHMATTA', 4, SHM.fg, 2); ccenter('CLOTHES FOR THE CAST', 17, '#ffffff');
+        const models = comModels(n), each = 1350, k = Math.floor(t / each), lt = t % each;
+        if (models.length && k < models.length){
+          const id = models[k], L = CAST[id].look, stop = lt >= 450 && lt < 900;
+          const x = Math.round(lt < 450 ? -12 + lt / 450 * 50 : stop ? 38 : 38 + (lt - 900) / 450 * 70);   // walks in, stops and poses mid-runway, walks off
+          if (stop && lt < 540) alpha(.6, () => R(0, 0, COM_W, COM_H, '#ffffff'));                            // a camera flash at the pose
+          sprite(2, x, 32, () => person(L, 0, 0, t, {walk: !stop, face: 1, still: stop, seed: 5}));
+          const nm = cname(id).toUpperCase(); ctext(nm, Math.max(2, Math.min(COM_W - wordW(nm) - 2, x + 10 - Math.round(wordW(nm) / 2))), 79, '#ffffff');
+          ccenter('WEARS SHMATTA', 89, SHM.fg);
+        } else {
+          ccenter('WARDROBE BY', 44, '#ffffff'); ccenter('SHMATTA', 54, SHM.fg, 2);
+          if (Math.floor(t / 250) % 2) for (let i = 0; i < 6; i++) R(10 + i * 15, 70 + (i % 2) * 3, 1, 1, SHM.light);
+          ccenter('AND HALF OF HERZL ST.', 86, '#ffffff');
+        }
+      }}
+  ];
+  let COM_FORCE = null, comOn = null, comVoiced = '', comPre = '';
+  const comCtx = (() => { const c = $('comCv'); return c ? c.getContext('2d') : null; })();
+  const comOf = n => COMS[((n % COMS.length) + COMS.length) % COMS.length];
+  function comTick(){
+    const el = $('com'); if (!el || !comCtx) return;
+    const now = NOW(); let c = null;
+    if (COM_FORCE && now < COM_FORCE.at + COM_MS) c = COM_FORCE;
+    else if (!BUILDER && !PREVIEW && !forceLoc && !studioOn && !showOn && !callOn){
+      const n = Math.floor((now - COM_AT) / COM_EVERY), from = n * COM_EVERY + COM_AT;
+      if (now >= from && now <= from + COM_WAIT + COM_MS){ const at = comAt(n); if (typeof at === 'number' && now >= at && now < at + COM_MS) c = {at, n, kind: comOf(n)}; }
+      // HD voices: make the next spot's line ahead of time
+      if (Sound.hdOn() && now > from - 90000 && now < from + COM_WAIT){ const k = comOf(n), s = k.say(n), key = n + ':' + s; if (comPre !== key){ comPre = key; Sound.prefetch(k.voice, s, from + 60000); } }
+    }
+    const was = comOn; comOn = c;
+    if (!c){ if (was){ el.classList.remove('on'); el.style.transform = ''; } return; }
+    const t = now - c.at, k = c.kind;
+    if (!was || was.at !== c.at){ el.classList.add('on'); el.style.borderColor = k.id === 'shampoo' ? COOOLA.fg : k.id === 'kibble' ? KK.fg : SHM.fg; el.style.background = k.id === 'shampoo' ? COOOLA.bg : k.id === 'kibble' ? KK.bg : SHM.bg;
+      $('comCap').textContent = typeof k.cap === 'function' ? k.cap(c.n) : k.cap; }
+    // slide in from the left to half the picture and out again, by the clock (a late joiner finds it in place)
+    const ein = Math.min(1, t / COM_SLIDE), eout = Math.min(1, Math.max(0, (COM_MS - t) / COM_SLIDE)), e = Math.min(ein, eout), ease = 1 - Math.pow(1 - e, 3);
+    el.style.transform = `translateX(${(-102 * (1 - ease)).toFixed(1)}%)`;
+    TALK_AT = now;                                                                                       // music and streams fade down under it
+    const key = c.at + ':' + k.id;
+    if (comVoiced !== key){ comVoiced = key;
+      if (t < 1500 && !document.hidden && !SIM){ Sound.sfx(k.sfx); const line = k.say(c.n); setTimeout(() => { if (comOn && comOn.at === c.at) Sound.say(k.voice, line); }, Math.max(0, 700 - t)); } }
+    const prev = g, keepD = DREAMING, keepH = HEADS, keepM = MARK_ID; g = comCtx; DREAMING = true; HEADS = {};
+    try { g.imageSmoothingEnabled = false; g.clearRect(0, 0, COM_W, COM_H); k.draw(Math.max(0, t - COM_SLIDE / 2), c.n); } catch(e){}
+    finally { g = prev; DREAMING = keepD; HEADS = keepH; MARK_ID = keepM; }
+  }
+  setInterval(comTick, 100);
   // ================= the TV guide card: now and then, when it is quiet, a small frame with today's schedule, the next vote, or the next big night =================
   // From the clock: one card in every 15-minute slot, 9.5 minutes in, for 14 s (clear of the ad banner), the same for every viewer. No AI, no writes.
   const GUIDE_EVERY = 15 * 60000, GUIDE_AT = 570000, GUIDE_SHOW = 14000; let GUIDE = null, guideOn = '';
@@ -7081,7 +7257,7 @@
   }
   function guideTick(){
     const now = NOW(), slot = Math.floor(now / GUIDE_EVERY), el = $('guide'); let e = now % GUIDE_EVERY - GUIDE_AT;
-    const quiet = !forceLoc && !PREVIEW && !BUILDER && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !adOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
+    const quiet = !forceLoc && !PREVIEW && !BUILDER && !actor.with && !SPEAKING && !studioOn && !showOn && !callOn && !adOn && !comOn && !actor.switching && (SAY.who !== 'radio' || NOW() > SAY.until)
       && !['talking','phoning','improv','lecture','concert','gallery','poker','film','trivia'].includes(actor.action);
     let c = e >= 0 && e < GUIDE_SHOW + 8000 && quiet ? guideCard(slot, now) : null;
     const pr = pollResCard(now, quiet); if (pr && pr.fresh && !studioOn && !showOn && !adOn){ c = pr; e = 0; }
@@ -7573,6 +7749,7 @@
           GUIDE = GUIDE || st.guide || {day: 'TODAY', items: [{at: t + 40 * 60000, t: hm(t + 40 * 60000), what: 'Improv class at The Black Candle'}, {at: t + 3 * 3600000, t: hm(t + 3 * 3600000), what: 'Poker night at Boaz\'s'}],
             tomorrow: {day: 'TOMORROW', items: [{at: t + 86400000, t: hm(t + 86400000), what: 'Strange But True lecture'}]}, week: [{t: 'Wed 20:00', what: 'Gallery night at the Pump House'}, {t: 'Mon 20:00', what: 'Poker night at Boaz\'s'}]}; }
         PIP_FORCE = kind || 'today'; },
+      commercial: (id, n) => { const k = COMS.find(c => c.id === id) || COMS[Math.floor(NOW() / 1000) % COMS.length]; COM_FORCE = {at: NOW() + 200, n: n ?? Math.floor(NOW() / 60000), kind: k}; return k.id; },   // v290: a commercial now (sandbox)
       hostFill: () => hostFill(true), overhear: () => overhear(true), city: id => cityTick(CITY.find(e => e.id === id) || CITY[0]), chat: () => { const c = CHAT_STOCK[Math.floor(NOW() / 1000) % CHAT_STOCK.length]; showChat(c[0], c[1]); },
       texture: x => { TEXTURE = x; },
       poll(o){ const t = NOW(), id = 'sb-poll-' + (++n); POLL = {id, sandbox: true, question: o.question || 'How will Avi make Ishai\'s next falafel?', options: o.options || ['Extremely spicy', 'Drowning in tahini', 'Just the usual'],
@@ -7865,7 +8042,7 @@
   function hostFill(force){
     const now = NOW(), slot = Math.floor(now / FILL_SLOT), at = slot * FILL_SLOT + hash(slot * 37 + 1) * 12000;
     if (!force && (slot === hostFill.done || now < at || now > at + 9000 || forceLoc || PREVIEW || actor.action === 'lecture' || actor.action === 'film' || actor.action === 'trivia' || (FILM && actor.loc === 'cinema'))) return false;
-    if (!force && (songBetween(now, now + 15000) || now - TALK_AT < FILL_QUIET || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || studioOn || showOn || callOn || talkSoon(7000) || (document.hidden && !POP.on))) return false;
+    if (!force && (songBetween(now, now + 15000) || now - TALK_AT < FILL_QUIET || SPEAKING || (SAY.who && now < SAY.until) || actor.switching || studioOn || showOn || callOn || talkSoon(7000) || comOn || comSoon(now) || (document.hidden && !POP.on))) return false;
     hostFill.done = slot;
     const say = hostFillLine(slot); if (!say) return false;
     if (/\bFalafel\b/.test(say) && !(UNLOCKED.has('dog') && dog.loc === actor.loc && actor.action !== 'sleeping')) return false;   // only when the dog is in the picture

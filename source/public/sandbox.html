@@ -181,6 +181,7 @@ Back to the cameras.</textarea>
         <button id="evChat">Building chat</button>
         <select id="evGuideK"><option value="today">TV guide: today</option><option value="tomorrow">TV guide: tomorrow</option><option value="week">TV guide: this week</option><option value="merch">TV guide: merch</option><option value="survey">TV guide: survey (vote now)</option><option value="surveyResults">TV guide: survey results</option><option value="promo">TV guide: next big night</option><option value="vote">TV guide: vote countdown</option></select> <button id="evGuide">Show card</button>
         <select id="evPipK"><option value="today">PiP: his day (schedule)</option><option value="week">PiP: this week</option><option value="recap">PiP: recap + up next</option><option value="people">PiP: cast file + up next</option></select> <button id="evPip">Play PiP</button>
+        <select id="evComK"><option value="shampoo">Commercial: Cooola Shampoo</option><option value="kibble">Commercial: Kibbutz Kibble</option><option value="shmatta">Commercial: Shmatta</option></select> <button id="evCom">Play commercial</button>
         <select id="evHome"><option value="">Home activity: by the clock</option><option>sweep</option><option>counter</option><option>dishes</option><option>keys</option><option>couch</option><option>bed</option><option>laundry</option><option>snack</option><option>dance</option><option>workout</option><option>window</option><option>plant</option><option>nap</option><option>read</option></select>
         <select id="evMood" title="Moods (v252): Ishai and the person in With feel this; they talk, with the hosts' setup line before the first word"><option value="">Mood: off</option><option>angry</option><option>sad</option><option>happy</option><option>nervous</option><option>tired</option><option>tipsy</option><option>embarrassed</option></select>
         <button id="evPretend" title="Runs the scene keeper's checks and writes on sample changes, without the AI and without saving anything">Pretend scene (cast)</button>
@@ -378,6 +379,7 @@ Back to the cameras.</textarea>
     $('evChat').onclick = () => api.chat();
     $('evGuide').onclick = () => api.guide($('evGuideK').value);
     $('evPip').onclick = () => api.pip($('evPipK').value);
+    $('evCom').onclick = () => api.commercial($('evComK').value);
     const kinds = api.sfxKinds ? api.sfxKinds() : []; fill($('evSfx'), kinds.map(k => [k, 'Sound: ' + k]));
     $('evSfxDir').onclick = () => { $('evSfxDir').textContent = $('evSfxDir').textContent === '→' ? '←' : '→'; };
     $('evSfxGo').onclick = () => api.sfx($('evSfx').value, {dir: $('evSfxDir').textContent === '→' ? 1 : -1});

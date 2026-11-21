@@ -14,7 +14,7 @@ const Voices = (() => {
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const num = v => (typeof v === 'number' && isFinite(v)) ? v : null;
   const GENDER = {zohar:'f', oren:'m', ishai:'m', levi:'f', noa:'f', avi:'m', dana:'f', tomer:'m', gadi:'m', michal:'f', sivan:'f', zelig:'m', kobi:'m', lior:'m',
-    yael:'f', sasson:'m', hagit:'f', boaz:'m', ronit:'f', moti:'m', yossi:'m', shmulik:'m', radio:'m', tv:'f', narrator:'m', dj_benny:'m', dj_shira:'f', dj_yoni:'m'};
+    yael:'f', sasson:'m', hagit:'f', boaz:'m', ronit:'f', moti:'m', yossi:'m', shmulik:'m', radio:'m', tv:'f', narrator:'m', ad_f:'f', ad_m:'m', dj_benny:'m', dj_shira:'f', dj_yoni:'m'};
   let cfg = {}, castOf = () => null;
   const listeners = [];
   const changed = () => listeners.forEach(f => { try { f(); } catch(e){} });
@@ -28,7 +28,7 @@ const Voices = (() => {
     return hsh(id) % 2 ? 'f' : 'm';
   }
   // each character's base pitch and rate (the show page's own table; anyone else from their id), before softening
-  const BASE = {zohar:[1.35,1.15], oren:[.7,.95], ishai:[1,1], levi:[1.6,1.15], noa:[1.25,1.1], avi:[.6,.85], dana:[1,.8], narrator:[.9,1.05],
+  const BASE = {zohar:[1.35,1.15], oren:[.7,.95], ishai:[1,1], levi:[1.6,1.15], noa:[1.25,1.1], avi:[.6,.85], dana:[1,.8], narrator:[.9,1.05], ad_f:[1.3,1.12], ad_m:[.8,1.12],
     radio:[1.1,1.15], tv:[.95,1.1], dj_benny:[1.1,1.18], dj_shira:[1.4,1.05], dj_yoni:[.75,.9]};
   const baseOf = id => { const b = BASE[id]; if (b) return {pitch: b[0], rate: b[1]}; const x = hsh(id); return {pitch: .6 + (x % 100) / 100, rate: .85 + (x % 30) / 100}; };
   // pitch and rate: the director's numbers when set, otherwise the caller's own (base, or the table above), softened
@@ -78,7 +78,7 @@ const Voices = (() => {
     .map(([id, name, g, grade]) => ({id, name, g, grade}));
   const KVOICE = {ishai:'am_michael', zohar:'af_bella', oren:'bm_george', noa:'af_heart', levi:'bf_isabella', avi:'am_fenrir', dana:'af_nicole', tomer:'am_puck',
     gadi:'am_eric', michal:'af_sky', sivan:'af_sarah', zelig:'bm_lewis', kobi:'am_onyx', lior:'bm_fable', yael:'af_kore', sasson:'bm_daniel', hagit:'af_aoede',
-    boaz:'am_liam', ronit:'bf_emma', moti:'am_echo', yossi:'am_eric', shmulik:'am_onyx', radio:'am_echo', tv:'af_nova', narrator:'bm_fable', dj_benny:'am_echo', dj_shira:'af_alloy', dj_yoni:'am_onyx'};
+    boaz:'am_liam', ronit:'bf_emma', moti:'am_echo', yossi:'am_eric', shmulik:'am_onyx', radio:'am_echo', tv:'af_nova', narrator:'bm_fable', ad_f:'af_sarah', ad_m:'am_puck', dj_benny:'am_echo', dj_shira:'af_alloy', dj_yoni:'am_onyx'};
   const K_OK = new Set(K_LIST.map(k => k.id));
   const kVoice = id => { const o = cfg[id]; if (o && K_OK.has(o.kv)) return o.kv;
     if (KVOICE[id] && !(o && o.g)) return KVOICE[id];
