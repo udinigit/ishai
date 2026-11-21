@@ -16,7 +16,7 @@ export function loadWorld(root = '..'){
 export function withWorld(src, name, w, kind){
   const marks = kind === 'page'
     ? { '/*__WORLD_MAP__*/{}': w.mapJs, '/*__WORLD_WALK__*/{}': JSON.stringify(w.WALK), '/*__WORLD_ACTIONS__*/{}': JSON.stringify(w.pageActions), '/*__WORLD_SCREENS__*/{}': JSON.stringify(w.SCREENS) }
-    : { '__WORLD_JSON__': fs.readFileSync('../story/world.json', 'utf8').trim(), '/*__WORLD_CORE__*/null': computeWorld.toString(), '__WORLD_NEXT__': JSON.stringify(w.NEXT, null, 1), '__WORLD_PLACES__': JSON.stringify(w.PLACES, null, 1), '__WORLD_LOCATIONS__': JSON.stringify(w.LOCATIONS, null, 1), '__WORLD_WALK__': JSON.stringify(w.WALK), '__WORLD_FOOT__': JSON.stringify(w.FOOT) };
+    : { '__WORLD_JSON__': fs.readFileSync('../story/world.json', 'utf8').trim(), '/*__WORLD_CORE__*/null': computeWorld.toString(), '__WORLD_NEXT__': JSON.stringify(w.NEXT, null, 1), '__WORLD_PLACES__': JSON.stringify(w.PLACES, null, 1), '__WORLD_LOCATIONS__': JSON.stringify(w.LOCATIONS, null, 1), '__WORLD_WALK__': JSON.stringify(w.WALK), '__WORLD_FOOT__': JSON.stringify(w.FOOT), '/*__CITY_JSON__*/{}': fs.readFileSync('../story/city.json', 'utf8').trim() };
   for (const [m, v] of Object.entries(marks)){
     if (src.split(m).length !== 2) throw new Error(`${name} needs ${m} exactly once`);
     src = src.replace(m, () => v);
@@ -28,6 +28,7 @@ export function withWorld(src, name, w, kind){
 // Checked here: the grid, one district per square, every story place in exactly one district, known kinds in fits, grow edges on real places.
 export const CITY_KINDS = ['arcade', 'bar', 'beach', 'cafe', 'class', 'culture', 'entertainment', 'family', 'garden', 'gallery', 'home', 'kiosk', 'library', 'lookout', 'market', 'music', 'nightlife', 'outdoor', 'restaurant', 'service', 'shop', 'sport', 'study'];
 export const CITY_DIRS = ['north', 'south', 'east', 'west'];
+export const CITY_STYLES = ['city', 'old', 'square', 'works', 'green', 'sea', 'high'];   // growcore.mjs STYLE
 export function loadCity(root = '..', world){
   const city = JSON.parse(fs.readFileSync(root + '/story/city.json', 'utf8'));
   const P = (world || JSON.parse(fs.readFileSync(root + '/story/world.json', 'utf8'))).places, errs = [], err = m => errs.push(m);
@@ -40,6 +41,7 @@ export function loadCity(root = '..', world){
     const g = d.grid;
     if (!Array.isArray(g) || g.length !== 2 || !g.every(Number.isInteger) || g[0] < 0 || g[1] < 0 || g[0] >= GW || g[1] >= GH) err(`${id}: grid must be [column, row] inside ${GW}x${GH}`);
     else { const k = g.join(','); if (at[k]) err(`${id}: grid ${k} is taken by ${at[k]}`); at[k] = id; }
+    if (!CITY_STYLES.includes(d.style)) err(`${id}: style must be one of ${CITY_STYLES.join(', ')}`);
     if (!Array.isArray(d.fits) || !d.fits.length) err(`${id}: needs fits`);
     for (const f of d.fits || []) if (!CITY_KINDS.includes(f)) err(`${id}: fits "${f}" is not a known kind (${CITY_KINDS.join(', ')})`);
     if (!Number.isInteger(d.room) || d.room < 0) err(`${id}: room must be a whole number, 0 or more`);

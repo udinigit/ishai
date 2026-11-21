@@ -346,7 +346,7 @@ export default {
         sleep: (() => { try { return sleepHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
         pacing: (() => { try { return pacingHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
-        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(), town: townHealth(), talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (14-22 lines, two halves)",
+        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(), town: townHealth(), growth: growStepHealth(s, Date.now()), talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (14-22 lines, two halves)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), auditions: { cardErr: s.audCardErr || null, cardTries: s.audCardTry || {}, readErr: s.audReadErr || null, readTries: s.audReadTry || {}, lifeErr: s.memberErr || null }, life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), when busy " + (env.GEMINI_BACKUP ? "gemini (" + env.GEMINI_BACKUP + ")" : "the other Gemini Flash models") + ", then Cloudflare", hosts: hostsByGemini(s) ? "gemini, backup Cloudflare" : "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
@@ -898,6 +898,7 @@ async function tick(env, force) {
   try { await castLoad(env, s, true);
     if (!force) { await castKeeperTick(env, s, now); await castMaintain(env, s, now); if (CASTD && !CASTD.queue) { await castWeekTick(env, s, now); await castDraftTick(env, s, now); await castAutoTick(env, s, now); } }
   try { await townWriteTick(env, s, now); } catch (e) {}   // v284: a personality for one new townsperson
+  try { await growSweep(env, s, now); } catch (e) {}   // v286: waiting growth expires
     if (!force) try { await audCardTick(env, s, now); } catch (e) { s.audCardErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // Auditions step 4: a sent Audition's card
     if (!force) try { await audReadTick(env, s, now); } catch (e) { s.audReadErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // steps 5b-5c: the table read and its tuning
     if (!force) try { await memberLifeTick(env, s, now); } catch (e) { s.memberErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // step 6: on the show, and leaving it
@@ -978,6 +979,7 @@ async function tick(env, force) {
   s.events.push({ id: s.nextId++, t: storyMs, created: now, len: ev.len, lenKind: lenK, location: ev.location, action: ev.action, delivery: ev.delivery || undefined,
     text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null, art: ev.art || undefined, feel: ev.feel || undefined, then: ev.then || undefined, bathFrom: ev.bathFrom || undefined, holdIt: ev.holdIt || undefined });
   try { await townAfter(env, s, s.events[s.events.length - 1], s.events[s.events.length - 2], storyMs, now); } catch (e) {}   // v284: a scene with a townsperson
+  if (ev.need) try { await growNeed(env, s, ev.need, ev.location, storyMs, now); } catch (e) { s.growErr = String(e && e.message || e).slice(0, 200); }   // v286: the story asked for someone or somewhere new
   // the day's highlights, replayed in Ishai's dreams at night
   { const prevEv = s.events[s.events.length - 2], hl = s.hl || (s.hl = []), lastHl = hl[hl.length - 1];
     const notable = !["sleeping", "waking", "bathroom", "showering"].includes(ev.action) && ev.location !== "offscreen" &&
@@ -1368,7 +1370,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order; each starts when the one
 - "with" is the id of ONE person with him in this moment (a visitor at home counts), or the person on the other end when the action is "phoning"; otherwise null.
 - He is social: at least one moment in two involves another person: in person, a phone call, or a text or email. Friends visit and call, strangers start conversations, regulars say something. ${(() => { let n = 0; for (let i = s.events.length - 1; i >= 0 && n < 8; i--) { const e = s.events[i]; if (e.with || (e.lines || []).length > 1 || e.action === "sleeping") break; n++; } return n >= 3 ? `He has been alone for ${n} moments: in THIS moment someone calls, texts or talks to him.` : ""; })()}
 - GADI, his boss in all but name, is NEVER seen in person. He only phones (action "phoning", "with": "gadi") or sends a text or email: add "message":{"from":"gadi","kind":"text"|"email","say":"max 25 words"} and Ishai reacts out loud in "lines", alone or with whoever is there. Friends can text the same way. A message needs no "with".
-- REGULARS are people he doesn't know well yet, usually found in one place: ${SEED_CAST.filter(c => c.regular).map(c => `${c.name} ("${c.id}", ${c.regular})`).join(", ")}. If he is there at their hours, they can start a short exchange (use "with"), and he gets to know them over time. Kobi at the bar gets drunker with the hour; Mr. Zelig also talks to himself.${localsNote(last.location)}${townNote(s, last.location, Date.now() + DELAY_MIN * 60000)}
+- REGULARS are people he doesn't know well yet, usually found in one place: ${SEED_CAST.filter(c => c.regular).map(c => `${c.name} ("${c.id}", ${c.regular})`).join(", ")}. If he is there at their hours, they can start a short exchange (use "with"), and he gets to know them over time. Kobi at the bar gets drunker with the hour; Mr. Zelig also talks to himself.${localsNote(last.location)}${townNote(s, last.location, Date.now() + DELAY_MIN * 60000)}${growNote(s, Date.now())}
 - "len": how many minutes this moment lasts on screen. ${lenRule()}
 - "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of ${TALK.min} to ${TALK.max} lines that fills this moment${TALK.brake ? " (6 minutes)" : `: about 2.5 to 3.5 lines a minute of "len" (6 minutes: ${TALK.min}-${TALK.max}, 10 minutes: ${talkFor(10).min}-${talkFor(10).max}, 12 minutes: ${talkFor(12).min}-${talkFor(12).max})`}. It plays in TWO HALVES: the first half, then they do something (the "then", or carry on with what they are doing) and talk again; put "half": true on the first line of the second half (about the middle), which picks the talk up again ("Anyway...", a new question, back to what was left open, a reaction to what they are doing). Make it sound like real people talking, not a reading: most lines 3-12 words, none over 22; at most 2 lines in a row from one person; questions get answered (or dodged on purpose); people cut in ("Wait—", "Hold on"), trail off ("I just thought..."), laugh, tease, change the subject, bring up something from earlier today or what is planned; small talk AND real stakes; talk while doing (cooking, walking, tidying, eating), not standing still. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
 - "then" (optional, use it in most moments that stay in one place): what visibly changes about halfway through this moment (between the two halves of the talk), in the SAME place with the SAME people: {"action": another action allowed in this place, "text": one short sentence}. E.g. he works at the desk, then gets up and waters Moshe; Noa sits talking, then they both start cooking. Never sleeping, bathroom, showering, the radio or the TV, and leave it out when the moment ends with him leaving. The next moment follows on from the "then".
@@ -1392,7 +1394,7 @@ ${(() => { const r = recentHostLines(s, 8); return r.length ? `- The hosts ALREA
 - ${block ? "IN ONE OF THESE MOMENTS" : "THIS MOMENT"}: one host slips in an obvious, cheesy "secret" sponsor plug for ${sponsor.name} (${sponsor.pitch}), tied to what Ishai is doing, ending in a wink like "...not sponsored, by the way". The other host reacts (annoyed, or caught up in it).` : ""}
 
 ${block ? `Reply with ONLY this JSON, nothing else: {"moments":[ ...exactly ${block} moments in order... ]}, where EACH moment looks like this:` : "Reply with ONLY this JSON, nothing else:"}
-{${cue && cue.onAir && !cue.onAir.say ? '"onAir":"...",' : ""}"location":"...","action":"...","text":"...","with":null,"delivery":false,"lines":[{"who":"ishai","say":"..."},{"who":"<the with id>","say":"..."}],"len":6,"commentary":[],"scene":null,"update":null,"feel":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
+{${cue && cue.onAir && !cue.onAir.say ? '"onAir":"...",' : ""}"location":"...","action":"...","text":"...","with":null,"delivery":false,"lines":[{"who":"ishai","say":"..."},{"who":"<the with id>","say":"..."}],"len":6,"commentary":[],"scene":null,"update":null,"feel":null,"need":null,"newCharacter":null,"complete":null,"missing":null,"notes":"ongoing plot threads, max 25 words"}
 "missing": if this moment features an object, animal or place the camera cannot show (not listed above), name it in 1-3 words (e.g. "bicycle", "puppy"); otherwise null.
 newCharacter format: {"name":"...","role":"...","personality":"...","speech":"...","hangouts":["..."],"look":{"hair":"...","hairColor":"...","skin":"...","shirt":"...","pants":"...","extras":[]}}`;
   const user =
@@ -1799,6 +1801,9 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
     ev.commentary = [...cm.filter(c => c.pre).slice(0, 2), ...cm.filter(c => !c.pre).slice(0, hostsSports(s) ? HOSTS_MAX : 2)]; }   // sports style (v260): up to 3, with "after" and "hype"   // "pre": the hosts' setup before a scene's first line
   if (o.feel && typeof o.feel === "object") { const fw = str(o.feel.who, 30).toLowerCase(), fm = str(o.feel.mood, 14).toLowerCase();   // a mood the story sets mid-scene (body language at once)
     if ((fw === "ishai" || fw === ev.with) && CAST_MOODS.includes(fm) && !LOCALS[fw]) ev.feel = { who: fw, mood: fm, why: str(o.feel.why, 100) }; }
+  if (o.need && typeof o.need === "object" && !planned) { const nk = str(o.need.kind, 10).toLowerCase();   // v286: the story asks for a new person or place (growNeed() makes it)
+    if (nk === "person" && str(o.need.role, 60).length >= 3) ev.need = { kind: "person", role: str(o.need.role, 60), at: str(o.need.at, 30) || null, why: str(o.need.why, 160) };
+    else if (nk === "place" && str(o.need.type, 40).length >= 3) ev.need = { kind: "place", type: str(o.need.type, 40), near: str(o.need.near, 40) || null, why: str(o.need.why, 160) }; }
   if (o.scene && typeof o.scene === "object" && ev.with) ev.scene = {
     type: str(o.scene.type, 20) || "small talk", why: str(o.scene.why, 200), ishaiWants: str(o.scene.ishaiWants, 150), theyWant: str(o.scene.theyWant, 150),
     beats: str(o.scene.beats, 300), ending: str(o.scene.ending, 150), target: clamp(Math.round(Number(o.scene.lines) || 28), 12, 120) };
@@ -5292,6 +5297,7 @@ function applyPlan(s, now) {
 async function directorApi(req, env) {
   const s = await loadState(env);
   await hostsLangLoad(env, s); await approveLoad(env, s); await worldLoad(env, s); await townLoad(env, s);
+  try { GROW_WAIT = await growWaiting(env); } catch (e) { GROW_WAIT = []; }
   const now = Date.now();
   if (req.method === "POST") {
     let b = {}; try { b = await req.json(); } catch {}
@@ -5340,6 +5346,14 @@ async function directorApi(req, env) {
         : b.action === "townSet" ? await townSet(env, s, String(b.id || ""), String(b.state || ""), now)
         : await (async () => { const p = TOWN_ALL.find(x => x.id === b.id && (x.state === "live")); if (!p) return { error: "no such person on the show" }; await townPromote(env, s, p, now); await townLoad(env, s, true); return { ok: true }; })();
       if (r.error) return json(r, {}, 400);
+    } else if (b.action === "growDecide" || b.action === "growAsk" || b.action === "growOff") {   // v286: what the story asked for: approve / reject a waiting one, ask by hand (a test), growth off
+      const r = b.action === "growDecide" ? (await growReview(env, s, [{ id: b.id, verdict: b.verdict }], "director", now))[0]
+        : b.action === "growOff" ? (s.growOff = !!b.off, { ok: true })
+        : await (async () => { const need = b.need || {}; if (need.kind !== "person" && need.kind !== "place") return { error: "need.kind: person or place" };
+            const G = s.grow && s.grow.day === growDay(now) ? s.grow : null, before = G ? G.log.length : 0; await growNeed(env, s, need, String(b.loc || (s.events[s.events.length - 1] || {}).location || "street"), Date.now(), now, !!b.force);
+            const e = (s.grow.log || [])[(s.grow.log || []).length - 1]; return e && /^failed|limit/.test(e.state || "") ? { error: e.state } : { ok: true, made: e }; })();
+      if (r && r.error) return json(r, {}, 400);
+      GROW_WAIT = await growWaiting(env);
     } else if (b.action === "approveSet") {   // v280: who approves what grows (auto / claude / director per kind)
       if (!APPROVE_KINDS.includes(b.kind) || !APPROVE_MODES.includes(b.mode)) return json({ error: "kind: " + APPROVE_KINDS.join("/") + ", mode: " + APPROVE_MODES.join("/") }, {}, 400);
       s.approve = { ...approveOf(s), [b.kind]: b.mode }; await env.ISHAI.put(APPROVE_KEY, JSON.stringify(s.approve));
@@ -5391,7 +5405,7 @@ function directorView(s, bugs) {
   return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), kitchen: kitchenHealth(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { name: s.cast[s.scene.w]?.name || s.scene.w, type: s.scene.type || null, loc: s.scene.loc || null, lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse().map(dirGoal), lastError: s.lastError || null,
-    approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(), town: townDir(), townPlaces: Object.keys(PLACES).filter(k => townJob(k)),
+    approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(), town: townDir(), townPlaces: Object.keys(PLACES).filter(k => townJob(k)), growth: { ...growStepHealth(s, Date.now()), waiting: GROW_WAIT },
     hosts: { style: hostsSports(s) ? "sports" : "classic", writer: hostsByGemini(s) ? "gemini" : "cloudflare", lang: hostsHe(s) ? "he" : "en", by: s.hostsBy || null },
     polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t },
@@ -6072,14 +6086,14 @@ async function castApi(req, env, url) {
     await castLoad(env, s, true); await approveLoad(env, s);
     return json({ rules: CAST_RULES, arcs: (PLAN.arcs || []).map(a => ({ title: a.title, stage: a.stage })), secretsUntil: secretsNow(now).map(x => x.title),
       howToAnswer: 'POST /api/cast/review {"token":"...","reviews":[{"n":12,"verdict":"approve|edit|reject","text":"(edit only: the new wording; for a card, the whole card as JSON)","reason":"one line"}]}',
-      cardsBy: approveOf(s).cards, pending: (!(await isDirector(req, env)) && approveOf(s).cards === "director") ? [] : await castPendingView(env, s, false), auditions: await audForReview(env), howToAnswerAuditions: AUD_REVIEW_HOW, auditionTunes: await audTunesForReview(env), howToAnswerTunes: AUD_TUNE_HOW }, { "cache-control": "no-store" });
+      cardsBy: approveOf(s).cards, pending: (!(await isDirector(req, env)) && approveOf(s).cards === "director") ? [] : await castPendingView(env, s, false), auditions: await audForReview(env), howToAnswerAuditions: AUD_REVIEW_HOW, auditionTunes: await audTunesForReview(env), howToAnswerTunes: AUD_TUNE_HOW, growthBy: { places: approveOf(s).places, people: approveOf(s).people }, growth: await (async () => { await townLoad(env, s); const dir = await isDirector(req, env); return (await growWaiting(env)).filter(g => dir || (g.kind === "person" ? approveOf(s).people : approveOf(s).places) === "claude"); })(), howToAnswerGrowth: GROW_REVIEW_HOW }, { "cache-control": "no-store" });
   }
   if (url.pathname === "/api/cast/review" && req.method === "POST") {
     const b = await req.json().catch(() => ({}));
     const tok = await castTokenOk(url, b), dir = !tok && await isDirector(req, env);
     if (!tok && !dir) return json({ error: "bad token" }, {}, 403);
     await approveLoad(env, s);
-    return json({ results: tok && approveOf(s).cards === "director" ? [{ error: "cards are the director's to approve (Growth: cards on director)" }] : await castReview(env, s, b.reviews, tok ? "claude" : "director", now), auditions: b.auditions ? await audReviewApply(env, b.auditions, tok ? "claude" : "director", now) : undefined, auditionTunes: b.auditionTunes ? await audTuneReviewApply(env, b.auditionTunes, tok ? "claude" : "director", now) : undefined }, { "cache-control": "no-store" });
+    return json({ results: tok && approveOf(s).cards === "director" ? [{ error: "cards are the director's to approve (Growth: cards on director)" }] : await castReview(env, s, b.reviews, tok ? "claude" : "director", now), auditions: b.auditions ? await audReviewApply(env, b.auditions, tok ? "claude" : "director", now) : undefined, auditionTunes: b.auditionTunes ? await audTuneReviewApply(env, b.auditionTunes, tok ? "claude" : "director", now) : undefined, growth: b.growth ? await (async () => { await townLoad(env, s); return growReview(env, s, b.growth, tok ? "claude" : "director", now); })() : undefined }, { "cache-control": "no-store" });
   }
   if (url.pathname === "/api/cast/dir") {   // the director page's Cast box
     if (!await isDirector(req, env)) return json({ error: "director only" }, {}, 403);
@@ -7224,7 +7238,7 @@ function growClean(r) {
   if (!GROW_ID.test(id)) throw new Error("id: g + 2-23 lower-case letters or digits");
   if (WORLD_BASE.places[id]) throw new Error(id + ": a hand-made place has that id");
   const xOk = v => v === "R" || (Number.isInteger(v) && v >= -20 && v <= 212);
-  const link = (l, w) => { if (!l || typeof l !== "object") throw new Error(w + ": not a link"); if (l.ride) return { ride: true };
+  const link = (l, w) => { if (!l || typeof l !== "object") throw new Error(w + ": not a link"); if (l.ride) return xOk(l.exit) && xOk(l.entry) ? { ride: true, exit: l.exit, entry: l.entry } : { ride: true };
     if (!xOk(l.exit) || !xOk(l.entry)) throw new Error(w + ": exit and entry must be -20..212 or \"R\""); return { exit: l.exit, entry: l.entry }; };
   const p = r.place || {}, kind = p.kind;
   if (kind !== "pass" && kind !== "story") throw new Error("place.kind: pass or story");
@@ -7354,6 +7368,8 @@ async function townMake(env, s, o, by, now) {
     const id = "t-" + q.first.toLowerCase() + "-" + q.name.split(" ").slice(1).join("").toLowerCase().replace(/[^a-z]/g, "");
     if (!TOWN_ALL.some(x => x.id === id) && !s.cast[id] && !SEED_CAST.some(c => c.name.split(" ")[0] === q.first)) p = { ...q, id }; }
   if (!p) return { error: "no free name" };
+  if (o.job){ p.job = o.job; p.role = `the ${o.job} at ${townPlaceName(place)}`; }   // v286: the story asked for this role
+  if (o.why) p.why = String(o.why).slice(0, 160);
   const state = approveOf(s).people === "auto" ? "live" : "pending";
   await env.DB.prepare("INSERT INTO town (id, p, state, scenes, made, changed, by) VALUES (?1, ?2, ?3, 0, ?4, ?4, ?5)").bind(p.id, JSON.stringify(p), state, now, String(by || "").slice(0, 20)).run();
   await townLoad(env, s, true);
@@ -7417,3 +7433,228 @@ function townHealth() { return { v: TOWN_V, live: Object.keys(TOWNP).length, pen
   candidates: TOWN_ALL.filter(p => p.candidate).map(p => p.id) }; }
 function townPublic() { return { v: TOWN_V, people: Object.values(TOWNP).map(p => ({ id: p.id, name: p.name, first: p.first, gender: p.gender, look: p.look, workLook: p.workLook, role: p.role, post: p.post })) }; }
 function townDir() { return TOWN_ALL.map(p => ({ id: p.id, name: p.name, role: p.role, place: p.post.place, hours: p.post.hours, state: p.state, scenes: p.scenes, candidate: !!p.candidate, about: p.about, memory: p.memory, look: p.workLook })); }
+
+// ==================== Growth step 6 (v286, docs/GROWTH_PLAN.md): the story asks ====================
+// The story writer may put "need" on one moment: {"kind":"person","role":"a new waiter","at":"<place>","why":...} or {"kind":"place","type":"karaoke bar",
+// "near":"<place or district>","why":...}. validate() keeps it; when the moment is accepted, growNeed() makes it (at most GROW_MAX a story day):
+// a person through the town registry (townMake() with the role), a place through cityPick() (story/city.json: the district that fits, has room and
+// is nearest) and growPlace(): behind a free door of the district's grown street block, or on a new block at the district's grow edge (a bus stop
+// when the district is a bus ride away), or the place itself for open-air kinds; one small AI call names it. Approval (Growth → people / places /
+// blocks): auto puts it live at once, claude / director keep it pending in D1 (town, world_gen state 'pending') for growDecide().
+// The next moments' prompt says what was made (growNote()).
+const CITYMAP = /*__CITY_JSON__*/{};   // story/city.json (CITY is the weekly city timetable)
+let GROW_WAIT = [];
+const GROW_MAX = { people: 4, places: 1 }, GROW_PENDING_D = 7;
+const GROW_KIND_WORDS = [["nightlife", /karaoke|club|disco|dance ?floor|nightclub/], ["music", /music|jazz|concert|live band|piano bar|record/], ["library", /librar|book/],
+  ["arcade", /arcade|bowling|game|billiard|pool hall|escape room/], ["gallery", /galler|art|studio of|exhibit/], ["culture", /museum|theat|cinema|culture|planetarium|synagogue/],
+  ["sport", /gym|yoga|pilates|sport|climb|boxing|swim|court|dojo|martial/], ["class", /class|school|lesson|course|workshop|dance studio|cooking school/],
+  ["restaurant", /restaurant|diner|grill|sushi|pizza|falafel|hummus|shawarma|bistro|eatery|steak|fish place|noodle/], ["cafe", /caf[eé]|coffee|espresso|tea ?house|bakery|patisserie|ice ?cream/],
+  ["bar", /\bbar\b|pub|beer|wine|cocktail|brewery|tavern/], ["service", /laundr|barber|salon|hairdress|pharmacy|clinic|post office|repair|tailor|dry clean|vet|dentist|bank|garage/],
+  ["market", /market|flea|bazaar|stalls/], ["kiosk", /kiosk|stand|booth|makolet/], ["home", /flat|apartment|house|home|loft/], ["garden", /garden|greenhouse|orchard|nursery/],
+  ["beach", /beach|shore|surf|marina|pier|harbou?r/], ["lookout", /lookout|viewpoint|view|hill|rooftop/], ["family", /playground|zoo|petting|family|carousel|water park/],
+  ["outdoor", /park|field|square|plaza|courtyard|lake|trail/], ["shop", /shop|store|boutique|florist|hardware|tailor|gift|toy|antique|thrift|second-hand|record store|music store/]];
+function growKindOf(type) { const t = String(type || "").toLowerCase(); for (const [k, re] of GROW_KIND_WORDS) if (re.test(t)) return k; return "shop"; }
+// the places this grown kind is modelled on (its hours, how often he goes out to it, how long he stays)
+const GROW_RULES_FROM = { cafe: "cafe", bar: "bar", nightlife: "bar", music: "bar", restaurant: "foodcourt", shop: "store", kiosk: "kiosk", service: "store", market: "market",
+  library: "store", study: "cafe", class: "gym", sport: "gym", arcade: "mall", entertainment: "mall", gallery: "mall", culture: "mall", garden: "park", outdoor: "park",
+  family: "park", beach: "promenade", lookout: "park" };
+const GROW_AT_WORK = new Set(["dana", "lior", "kobi", "shmulik", "hagit", "zelig", "sivan", "michal"]);
+function growRules(kind) {
+  const from = PR[GROW_RULES_FROM[kind]]; if (!from) return { stay: [10, 60] };
+  const r = JSON.parse(JSON.stringify(from)); delete r.event; delete r.byDay;
+  if (r.rate) for (const k of Object.keys(r.rate)) r.rate[k] = (r.rate[k] || []).map(([a, b, p]) => [a, b, Math.max(1, Math.round(p * 0.4))]);   // a new place: he goes now and then, not instead of his usual ones
+  if (r.people) r.people = Object.fromEntries(Object.entries(r.people).filter(([id]) => !GROW_AT_WORK.has(id)));
+  return r;
+}
+const growDay = now => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now));
+function growDistrictOf(place) {
+  if (!place) return null; const g = GROWN.recs.find(r => r.id === place); if (g) return g.district || null;
+  const D = CITYMAP.districts || {}; return Object.keys(D).find(d => (D[d].places || []).includes(place)) || null;
+}
+// where a new place of this kind goes: the district that fits it and has room; the one the story named or its neighbour; else the nearest that already has places
+function cityPick(kind, near, loc, seed) {
+  const D = CITYMAP.districts || {}, grownIn = d => GROWN.recs.filter(r => r.district === d && r.place.kind === "story").length;
+  const cands = Object.keys(D).filter(d => (D[d].fits || []).includes(kind) && grownIn(d) < (D[d].room || 0));
+  if (!cands.length) return null;
+  const n = String(near || "").toLowerCase().trim();
+  const nearD = !n ? null : D[n] ? n : Object.keys(D).find(d => D[d].name.toLowerCase().includes(n) || n.includes(D[d].name.toLowerCase().replace(/^the /, ""))) || growDistrictOf(near);
+  if (nearD && cands.includes(nearD)) return nearD;
+  const gd = (a, b) => Math.abs(D[a].grid[0] - D[b].grid[0]) + Math.abs(D[a].grid[1] - D[b].grid[1]);
+  if (nearD && D[nearD]) { const nb = cands.filter(d => gd(d, nearD) === 1); if (nb.length) return nb[seed % nb.length]; }
+  const here = growDistrictOf(loc) || "herzl";
+  const score = d => (((D[d].places || []).length || grownIn(d)) ? 3 : 0) - gd(d, here) - (/long/.test(D[d].from || "") ? 1 : 0) + ((seed + strHashW(d)) % 97) / 1000;
+  return cands.sort((a, b) => score(b) - score(a))[0];
+}
+// the map as it stands (hand-made + grown), for free edges, doors and squares
+function growMapNow() { try { return growMerge(GROWN.recs).P; } catch (e) { return JSON.parse(JSON.stringify(WORLD_BASE.places)); } }
+const isRight = x => x === "R" || (typeof x === "number" && x >= 190), isLeft = x => typeof x === "number" && x < 0;
+const edgeFree = (P, id, side) => !Object.values((P[id] || {}).links || {}).some(l => !l.ride && (side === "R" ? isRight(l.exit) : isLeft(l.exit)));
+const doorFree = (P, id, x) => !Object.values((P[id] || {}).links || {}).some(l => !l.ride && typeof l.exit === "number" && l.exit >= 0 && l.exit < 190 && Math.abs(l.exit - x) < 16);
+function freeSquare(P, from, dir) {
+  const used = new Set(Object.values(P).filter(p => Array.isArray(p.map)).map(p => p.map.join(",")));
+  const [dc, dr] = { east: [1, 0], west: [-1, 0], north: [0, -1], south: [0, 1] }[dir] || [1, 0], [c0, r0] = from || [16, 0];
+  for (let k = 1; k < 40; k++) for (let j = 0; j <= k; j++) for (const sgn of [1, -1]) {
+    const c = c0 + dc * k + (dc ? 0 : sgn * j), r = r0 + dr * k + (dr ? 0 : sgn * j); if (j === 0 && sgn < 0) continue;
+    if (!used.has(c + "," + r)) return [c, r];
+  }
+  return [c0 + 30 + (Date.now() % 9), r0];
+}
+// where a new piece of the district attaches: the end of its grown street, else its grow edge (an edge, or a way through between the buildings), else a bus stop
+function growAnchor(P, d) {
+  const D = CITYMAP.districts[d], chain = GROWN.recs.filter(r => r.district === d && r.place.kind === "pass");
+  const last = chain[chain.length - 1];
+  if (last && edgeFree(P, last.id, "R")) return { at: last.id, link: { exit: "R", entry: "R" }, back: { exit: -14, entry: -14 }, dir: "east", sq: last.place.map };
+  for (const gr of D.grow || []) { const p = P[gr.at]; if (!p || p.screens) continue;
+    if (gr.dir === "east" && edgeFree(P, gr.at, "R")) return { at: gr.at, link: { exit: "R", entry: "R" }, back: { exit: -14, entry: -14 }, dir: "east", sq: p.map };
+    if (gr.dir === "west" && edgeFree(P, gr.at, "L")) return { at: gr.at, link: { exit: -14, entry: -14 }, back: { exit: "R", entry: "R" }, dir: "west", sq: p.map };
+    for (const x of [40, 150, 70, 120, 20, 170]) if (doorFree(P, gr.at, x)) return { at: gr.at, link: { exit: x, entry: x }, back: { exit: -14, entry: -14 }, dir: gr.dir, sq: p.map, through: true };
+  }
+  return { at: "street", link: { ride: true, exit: 128, entry: 128 }, back: { ride: true, exit: 128, entry: 128 }, dir: "east", sq: [14 + 2 * D.grid[0], D.grid[1] * 2 - 2], ride: true };
+}
+const GROW_ACTS = { seats: ["idle", "talking", "eating", "drinking", "reading", "phoning"], stand: ["idle", "talking", "walking", "phoning"],
+  out: ["walking", "idle", "talking", "eating", "drinking", "phoning", "reading"] };
+function growActions(spec) {
+  if (spec.ground !== "indoor") return [...GROW_ACTS.out, ...(["park", "beach", "garden", "hill"].includes(spec.ground) ? ["exercising"] : [])];
+  const R = GROWKIT.ROOMS[spec.room.k] || {};
+  return [...(R.seats ? GROW_ACTS.seats : GROW_ACTS.stand), ...(spec.room.k === "studio" ? ["exercising"] : []), ...(spec.room.wc ? ["bathroom"] : [])];
+}
+const GROW_SYS = `You name a new place in the city of "Watching Ishai", a realistic reality show set in a Tel Aviv-like city. Reply with JSON only: {"name":"2-4 words, an original fictional name (never a real brand, chain or famous place)","sign":"the sign over the door: up to 12 capital letters and spaces","desc":"one or two plain sentences: what it is like, what people do there, who works there in general (no names)"}. Ordinary and specific, fitting the district.`;
+const REAL_BRAND = /starbucks|mcdonald|burger king|kfc|aroma|cofix|coca|pepsi|ikea|zara|h&m|nike|adidas|apple|google|samsung|disney|netflix|spotify|subway|domino|pizza hut|ben ?& ?jerry|nespresso|max brenner|super-?pharm|shufersal|rami levy|castro|fox\b/i;
+const growTitle = t => String(t || "").toLowerCase().replace(/(^|\s)\S/g, m => m.toUpperCase());
+async function growName(env, need, kind, d, seed) {
+  const D = CITYMAP.districts[d]; let o = null;
+  try { o = parseAI(await runModel(env, [{ role: "system", content: GROW_SYS }, { role: "user", content: `A ${need.type} (${kind}) in ${D.name}: ${D.feel}. Why the story needs it: ${need.why || "-"}.` }], 220, "story")); } catch (e) {}
+  const clean = (v, n) => String(v || "").replace(/[^\p{L}\p{N} '&.,!-]/gu, "").replace(/\s+/g, " ").trim().slice(0, n);
+  let name = clean(o && o.name, 30), desc = clean(o && o.desc, 300), sign = clean(o && o.sign, 12).toUpperCase().replace(/[^A-Z ]/g, "").trim();
+  if (!name || REAL_BRAND.test(name) || REAL_BRAND.test(desc)) { const t = String(need.type).replace(/^(a|an|the)\s+/i, "").replace(/^new\s+/i, "").trim();
+    name = growTitle(t.split(" ").length > 1 ? t : D.name.replace(/^The /, "") + " " + t).slice(0, 30); desc = ""; }
+  const typ = String(need.type).toLowerCase().replace(/^(a|an|the)\s+/, "").replace(/^new\s+/, "").trim();
+  if (!sign || REAL_BRAND.test(sign)) { const T = typ.toUpperCase().replace(/[^A-Z ]/g, "").replace(/\s+/g, " ").trim(), W = T.split(" "), last = W[W.length - 1], generic = /^(STAND|SHOP|PLACE|STORE|HOUSE|ROOM|SPOT|HALL|CORNER)$/;
+    sign = T.length <= 12 ? T : (!generic.test(last) && last.length <= 12 && last.length > 2 ? last : W.find(w => w.length > 2 && w.length <= 12 && !generic.test(w))) || "OPEN"; }
+  if (desc.length < 20) desc = `${name}: a ${typ}, newly opened`;
+  return { name, sign, desc: `${desc.replace(/\.$/, "")}. In ${D.name} (${D.from}).`.slice(0, 400), ai: !!(o && o.name) };
+}
+const growSlug = (name, taken) => { const b = "g" + String(name).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 16); let id = b.length > 2 ? b : "gplace", i = 2;
+  while (taken.has(id)) id = b.slice(0, 20) + i++; return id; };   // never an id used before, even one taken away
+const doorKindOf = k => ({ cafe: "cafe", bar: "bar", nightlife: "bar", music: "bar", restaurant: "restaurant", gallery: "gallery", culture: "gallery", kiosk: "kiosk", service: "shop", sport: "entrance", class: "entrance", home: "entrance" })[k] || "shop";
+// plan a new place: the records to add (a new street block, an updated one, the place). Nothing is saved here.
+async function growPlan(env, s, need, loc, now) {
+  const kind = growKindOf(need.type), seed = Math.floor(now / 1000) % 100000, d = cityPick(kind, need.near, loc, seed);
+  if (!d) return { error: `no district has room for a ${kind}` };
+  const D = CITYMAP.districts[d], K = GROWKIT.KIND[kind] || {}, indoor = !!K.room, P = growMapNow();
+  const taken = new Set([...Object.keys(P), ...Object.keys(WORLD_BASE.places), ...(((await env.DB.prepare("SELECT id FROM world_gen").all()).results || []).map(r => r.id))]);
+  const nm = await growName(env, need, kind, d, seed), id = growSlug(nm.name, taken), recs = []; taken.add(id);
+  const chain = GROWN.recs.filter(r => r.district === d && r.place.kind === "pass");
+  let host = null, patch = null, newBlock = null;
+  if (indoor) for (const r of chain) { for (const f of r.spec.fronts || []) { const x = f.x + f.w - 13;   // a free door on the district's street
+      if ((GROWKIT.FRONTS[f.k] || {}).door && doorFree(P, r.id, x)) { const sp = JSON.parse(JSON.stringify(r.spec)), ff = sp.fronts.find(q => q.x === f.x);
+        ff.k = doorKindOf(kind); ff.name = nm.sign; sp.props = (sp.props || []).filter(q => Math.abs(q.x - x) > 18); patch = { ...r, spec: sp }; host = { at: r.id, link: { exit: x, entry: x }, back: { exit: 4, entry: 4 }, dir: "south", sq: r.place.map }; break; } }
+    if (host) break; }
+  if (!host) {
+    const a = growAnchor(P, d);
+    if (indoor || a.ride || a.through) {   // a new street block of the district first: the place goes behind one of its doors, or on its far edge
+      const style = a.ride ? null : (GROWKIT.GROUNDS[GROWKIT.STYLE[D.style]] || {}).fronts ? D.style : "square";
+      const spec = GROWKIT.spec({ ...(a.ride ? { ground: "street", stop: true } : { style }), ...(indoor ? { door: true, name: nm.sign, doorKind: doorKindOf(kind) } : {}) }, seed + 1);
+      const doorX = spec.doorX; delete spec.doorX; if (doorX != null) spec.props = (spec.props || []).filter(q => Math.abs(q.x - doorX) > 18);   // nothing in front of the new door
+      let bn = chain.length + 1; while (taken.has("g" + d.slice(0, 10) + bn)) bn++; const bid = "g" + d.slice(0, 10) + bn;
+      const bsq = freeSquare(P, a.sq, a.through ? a.dir : a.dir);
+      newBlock = { id: bid, name: D.name, district: d, place: { kind: "pass", links: { [a.at]: a.back }, map: bsq, notes: [`${D.name}: ${a.ride ? "the bus from Herzl Street" : "from " + a.at}`] }, attach: { [a.at]: a.link }, spec };
+      recs.push(newBlock); P[bid] = { ...newBlock.place, links: { ...newBlock.place.links } }; P[bid].map = bsq;
+      host = indoor && doorX != null ? { at: bid, link: { exit: doorX, entry: doorX }, back: { exit: 4, entry: 4 }, dir: "south", sq: bsq }
+        : { at: bid, link: { exit: "R", entry: "R" }, back: { exit: -14, entry: -14 }, dir: "east", sq: bsq };
+    } else host = a;
+  }
+  const spec = indoor ? GROWKIT.spec({ room: K.room, name: nm.sign }, seed + 2) : GROWKIT.spec({ kind }, seed + 2);
+  delete spec.doorX;
+  const place = { id, name: nm.name, district: d, place: { kind: "story", desc: nm.desc, actions: growActions(spec), links: { [host.at]: host.back }, map: freeSquare(P, host.sq, host.dir) },
+    attach: { [host.at]: host.link }, spec, rules: growRules(kind) };
+  recs.push(place);
+  // check the whole bundle against the map before anything is saved
+  let clean; try { clean = recs.map(growClean); const pc = patch ? growClean(patch) : null;
+    growMerge([...GROWN.recs.filter(r => !pc || r.id !== pc.id), ...(pc ? [pc] : []), ...clean]); if (pc) patch = pc; }
+  catch (e) { return { error: String(e.message || e).replace(/^story\/world\.json:\s*/, "").slice(0, 300) }; }
+  return { ok: true, id, kind, district: d, name: nm.name, desc: nm.desc, ai: nm.ai, recs: clean, patch, newBlock: !!newBlock };
+}
+const MODE_RANK = { auto: 0, claude: 1, director: 2 };
+async function growPlace(env, s, need, loc, now, by) {
+  await worldLoad(env, s, true);
+  const plan = await growPlan(env, s, need, loc, now); if (!plan.ok) return plan;
+  const A = approveOf(s), mode = [A.places, plan.newBlock ? A.blocks : "auto"].sort((a, b) => MODE_RANK[b] - MODE_RANK[a])[0];
+  const meta = { by: by || "story", why: String(need.why || "").slice(0, 160), type: String(need.type || "").slice(0, 40), patch: plan.patch || null, bundle: plan.id, mode };
+  for (const r of plan.recs) await env.DB.prepare("INSERT INTO world_gen (id, rec, state, by, made, changed) VALUES (?1, ?2, ?3, ?4, ?5, ?5)")
+    .bind(r.id, JSON.stringify(r.id === plan.id ? { ...r, _grow: meta } : { ...r, _grow: { bundle: plan.id } }), mode === "auto" ? "live" : "pending", meta.by.slice(0, 20), now).run();
+  if (mode === "auto") { if (plan.patch) await env.DB.prepare("UPDATE world_gen SET rec = ?2, changed = ?3 WHERE id = ?1").bind(plan.patch.id, JSON.stringify(plan.patch), now).run(); await worldLoad(env, s, true); }
+  return { ok: true, id: plan.id, name: plan.name, district: plan.district, kind: plan.kind, state: mode === "auto" ? "live" : "pending", mode, recs: plan.recs.map(r => r.id), desc: plan.desc };
+}
+// a waiting place (and the block it needs) goes live, or is dropped
+async function growDecide(env, s, id, verdict, by, now) {
+  if (!env.DB) return { error: "no database" };
+  await worldTables(env);
+  const rows = ((await env.DB.prepare("SELECT id, rec FROM world_gen WHERE state = 'pending'").all()).results || []).map(r => ({ id: r.id, rec: JSON.parse(r.rec) }));
+  const main = rows.find(r => r.id === id && r.rec._grow && r.rec._grow.bundle === id); if (!main) return { error: id + ": nothing waiting" };
+  const part = rows.filter(r => r.rec._grow && r.rec._grow.bundle === id);
+  if (verdict !== "approve") { for (const r of part) await env.DB.prepare("UPDATE world_gen SET state = 'off', changed = ?2 WHERE id = ?1").bind(r.id, now).run(); growLogSet(s, id, "rejected by " + by); return { ok: true, state: "off" }; }
+  await worldLoad(env, s, true);
+  const blocks = part.filter(r => r.id !== id), patch = main.rec._grow.patch;
+  try { growMerge([...GROWN.recs.filter(r => !patch || r.id !== patch.id), ...(patch ? [growClean(patch)] : []), ...blocks.map(r => growClean(r.rec)), growClean(main.rec)]); }
+  catch (e) { return { error: "it no longer fits the map: " + String(e.message || e).slice(0, 200) }; }
+  if (patch) await env.DB.prepare("UPDATE world_gen SET rec = ?2, changed = ?3 WHERE id = ?1").bind(patch.id, JSON.stringify(growClean(patch)), now).run();
+  for (const r of [...blocks, main]) await env.DB.prepare("UPDATE world_gen SET state = 'live', changed = ?2 WHERE id = ?1").bind(r.id, now).run();
+  await worldLoad(env, s, true); growLogSet(s, id, "approved by " + by);
+  s.growSay = { until: now + 40 * 60000, text: `NEW PLACE: "${id}" ${main.rec.name} now exists. ${main.rec.place.desc}` };
+  return { ok: true, state: "live" };
+}
+async function growWaiting(env) {
+  if (!env.DB) return [];
+  await worldTables(env); await townTables(env);
+  const places = ((await env.DB.prepare("SELECT id, rec, made FROM world_gen WHERE state = 'pending'").all()).results || []).map(r => ({ id: r.id, made: r.made, rec: JSON.parse(r.rec) }))
+    .filter(r => r.rec._grow && r.rec._grow.bundle === r.id).map(r => ({ kind: "place", id: r.id, name: r.rec.name, district: r.rec.district, desc: r.rec.place.desc, type: r.rec._grow.type, why: r.rec._grow.why,
+      mode: r.rec._grow.mode, spec: r.rec.spec.ground === "indoor" ? r.rec.spec.room.k : r.rec.spec.ground, made: r.made }));
+  const people = TOWN_ALL.filter(p => p.state === "pending").map(p => ({ kind: "person", id: p.id, name: p.name, role: p.role, place: p.post.place, why: p.why || "" }));
+  return [...places, ...people];
+}
+// a verdict per item: places through growDecide(), people through townSet(); only the kinds whose approval is `by`'s (the director may do any)
+async function growReview(env, s, list, by, now) {
+  const A = approveOf(s), out = [];
+  for (const v of (Array.isArray(list) ? list : []).slice(0, 20)) {
+    const id = String(v && v.id || ""), ok = v && v.verdict === "approve", isP = TOWN_ALL.some(p => p.id === id);
+    if (by === "claude" && (isP ? A.people : A.places) !== "claude") { out.push({ id, error: "not Claude's to approve (Growth: " + (isP ? "people" : "places") + " on " + (isP ? A.people : A.places) + ")" }); continue; }
+    if (isP) { await townSet(env, s, id, ok ? "live" : "off", now); out.push({ id, ok: true }); growLogSet(s, id, (ok ? "approved by " : "rejected by ") + by); }
+    else out.push({ id, ...(await growDecide(env, s, id, ok ? "approve" : "reject", by, now)) });
+  }
+  return out;
+}
+const GROW_REVIEW_HOW = 'POST /api/cast/review {"token":"...","growth":[{"id":"<id>","verdict":"approve|reject","reason":"one line"}]}: new places and townspeople the story asked for. Approve what fits the show (realistic, ordinary, fictional names, the right district); reject the rest.';
+function growLogSet(s, id, what) { const G = s.grow; if (!G) return; const e = (G.log || []).find(x => x.id === id); if (e) e.state = what; }
+// called when a moment with "need" is accepted
+async function growNeed(env, s, need, loc, storyMs, now, force) {
+  if (!env.DB || !need) return;
+  const day = growDay(now), G = s.grow && s.grow.day === day ? s.grow : (s.grow = { day, people: 0, places: 0, log: ((s.grow && s.grow.log) || []).slice(-20) });
+  const key = need.kind === "person" ? "people" : "places", entry = { t: now, kind: need.kind, ask: need.role || need.type, why: need.why || "", at: loc };
+  if (G[key] >= GROW_MAX[key] && !force) { entry.state = "over today's limit"; G.log = [...G.log, entry].slice(-20); return; }
+  let r;
+  if (need.kind === "person") {
+    const job = String(need.role || "").toLowerCase().replace(/^(a|an|the|one|another)\s+/, "").replace(/^(new|young|old|local)\s+/, "").replace(/[^a-z -]/g, "").trim().slice(0, 30);
+    let place = need.at && LOCATIONS[need.at] && PLACES[need.at] ? need.at : loc;
+    if (!townJob(place)) place = loc;
+    r = await townMake(env, s, { place, job: job.length >= 3 ? job : null, why: need.why }, "story", now);
+    if (r.ok) { s.growSay = { until: now + 40 * 60000, text: r.state === "live" ? `NEW PERSON: "${r.id}" ${r.person.name}, ${r.person.role}, works there from now on (use the id as "with" there).` : "" }; Object.assign(entry, { id: r.id, name: r.person.name, place }); }
+  } else {
+    r = await growPlace(env, s, need, loc, now, "story");
+    if (r.ok) { if (r.state === "live") s.growSay = { until: now + 40 * 60000, text: `NEW PLACE: "${r.id}" ${r.name} now exists. ${r.desc} He can go there.` }; Object.assign(entry, { id: r.id, name: r.name, district: r.district }); }
+  }
+  if (r && r.ok) { G[key]++; entry.state = r.state; } else entry.state = "failed: " + String(r && r.error || "?").slice(0, 160);
+  G.log = [...G.log, entry].slice(-20);
+}
+// the writer: what grew lately, and whether it may still ask today
+function growNote(s, now) {
+  const G = s.grow && s.grow.day === growDay(now) ? s.grow : { people: 0, places: 0 }, p = GROW_MAX.people - G.people, q = GROW_MAX.places - G.places;
+  const say = s.growSay && s.growSay.until > now && s.growSay.text ? `\n- ${s.growSay.text}` : "";
+  return say + (s.growOff ? "" : `\n- "need" (optional, rare): when the story REALLY needs someone or somewhere that doesn't exist yet (never Ishai's home, never someone or somewhere already listed), ask for it on this moment and it exists from the next one. ${p > 0 ? `A person who works at a place: {"kind":"person","role":"a new waiter","at":"<a place id>","why":"..."} (${p} more today). ` : ""}${q > 0 ? `A new place in the city: {"kind":"place","type":"karaoke bar","near":"<a place id or a part of town>","why":"..."} (${q} more today). ` : ""}${p <= 0 && q <= 0 ? "Nothing more today: \"need\" must be null." : "Otherwise null."}`);
+}
+async function growSweep(env, s, now) {   // waiting places and people expire after GROW_PENDING_D days
+  if (!env.DB || (s.growSweep && now - s.growSweep < 6 * 3600000)) return; s.growSweep = now;
+  try { await worldTables(env); await env.DB.prepare("UPDATE world_gen SET state = 'off', changed = ?1 WHERE state = 'pending' AND made < ?2").bind(now, now - GROW_PENDING_D * 86400000).run();
+    await townTables(env); await env.DB.prepare("UPDATE town SET state = 'off', changed = ?1 WHERE state = 'pending' AND made < ?2").bind(now, now - GROW_PENDING_D * 86400000).run(); } catch (e) {}
+}
+function growStepHealth(s, now) { const G = s.grow || {}; return { day: G.day || null, people: G.people || 0, places: G.places || 0, max: GROW_MAX, off: !!s.growOff, log: (G.log || []).slice(-8), err: s.growErr || null }; }

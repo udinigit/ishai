@@ -6144,7 +6144,7 @@
   // publicState.worldV moves, before it ingests the moments (a moment may already be at a new place). A grown place is drawn by the block kit
   // from its data spec (growScene(); step 4 adds the parts library). Never over a hand-made scene.
   let GROWN_V = null, GROWN_IDS = [];
-  const growX = v => v === 'R' ? W + 8 : v, growLink = l => l.ride ? {ride: true} : {exit: growX(l.exit), entry: growX(l.entry)};
+  const growX = v => v === 'R' ? W + 8 : v, growLink = l => l.ride ? Object.assign({ride: true}, l.exit != null ? {exit: growX(l.exit), entry: growX(l.entry)} : {}) : {exit: growX(l.exit), entry: growX(l.entry)};
   const setTo = (o, n) => { for (const k of Object.keys(o)) if (!(k in n)) delete o[k]; Object.assign(o, n); };
   // ================= v283: the grown places' parts (docs/GROWTH_PLAN.md step 4) =================
   // A grown place is data (its spec, checked by GROWKIT.clean() from source/growcore.mjs, the same code the worker runs): a ground, building fronts,
@@ -6300,7 +6300,7 @@
       for (let s = 0; s < 3; s++){ R(118, 18 + s * 12, 66, 2, '#5a3a2a'); for (let i = 0; i < 11; i++) R(120 + i * 6, 11 + s * 12, 3, 7, ['#3a6a3a', '#8a4a2a', '#c8b060', '#5a2a3a'][(i + s) % 4]); } alpha(.12, () => R(118, 10, 66, 38, '#ffb84d')); },
     restaurant(r, t, night, hf, sd){ for (let i = 0; i < 3; i++){ R(10 + i * 30, 16, 18, 14, '#7a5534'); R(12 + i * 30, 18, 14, 10, GOODS[(i + sd) % GOODS.length]); }
       R(128, 22, 54, 22, '#3a3028'); R(126, 20, 58, 2, '#7a5534'); signAt(r.name, 120, 70, 12, '#3a2a1a');
-      zAdd(60, () => person(CROWD[(sd + 5) % CROWD.length], 150, 28, t + 4321, {face: 0, muted: true})); const st = Math.floor(t / 400) % 3; R(140 + st, 14, 2, 6, '#e8e8e8'); R(170 - st, 15, 2, 5, '#e8e8e8'); R(126, 42, 58, 3, '#b8b0a0'); },
+      person(CROWD[(sd + 5) % CROWD.length], 150, 28, t + 4321, {face: 0, muted: true, legs: false}); const st = Math.floor(t / 400) % 3; R(140 + st, 14, 2, 6, '#e8e8e8'); R(170 - st, 15, 2, 5, '#e8e8e8'); R(126, 42, 58, 3, '#b8b0a0'); },
     shop(r, t, night, hf, sd){ signAt(r.name, 40, 120, 8, r.c); for (let s = 0; s < 4; s++){ R(50, 18 + s * 12, 140, 2, '#9a9a90'); for (let i = 0; i < 22; i++) R(52 + i * 6, 12 + s * 12, 4, 6 - (i * s) % 3, GOODS[(i * 3 + s + sd) % GOODS.length]); } },
     books(r, t, night, hf, sd){ for (let s = 0; s < 5; s++){ R(36, 16 + s * 11, 150, 2, '#5e4027'); for (let x = 38; x < 184; x += 3) R(x, 8 + s * 11 + (x * 7 + s) % 3, 2, 8 - (x * 7 + s) % 3, ['#8a2a2a', '#2a4a7a', '#3a6a3a', '#c8a060', '#5a3a6a', '#2a2a2a'][(x * 13 + s * 7 + sd) % 6]); }
       R(36, 6, 150, 3, '#5e4027'); signAt(r.name, 36, 150, 1, '#3a2a1a'); R(120, 8, 2, 62, '#7a5534'); R(128, 8, 2, 62, '#7a5534'); for (let y = 12; y < 70; y += 7) R(120, y, 10, 1, '#7a5534'); },   // a ladder

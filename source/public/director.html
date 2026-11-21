@@ -255,7 +255,13 @@
       <div style="margin-top:10px;font-size:20px">Townspeople</div>
       <div class="bar" style="gap:6px;flex-wrap:wrap"><select id="tnPlace" style="width:auto"></select><button id="tnMake">Make one there</button></div>
       <div id="tnList" style="font-size:16px"></div>
-      <div class="muted" style="font-size:16px">AUTO: goes live at once, after the code's own checks; it shows as AUTO under CAST → Reviewed, where you can undo it. CLAUDE: waits for the weekly scheduled review. DIRECTOR: waits for you (NOW inbox, CAST tab). New street blocks, places, people and promotions come with the next steps of docs/GROWTH_PLAN.md; only the cast cards use this so far.</div>
+      <div style="margin-top:10px;font-size:20px">What the story asked for</div>
+      <div id="grWait" style="font-size:16px"></div>
+      <div id="grLog" class="muted" style="font-size:15px;margin-top:4px"></div>
+      <div class="bar" style="gap:6px;flex-wrap:wrap;margin-top:6px"><select id="grKind" style="width:auto"><option value="place">a place</option><option value="person">a person</option></select>
+        <input id="grWhat" placeholder="karaoke bar / a new waiter" style="width:12em"> <input id="grNear" placeholder="near (place or part of town)" style="width:12em">
+        <button id="grAsk">Ask as the story would</button> <button id="grOff" class="ghost">Turn growth off</button></div>
+      <div class="muted" style="font-size:16px">AUTO: goes live at once, after the code's own checks (cards show as AUTO under CAST → Reviewed, where you can undo them). CLAUDE: waits for the weekly scheduled review. DIRECTOR: waits for you here. The story may ask for up to 4 new people and 1 new place a day; a new place goes where story/city.json says it fits (behind a free door on the district's street, or on a new street block at its edge). "Ask as the story would" makes one now, past the day's limit.</div>
     </div>
     <div class="box">
       <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Viewers' polls</span>
@@ -888,6 +894,24 @@
       if (p.state !== 'cast') act('Take away', {action: 'townSet', id: p.id, state: 'off'});
       box.appendChild(row); });
   }
+  // v286: what the story asked for (docs/GROWTH_PLAN.md step 6)
+  function renderGrowth(g){
+    if (!g) return; const box = $('grWait'); box.textContent = ''; $('grOff').textContent = g.off ? 'Turn growth on' : 'Turn growth off'; $('grOff').dataset.off = g.off ? '1' : '';
+    const w = g.waiting || [];
+    if (!w.length) box.textContent = 'Nothing waiting.';
+    w.forEach(x => { const row = document.createElement('div'); row.style.cssText = 'border-top:1px solid #1c4a2a;padding:4px 0';
+      row.innerHTML = '<b></b> <span class="muted"></span><div class="muted" style="font-size:14px"></div>';
+      row.querySelector('b').textContent = x.name; row.querySelector('span').textContent = x.kind === 'place' ? `a ${x.type || x.spec} in ${x.district} · waits for ${String(x.mode || '').toUpperCase()}` : x.role;
+      row.querySelector('div').textContent = [x.desc, x.why && 'why: ' + x.why].filter(Boolean).join(' · ');
+      [['Approve', 'approve'], ['Reject', 'reject']].forEach(([l, v]) => { const b = document.createElement('button'); b.textContent = l; b.style.marginRight = '6px';
+        b.onclick = async () => { try { render(await api({action: 'growDecide', id: x.id, verdict: v})); } catch(e){ alert(e.message); } }; row.appendChild(b); });
+      box.appendChild(row); });
+    $('grLog').textContent = (g.log || []).length ? `Today ${g.people}/${g.max.people} people, ${g.places}/${g.max.places} places. Lately: ` + g.log.slice().reverse().map(e => `${e.name || e.ask} (${e.kind}${e.district ? ', ' + e.district : e.place ? ', ' + e.place : ''}): ${e.state}`).join(' · ') : `Today ${g.people}/${g.max.people} people, ${g.places}/${g.max.places} places.`;
+  }
+  $('grAsk').onclick = async () => { const k = $('grKind').value, what = $('grWhat').value.trim(); if (!what) return;
+    const need = k === 'place' ? {kind: 'place', type: what, near: $('grNear').value.trim() || null, why: 'asked on the director page'} : {kind: 'person', role: what, at: $('grNear').value.trim() || null, why: 'asked on the director page'};
+    try { render(await api({action: 'growAsk', force: true, need})); } catch(e){ alert(e.message); } };
+  $('grOff').onclick = async () => { try { render(await api({action: 'growOff', off: !$('grOff').dataset.off})); } catch(e){ alert(e.message); } };
   $('tnMake').onclick = async () => { try { render(await api({action: 'townMake', place: $('tnPlace').value})); } catch(e){ alert(e.message); } };
   function collapsible(){
     document.querySelectorAll('#main .box').forEach(box => {
@@ -927,7 +951,7 @@
     if (!CX) cxLoad();
     if (!AUD) { AUD = {requests: [], decided: [], banned: [], members: 0, max: 6}; audLoad(); }
     DirBar.set(v.status);
-    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderHosts(v.hosts); renderApprove(v.approve, v.castAuto); renderTown(v.town, v.townPlaces); renderPolls(v.polls); renderSurveys(v.surveys);
+    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderHosts(v.hosts); renderApprove(v.approve, v.castAuto); renderTown(v.town, v.townPlaces); renderGrowth(v.growth); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';
     const wl = $('wish'); wl.textContent = '';
