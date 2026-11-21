@@ -6095,6 +6095,35 @@
   const talkEl = $('talk'), talkShown = new Set();
   let lastScene = '';
   const PLACE_NAME = {apartment:'APARTMENT 4', corridor:'2ND FLOOR HALL', street:'HERZL ST.', shops:'HERZL ST. SHOPS', west1:'HERZL ST. WEST', west2:'HERZL ST. WEST', west3:'HERZL ST. WEST', prom1:'THE PROMENADE', promenade:'THE PROMENADE', prom3:'THE PROMENADE', east1:'HERZL ST. EAST', east2:'HERZL ST. EAST', east3:'HERZL ST. EAST', kiosk:'SHMULIK\'S KIOSK', mall1a:'THE BIG S', mall1b:'THE BIG S', mall1c:'THE BIG S', mall2a:'THE BIG S', mall2b:'THE BIG S', mall2c:'THE BIG S', mall3a:'THE BIG S FOOD COURT', mall3b:'THE BIG S FOOD COURT', cinema:'THE PIXELPLEX', pplobby:'PIXELPLEX LOBBY', market:'SHUK SHALOM', campus:'TEL HERZL UNIVERSITY', classroom:'LECTURE ROOM', store:'EVERYTHING ELSE', bus:'LINE 88', taxi:'TAXI', gym:'HERZL GYM', bar:'THE BLACK CANDLE', park:'GAN HA-IR PARK', plaza:'THE PUMP HOUSE', arena:'PUMP HOUSE HALL', hall1:'1ST FLOOR HALL', apt2:'APARTMENT 2', cafe:'CAFE NAHAT', bathroom:'BATHROOM', offscreen:'OFF CAMERA'};
+  // ---------- Growth step 3 (v282, docs/GROWTH_PLAN.md): grown places from /api/world (D1 world_gen), merged into the map the page already has ----------
+  // MAP, SCENES, LOCATIONS, PLACE_NAME and WALK are changed IN PLACE, so everything that holds them keeps working. poll() loads them whenever
+  // publicState.worldV moves, before it ingests the moments (a moment may already be at a new place). A grown place is drawn by the block kit
+  // from its data spec (growScene(); step 4 adds the parts library). Never over a hand-made scene.
+  let GROWN_V = null, GROWN_IDS = [];
+  const growX = v => v === 'R' ? W + 8 : v, growLink = l => l.ride ? {ride: true} : {exit: growX(l.exit), entry: growX(l.entry)};
+  const setTo = (o, n) => { for (const k of Object.keys(o)) if (!(k in n)) delete o[k]; Object.assign(o, n); };
+  function growScene(id, g){
+    const sp = g.spec || {};
+    return block({id, seed: sp.seed || 1, ground: sp.ground === 'promenade' ? 'promenade' : 'street', amb: sp.ground === 'promenade' ? 'sea' : 'street', bld: sp.bld || [],
+      exitX: nearX => nearX > W/2 ? W + 8 : -18}, g.cam || 'CAM-??', g.name || id.toUpperCase());
+  }
+  function growApply(d){
+    for (const id of GROWN_IDS){ delete MAP[id]; delete SCENES[id]; delete LOCATIONS[id]; delete PLACE_NAME[id]; for (const k in MAP) if (MAP[k]) delete MAP[k][id]; }
+    GROWN_IDS = [];
+    for (const [id, g] of Object.entries(d.places || {})){
+      if (SCENES[id] || !g.place) continue;
+      MAP[id] = Object.fromEntries(Object.entries(g.place.links || {}).map(([to, l]) => [to, growLink(l)]));
+      for (const [at, l] of Object.entries(g.attach || {})) if (MAP[at]) MAP[at][id] = growLink(l);
+      SCENES[id] = growScene(id, g); PLACE_NAME[id] = g.name || id.toUpperCase(); LOCATIONS[id] = (d.actions || {})[id] || ['walking', 'idle'];
+      GROWN_IDS.push(id);
+    }
+    if (d.WALK) setTo(WALK, d.WALK);
+    GROWN_V = d.v || '';
+  }
+  async function growLoad(){
+    try { const d = await (await fetch('/api/world', {cache: 'no-store'})).json(); if (d && d.places) growApply(d); } catch(e){ console.warn('grown places', e); }
+    window.__grown = true;
+  }
   function faceCanvas(who){
     const c = document.createElement('canvas'); c.width = 12; c.height = 12;
     const prev = g; g = c.getContext('2d'); R(0,0,12,12,'#0b120b');
@@ -8138,6 +8167,7 @@
       s = await r.json();
       if (!s || !Array.isArray(s.events)) throw new Error(s && s.error ? s.error : 'bad data');
       fails = 0;
+      if ((s.worldV || '') !== GROWN_V && s.worldV !== undefined) await growLoad();   // v282: the map grew (or shrank): load it before the moments
     } catch(e){
       fails++;
       if (!loaded) startDemo();
@@ -8360,8 +8390,8 @@
   requestAnimationFrame(loop);
   if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }
   else if (params.has('preview')) startPreview();
-  else if (params.has('sandbox')) startSandbox();
-  else if (params.has('builder')) startBuilder();
+  else if (params.has('sandbox')) growLoad().finally(startSandbox);   // v282: grown places first, so the menus list them
+  else if (params.has('builder')) growLoad().finally(startBuilder);
   else if (location.protocol === 'file:' || params.has('demo')) { if (params.has('dev')) enableDev(); startDemo(); }
   else {
     TUNING = true; $('cam').textContent = 'CAM-??'; $('place').textContent = 'ISHAI // ...'; $('hudAction').textContent = '--';

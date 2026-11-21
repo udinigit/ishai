@@ -20,7 +20,7 @@
   #grid{position:relative}
   .tile{position:absolute;width:100px;cursor:pointer;text-align:center;font-size:14px;line-height:1.05;color:var(--dim)}
   .tile canvas{width:96px;height:54px;image-rendering:pixelated;border:2px solid var(--faint);border-radius:4px;display:block;margin:0 auto;background:#0b140b}
-  .tile.story canvas{border-color:var(--dim)} .tile:hover canvas{border-color:var(--amber)} .tile.hit canvas{border-color:var(--amber);box-shadow:0 0 0 2px var(--amber)}
+  .tile.story canvas{border-color:var(--dim)} .tile.grown canvas{border-style:dashed;border-color:var(--amber)} .badge.grown{color:var(--bg);background:var(--amber);border-color:var(--amber)} .dist .ch.grown{border-style:dashed;border-color:var(--amber)} .tile:hover canvas{border-color:var(--amber)} .tile.hit canvas{border-color:var(--amber);box-shadow:0 0 0 2px var(--amber)}
   .tile b{color:var(--phos);font-weight:normal} .tile div{background:#020502;border-radius:3px;margin:1px 4px 0}
   #lines{position:absolute;left:0;top:0;pointer-events:none}
   .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:16px;color:var(--dim)} .legend i{font-style:normal}
@@ -100,7 +100,7 @@
     }
     g.setLineDash([]);
     for (const id of ids){
-      const t = document.createElement('div'); t.className = 'tile' + (P[id].kind === 'story' || P[id].of ? ' story' : ''); t.id = 'tile-' + id;
+      const t = document.createElement('div'); t.className = 'tile' + (P[id].kind === 'story' || P[id].of ? ' story' : '') + (P[id].grown ? ' grown' : ''); t.id = 'tile-' + id;
       t.style.left = ((P[id].map[0] - c0) * CELL_W + (CELL_W - 100) / 2) + 'px'; t.style.top = ((P[id].map[1] - r0) * CELL_H + 2) + 'px';
       const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.dataset.loc = id; t.appendChild(cv);
       const lab = document.createElement('div'); lab.innerHTML = '<b>' + esc(cam(id)) + '</b><br>' + esc(short(id)); t.appendChild(lab);
@@ -117,8 +117,8 @@
       .sort((a, b) => ((P[a].map || [99, 99])[1] - (P[b].map || [99, 99])[1]) || ((P[a].map || [99, 99])[0] - (P[b].map || [99, 99])[0]));
     for (const id of order){
       const p = P[id], el = document.createElement('div'); el.className = 'card'; el.id = 'card-' + id;
-      const kind = p.of ? 'part of ' + p.of : p.kind === 'story' ? 'story place' : 'walked through';
-      el.innerHTML = '<div class="head"><div>' + esc(cam(id)) + ' · ' + esc(name(id)) + ' <span class="muted small">(' + id + ')</span></div><span class="badge' + (p.kind === 'story' || p.of ? ' story' : '') + '">' + esc(kind) + '</span></div>' +
+      const kind = (p.grown ? 'GROWN · ' : '') + (p.of ? 'part of ' + p.of : p.kind === 'story' ? 'story place' : 'walked through');
+      el.innerHTML = '<div class="head"><div>' + esc(cam(id)) + ' · ' + esc(name(id)) + ' <span class="muted small">(' + id + ')</span></div><span class="badge' + (p.grown ? ' grown' : p.kind === 'story' || p.of ? ' story' : '') + '">' + esc(kind) + '</span></div>' +
         '<div class="shot"><canvas width="' + W + '" height="' + H + '" data-loc="' + id + '"></canvas><canvas class="marks" width="' + W*3 + '" height="' + H*3 + '"></canvas></div><ul class="links"></ul>' +
         (p.desc ? '<div class="desc">' + esc(p.desc) + '</div>' : (p.of && P[p.of].desc ? '<div class="desc">' + esc(p.of) + ': ' + esc(P[p.of].desc) + '</div>' : '')) +
         (p.notes ? '<div class="notes">' + p.notes.map(esc).join('<br>') + '</div>' : '');
@@ -175,7 +175,7 @@
       const d = D[id], n = (d.places || []).length;
       el.className = 'dist' + (n ? '' : ' new') + (d.room ? '' : ' full');
       el.innerHTML = '<b>' + esc(d.name) + '</b><div class="fl">' + (n ? n + ' place' + (n > 1 ? 's' : '') : 'nothing yet') + ' · room for ' + d.room + ' more</div>' +
-        '<div>' + (d.places || []).map(p => '<span class="ch" data-p="' + p + '">' + esc(cam(p) ? cam(p) + ' ' : '') + esc(short(p)) + '</span>').join('') + '</div>' +
+        '<div>' + (d.places || []).map(p => '<span class="ch' + (P[p] && P[p].grown ? ' grown' : '') + '" data-p="' + p + '">' + esc(cam(p) ? cam(p) + ' ' : '') + esc(short(p)) + '</span>').join('') + '</div>' +
         '<div class="more">' + esc(d.feel) + '<br><br>Fits: ' + esc((d.fits || []).join(', ')) + '<br>Getting there: ' + esc(d.from) +
         ((d.grow || []).length ? '<br>Grows from: ' + d.grow.map(g => esc(g.at) + ' (' + esc(g.dir) + ')').join(', ') : '') + '</div>';
       el.onclick = e => { const p = e.target.closest('.ch'); if (p){ e.stopPropagation(); show(p.dataset.p); return; } el.classList.toggle('open'); };
@@ -196,7 +196,19 @@
       try { const pic = B.scene({loc: cv.dataset.loc, hour, weather: 'clear', frame: 0, crowd: false}); if (pic) cv.getContext('2d').drawImage(pic, 0, 0); } catch(e){}
     });
   }
-  const start = () => {
+  // v282: the places grown since the build (D1 world_gen, /api/world), merged in like the worker merges them; drawn with dashed amber frames
+  let GROWN = {};
+  async function grown(){
+    try { const d = await (await fetch('/api/world', {cache: 'no-store'})).json(); GROWN = d.places || {}; } catch(e){ GROWN = {}; }
+    for (const [id, g] of Object.entries(GROWN)){
+      if (P[id] || !g.place) continue;
+      P[id] = {...g.place, grown: true};
+      for (const [at, l] of Object.entries(g.attach || {})) if (P[at]) P[at].links = {...(P[at].links || {}), [id]: l};
+      const dd = g.district && (CITY.districts || {})[g.district]; if (dd && g.place.kind === 'story' && !(dd.places || []).includes(id)) dd.places = [...(dd.places || []), id];
+    }
+  }
+  const start = async () => {
+    await grown();
     let B = null; const f = $('art');
     const wait = () => { try { if (f.contentWindow.__builder){ B = f.contentWindow.__builder; } } catch(e){}
       if (!B) return setTimeout(wait, 300);

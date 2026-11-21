@@ -326,7 +326,8 @@ export default {
         goals: (s.director || []).map(g => ({ id: g.id, status: g.status, how: g.how, startAfter: g.startAfter, deadlineAt: deadlineOf(g), goal: g.goal })) });
     }
     // compact health summary for the scheduled health check (no secrets, no narration of the future)
-    if (url.pathname === "/api/health") {
+    if (url.pathname === "/api/world") { const s = await loadState(env); await worldLoad(env, s); return json(growPublic(), { "cache-control": "public, max-age=20" }); }
+      if (url.pathname === "/api/health") {
       const s = await loadState(env), now = Date.now(), d = (s.diag || []).filter(x => now - (x.at || 0) < 3 * 3600000);   // recent AI calls only
       try { await castLoad(env, s, false); } catch (e) {}   // the cast store, read in this isolate too (cached a minute)
       const moments = d.filter(x => x.attempt === 0).length, retried = d.filter(x => x.attempt === 0 && x.problem).length;
@@ -344,7 +345,7 @@ export default {
         sleep: (() => { try { return sleepHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
         pacing: (() => { try { return pacingHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
-        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", approve: approveOf(s), castAuto: s.castAuto || null, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (14-22 lines, two halves)",
+        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(), talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (14-22 lines, two halves)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), auditions: { cardErr: s.audCardErr || null, cardTries: s.audCardTry || {}, readErr: s.audReadErr || null, readTries: s.audReadTry || {}, lifeErr: s.memberErr || null }, life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), when busy " + (env.GEMINI_BACKUP ? "gemini (" + env.GEMINI_BACKUP + ")" : "the other Gemini Flash models") + ", then Cloudflare", hosts: hostsByGemini(s) ? "gemini, backup Cloudflare" : "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
@@ -603,7 +604,7 @@ function publicState(s, dev) {
   const last = s.events[s.events.length - 1];
   return {
     day: showDay(s.startedAt, Date.now()),
-    build: BUILD, delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, cronMin: CRON_MIN, notes: dev ? s.notes : "",
+    build: BUILD, worldV: s.worldV || "", delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, cronMin: CRON_MIN, notes: dev ? s.notes : "",
     events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, len: e.len || undefined, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined, art: e.art || undefined, feel: e.feel || undefined, then: e.then ? { action: e.then.action, text: dev ? e.then.text : "" } : undefined })),
     moods: Object.fromEntries(Object.entries(s.castMoods || {}).filter(([, m]) => m.until > Date.now()).map(([id, m]) => [id, { mood: m.mood, tell: m.tell, body: m.body }])),
     talk: (s.talk || []).slice(-80), dev: !!dev,
@@ -869,6 +870,7 @@ async function tick(env, force) {
   if (!force && pacingWait(s, Date.now())) { const why = sideDue(s, env, Date.now()); if (why) await sideTick(env, s, Date.now(), why); return s; }   // v279: the moment isn't over yet
   await hostsLangLoad(env, s);   // v275: the director's language switch, from its own key
   await approveLoad(env, s);     // v280: who approves what grows
+  await worldLoad(env, s);       // v282: the grown places (D1 world_gen) merged into the map
   const now = Date.now();
   const storyMs = now + DELAY_MIN * 60000;
   const clock = storyClock(storyMs);
@@ -1245,7 +1247,9 @@ function buildMessages(s, clock, now, goal, opt = {}) {
   const dogLine = s.unlocked.includes("dog")
     ? "\n- Falafel, Ishai's scruffy sandy dog (adopted from Avi's kiosk), goes everywhere with him: he walks him, feeds him, Falafel begs at the counter, naps in his own bed, steals socks. Mention Falafel now and then; the hosts adore him."
     : s.unlocked.includes("stray") ? "\n- A scruffy sandy stray dog hangs around Avi's kiosk on Herzl Street; Avi secretly feeds it falafel balls. Ishai keeps noticing it." : "";
-  const world = Object.entries(PLACES).map(([k, v]) => `- ${k}: ${v}. Allowed actions: ${allowed(k, s.unlocked).join(", ")}`).join("\n");
+  // v282: the full description only for where he is, the places next to it and the goal's place; the rest in one short clause (the map grows)
+  const nearP = new Set([last.location, ...(NEXT[last.location] || []), goal && goal.where].filter(Boolean));
+  const world = Object.entries(PLACES).map(([k, v]) => `- ${k}: ${nearP.has(k) ? v : placeShort(v)}. Allowed actions: ${allowed(k, s.unlocked).join(", ")}`).join("\n");
   const gapMin = Math.round((now - (last.created || last.t)) / 60000);
   const gap = gapMin > 45 ? `\nNote: about ${gapMin >= 120 ? Math.round(gapMin / 60) + " hours" : gapMin + " minutes"} passed since the last moment; account for that.` : "";
   const direction = goal && goal.script && !(goal.step > 0)
@@ -5279,7 +5283,7 @@ function applyPlan(s, now) {
 }
 async function directorApi(req, env) {
   const s = await loadState(env);
-  await hostsLangLoad(env, s); await approveLoad(env, s);
+  await hostsLangLoad(env, s); await approveLoad(env, s); await worldLoad(env, s);
   const now = Date.now();
   if (req.method === "POST") {
     let b = {}; try { b = await req.json(); } catch {}
@@ -5320,6 +5324,9 @@ async function directorApi(req, env) {
       s.hostsWriter = b.writer === "cloudflare" ? "cloudflare" : "gemini";
     } else if (b.action === "hostsLang") {   // the hosts' language (v274): "en" or "he" (AI-written host lines only)
       s.hostsLang = b.lang === "he" ? "he" : "en"; await env.ISHAI.put(HOSTS_LANG_KEY, s.hostsLang);
+    } else if (b.action === "worldGenPut" || b.action === "worldGenOff") {   // v282: a grown place by hand (tests; the growth engine uses growPut() too)
+      const r = b.action === "worldGenPut" ? await growPut(env, s, b.rec, "director", now) : await growOff(env, s, String(b.id || ""), now);
+      if (r.error) return json(r, {}, 400);
     } else if (b.action === "approveSet") {   // v280: who approves what grows (auto / claude / director per kind)
       if (!APPROVE_KINDS.includes(b.kind) || !APPROVE_MODES.includes(b.mode)) return json({ error: "kind: " + APPROVE_KINDS.join("/") + ", mode: " + APPROVE_MODES.join("/") }, {}, 400);
       s.approve = { ...approveOf(s), [b.kind]: b.mode }; await env.ISHAI.put(APPROVE_KEY, JSON.stringify(s.approve));
@@ -5371,7 +5378,7 @@ function directorView(s, bugs) {
   return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), kitchen: kitchenHealth(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { name: s.cast[s.scene.w]?.name || s.scene.w, type: s.scene.type || null, loc: s.scene.loc || null, lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse().map(dirGoal), lastError: s.lastError || null,
-    approve: approveOf(s), castAuto: s.castAuto || null,
+    approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(),
     hosts: { style: hostsSports(s) ? "sports" : "classic", writer: hostsByGemini(s) ? "gemini" : "cloudflare", lang: hostsHe(s) ? "he" : "en", by: s.hostsBy || null },
     polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t },
@@ -7138,4 +7145,123 @@ async function memberLifeTick(env, s, now) {
       const d = audJ(a.director, {}); if (a.cast_id && s.cast[a.cast_id] && s.cast[a.cast_id].aud === a.n) delete s.cast[a.cast_id];
       if (d.left && now - d.left > AUD_KEEP_ANSWERS_D * 86400000 && !d.answersGone) { await env.DB.prepare("DELETE FROM aud_answer WHERE aud = ?").bind(a.n).run(); d.answersGone = now; await audSet(env, a.n, null, d); }
     } }
+}
+
+
+// ==================== Growth step 3 (v282, docs/GROWTH_PLAN.md): the runtime map ====================
+// story/world.json (built in as WORLD_BASE) + the grown places in D1 world_gen (id, rec JSON, state live|off, by, made, changed).
+// worldLoad() asks D1 for the version (live count + last change) every tick; when it moved, it reads the live records, merges them into a copy
+// of the map, runs the same computeWorld() as the build (source/worldcore.mjs) and rewrites NEXT, PLACES, LOCATIONS, WALK, FOOT and PR IN PLACE
+// (every reference stays good). A record that breaks the map is left out (GROWN.errs); the hand-made map always stands.
+// A record: {id: "g...", name, cam, district?, place: {kind: pass|story, links, map, desc?, actions?, notes?}, attach: {at: {exit, entry}}, spec, rules?}
+//   attach = the doors from existing places into it (the way back lives in place.links); spec = how the page draws it (growScene() in the page).
+const WORLD_BASE = __WORLD_JSON__;
+const computeWorld = /*__WORLD_CORE__*/null;
+const GROW_ID = /^g[a-z0-9]{2,23}$/, GROW_MAX_BYTES = 6000;
+let GROWN = { v: "", applied: false, ids: [], recs: [], errs: [], w: null, at: 0 };
+let WORLD_TABLES = false;
+async function worldTables(env) {
+  if (WORLD_TABLES) return;
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS world_gen (id TEXT PRIMARY KEY, rec TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'live', by TEXT, made INTEGER, changed INTEGER)").run();
+  WORLD_TABLES = true;
+}
+const placeShort = v => { const t = String(v || ""), i = t.search(/[.;:(]/); return (i > 12 && i < 90 ? t.slice(0, i) : t.slice(0, 80)).trim(); };
+const setTo = (o, n) => { for (const k of Object.keys(o)) if (!(k in n)) delete o[k]; Object.assign(o, n); };
+const BASE_PR = JSON.parse(JSON.stringify(PR));
+function growMerge(recs) {
+  const P = JSON.parse(JSON.stringify(WORLD_BASE.places)), rules = JSON.parse(JSON.stringify(BASE_PR));
+  for (const r of recs) { if (P[r.id]) throw new Error(r.id + ": already on the map"); P[r.id] = JSON.parse(JSON.stringify(r.place)); if (r.rules) rules[r.id] = r.rules; }
+  for (const r of recs) for (const [at, l] of Object.entries(r.attach || {})) {
+    if (!P[at]) throw new Error(r.id + ": attach at " + at + ": no such place");
+    if (P[at].screens) throw new Error(r.id + ": attach at " + at + ": it is made of screens (attach to one of them)");
+    if ((P[at].links || {})[r.id]) throw new Error(r.id + ": " + at + " already has a door to it");
+    P[at].links = { ...(P[at].links || {}), [r.id]: l };
+  }
+  return { P, rules, w: computeWorld({ places: P }, rules) };
+}
+function growApply(m) { const w = m.w; setTo(NEXT, w.NEXT); setTo(PLACES, w.PLACES); setTo(LOCATIONS, w.LOCATIONS); setTo(WALK, w.WALK); setTo(FOOT, w.FOOT); setTo(PR, m.rules); }
+async function worldLoad(env, s, force) {
+  if (!env.DB) return;
+  try {
+    await worldTables(env);
+    const q = await env.DB.prepare("SELECT SUM(state = 'live') n, MAX(changed) c FROM world_gen").first();
+    const v = (q && q.n || 0) + ":" + (q && q.c || 0);
+    if (v === GROWN.v && !force) { if (s) s.worldV = v; return; }
+    const rows = (q && q.n) ? ((await env.DB.prepare("SELECT id, rec FROM world_gen WHERE state = 'live' ORDER BY made, id").all()).results || []) : [];
+    const recs = [], errs = [];
+    for (const r of rows) { try { recs.push({ ...JSON.parse(r.rec), id: r.id }); } catch (e) { errs.push(r.id + ": bad JSON"); } }
+    if (!recs.length && !GROWN.applied) { GROWN = { ...GROWN, v, ids: [], recs: [], errs, at: Date.now() }; if (s) s.worldV = v; return; }   // nothing grown: the built tables stand
+    let ok = recs, m = null;
+    try { m = growMerge(recs); } catch (e) {   // find the ones that break it, one by one
+      ok = [];
+      for (const r of recs) { try { growMerge([...ok, r]); ok.push(r); } catch (e2) { errs.push(String(e2.message || e2).replace(/^story\/world\.json:\s*/, "").slice(0, 300)); } }
+      m = growMerge(ok);
+    }
+    growApply(m);
+    GROWN = { v, applied: true, ids: ok.map(r => r.id), recs: ok, errs, w: m.w, at: Date.now() };
+    if (s) s.worldV = v;
+  } catch (e) { GROWN.errs = [...(GROWN.errs || []).slice(-4), "load: " + String(e && e.message || e).slice(0, 200)]; }
+}
+// checks a record's shape (the map itself is checked by computeWorld when it is merged)
+function growClean(r) {
+  if (!r || typeof r !== "object") throw new Error("no record");
+  if (JSON.stringify(r).length > GROW_MAX_BYTES) throw new Error("record too big");
+  const id = String(r.id || "");
+  if (!GROW_ID.test(id)) throw new Error("id: g + 2-23 lower-case letters or digits");
+  if (WORLD_BASE.places[id]) throw new Error(id + ": a hand-made place has that id");
+  const xOk = v => v === "R" || (Number.isInteger(v) && v >= -20 && v <= 212);
+  const link = (l, w) => { if (!l || typeof l !== "object") throw new Error(w + ": not a link"); if (l.ride) return { ride: true };
+    if (!xOk(l.exit) || !xOk(l.entry)) throw new Error(w + ": exit and entry must be -20..212 or \"R\""); return { exit: l.exit, entry: l.entry }; };
+  const p = r.place || {}, kind = p.kind;
+  if (kind !== "pass" && kind !== "story") throw new Error("place.kind: pass or story");
+  if (!Array.isArray(p.map) || p.map.length !== 2 || !p.map.every(Number.isInteger)) throw new Error("place.map: [column, row]");
+  const links = {}; for (const [to, l] of Object.entries(p.links || {})) links[to] = link(l, "place.links." + to);
+  if (!Object.keys(links).length) throw new Error("place.links: at least one way out");
+  const attach = {}; for (const [at, l] of Object.entries(r.attach || {})) attach[at] = link(l, "attach." + at);
+  if (!Object.keys(attach).length) throw new Error("attach: at least one door in from the map");
+  const place = { kind, links, map: p.map };
+  if (kind === "story") {
+    const known = new Set(Object.values(WORLD_BASE.places).flatMap(x => x.actions || []));
+    const acts = (Array.isArray(p.actions) ? p.actions : []).map(String).filter(a => known.has(a) && a !== "away");
+    if (!acts.length) throw new Error("place.actions: known actions only (" + [...known].slice(0, 12).join(", ") + "...)");
+    const desc = String(p.desc || "").replace(/\s+/g, " ").trim().slice(0, 400);
+    if (desc.length < 20) throw new Error("place.desc: a sentence or two");
+    Object.assign(place, { desc, actions: [...new Set(acts)] });
+  }
+  if (Array.isArray(p.notes)) place.notes = p.notes.slice(0, 4).map(n => String(n).slice(0, 200));
+  const sp = r.spec || {}, col = c => /^#[0-9a-f]{6}$/i.test(String(c)) ? String(c) : "#8a8a8a";
+  const spec = { ground: sp.ground === "promenade" ? "promenade" : "street", seed: Math.max(0, Math.min(999, Math.round(+sp.seed || 0))),
+    bld: (Array.isArray(sp.bld) ? sp.bld : []).slice(0, 6).map(b => [Math.max(0, Math.min(191, b[0] | 0)), Math.max(4, Math.min(60, b[1] | 0)), Math.max(4, Math.min(192, b[2] | 0)), col(b[3])]) };
+  const out = { id, name: String(r.name || id).toUpperCase().slice(0, 40), cam: /^CAM-\d{2,3}$/.test(r.cam || "") ? r.cam : "CAM-" + (40 + (strHashW(id) % 60)), place, attach, spec };
+  if (r.district && /^[a-z][a-z0-9]{0,19}$/.test(r.district)) out.district = r.district;
+  if (kind === "story" && r.rules && typeof r.rules === "object") out.rules = JSON.parse(JSON.stringify(r.rules));
+  return out;
+}
+function strHashW(x) { let h = 0; for (const c of String(x)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
+// put / take back one grown place; refused when it would break the map
+async function growPut(env, s, rec, by, now) {
+  if (!env.DB) return { error: "no database" };
+  let r; try { r = growClean(rec); } catch (e) { return { error: String(e.message || e) }; }
+  await worldLoad(env, s);
+  try { growMerge([...GROWN.recs.filter(x => x.id !== r.id), r]); } catch (e) { return { error: String(e.message || e).replace(/^story\/world\.json:\s*/, "").slice(0, 600) }; }
+  await env.DB.prepare("INSERT INTO world_gen (id, rec, state, by, made, changed) VALUES (?1, ?2, 'live', ?3, ?4, ?4) ON CONFLICT(id) DO UPDATE SET rec = ?2, state = 'live', by = ?3, changed = ?4")
+    .bind(r.id, JSON.stringify(r), String(by || "").slice(0, 20), now).run();
+  await worldLoad(env, s, true);
+  return { ok: true, id: r.id, grown: growHealth() };
+}
+async function growOff(env, s, id, now) {
+  if (!env.DB) return { error: "no database" };
+  await worldTables(env);
+  const others = GROWN.recs.filter(x => x.id !== id && Object.keys(x.place.links || {}).concat(Object.keys(x.attach || {})).includes(id));
+  if (others.length) return { error: id + " is the way to " + others.map(x => x.id).join(", ") + ": take those away first" };
+  await env.DB.prepare("UPDATE world_gen SET state = 'off', changed = ?2 WHERE id = ?1").bind(id, now).run();
+  await worldLoad(env, s, true);
+  return { ok: true, grown: growHealth() };
+}
+function growHealth() { return { v: GROWN.v, places: GROWN.ids, errs: GROWN.errs.slice(-5), at: GROWN.at || null }; }
+// what the page and /map need: the grown records, the doors into them, and the tables the page keeps (WALK, actions, screens)
+function growPublic() {
+  const w = GROWN.w;
+  return { v: GROWN.v, places: Object.fromEntries(GROWN.recs.map(r => [r.id, { name: r.name, cam: r.cam, district: r.district || null, place: r.place, attach: r.attach, spec: r.spec }])),
+    WALK: w ? w.WALK : null, actions: w ? Object.fromEntries(GROWN.ids.map(id => [id, w.pageActions[id]])) : {}, screens: w ? w.SCREENS : null };
 }
