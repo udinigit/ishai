@@ -400,7 +400,11 @@ Back to the cameras.</textarea>
     $('evPollRes').onclick = () => api.poll({result: true});
     setInterval(() => { const s = api.state(); $('status').textContent = `${s.loc} · ${s.action}${s.moving ? ' · on the way' : ''} · voice: ${s.voice}`; }, 500);
   }
-  $('stage').addEventListener('load', () => { if (!$('stage').contentWindow.__sandbox) { $('status').textContent = 'The picture did not load.'; return; } ready(); });
+  // the picture starts its sandbox only after the grown places and the townspeople have loaded (async), which can be after the frame's load event: wait for it
+  $('stage').addEventListener('load', () => { const t0 = Date.now(); $('status').textContent = 'Loading the picture…';
+    const wait = () => { let sb = null; try { sb = $('stage').contentWindow.__sandbox; } catch (e) {}
+      if (sb) return ready(); if (Date.now() - t0 > 30000) { $('status').textContent = 'The picture did not load.'; return; } setTimeout(wait, 150); };
+    wait(); });
 })();
 </script>
 </body>

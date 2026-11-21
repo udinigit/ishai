@@ -8869,7 +8869,7 @@
   requestAnimationFrame(loop);
   if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }
   else if (params.has('preview')) startPreview();
-  else if (params.has('sandbox')) Promise.all([growLoad(), townFetch()]).finally(startSandbox);   // v282: grown places first, so the menus list them
+  else if (params.has('sandbox')) Promise.race([Promise.all([growLoad(), townFetch()]), new Promise(r => setTimeout(r, 6000))]).finally(startSandbox);   // never wait more than 6 s for them   // v282: grown places first, so the menus list them
   else if (params.has('builder')) growLoad().finally(startBuilder);
   else if (location.protocol === 'file:' || params.has('demo')) { if (params.has('dev')) enableDev(); startDemo(); }
   else {
