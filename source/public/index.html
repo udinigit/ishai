@@ -747,6 +747,9 @@
   }
   function sitLegs(x,y){ if (C.bottom === 'shorts' || C.bottom === 'skirt'){ R(x+2,y+16,6,2,C.pants); R(x+2,y+18,2,4,C.skin); R(x+6,y+18,2,4,C.skin); if (C.bottom === 'skirt') R(x+1,y+17,8,2,C.pants); R(x+1,y+22,3,1,C.shoe); R(x+6,y+22,3,1,C.shoe); return; }
     R(x+2,y+16,6,2,C.pants); R(x+2,y+18,2,4,C.pants); R(x+6,y+18,2,4,C.pants); R(x+1,y+22,3,1,C.shoe); R(x+6,y+22,3,1,C.shoe); }
+  // a chair for someone sitting with their head at (x, y): the back behind the torso, the seat under the hips, the legs down to the floor (y + 22).
+  // Draw it before the sitter (put(line, 'back', ...)); with nobody on it, it's an empty chair. (Tables in front go on 'front'.)
+  function chairAt(x, y, c, leg){ const d = leg || shade(c, .62); R(x-1,y+7,12,9,c); R(x,y+7,10,1,tint(c, .2)); R(x-1,y+15,12,2,shade(c, .85)); R(x-1,y+17,1,5,d); R(x+10,y+17,1,5,d); R(x+1,y+17,1,5,d); R(x+8,y+17,1,5,d); }
   const blinkOn = (t, seed=0) => ((t+seed) % 3600) < 160;
   // now and then, at the desk or in the armchair: a stretch in the chair, a sip, rubbing his eyes (same clock for every viewer)
   function seatFid(t, seed){
@@ -788,7 +791,8 @@
   }
   function drawIshaiRaw(pose, x, y, t, o={}){
     const f2 = Math.floor(t/450)%2;
-    const lower = () => { if (o.legs==='stand') legs(x,y,0); else if (o.legs==='sit') sitLegs(x,y); };
+    const sitting = o.legs==='sit' || (o.seated && o.legs!==false && o.legs!=='stand');   // in a seat: thighs on it, shins down, feet on the floor
+    const lower = () => { if (o.legs==='stand') legs(x,y,0); else if (sitting) sitLegs(x,y); };
     switch(pose){
       case 'walk': {
         const fw = Math.floor(t/220)%4, bob = (fw%2)?-1:0, lm = fw===1?1:fw===3?2:0;
@@ -805,7 +809,7 @@
         head(x+lean,y,{closed:true}); torso(x,y); armsUp(x+lean,y); legs(x,y,0); break; }
       case 'back': {
         R(x+2,y,6,2,C.hair); R(x+1,y+1,8,7,C.hair); R(x+1,y+5,1,2,C.skin); R(x+8,y+5,1,2,C.skin);
-        torso(x,y); if (o.armPose) armsCrowd(x,y,o.armPose,o.armK||0); else armsDown(x,y); legs(x,y,0);
+        torso(x,y); if (o.armPose) armsCrowd(x,y,o.armPose,o.armK||0); else armsDown(x,y); if (sitting) sitLegs(x,y); else legs(x,y,0);
         if (o.water){ R(x-1,y+10,3,2,'#c9ced4'); if (Math.floor(t/300)%2) R(x-2,y+12,1,1,'#9fd3f0'); }
         if (o.mug){ R(x+8,y+10,3,3,'#e8e4d8'); R(x+11,y+11,1,1,'#e8e4d8'); if (Math.floor(t/700)%2) R(x+9,y+8,1,1,'#f2f2f2'); else R(x+10,y+7,1,1,'#f2f2f2'); }
         break; }
@@ -815,7 +819,7 @@
         const hm = headMove(k, t); if (bl && bl.sway) x += bl.sway;
         head(x + (hm.dx||0), y + (hm.dy||0),{closed: hm.closed || blinkOn(t), down: hm.down, talk: hm.open, yawn: hm.yawn, frown: bl && bl.frown, look: bl && bl.look != null && k !== 'turn' ? bl.look : lookFid(t, k, (Math.floor(t/4000)%3)-1)}); if (k==='turn') backHair(x,y,C.hair);
         if (bl && bl.mark) emote(x, y, bl.mark, t);
-        torso(x,y); armsFid(x,y,t,k); legs(x,y,legsFid(t,k)); break; }
+        torso(x,y); armsFid(x,y,t,k); if (sitting) sitLegs(x,y); else legs(x,y,legsFid(t,k)); break; }
       case 'talking': {
         const mine = SPEAKING==='ishai', bl = body('ishai', x);
         const k = bl && bl.kind ? bl.kind : fid(11, t, true, !!o.seated), hm = headMove(k, t); if (bl && bl.sway) x += bl.sway;
@@ -824,7 +828,7 @@
         if (bl && bl.kind) armsFid(x,y,t,k);
         else if (mine && f2){ R(x+1,y+9,1,4,C.shirt); R(x+1,y+13,1,2,C.skin); R(x+8,y+9,1,2,C.shirt); R(x+9,y+10,1,2,C.skin); }
         else armsFid(x,y,t, mine ? 'gesture' : (k==='gesture' ? 'cross' : k));
-        legs(x,y,legsFid(t,k));
+        if (sitting) sitLegs(x,y); else legs(x,y,legsFid(t,k));
         if (mine) bubble(x+8,y-7,t);
         break; }
       case 'exercising': {
@@ -2780,10 +2784,9 @@
       const atTable = settled && ['eating','drinking','reading'].includes(a) && !withIsPost();
       const cl = atTable && companionLook(a), seated = cl && wantComp({id: actor.with || 'stranger', look: cl, x: 168, kind:'seat'});
       // depth lines (v285): walkers 94 and 96, the plastic table's seats 95, its top 95.5 (so the 96 walkers pass in front of it)
-      put(95, 'back', () => { R(140,72,6,10,'#f4f4f4'); R(140,82,1,10,'#dcdcdc'); R(145,82,1,10,'#dcdcdc');   // the chairs' backs
-        R(176,74,6,10,'#f4f4f4'); R(176,84,1,10,'#dcdcdc'); R(181,84,1,10,'#dcdcdc'); }, 'chair backs');
+      put(95, 'back', () => { chairAt(142, 70, '#f4f4f4', '#c8c8c8'); chairAt(168, 70, '#f4f4f4', '#c8c8c8'); }, 'plastic chairs');
       if (atTable) putPerson(95, () => drawIshai(a, 142, 70, t, {food: a === 'drinking' ? '#d9a03a' : '#e0c060', seated:true}), 'seated:ishai');
-      if (seated) putPerson(95, () => { markHead(actor.with, 168, 70); person(cl, 168, 70, t, {legs:false, face:-1, talkPhase:true}); }, 'seated:friend');
+      if (seated) putPerson(95, () => { markHead(actor.with, 168, 70); person(cl, 168, 70, t, {legs:'sit', face:-1, talkPhase:true}); }, 'seated:friend');
       put(95.3, 'front', () => { R(150,86,22,2,'#f4f4f4'); R(160,88,2,12,'#dcdcdc'); R(152,82,3,4,'#f2f2f2'); if (a === 'drinking') cooolaCan(165,81); }, 'plastic table');
       crowdWalk(t, 5, 26000, 9000, 72, 1, .9); crowdWalk(t, 2, 34000, 21000, 74, -1, .9);
       if (!atTable) drawFloor(t,a,settled,actor,this);
@@ -2885,12 +2888,14 @@
   function foodTables(t, a, settled, actor, scene, seats){
     // depth lines (v285): the tables' chairs and sitters 85, their tops 86, the walkers in front from 88 (walkY 66)
     seats.forEach(([x, people], k) => {
-      put(85, 'back', () => { R(x-6,74,5,9,'#e0605a'); R(x+25,74,5,9,'#e0605a'); }, 'chairs');
-      people.forEach(([dx, idx]) => putPerson(85, () => person(CROWD[idx % CROWD.length], x + dx, 66, t + idx * 977, {legs:false, face: dx < 12 ? 1 : -1, muted:true}), 'customer'));
+      put(85, 'back', () => { chairAt(x + 2, 66, '#e0605a'); chairAt(x + 20, 66, '#e0605a'); }, 'chairs');   // two chairs behind each table, taken or not
+      people.forEach(([dx, idx]) => putPerson(85, () => person(CROWD[idx % CROWD.length], x + dx, 66, t + idx * 977, {legs:'sit', face: dx < 12 ? 1 : -1, muted:true}), 'customer'));
       put(86, 'front', () => { R(x,78,24,2,'#f4f4f4'); R(x+11,80,2,10,'#c8c8c8'); if (k === 0 && people.length === 0) { R(x+4,74,6,4,'#e0b04a'); R(x+14,74,4,4,'#d9a03a'); } }, 'table');
     });
   }
+  // the walkers: two lanes along the counters, well behind the tables (feet 76 and 78, so nobody seems to stand in a chair), and one in front of them (feet 90)
   const foodScene = (id, cam, seed, fronts, seats, o = {}) => mallScene(id, cam, 'THE BIG S // FOOD COURT', 3, seed, fronts, Object.assign({}, o, {glass:10,
+    crowd: [[seed, 26000, 54, 1], [seed+3, 33000, 56, -1], [seed+5, 41000, 68, 1]],
     stand:{idle:96, walking:96, talking:72, phoning:96, eating:72, drinking:72, reading:72},
     sits: (a, settled, actor) => settled && FOOD_ACTS.includes(a) && !actor.err,   // at the table: the scene draws him (block() skips drawFloor)
     props(t, night){
@@ -2898,9 +2903,9 @@
       foodTables(t, null, null, null, null, seats);
       const a = actor.action, atTable = this.sits(a, !actor.travelling && !actor.hidden && !actor.pending, actor);
       const cl = atTable && companionLook(a), seated = cl && wantComp({id: actor.with || 'stranger', look: cl, x: 92, kind:'seat'});
-      put(85, 'back', () => { R(60,70,6,13,'#e0605a'); R(100,70,6,13,'#e0605a'); }, 'his chairs');
+      put(85, 'back', () => { chairAt(70, 64, '#e0605a'); chairAt(92, 64, '#e0605a'); }, 'his chairs');
       if (atTable) putPerson(85, () => drawIshai(a === 'talking' ? 'talking' : a, 70, 64, t, {food: a === 'drinking' ? '#d9a03a' : '#e0c060', seated:true, face: seated ? 1 : 0}), 'seated:ishai');
-      if (seated) putPerson(85, () => { markHead(actor.with, 92, 64); person(cl, 92, 64, t, {legs:false, face:-1, talkPhase:true}); }, 'seated:friend');
+      if (seated) putPerson(85, () => { markHead(actor.with, 92, 64); person(cl, 92, 64, t, {legs:'sit', face:-1, talkPhase:true}); }, 'seated:friend');
       put(86, 'front', () => { R(66,78,34,2,'#f4f4f4'); R(82,80,2,10,'#c8c8c8'); if (atTable) { R(74,75,7,3,'#e0c060'); R(73,77,9,1,'#f4f4f4'); } }, 'his table');
     }}));
   SCENES.mall3a = foodScene('mall3a', 'CAM-36', 27, t => {
@@ -3251,7 +3256,8 @@
           const sx = CIN_SEAT_X0 + k * CIN_SEAT_W;
           const taken = r === 3 && (k === ishaiSeat || (cl && k === ishaiSeat + 1));
           if (!taken && (show ? show.full : .3) > hash(r * 31 + k * 7 + 3)) { const L = CROWD[(r * 5 + k * 3) % CROWD.length];
-            person(L, sx + 1, ry - 13, t + (r * 7 + k) * 391, {muted: true, fid: show && show.react && hash(r*13+k) < .5 ? 'shrug' : 'turn', legs: false}); }
+            const jolt = show && show.react && hash(r*13+k) < .5 && Math.floor((t + k * 90) / 180) % 2 ? 1 : 0;   // a laugh or a gasp: a little jolt in the seat, still facing the screen
+            person(L, sx + 1, ry - 13 - jolt, t + (r * 7 + k) * 391, {muted: true, fid: 'turn', legs: false}); }
           if (r === 3 && k === ishaiSeat && seated && !actor.travelling){ const talk = a === 'talking' && !watching;   // eating popcorn or whispering during the show: still facing the screen
             drawIshai(talk ? 'talking' : 'back', sx + 1, ry - 14, t, {seated:true}); markHead('ishai', sx + 6, ry - 14);
             if (hasSnacks()){ popcornBucket(sx + 8, ry - 4); cooolaCup(sx - 1, ry - 3); } }   // back from the snack bar: the bucket on his lap, the cup in the armrest
@@ -4098,7 +4104,8 @@
       cooolaCan(143,61); cooolaCan(147,61); cooolaCan(160,61);
       zOn();
       // other customers
-      crowdStill(t, 3, 24, 66, {legs:false, face:1}); if (!regular('lior', 40, 66, t, {legs:false, face:-1}) && Math.floor(t/150000) % 3) crowdVisit(t, 150000, 5, 40, 66, 4, 74, {legs:false, face:-1});
+      put(88, 'back', () => { chairAt(24, 66, '#9a6a40'); chairAt(40, 66, '#9a6a40'); }, 'left chairs');
+      crowdStill(t, 3, 24, 66, {legs:'sit', face:1}); if (!regular('lior', 40, 66, t, {legs:'sit', face:-1}) && Math.floor(t/150000) % 3) crowdVisit(t, 150000, 5, 40, 66, 4, 74, {legs:'sit', face:-1});
       // depth lines (v285): the left table's customers 88, its top 95, the aisle 96 (walkY 74), the corner table's seats 97, its top 102
       put(95, 'front', () => { R(20,80,34,2,'#9a7048'); R(35,82,4,16,'#5e4027'); R(30,79,3,3,'#e8e4d8'); R(44,79,3,3,'#e8e4d8'); }, 'left table');
       if (Math.floor(t/70000) % 2) crowdVisit(t, 70000, 6, 100, 74, 4, 74);
@@ -4113,10 +4120,10 @@
       const waits = !atTable && a === 'bathroom' && actor.guestWaits && lookOf(actor.guestWaits) ? actor.guestWaits : null;   // he is in the toilet: the friend keeps the table
       const cl = (atTable && companionLook(a)) || (waits && lookOf(waits)), seated = cl && wantComp({id: waits || actor.with || 'stranger', look: cl, x: 90, kind:'seat'});
       const SEATS = 97, TABLE = 102;
-      put(SEATS, 'back', () => { R(66,60,22,14,'#3a3a46'); if (mates.some(([id, s]) => id === 'tomer' && s.seated)) R(48,60,14,14,'#3a3a46'); }, 'chair backs');
+      put(SEATS, 'back', () => { chairAt(72, 68, '#9a6a40'); chairAt(90, 68, '#9a6a40'); if (mates.some(([id, s]) => id === 'tomer' && s.seated)) chairAt(TRIV_SEATX.tomer, 68, '#9a6a40'); }, 'chairs');
       mates.filter(([, s]) => s.seated).forEach(([id, s, L]) => putPerson(SEATS, () => { const X = s.x;
-        markHead(id, X, 68); person(L, X, 68, t + strHash(id) % 900, {legs: false, face: TRIV_FACE[id], talkPhase: SAY.who === id}); }, 'seated:' + id));
-      if (seated) putPerson(SEATS, () => { markHead(waits || actor.with, 90, 68); person(cl,90,68,t,{legs:false,face:-1,talkPhase:!waits}); }, 'seated:friend');
+        markHead(id, X, 68); person(L, X, 68, t + strHash(id) % 900, {legs: 'sit', face: TRIV_FACE[id], talkPhase: SAY.who === id}); }, 'seated:' + id));
+      if (seated) putPerson(SEATS, () => { markHead(waits || actor.with, 90, 68); person(cl,90,68,t,{legs:'sit',face:-1,talkPhase:!waits}); }, 'seated:friend');
       if (atTable) putPerson(SEATS, () => {
         if (a==='trivia') drawIshai(SAY.who === 'ishai' ? 'talking' : 'idle',72,68,t,{seated:true});
         else if (a==='talking') drawIshai('talking',72,68,t,{face:1, seated:true});
@@ -4296,8 +4303,8 @@
       const tl = atTable && companionLook(a), seated = tl && wantComp({id: actor.with || 'stranger', look: tl, x: 78, kind:'seat'});
       // depth lines (v285): the aisle 96 (walkY 74), his table's seats 103, its top 104
       if (!lesson){
-      put(103, 'back', () => R(54,60,22,14,'#2a1c1c'), 'chair back');
-      if (seated) putPerson(103, () => { markHead(actor.with, 78, 68); person(tl,78,68,t,{legs:false,face:-1,talkPhase:true}); }, 'seated:friend');
+      put(103, 'back', () => { chairAt(60, 68, '#5a3626'); chairAt(78, 68, '#5a3626'); }, 'chairs');
+      if (seated) putPerson(103, () => { markHead(actor.with, 78, 68); person(tl,78,68,t,{legs:'sit',face:-1,talkPhase:true}); }, 'seated:friend');
       if (atTable) putPerson(103, () => { if (a==='talking') drawIshai('talking',60,68,t,{face:1, seated:true}); else drawIshai(a,60,68,t,{food: a==='drinking' ? '#d9a03a' : '#e0c060', seated:true}); }, 'seated:ishai');
       put(104, 'front', () => {
       R(46,82,44,2,'#3a2418'); R(66,84,4,18,'#2a1810'); R(58,102,20,2,'#2a1810');
@@ -6314,9 +6321,10 @@
   // depth lines in a grown room (v285): staff 70, the counter 80, the tables' seats 86 and tops 87, the aisle in front 88 (walkY 66)
   const GSEAT = 86, GTABLE = 87;
   const counter = (x, w, c, top) => put(80, 'front', () => { R(x, 60, w, 16, c); R(x - 1, 58, w + 2, 3, top || '#d8c8a8'); R(x, 74, w, 2, '#00000033'); }, 'counter');
-  const chairBack = (x, c) => put(GSEAT, 'back', () => { R(x, 68, 12, 12, c); R(x + 1, 69, 10, 1, '#ffffff22'); }, 'chair back');
-  const custTable = (x, t, idx, c, n = 2) => { for (let i = 0; i < n; i++){ const px = x + (i ? 18 : -4);
-      putPerson(GSEAT, () => person(CROWD[(idx + i) % CROWD.length], px, 66, t + (idx + i) * 977, {legs: false, face: i ? -1 : 1, muted: true}), 'customer'); }
+  const chairBack = (x, c) => put(GSEAT, 'back', () => chairAt(x, 64, c), 'chair');   // x = the sitter's x (head at 64)
+  const custTable = (x, t, idx, c, n = 2) => { for (let i = 0; i < n; i++){ const px = x + (i ? 16 : -2);
+      put(GSEAT, 'back', () => chairAt(px, 66, c && c !== '#f4f4f4' ? c : '#5a4a3a'), 'chair');
+      putPerson(GSEAT, () => person(CROWD[(idx + i) % CROWD.length], px, 66, t + (idx + i) * 977, {legs: 'sit', face: i ? -1 : 1, muted: true}), 'customer'); }
     put(GTABLE, 'front', () => { R(x, 78, 24, 2, c || '#f4f4f4'); R(x + 11, 80, 2, 10, '#888'); }, 'table'); };
   const ROOM = {
     cafe(r, t, night, hf, sd){ winSky(24, 12, 34, 22, t, hf); R(66, 12, 32, 24, '#2a3a2a'); R(65, 11, 34, 1, '#7a5534'); signAt(r.name || 'MENU', 66, 32, 14, '#f4f4f4'); for (let i = 0; i < 4; i++) R(69, 21 + i * 4, 14 + (i * 5) % 10, 1, '#d8d8c8');
@@ -6363,11 +6371,11 @@
       const sofa = k === 'home' || k === 'laundry';
       // a sofa or bench is all behind the sitter; a table is in front of them, with their chairs' backs behind
       if (sofa) put(GSEAT, 'back', () => { const c = k === 'home' ? (GOODS[(sd + 5) % GOODS.length]) : '#7a8a9a'; R(60, 70, 50, 6, c); R(58, 76, 54, 8, c); R(60, 84, 3, 4, '#2a2a2a'); R(107, 84, 3, 4, '#2a2a2a'); }, 'sofa');
-      else { const cc = k === 'bar' ? '#2a1c1c' : k === 'restaurant' ? '#7a3a2a' : '#5a4a3a'; if (atSeat) chairBack(66, cc); if (seated) chairBack(90, cc);
+      else { const cc = k === 'bar' ? '#2a1c1c' : k === 'restaurant' ? '#7a3a2a' : '#5a4a3a'; chairBack(70, cc); chairBack(92, cc);
         put(GTABLE, 'front', () => { R(66, 78, 34, 2, k === 'bar' ? '#3a2a22' : k === 'books' ? '#7a5534' : '#f4f4f4'); R(82, 80, 2, 10, '#888');
           if (atSeat && a === 'drinking') { R(76, 74, 3, 4, '#d9a03a'); R(76, 73, 3, 1, '#f4f1ea'); } else if (atSeat && a === 'eating') { R(73, 76, 8, 2, '#e0c060'); R(72, 77, 10, 1, '#f4f4f4'); } else if (atSeat && a === 'reading') R(74, 76, 8, 2, '#c23b3b'); }, 'his table'); }
       if (atSeat) putPerson(GSEAT, () => drawIshai(a === 'talking' ? 'talking' : a, 70, 64, t, {food: a === 'drinking' ? '#d9a03a' : '#e0c060', seated: true, face: seated ? 1 : 0}), 'seated:ishai');
-      if (seated) putPerson(GSEAT, () => { markHead(actor.with, 92, 64); person(cl, 92, 64, t, {legs: false, face: -1, talkPhase: true}); }, 'seated:friend');
+      if (seated) putPerson(GSEAT, () => { markHead(actor.with, 92, 64); person(cl, 92, 64, t, {legs: 'sit', face: -1, talkPhase: true}); }, 'seated:friend');
     };
   }
   // ---- a grown place's scene from its record: the block kit with the parts above ----
