@@ -88,6 +88,13 @@
     </div>
 
     <div class="box">
+      <h2>Depth view</h2>
+      <div class="bar"><label><input type="checkbox" id="zOn"> Show depth lines</label> <button id="zList">List what's drawn</button></div>
+      <div class="muted" style="font-size:15px">Each thing in the picture gets a line where it touches the floor: blue = the back of furniture, green = people, amber = tabletops and counters, white = the rest. Red box = two things at the same depth where only the order they were added decides (fix one). Orange box = several people drawn as one item.</div>
+      <pre id="zOut" style="font-size:12px;max-height:160px;overflow:auto;white-space:pre-wrap"></pre>
+    </div>
+
+    <div class="box">
       <h2>Moment</h2>
       <div class="row">
         <div><label for="loc">Place</label><select id="loc"></select></div>
@@ -341,6 +348,8 @@ Back to the cameras.</textarea>
       const show = () => { running++; const [k, v] = $('gWhat').value.split(':'); const sp = api.grow({[k]: v}, +$('gSeed').value || 1, $('gAct').value); $('gSpec').textContent = JSON.stringify(sp); };
       $('gShow').onclick = show; $('gRand').onclick = () => { $('gSeed').value = 1 + Math.floor(Math.random() * 9999); show(); };
       $('gAll').onclick = () => { const s = $('gWhat'); s.selectedIndex = (s.selectedIndex + 1) % s.options.length; show(); }; }
+    $('zOn').onchange = () => api.zdebug($('zOn').checked);   // v285: the Depth view
+    $('zList').onclick = () => { const L = api.zlist(); $('zOut').textContent = L.length ? L.map(z => `${z.z.toFixed(2).padStart(7)} ${(z.kind || '').padEnd(6)} ${z.tag || '?'}${z.people ? ' (' + z.people + ' drawn)' : ''}${z.lump ? '  LUMP' : ''}${z.guess ? '  GUESS vs ' + z.guess : ''}`).join('\n') : 'Turn on "Show depth lines" first.'; };
     $('qFilm').onclick = film; $('qTrivia').onclick = trivia;
     $('qImprov').onclick = lesson;
     $('qCampus').onclick = () => { running++; api.go({location:'campus', action:'idle'}); };
