@@ -1316,7 +1316,11 @@
     return false;
   }
   function memberLayer(t, scene){
-    for (const c of Object.values(CAST)) { if (c.from !== 'audience' || !memberHere(c)) continue;
+    // v284: townspeople at work (not yet in the cast): standing at their post, named (markHead) so they can talk; a grown room's counter draws its own (staffX)
+    let k = 0; for (const p of Object.values(TOWN)) { if (CAST[p.id] || !memberHere(p) || (SCENES[p.post.place] && SCENES[p.post.place].staffX)) continue;
+      const x = (MEMBER_X[p.post.place] || 120) + [0, 26, -26][k++ % 3], y = scene.walkY || 66; markHead(p.id, x, y);
+      zAdd(y + 22, () => person(p.workLook || p.look, x, y, t, {muted: true, seed: strHash(p.id) % 90})); }
+    for (const c of Object.values(CAST)) { if ((c.from !== 'audience' && c.from !== 'town') || !memberHere(c)) continue;
       const x = MEMBER_X[c.post.place] || 120, y = scene.walkY || 66; markHead(c.id, x, y);
       zAdd(y + 22, () => person(c.workLook || c.look, x, y, t, {muted: true, seed: strHash(c.id) % 90})); }
   }
@@ -1626,7 +1630,10 @@
   let CAST = {}; // id -> card, from the Worker
   // nameless locals for small talk when he is out (story/locals.json, filled in by the build): a tourist, a vendor, the man at the next table
   const LOCAL = (/*__LOCALS__*/{}).locals || {};
+  let TOWN = {}, TOWN_V = null;   // v284: the town registry (/api/town): townspeople at work (docs/GROWTH_PLAN.md step 5)
+  async function townFetch(){ try { const d = await (await fetch('/api/town', {cache: 'no-store'})).json(); if (d && Array.isArray(d.people)){ TOWN = Object.fromEntries(d.people.map(p => [p.id, p])); TOWN_V = d.v || ''; } } catch(e){} }
   const lookOf = id => { if (LOCAL[id] && !CAST[id]) return LOCAL[id].look;
+    if (TOWN[id] && !CAST[id]) return storyLoc(actor.loc) === TOWN[id].post.place ? TOWN[id].workLook : TOWN[id].look;   // a townsperson, in work clothes at work
     const C0 = CAST[id], L = C0 && (C0.workLook && C0.post && storyLoc(actor.loc) === C0.post.place ? C0.workLook : C0.look); if (!L) return null;   // a viewer's character at their post wears their work clothes
     let f = null; try { f = outfitOf(id, actor.loc, actor.action); } catch(e){} return f ? Object.assign({}, L, {_fit: f}) : L; };
   // the person currently with Ishai (or a generic stranger when he talks to someone unnamed)
@@ -5376,7 +5383,7 @@
   $('clock').textContent = fmtClock.format(new Date(NOW()));
 
   /*__VOICES_JS__*/
-  Voices.setCast(id => (typeof CAST !== 'undefined' && CAST[id]) || (typeof FILM_CAST !== 'undefined' && FILM_CAST[id]) || (typeof LOCAL !== 'undefined' && LOCAL[id] && {name: LOCAL[id].name, look: LOCAL[id].look, gender: LOCAL[id].g}) || null);
+  Voices.setCast(id => (typeof CAST !== 'undefined' && CAST[id]) || (typeof FILM_CAST !== 'undefined' && FILM_CAST[id]) || (typeof LOCAL !== 'undefined' && LOCAL[id] && {name: LOCAL[id].name, look: LOCAL[id].look, gender: LOCAL[id].g}) || (typeof TOWN !== 'undefined' && TOWN[id] && {name: TOWN[id].name, look: TOWN[id].look, gender: TOWN[id].gender}) || null);
   // ================= sound (Web Audio, generated in code, no files) =================
   const Sound = (() => {
     let ac = null, out = null, mode = 'off', amb = null, ambKey = '', wanted = '', brown = null, white = null;
@@ -5852,6 +5859,7 @@
     if (/^student\d$/.test(id)) return {name:'STUDENT', color:'#b8c4b0'};
     if (EXTRA_SPK[id]) return {name: EXTRA_SPK[id].toUpperCase(), color: tint(CLOTH.gray,.45)};   // a band member on stage
     if (LOCAL[id] && !CAST[id]) return {name: LOCAL[id].name.toUpperCase(), color: tint(CLOTH[LOCAL[id].look.shirt]||CLOTH.gray,.45)};   // a local making small talk
+    if (TOWN[id] && !CAST[id]) return {name: TOWN[id].first.toUpperCase(), color: tint(CLOTH[TOWN[id].look.shirt]||CLOTH.gray,.45)};   // v284: a townsperson
     const c = CAST[id]; return {name:(c?c.name:id).toUpperCase(), color: tint(CLOTH[c?.look?.shirt]||CLOTH.gray,.45)};
   }
   const charDelay = ch => 28 + (ch===','?120:ch==='.'?220:0);
@@ -6243,7 +6251,10 @@
     return (y0, y1, seed) => { R(0, y0, W, y1 - y0, a); if (k === 'arcade'){ for (let i = 0; i < 60; i++) R((i * 37 + seed) % W, y0 + (i * 17) % (y1 - y0), 2, 1, ['#ff5a9a', '#5ad8ff', '#ffd23f'][i % 3]); return; }
       if (GROWKIT.ROOMS[k].floor === 'wood') for (let y = y0 + 3; y < y1; y += 5) R(0, y, W, 1, b); else for (let x = 0; x < W; x += 16) R(x, y0, 1, y1 - y0, b), R(0, y0 + ((x / 16) % 6) * 6, W, 1, b); }; }
   const winSky = (x, y, w, h, t, hf, frame) => { R(x - 1, y - 1, w + 2, h + 2, frame || '#5a4030'); drawSky(x, y, w, h, hf, t); R(x + Math.floor(w / 2), y, 1, h, frame || '#5a4030'); };
-  const staff = (idx, x, t) => zAdd(70, () => person(CROWD[idx % CROWD.length], x, 50, t + idx * 977, {face: 0, muted: true}));
+  const staff = (idx, x, t) => { const id = storyLoc(actor.loc), tp = Object.values(TOWN).find(p => p.post.place === id && !CAST[p.id] && memberHere(p))
+      || Object.values(CAST).find(c => c.from === 'town' && c.post && c.post.place === id && memberHere(c));   // v284: the townsperson who works here, when on duty
+    if (tp){ markHead(tp.id, x, 50); zAdd(70, () => person(tp.workLook || tp.look, x, 50, t, {face: 0})); return; }
+    zAdd(70, () => person(CROWD[idx % CROWD.length], x, 50, t + idx * 977, {face: 0, muted: true})); };
   const counter = (x, w, c, top) => zAdd(80, () => { R(x, 60, w, 16, c); R(x - 1, 58, w + 2, 3, top || '#d8c8a8'); R(x, 74, w, 2, '#00000033'); });
   const custTable = (x, t, idx, c, n = 2) => zAdd(84, () => { R(x, 78, 24, 2, c || '#f4f4f4'); R(x + 11, 80, 2, 10, '#888');
     for (let i = 0; i < n; i++) person(CROWD[(idx + i) % CROWD.length], x + (i ? 18 : -4), 66, t + (idx + i) * 977, {legs: false, face: i ? -1 : 1, muted: true}); });
@@ -6309,7 +6320,7 @@
           R(1, 36, 16, 36, '#5a4030'); R(3, 38, 12, 34, night ? '#1a2238' : '#9fc3d8'); R(13, 54, 1, 3, '#e0c060'); },   // the door, on the left
         floor: roomFloor(k), exitX: () => -18,
         sits: (a, settled, actor) => !!(GROWKIT.ROOMS[k].seats && settled && SEAT_ACTS.includes(a) && !actor.err) };
-      sc.props = roomProps(sp, sc);
+      sc.props = roomProps(sp, sc); if (['cafe', 'bar', 'shop', 'books', 'gallery'].includes(k)) sc.staffX = true;   // its counter draws the townsperson on duty
       if (sp.room.wc) WC_AT[id] = 99;
       return block(sc, g.cam || 'CAM-??', g.name || id.toUpperCase());
     }
@@ -6544,7 +6555,7 @@
     Object.values(CAST).forEach(c=>{
       const live = visible.has(c.id);
       const d = card(c.look, c.name.toUpperCase(), tint(CLOTH[c.look?.shirt]||CLOTH.gray,.45),
-        `${c.from === 'audience' ? (MBR.v && MBR.v.offer && MBR.v.offer.castId === c.id ? '★ MY CHARACTER · ' : '') + 'FROM THE AUDIENCE · ' : ''}${c.role.charAt(0).toUpperCase()+c.role.slice(1)}. ${c.personality ? c.personality.charAt(0).toUpperCase()+c.personality.slice(1)+'.' : ''}${live ? NOW_TAG : ''}`,
+        `${c.from === 'town' ? 'FROM THE TOWN · ' : ''}${c.from === 'audience' ? (MBR.v && MBR.v.offer && MBR.v.offer.castId === c.id ? '★ MY CHARACTER · ' : '') + 'FROM THE AUDIENCE · ' : ''}${c.role.charAt(0).toUpperCase()+c.role.slice(1)}. ${c.personality ? c.personality.charAt(0).toUpperCase()+c.personality.slice(1)+'.' : ''}${live ? NOW_TAG : ''}`,
         c.relationship||0, 'MEMORY: ' + (c.memory||'—'));
       castExtra(d, c.id, live);
       d.dataset.id = c.id; fold(d, c.id, live);
@@ -7449,7 +7460,7 @@
     const event = m => ({id: 'sb-' + (++n), t: NOW(), location: m.location, action: m.action, with: m.with || null, ride: m.ride || undefined, delivery: m.delivery || undefined, media: m.media || undefined, art: m.art || undefined, feel: m.feel || undefined, text: '', lines: m.lines || [], commentary: m.commentary || []});
     window.__sandbox = {
       menus: () => ({locations: Object.fromEntries(Object.entries(LOCATIONS).filter(([k]) => k !== 'bathroom')), hair: LOOK_OPTS.hair, hairColor: Object.keys(HAIRC), skin: Object.keys(SKINC), cloth: Object.keys(CLOTH), hat: LOOK_OPTS.hat, top: LOOK_OPTS.top, bottom: LOOK_OPTS.bottom, extras: LOOK_OPTS.extras}),
-      locals: () => LOCAL,
+      locals: () => LOCAL, town: () => TOWN,
       cast: () => Object.values(CAST), setCast: list => setCast([...base, ...list]), reset,
       play(m){ const e = event(m); ingest([e], false); },
       // v283: preview a grown place (docs/GROWTH_PLAN.md step 4): want = {room} | {ground} | {kind} | {style}; it becomes the screen 'gpreview' (walk in from the left)
@@ -8384,7 +8395,8 @@
       s = await r.json();
       if (!s || !Array.isArray(s.events)) throw new Error(s && s.error ? s.error : 'bad data');
       fails = 0;
-      if ((s.worldV || '') !== GROWN_V && s.worldV !== undefined) await growLoad();   // v282: the map grew (or shrank): load it before the moments
+      if ((s.worldV || '') !== GROWN_V && s.worldV !== undefined) await growLoad();
+      if (s.townV !== undefined && (s.townV || '') !== TOWN_V) await townFetch();   // v284: the townspeople changed   // v282: the map grew (or shrank): load it before the moments
     } catch(e){
       fails++;
       if (!loaded) startDemo();
@@ -8607,7 +8619,7 @@
   requestAnimationFrame(loop);
   if (forceLoc) { $('stLink').textContent = 'PREVIEW'; if (params.has('cast')) showTab('cast'); }
   else if (params.has('preview')) startPreview();
-  else if (params.has('sandbox')) growLoad().finally(startSandbox);   // v282: grown places first, so the menus list them
+  else if (params.has('sandbox')) Promise.all([growLoad(), townFetch()]).finally(startSandbox);   // v282: grown places first, so the menus list them
   else if (params.has('builder')) growLoad().finally(startBuilder);
   else if (location.protocol === 'file:' || params.has('demo')) { if (params.has('dev')) enableDev(); startDemo(); }
   else {

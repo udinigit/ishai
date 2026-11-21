@@ -97,7 +97,7 @@ const splitHosts = arr => arr.flatMap(x => { const t = String(x && x.say || ""),
 // EARLIER TODAY for the hosts' "lookback" (v262, no AI): up to 4 spoken lines from today's earlier talks (25+ minutes ago), one per moment, spread over the day
 function hostsEarlier(s, now) {
   try { const day = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now)), seen = new Set(), pick = [];
-    const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : null);
+    const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : TOWNP[id] ? TOWNP[id].name : null);
     for (const l of (s.talk || [])) { if (l.host || now - l.t < 25 * 60000 || new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(l.t)) !== day) continue;
       const mid = String(l.id).split(":")[0]; if (seen.has(mid) || !nm(l.who) || String(l.say || "").length < 25) continue; seen.add(mid); pick.push(l); }
     const step = Math.max(1, Math.floor(pick.length / 4));
@@ -326,12 +326,13 @@ export default {
         goals: (s.director || []).map(g => ({ id: g.id, status: g.status, how: g.how, startAfter: g.startAfter, deadlineAt: deadlineOf(g), goal: g.goal })) });
     }
     // compact health summary for the scheduled health check (no secrets, no narration of the future)
-    if (url.pathname === "/api/world") { const s = await loadState(env); await worldLoad(env, s); return json(growPublic(), { "cache-control": "public, max-age=20" }); }
+    if (url.pathname === "/api/town") { const s = await loadState(env); await worldLoad(env, s); await townLoad(env, s); return json(townPublic(), { "cache-control": "public, max-age=20" }); }
+      if (url.pathname === "/api/world") { const s = await loadState(env); await worldLoad(env, s); return json(growPublic(), { "cache-control": "public, max-age=20" }); }
       if (url.pathname === "/api/health") {
       const s = await loadState(env), now = Date.now(), d = (s.diag || []).filter(x => now - (x.at || 0) < 3 * 3600000);   // recent AI calls only
       try { await castLoad(env, s, false); } catch (e) {}   // the cast store, read in this isolate too (cached a minute)
       const moments = d.filter(x => x.attempt === 0).length, retried = d.filter(x => x.attempt === 0 && x.problem).length;
-      const nm = id => id ? (s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id)) : null;
+      const nm = id => id ? (s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : TOWNP[id] ? TOWNP[id].name : id)) : null;
       return json({ now, build: BUILD, planVersion: PLAN.version || null,
         recent: s.events.slice(-10).map(e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " +" + nm(e.with) : ""} (${(e.lines || []).length} lines, ${(e.commentary || []).length} host): ${e.text.slice(0, 110)}${e.then ? ` → then ${e.then.action}` : ""}`),
         lastMomentAgoMin: Math.round((now - (s.events[s.events.length - 1].created || 0)) / 60000),
@@ -345,7 +346,7 @@ export default {
         sleep: (() => { try { return sleepHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
         pacing: (() => { try { return pacingHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
-        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(), talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (14-22 lines, two halves)",
+        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(), town: townHealth(), talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (14-22 lines, two halves)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), auditions: { cardErr: s.audCardErr || null, cardTries: s.audCardTry || {}, readErr: s.audReadErr || null, readTries: s.audReadTry || {}, lifeErr: s.memberErr || null }, life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), when busy " + (env.GEMINI_BACKUP ? "gemini (" + env.GEMINI_BACKUP + ")" : "the other Gemini Flash models") + ", then Cloudflare", hosts: hostsByGemini(s) ? "gemini, backup Cloudflare" : "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
@@ -604,7 +605,7 @@ function publicState(s, dev) {
   const last = s.events[s.events.length - 1];
   return {
     day: showDay(s.startedAt, Date.now()),
-    build: BUILD, worldV: s.worldV || "", delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, cronMin: CRON_MIN, notes: dev ? s.notes : "",
+    build: BUILD, worldV: s.worldV || "", townV: s.townV || "", delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, cronMin: CRON_MIN, notes: dev ? s.notes : "",
     events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, len: e.len || undefined, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined, art: e.art || undefined, feel: e.feel || undefined, then: e.then ? { action: e.then.action, text: dev ? e.then.text : "" } : undefined })),
     moods: Object.fromEntries(Object.entries(s.castMoods || {}).filter(([, m]) => m.until > Date.now()).map(([id, m]) => [id, { mood: m.mood, tell: m.tell, body: m.body }])),
     talk: (s.talk || []).slice(-80), dev: !!dev,
@@ -618,7 +619,8 @@ function publicState(s, dev) {
     artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, goal: g.goal, art: g.art, createdAt: g.createdAt })),
     cast: Object.values(s.cast).map(c => ({ id: c.id, name: c.name, role: c.role, personality: c.personality,
       look: c.look, memory: c.memory, relationship: c.relationship, lastSeen: c.lastSeen, scenes: c.scenes || 0, remote: c.phoneOnly || undefined,
-      ...(c.from === "audience" ? { from: "audience", post: c.post || null, workLook: c.workLook || null, met: !!c.met, gender: c.gender } : {}) })),
+      ...(c.from === "audience" ? { from: "audience", post: c.post || null, workLook: c.workLook || null, met: !!c.met, gender: c.gender } : {}),
+      ...(c.from === "town" ? { from: "town", post: c.post || null, workLook: c.workLook || null, met: true, gender: c.gender } : {}) })),   // v284: a promoted townsperson, drawn at their post
     location: last?.location, action: last?.action
   };
 }
@@ -654,7 +656,7 @@ function basicRecap(s, day, storyMs) {
   return { today: pickN.map(x => `${x.time} ${x.text}`).join(" "), show: { id: "studio-" + Math.floor(storyMs / 3600000) + "-basic", t: storyMs, lines: out, sponsors: [sp.name] } };
 }
 async function studioRecap(env, s, storyMs, day) {
-  const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
+  const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : TOWNP[id] ? TOWNP[id].name : id);
   const fmt = e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " with " + nm(e.with) : ""}: ${e.text}` +
     (e.lines || []).slice(0, 2).map(l => ` ${nm(l.who)}: "${l.say}"`).join("");
   const lastHour = s.events.filter(e => storyMs - e.t < 3600000).map(fmt);
@@ -871,6 +873,7 @@ async function tick(env, force) {
   await hostsLangLoad(env, s);   // v275: the director's language switch, from its own key
   await approveLoad(env, s);     // v280: who approves what grows
   await worldLoad(env, s);       // v282: the grown places (D1 world_gen) merged into the map
+  await townLoad(env, s);        // v284: the town registry (D1 town)
   const now = Date.now();
   const storyMs = now + DELAY_MIN * 60000;
   const clock = storyClock(storyMs);
@@ -894,6 +897,7 @@ async function tick(env, force) {
   // deeper characters: read the store, then the scene keeper (one call per ended scene), the daily expiry, card drafts and the weekly growth
   try { await castLoad(env, s, true);
     if (!force) { await castKeeperTick(env, s, now); await castMaintain(env, s, now); if (CASTD && !CASTD.queue) { await castWeekTick(env, s, now); await castDraftTick(env, s, now); await castAutoTick(env, s, now); } }
+  try { await townWriteTick(env, s, now); } catch (e) {}   // v284: a personality for one new townsperson
     if (!force) try { await audCardTick(env, s, now); } catch (e) { s.audCardErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // Auditions step 4: a sent Audition's card
     if (!force) try { await audReadTick(env, s, now); } catch (e) { s.audReadErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // steps 5b-5c: the table read and its tuning
     if (!force) try { await memberLifeTick(env, s, now); } catch (e) { s.memberErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // step 6: on the show, and leaving it
@@ -973,6 +977,7 @@ async function tick(env, force) {
   ev.len = momentLen(s, ev, last, now); const lenK = ev.lenFixed ? "planned" : lenKind(ev, last.location);   // v279: this moment's length (docs/PACING_PLAN.md)
   s.events.push({ id: s.nextId++, t: storyMs, created: now, len: ev.len, lenKind: lenK, location: ev.location, action: ev.action, delivery: ev.delivery || undefined,
     text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null, art: ev.art || undefined, feel: ev.feel || undefined, then: ev.then || undefined, bathFrom: ev.bathFrom || undefined, holdIt: ev.holdIt || undefined });
+  try { await townAfter(env, s, s.events[s.events.length - 1], s.events[s.events.length - 2], storyMs, now); } catch (e) {}   // v284: a scene with a townsperson
   // the day's highlights, replayed in Ishai's dreams at night
   { const prevEv = s.events[s.events.length - 2], hl = s.hl || (s.hl = []), lastHl = hl[hl.length - 1];
     const notable = !["sleeping", "waking", "bathroom", "showering"].includes(ev.action) && ev.location !== "offscreen" &&
@@ -1002,7 +1007,7 @@ async function tick(env, force) {
   // full-day log for the daily planner
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(storyMs));
   if (!s.log || s.log.date !== day) { if (s.log) s.prevLog = s.log; s.log = { date: day, lines: [] }; }
-  const nm = id => s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
+  const nm = id => s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : TOWNP[id] ? TOWNP[id].name : id);
   s.log.lines.push(`${storyClock(storyMs).label.slice(-5)} ${ev.location}/${ev.action}${ev.with ? " +" + nm(ev.with) : ""}: ${ev.text}` +
     (ev.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : nm(l.who)}: "${l.say}"`).join("") +
     (ev.commentary || []).map(c => ` [${c.who}] ${c.say}`).join(""));
@@ -1260,7 +1265,7 @@ function buildMessages(s, clock, now, goal, opt = {}) {
       (goal.brief ? `SCENE BRIEF from the director for this conversation: ${goal.brief}${goal.briefLines ? ` (about ${goal.briefLines} lines in total, over several moments)` : ""}. When it starts, turn this brief into "scene". ` : "") +
       `In the moment it is fully done, set "complete":"${goal.id}".` + (goal.unlock && ITEMS[goal.unlock] ? ` Until then Ishai does NOT have ${ITEMS[goal.unlock]}.` : "")
     : "";
-  const name = id => s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
+  const name = id => s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : TOWNP[id] ? TOWNP[id].name : id);
   const recent = s.events.slice(-6).map(e =>
     `[${storyClock(e.t).label}] (${e.location}/${e.action}${e.with ? " with " + name(e.with) : ""}) ${e.text}${e.then ? ` Then (${e.then.action}): ${e.then.text}` : ""}` +
     (e.lines || []).map(l => ` ${l.who === "ishai" ? "Ishai" : name(l.who)}: "${l.say}"`).join("")).join("\n"); // host lines are listed separately (ALREADY SAID)
@@ -1363,7 +1368,7 @@ ${block ? `- Write the NEXT ${block} MOMENTS, in order; each starts when the one
 - "with" is the id of ONE person with him in this moment (a visitor at home counts), or the person on the other end when the action is "phoning"; otherwise null.
 - He is social: at least one moment in two involves another person: in person, a phone call, or a text or email. Friends visit and call, strangers start conversations, regulars say something. ${(() => { let n = 0; for (let i = s.events.length - 1; i >= 0 && n < 8; i--) { const e = s.events[i]; if (e.with || (e.lines || []).length > 1 || e.action === "sleeping") break; n++; } return n >= 3 ? `He has been alone for ${n} moments: in THIS moment someone calls, texts or talks to him.` : ""; })()}
 - GADI, his boss in all but name, is NEVER seen in person. He only phones (action "phoning", "with": "gadi") or sends a text or email: add "message":{"from":"gadi","kind":"text"|"email","say":"max 25 words"} and Ishai reacts out loud in "lines", alone or with whoever is there. Friends can text the same way. A message needs no "with".
-- REGULARS are people he doesn't know well yet, usually found in one place: ${SEED_CAST.filter(c => c.regular).map(c => `${c.name} ("${c.id}", ${c.regular})`).join(", ")}. If he is there at their hours, they can start a short exchange (use "with"), and he gets to know them over time. Kobi at the bar gets drunker with the hour; Mr. Zelig also talks to himself.${localsNote(last.location)}
+- REGULARS are people he doesn't know well yet, usually found in one place: ${SEED_CAST.filter(c => c.regular).map(c => `${c.name} ("${c.id}", ${c.regular})`).join(", ")}. If he is there at their hours, they can start a short exchange (use "with"), and he gets to know them over time. Kobi at the bar gets drunker with the hour; Mr. Zelig also talks to himself.${localsNote(last.location)}${townNote(s, last.location, Date.now() + DELAY_MIN * 60000)}
 - "len": how many minutes this moment lasts on screen. ${lenRule()}
 - "lines": REQUIRED when the action is "talking" or "phoning" (that IS the conversation). The spoken dialogue of this moment, in order, by "ishai" or the "with" person. When he is with someone or on the phone, write a real, life-like conversation of ${TALK.min} to ${TALK.max} lines that fills this moment${TALK.brake ? " (6 minutes)" : `: about 2.5 to 3.5 lines a minute of "len" (6 minutes: ${TALK.min}-${TALK.max}, 10 minutes: ${talkFor(10).min}-${talkFor(10).max}, 12 minutes: ${talkFor(12).min}-${talkFor(12).max})`}. It plays in TWO HALVES: the first half, then they do something (the "then", or carry on with what they are doing) and talk again; put "half": true on the first line of the second half (about the middle), which picks the talk up again ("Anyway...", a new question, back to what was left open, a reaction to what they are doing). Make it sound like real people talking, not a reading: most lines 3-12 words, none over 22; at most 2 lines in a row from one person; questions get answered (or dodged on purpose); people cut in ("Wait—", "Hold on"), trail off ("I just thought..."), laugh, tease, change the subject, bring up something from earlier today or what is planned; small talk AND real stakes; talk while doing (cooking, walking, tidying, eating), not standing still. Each person in their own voice, with their own opinions and agenda. A conversation usually continues over several moments; pick up exactly where it left off. When he is alone, at most 1 line (muttering to himself or to Moshe), or []. Never put narration inside lines.
 - "then" (optional, use it in most moments that stay in one place): what visibly changes about halfway through this moment (between the two halves of the talk), in the SAME place with the SAME people: {"action": another action allowed in this place, "text": one short sentence}. E.g. he works at the desk, then gets up and waters Moshe; Noa sits talking, then they both start cooking. Never sleeping, bathroom, showering, the radio or the TV, and leave it out when the moment ends with him leaving. The next moment follows on from the "then".
@@ -1416,7 +1421,7 @@ const DOG_WORDS = /\bFalafel\b|\bthe dog\b|\bdoggo\b|\bpup(py)?\b/;
 // who is on screen (who they are, the pair with Ishai, their history, what's open, the mood, lately) and who the talk mentions. Never a secret (castLeaks()).
 function hostsContext(s, moments, now) {
   try {
-    const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : castName(s, id);
+    const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : TOWNP[id] ? TOWNP[id].name : castName(s, id);
     const first = moments[0] || {}, w0 = first.with ? String(first.with).toLowerCase() : null, loc0 = String(first.location || "").toLowerCase();
     const prev = [];
     for (let i = s.events.length - 1; i >= 0 && prev.length < 3; i--) { const e = s.events[i];
@@ -1428,6 +1433,7 @@ function hostsContext(s, moments, now) {
     const im = castMoodLine("ishai"); if (im) who.push(`- Ishai: mood ${im.split(";")[0]}`);
     for (const id of ids) {
       if (LOCALS[id]) { who.push(`- ${nm(id)}: a stranger, ${LOCALS[id].role || "a local"}; small talk only`); continue; }
+      if (TOWNP[id]) { const p = TOWNP[id]; who.push(`- ${p.name}: ${p.role}${p.about ? "; " + p.about : ""}; ${p.scenes ? "Ishai has talked with them " + p.scenes + " times" : "a new face to Ishai"}`); continue; }   // v284: a townsperson
       if (!castKnown(s, id)) continue;
       const c = (CASTD && CASTD.cards[id]) || s.cast[id] || {}, pr = castPair("ishai", id), md = castMoodLine(id);
       const notes = castNotes(id, "ishai", 3).filter(x => x.imp >= 3).slice(0, 2);
@@ -1446,7 +1452,7 @@ function hostsContext(s, moments, now) {
 }
 async function addHosts(env, s, moments, clock, now) {
   try {
-    const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
+    const nm = id => id === "ishai" ? "Ishai" : id === "radio" ? "the radio" : id === "tv" ? "the TV" : s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : TOWNP[id] ? TOWNP[id].name : id);
     const said = recentHostLines(s, 10);
     const teaseNow = now - (s.lastTease || 0) > 40 * 60000 ? comingUpText(s, now, 5) : "";
     const secrets = now - (s.lastHint || 0) > HINT_GAP_MIN * 60000 ? secretsNow(now) : [];
@@ -1761,8 +1767,10 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   if (w && w !== "null" && w !== "none") {
     const loc0 = Object.entries(LOCALS).find(([id, l]) => id === w || l.name.toLowerCase() === w || "local-" + w === id);
     if (loc0 && !LOCALS[loc0[0]].at.includes(ev.location)) return { ev, problem: `"${loc0[0]}" is not found at ${ev.location}; locals there: ${localsAt(ev.location).map(k => `"${k}"`).join(", ") || "none"}` };
+    const town0 = !loc0 && Object.values(TOWNP).find(p => p.id === w || p.name.toLowerCase() === w || "t-" + w === p.id);   // v284: a townsperson works at one place
+    if (town0 && town0.post.place !== ev.location) return { ev, problem: `${town0.name} works at ${town0.post.place}, not ${ev.location}` };
     const hit = Object.values(s.cast).find(c => c.id === w || c.name.toLowerCase() === w)
-      || (ev.newCard && (ev.newCard.id === w || ev.newCard.name.toLowerCase() === w) ? ev.newCard : null) || (loc0 ? { id: loc0[0] } : null);
+      || (ev.newCard && (ev.newCard.id === w || ev.newCard.name.toLowerCase() === w) ? ev.newCard : null) || (loc0 ? { id: loc0[0] } : null) || (town0 ? { id: town0.id } : null);
     if (!hit) return { ev, problem: `"${o.with}" is not a known person; "with" must be one of ${Object.keys(s.cast).map(k => `"${k}"`).join(", ")} or null` };
     if (hit.from === "audience" && !hit.met && !(s.director || []).some(g => g.forceWith === hit.id && g.status === "active")) return { ev, problem: `Ishai hasn't met ${hit.name} yet: that happens in their own planned first scene` };
     ev.with = hit.id;
@@ -1774,7 +1782,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   const who = x => { const k = str(x, 40).toLowerCase(); if (k === "ishai") return "ishai";
     if (planned && ev.action === "lecture" && STUDENT.test(k)) return k;  // the class speaks up, nameless, from their seats
     if (planned && k === "hagit" && (ev.location === "arena" || ev.location === "plaza")) return k;   // Hagit hosts the Pump House's events
-    const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || LOCALS[ev.with]?.name || "").toLowerCase() === k || (LOCALS[ev.with] && "local-" + k === ev.with)); return c ? ev.with : null; };
+    const c = ev.with && (ev.with === k || (s.cast[ev.with]?.name || ev.newCard?.name || LOCALS[ev.with]?.name || TOWNP[ev.with]?.name || "").toLowerCase() === k || (LOCALS[ev.with] && "local-" + k === ev.with) || (TOWNP[ev.with] && TOWNP[ev.with].first.toLowerCase() === k)); return c ? ev.with : null; };
   ev.lines = (Array.isArray(o.lines) ? o.lines : []).map(l => { const x = { who: who(l?.who), say: str(l?.say, 200).replace(/^["']|["']$/g, "") };
       if (planned && Number.isInteger(l?.piece) && l.piece >= 0 && l.piece < 30) x.piece = l.piece;   // which picture a line is about (Pump House)
       if (l?.half === true) x.half = true; return x; })   // v277: the line the second half of the talk starts with (the page plays it after a break)
@@ -1794,7 +1802,7 @@ function validate(raw, s, last, allowNew, goal, allowNoHosts, planned = false) {
   if (o.scene && typeof o.scene === "object" && ev.with) ev.scene = {
     type: str(o.scene.type, 20) || "small talk", why: str(o.scene.why, 200), ishaiWants: str(o.scene.ishaiWants, 150), theyWant: str(o.scene.theyWant, 150),
     beats: str(o.scene.beats, 300), ending: str(o.scene.ending, 150), target: clamp(Math.round(Number(o.scene.lines) || 28), 12, 120) };
-  if (ev.with && !LOCALS[ev.with] && o.update && typeof o.update === "object")
+  if (ev.with && !LOCALS[ev.with] && !TOWNP[ev.with] && o.update && typeof o.update === "object")
     ev.update = { memory: str(o.update.memory, 180), mood: Number(o.update.mood) || 0 };
 
   // the picture must match the words: a drink or a meal mentioned while "idle" becomes drinking / eating
@@ -1973,7 +1981,7 @@ function repair(ev, s, last, planned = false) {
   if (loc !== last.location && !NEXT[last.location].includes(loc) && !nextPath(last.location, loc)) loc = last.location;
   const legal = ev.action === "improv" && loc === "bar" ? ["improv"] : ev.action === "lecture" && loc === "classroom" ? ["lecture"] : ev.action === "gallery" && loc === "arena" ? ["gallery"] : ev.action === "concert" && loc === "arena" ? ["concert"] : ev.action === "poker" && loc === "apt2" ? ["poker"] : ev.action === "film" && loc === "cinema" ? ["film"] : ev.action === "trivia" && loc === "cafe" ? ["trivia"] : allowed(loc, s.unlocked);
   const act = legal.includes(ev.action) ? ev.action : (legal.includes("idle") ? "idle" : legal[0]);
-  const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with || (LOCALS[ev.with] && LOCALS[ev.with].at.includes(loc))) && act !== "sleeping";
+  const ok = ev.with && (s.cast[ev.with] || ev.newCard?.id === ev.with || (LOCALS[ev.with] && LOCALS[ev.with].at.includes(loc)) || (TOWNP[ev.with] && TOWNP[ev.with].post.place === loc)) && act !== "sleeping";
   return { ...ev, location: loc, action: act, with: ok ? ev.with : null,
     lines: ok ? ev.lines : ev.lines.filter(l => l.who === "ishai" || STUDENT.test(l.who) || l.who === "hagit"), update: ok ? ev.update : null, newCard: ok ? ev.newCard : null };
 }
@@ -2077,7 +2085,7 @@ async function runBackup(env, messages, maxTokens = 1000) {
 function sickEvent(s, last, hour) {
   const n = s.sickN = (s.sickN || 0) + 1;
   const pick = (a) => a[(n + a.length - 1) % a.length];
-  const nm = (id) => s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
+  const nm = (id) => s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : TOWNP[id] ? TOWNP[id].name : id);
   const night = lateAt(Date.now() + DELAY_MIN * 60000) || asleepAt(Date.now() + DELAY_MIN * 60000) && last.action === "sleeping";   // v276: by sleepOf(), not the clock
   const HOSTS_SAY = [
     { who: "zohar", say: "Our boy is not okay. Somebody bring that man soup." },
@@ -2392,7 +2400,7 @@ async function callIn(env, s, storyMs) {
     const [src, url, f] = pickOf(CALL_SOURCES);
     try { const t = await getText(url); extra = `${src.toUpperCase()}: ${String(f(JSON.parse(t)) || "").replace(/\s+/g, " ").slice(0, 400)}`; } catch (e) { extra = ""; }
   }
-  const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id);
+  const nm = id => id === "ishai" ? "Ishai" : s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : TOWNP[id] ? TOWNP[id].name : id);
   const recent = s.events.slice(-6).map(e => `${storyClock(e.t).label.slice(-5)} ${e.location}/${e.action}${e.with ? " with " + nm(e.with) : ""}: ${e.text}`).join("\n");
   const messages = [{ role: "system", content:
 `A viewer calls in live to a reality show about Ishai (Tel Aviv). Hosts: ${hostsOf(s).zohar} ${hostsOf(s).oren}
@@ -5283,7 +5291,7 @@ function applyPlan(s, now) {
 }
 async function directorApi(req, env) {
   const s = await loadState(env);
-  await hostsLangLoad(env, s); await approveLoad(env, s); await worldLoad(env, s);
+  await hostsLangLoad(env, s); await approveLoad(env, s); await worldLoad(env, s); await townLoad(env, s);
   const now = Date.now();
   if (req.method === "POST") {
     let b = {}; try { b = await req.json(); } catch {}
@@ -5327,6 +5335,11 @@ async function directorApi(req, env) {
     } else if (b.action === "worldGenPut" || b.action === "worldGenOff") {   // v282: a grown place by hand (tests; the growth engine uses growPut() too)
       const r = b.action === "worldGenPut" ? await growPut(env, s, b.rec, "director", now) : await growOff(env, s, String(b.id || ""), now);
       if (r.error) return json(r, {}, 400);
+    } else if (b.action === "townMake" || b.action === "townSet" || b.action === "townPromote") {   // v284: the town registry by hand
+      const r = b.action === "townMake" ? await townMake(env, s, { place: b.place, seed: Number.isInteger(b.seed) ? b.seed : undefined }, "director", now)
+        : b.action === "townSet" ? await townSet(env, s, String(b.id || ""), String(b.state || ""), now)
+        : await (async () => { const p = TOWN_ALL.find(x => x.id === b.id && (x.state === "live")); if (!p) return { error: "no such person on the show" }; await townPromote(env, s, p, now); await townLoad(env, s, true); return { ok: true }; })();
+      if (r.error) return json(r, {}, 400);
     } else if (b.action === "approveSet") {   // v280: who approves what grows (auto / claude / director per kind)
       if (!APPROVE_KINDS.includes(b.kind) || !APPROVE_MODES.includes(b.mode)) return json({ error: "kind: " + APPROVE_KINDS.join("/") + ", mode: " + APPROVE_MODES.join("/") }, {}, 400);
       s.approve = { ...approveOf(s), [b.kind]: b.mode }; await env.ISHAI.put(APPROVE_KEY, JSON.stringify(s.approve));
@@ -5349,7 +5362,7 @@ async function directorApi(req, env) {
 // the status line of the shared top bar (docs/DIRECTOR_UI_PLAN.md, step 1): where he is, the writers, the AI budget, and how much waits for the director
 async function dirStatus(s, env, now, bugs) {
   const last = s.events[s.events.length - 1] || {}, N = directorNow(s, now);
-  const nm = id => id ? (s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id)) : null;
+  const nm = id => id ? (s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : TOWNP[id] ? TOWNP[id].name : id)) : null;
   const gFail = (s.geminiErrs || []).filter(f => now - f.at < 30 * 60000 && !GEMINI_WHERE.test(f.msg || "")).length;
   const gemini = !env.GEMINI_API_KEY ? { state: "off" } : now < (s.geminiOutUntil || 0) ? { state: "paused", until: s.geminiOutUntil } : gFail ? { state: "failing", fails: gFail } : { state: "ok" };
   let cast = 0, auditions = 0; try { if (env.DB) cast = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM cast_pending WHERE state = 'pending'").first()) || {}).n || 0; } catch (e) {}
@@ -5378,7 +5391,7 @@ function directorView(s, bugs) {
   return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), kitchen: kitchenHealth(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { name: s.cast[s.scene.w]?.name || s.scene.w, type: s.scene.type || null, loc: s.scene.loc || null, lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse().map(dirGoal), lastError: s.lastError || null,
-    approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(),
+    approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(), town: townDir(), townPlaces: Object.keys(PLACES).filter(k => townJob(k)),
     hosts: { style: hostsSports(s) ? "sports" : "classic", writer: hostsByGemini(s) ? "gemini" : "cloudflare", lang: hostsHe(s) ? "he" : "en", by: s.hostsBy || null },
     polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t },
@@ -5412,7 +5425,7 @@ function directorPlan(s, now) {
 // Only what viewers get (who, where, the spoken lines, the hosts): the narration and the scene's why / wants / beats / ending are written by
 // a story writer that knows the season's secrets, so they never go to the director page (the scene card in directorView() is cut the same way).
 function directorNow(s, now) {
-  const nm = id => id ? (s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : id)) : null;
+  const nm = id => id ? (s.cast[id]?.name || (LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : TOWNP[id] ? TOWNP[id].name : id)) : null;
   const who = w => w === "ishai" ? "Ishai" : w === "radio" ? "Radio" : w === "tv" ? "TV" : s.cast[w] || LOCALS[w] ? nm(w) : String(w || "?").replace(/^./, c => c.toUpperCase());
   const recent = s.events.slice(-5).reverse().map(e => ({ t: e.t, created: e.created || null, clock: storyClock(e.t).label, loc: e.location, place: PLACE_NAME[e.location] || e.location,
     action: e.action, with: nm(e.with), src: e.src || null, lines: (e.lines || []).map(l => ({ who: who(l.who), say: l.say })), hosts: (e.commentary || []).filter(c => !c.pre).map(c => ({ who: who(c.who), say: c.say })) }));
@@ -7266,3 +7279,141 @@ function growPublic() {
   return { v: GROWN.v, places: Object.fromEntries(GROWN.recs.map(r => [r.id, { name: r.name, cam: r.cam, district: r.district || null, place: r.place, attach: r.attach, spec: r.spec }])),
     WALK: w ? w.WALK : null, actions: w ? Object.fromEntries(GROWN.ids.map(id => [id, w.pageActions[id]])) : {}, screens: w ? w.SCREENS : null };
 }
+
+// ==================== Growth step 5 (v284, docs/GROWTH_PLAN.md): the town registry ====================
+// People made from a seed, with no AI for who they are: a name, a look, a job at one story place and its hours. D1 `town` (id, p JSON, state, scenes,
+// met, made, changed, by): state live (on the show), pending (waits for a review: Growth → people), cast (promoted: now an `s.cast` entry with
+// from "town"), off. The ladder: at their post they are drawn as staff (the page's townLayer / a grown room's counter); the writer sees the ones at
+// work where Ishai is (`townNote()`) and may use one as `with` (validate() keeps them to their place); each new scene with them is counted and
+// remembered in a line (no AI); after TOWN_PROMOTE scenes they join the cast (Growth → promote: auto, or a review), and from then on the cast
+// machinery (cards, notes, the keeper, the Cast tab) knows them. One small AI call per person writes their personality, speech and a first memory.
+let TOWNP = {}, TOWN_ALL = [], TOWN_V = "", TOWN_TABLES = false;
+const TOWN_PROMOTE = 3, TOWN_PER_PLACE = 3, TOWN_WRITE_PER_TICK = 1;
+const TOWN_FIRST = { f: ["Rina", "Michal", "Yael", "Tamar", "Shira", "Noga", "Adi", "Liat", "Orly", "Hila", "Sigal", "Ronit", "Efrat", "Maya", "Gali", "Dorit", "Inbal", "Keren", "Lior", "Hadas", "Natalie", "Rivka", "Esti", "Batya", "Sarit", "Merav", "Anat", "Ayelet", "Tali", "Dikla"],
+  m: ["Eli", "Amir", "Guy", "Itay", "Omer", "Nadav", "Yoni", "Avishai", "Doron", "Erez", "Shlomi", "Kobi", "Ronen", "Tzachi", "Gil", "Ido", "Barak", "Ofer", "Yigal", "Moshe", "Tal", "Asaf", "Dudu", "Haim", "Nir", "Yaron", "Shai", "Ariel", "Elad", "Benny"] };
+const TOWN_LAST = ["Avraham", "Mizrahi", "Peretz", "Biton", "Dahan", "Azulay", "Friedman", "Katz", "Shapira", "Golan", "Ben-David", "Levy", "Haddad", "Ohana", "Sasson", "Tzur", "Amsalem", "Nahum", "Yosef", "Gabay", "Malka", "Elbaz", "Weiss", "Segal", "Hazan", "Barak", "Carmi", "Dror", "Eshel", "Galili"];
+// a job for a grown place, by its room kind or ground (the hand-made places use story/audition-src/roles.json)
+const TOWN_JOB = { cafe: ["barista", [8, 17], { extras: ["apron"] }], bar: ["bartender", [18, 25], {}], restaurant: ["waiter", [12, 23], { extras: ["apron"] }],
+  shop: ["shopkeeper", [9, 19], {}], books: ["bookseller", [10, 19], { extras: ["glasses"] }], studio: ["teacher", [9, 20], { top: "tank" }],
+  arcade: ["attendant", [12, 24], { top: "polo" }], laundry: ["attendant", [8, 21], {}], gallery: ["gallery assistant", [11, 19], { top: "shirt" }],
+  home: ["resident", [8, 22], {}], square: ["vendor", [8, 19], { hat: "cap" }], park: ["gardener", [7, 15], { hat: "bucket", extras: ["watch"] }],
+  garden: ["gardener", [7, 15], { hat: "sunhat" }], beach: ["lifeguard", [7, 18], { top: "tank", extras: ["sunglasses"] }], hill: ["guide", [9, 18], { hat: "bucket" }],
+  street: ["vendor", [8, 19], {}], alley: ["vendor", [8, 19], {}], industrial: ["mechanic", [7, 16], { top: "jacket" }] };
+async function townTables(env) {
+  if (TOWN_TABLES || !env.DB) return;
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS town (id TEXT PRIMARY KEY, p TEXT NOT NULL, state TEXT NOT NULL, scenes INTEGER NOT NULL DEFAULT 0, met INTEGER, made INTEGER, changed INTEGER, by TEXT)").run();
+  TOWN_TABLES = true;
+}
+async function townLoad(env, s, force) {
+  if (!env.DB) return;
+  try {
+    await townTables(env);
+    const q = await env.DB.prepare("SELECT COUNT(*) n, MAX(changed) c FROM town").first();
+    const v = (q && q.n || 0) + ":" + (q && q.c || 0);
+    if (v === TOWN_V && !force) { if (s) s.townV = v; return; }
+    const rows = (q && q.n) ? ((await env.DB.prepare("SELECT id, p, state, scenes, met FROM town WHERE state != 'off' ORDER BY made").all()).results || []) : [];
+    TOWN_ALL = rows.map(r => { try { return { ...JSON.parse(r.p), id: r.id, state: r.state, scenes: r.scenes || 0, met: r.met || 0 }; } catch (e) { return null; } }).filter(Boolean);
+    TOWNP = Object.fromEntries(TOWN_ALL.filter(p => p.state === "live").map(p => [p.id, p]));
+    TOWN_V = v; if (s) s.townV = v;
+  } catch (e) { s && (s.townErr = String(e && e.message || e).slice(0, 200)); }
+}
+// what a person at this place does there: roles.json for the hand-made places, the grown place's kind for grown ones
+function townJob(place) {
+  const k = ((AUD_BANK.roles || {}).kinds || []).find(k => k.hours && k.hours[place] && k.id !== "regular" && k.id !== "student");
+  if (k) return { job: (k.jobs && k.jobs[place]) || k.label, kind: k.id, hours: k.hours[place], uniform: k.uniform || {} };
+  const g = GROWN.recs.find(r => r.id === place), base = { park: "park", promenade: "beach", plaza: "square", street: "street" }[place];   // open-air hand-made places take a grown kind's job
+  if (!g && !base) return null;
+  const key = g ? (g.spec.ground === "indoor" ? g.spec.room.k : g.spec.ground) : base, j = TOWN_JOB[key]; if (!j) return null;
+  return { job: j[0], kind: key, hours: j[1], uniform: j[2] };
+}
+const TOWN_PLACE_NAME = { cafe: "Cafe Nahat", bar: "The Black Candle", market: "Shuk Shalom", store: "Everything Else", park: "the park", promenade: "the promenade", plaza: "the Pump House plaza",
+  street: "Herzl Street", kiosk: "Shmulik's kiosk", gym: "the gym", mall: "The Big S", foodcourt: "the food court at The Big S", campus: "the university", shops: "the shops on Herzl Street", corridor: "the building" };
+function townPlaceName(place) { const g = GROWN.recs.find(r => r.id === place); return g ? g.name.replace(/\b([A-Z])([A-Z']+)/g, (m, a, b) => a + b.toLowerCase()) : TOWN_PLACE_NAME[place] || (PLACES[place] || place).split(/[,.;(]/)[0].slice(0, 40); }
+// one person from a seed: the same seed and place always make the same person
+function townMakeP(place, seed) {
+  const r = GROWKIT.rng(seed), pick = a => a[Math.floor(r() * a.length) % a.length], J = townJob(place);
+  if (!J) return null;
+  const sex = r() < 0.5 ? "f" : "m", first = pick(TOWN_FIRST[sex]), last = pick(TOWN_LAST);
+  const look = { hair: pick(sex === "f" ? ["long", "bun", "curly", "bob", "ponytail", "braids", "short", "afro"] : ["short", "buzz", "side", "curly", "bald", "spiky", "short"]),
+    hairColor: pick(LOOK.hairColor.slice(0, r() < 0.15 ? 7 : 5)), skin: pick(LOOK.skin), shirt: pick(LOOK.cloth), pants: pick(["navy", "black", "blue", "gray", "brown"]),
+    hat: "none", top: pick(["tshirt", "shirt", "polo", "sweater", "stripes", "hoodie"]), bottom: sex === "f" && r() < 0.3 ? "skirt" : "trousers",
+    extras: [r() < 0.25 ? "glasses" : null, sex === "m" && r() < 0.3 ? pick(["beard", "stubble", "mustache"]) : null, r() < 0.15 ? pick(["earring", "watch", "necklace"]) : null].filter(Boolean) };
+  const u = J.uniform || {}, workLook = { ...look, ...(u.top ? { top: u.top } : {}), ...(u.hat ? { hat: u.hat } : {}), extras: [...new Set([...look.extras, ...(u.extras || [])])].slice(0, 4) };
+  const at = townPlaceName(place);
+  return { name: first + " " + last, first, gender: sex === "f" ? "female" : "male", age: 19 + Math.floor(r() * 50), look, workLook, seed,
+    job: J.job, role: `the ${J.job} at ${at}`, post: { place, kind: J.kind, hours: J.hours }, about: "", speech: "", memory: [] };
+}
+async function townMake(env, s, o, by, now) {
+  if (!env.DB) return { error: "no database" };
+  await worldLoad(env, s); await townLoad(env, s);
+  const place = String(o.place || "");
+  if (!LOCATIONS[place] || !PLACES[place]) return { error: place + ": not a story place" };
+  if (TOWN_ALL.filter(p => p.post.place === place && p.state !== "off").length >= TOWN_PER_PLACE) return { error: place + " already has " + TOWN_PER_PLACE + " people" };
+  let p = null, seed = Number.isInteger(o.seed) ? o.seed : (now % 100000);
+  for (let i = 0; i < 20 && !p; i++, seed++) { const q = townMakeP(place, seed); if (!q) return { error: place + ": no job for anyone there yet" };
+    const id = "t-" + q.first.toLowerCase() + "-" + q.name.split(" ").slice(1).join("").toLowerCase().replace(/[^a-z]/g, "");
+    if (!TOWN_ALL.some(x => x.id === id) && !s.cast[id] && !SEED_CAST.some(c => c.name.split(" ")[0] === q.first)) p = { ...q, id }; }
+  if (!p) return { error: "no free name" };
+  const state = approveOf(s).people === "auto" ? "live" : "pending";
+  await env.DB.prepare("INSERT INTO town (id, p, state, scenes, made, changed, by) VALUES (?1, ?2, ?3, 0, ?4, ?4, ?5)").bind(p.id, JSON.stringify(p), state, now, String(by || "").slice(0, 20)).run();
+  await townLoad(env, s, true);
+  return { ok: true, id: p.id, state, person: p };
+}
+async function townSet(env, s, id, state, now) {
+  if (!env.DB || !["live", "off", "pending"].includes(state)) return { error: "state: live, pending or off" };
+  await townTables(env);
+  await env.DB.prepare("UPDATE town SET state = ?2, changed = ?3 WHERE id = ?1 AND state != 'cast'").bind(id, state, now).run();
+  await townLoad(env, s, true); return { ok: true };
+}
+async function townSave(env, p, now, extra) {
+  const { id, state, scenes, met, ...rest } = p;
+  await env.DB.prepare("UPDATE town SET p = ?2, scenes = ?3, met = ?4, changed = ?5" + (extra || "") + " WHERE id = ?1").bind(id, JSON.stringify(rest), scenes || 0, met || null, now).run();
+}
+// is the person at their post now (story hour)?
+function townOnDuty(p, storyMs) { const h0 = storyClock(storyMs).hour, h = h0 < 6 ? h0 + 24 : h0, hs = p.post.hours || [];
+  for (let i = 0; i < hs.length; i += 2) if (h >= hs[i] && h < hs[i + 1]) return true; return false; }
+// the writer: who works here now (at most 3), with what Ishai knows of them
+function townNote(s, loc, storyMs) {
+  const here = Object.values(TOWNP).filter(p => p.post.place === loc && townOnDuty(p, storyMs)).slice(0, 3); if (!here.length) return "";
+  return `\n- PEOPLE WHO WORK HERE (townspeople; use the id as "with" for a short exchange, 8-14 lines; they stay at work, they never leave with him): ` + here.map(p =>
+    `"${p.id}" ${p.name}, ${p.role}${p.about ? "; " + p.about : ""}${p.speech ? "; talks: " + p.speech : ""}` + (p.scenes ? `; he has talked with them ${p.scenes} time${p.scenes > 1 ? "s" : ""}${p.memory.length ? " (last: " + p.memory[p.memory.length - 1] + ")" : ""}` : "; he doesn't know them yet")).join(". ") + ".";
+}
+// after a moment: a new scene with a townsperson is counted and remembered (a line from the narration, no AI); enough of them → promotion
+async function townAfter(env, s, ev, prev, storyMs, now) {
+  const p = ev && ev.with && TOWNP[ev.with]; if (!p || !env.DB) return;
+  if (prev && prev.with === ev.with) return;   // the same scene goes on
+  p.scenes = (p.scenes || 0) + 1; p.met = p.met || storyMs;
+  p.memory = [...(p.memory || []), `${storyClock(storyMs).label.slice(0, 3)}: ${clip(String(ev.text || "").replace(/\s+/g, " "), 110)}`].slice(-3);
+  try {
+    if (p.scenes >= TOWN_PROMOTE && approveOf(s).promote === "auto") await townPromote(env, s, p, now);
+    else { if (p.scenes >= TOWN_PROMOTE) p.candidate = true; await townSave(env, p, now); }
+    TOWN_V = "";   // reload next time
+  } catch (e) { s.townErr = String(e && e.message || e).slice(0, 200); }
+}
+// into the cast: an s.cast entry like an audition character's (post, workLook), so the cards, the keeper and the Cast tab know them
+async function townPromote(env, s, p, now) {
+  if (s.cast[p.id]) return;
+  s.cast[p.id] = { id: p.id, name: p.name, role: p.role + (p.age ? `, ${p.age}` : ""), personality: p.about || "", speech: p.speech || "", hangouts: [p.post.place],
+    look: p.look, workLook: p.workLook, post: p.post, gender: p.gender, from: "town", met: p.met || now, relationship: 3, memory: (p.memory || []).join(" ") };
+  p.candidate = false; await townSave(env, p, now, ", state = 'cast'");
+  s.townLog = [...(s.townLog || []), { at: now, id: p.id, did: "promoted" }].slice(-10);
+}
+// one person a tick without a personality gets one: a small AI call (stock lines when the AI can't)
+const TOWN_SYS = `You invent small background people for "Watching Ishai", a realistic slice of life in Tel Aviv. Given a person's name, age, job and workplace, reply with JSON only: {"about":"their personality in under 18 words","speech":"how they talk, under 12 words","memory":"one ordinary thing on their mind this week, under 18 words"}. Ordinary, specific, kind or prickly but never cruel. No secrets, no deaths, no romance with Ishai, no real brands.`;
+async function townWriteTick(env, s, now) {
+  const p = TOWN_ALL.find(x => x.state !== "off" && !x.wrote); if (!p || !env.DB) return;
+  let o = null;
+  try {
+    const msg = [{ role: "system", content: TOWN_SYS }, { role: "user", content: `${p.name}, ${p.age}, ${p.gender}, ${p.role}.` }];
+    o = parseAI(await runModel(env, msg, 200, "story"));
+  } catch (e) {}
+  const stock = { barista: ["quick, cheerful, remembers everyone's order", "short and bright"], bartender: ["calm, dry humour, has heard every story twice", "slow, few words"],
+    vendor: ["loud, generous with samples, haggles for fun", "shouts, then whispers a deal"] }[p.job] || ["polite, a little tired, good at the job", "plain and friendly"];
+  p.about = castStr(o && o.about, 140) || stock[0]; p.speech = castStr(o && o.speech, 100) || stock[1];
+  if (o && o.memory) p.memory = [castStr(o.memory, 140), ...(p.memory || [])].slice(-3);
+  p.wrote = true; await townSave(env, p, now); TOWN_V = "";
+}
+function townHealth() { return { v: TOWN_V, live: Object.keys(TOWNP).length, pending: TOWN_ALL.filter(p => p.state === "pending").length, cast: TOWN_ALL.filter(p => p.state === "cast").length,
+  candidates: TOWN_ALL.filter(p => p.candidate).map(p => p.id) }; }
+function townPublic() { return { v: TOWN_V, people: Object.values(TOWNP).map(p => ({ id: p.id, name: p.name, first: p.first, gender: p.gender, look: p.look, workLook: p.workLook, role: p.role, post: p.post })) }; }
+function townDir() { return TOWN_ALL.map(p => ({ id: p.id, name: p.name, role: p.role, place: p.post.place, hours: p.post.hours, state: p.state, scenes: p.scenes, candidate: !!p.candidate, about: p.about, memory: p.memory, look: p.workLook })); }

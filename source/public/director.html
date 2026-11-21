@@ -252,6 +252,9 @@
       <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Growth: who approves</span></div>
       <div id="apRows" style="margin-top:6px">—</div>
       <div id="apAuto" class="muted" style="font-size:16px;margin-top:4px"></div>
+      <div style="margin-top:10px;font-size:20px">Townspeople</div>
+      <div class="bar" style="gap:6px;flex-wrap:wrap"><select id="tnPlace" style="width:auto"></select><button id="tnMake">Make one there</button></div>
+      <div id="tnList" style="font-size:16px"></div>
       <div class="muted" style="font-size:16px">AUTO: goes live at once, after the code's own checks; it shows as AUTO under CAST → Reviewed, where you can undo it. CLAUDE: waits for the weekly scheduled review. DIRECTOR: waits for you (NOW inbox, CAST tab). New street blocks, places, people and promotions come with the next steps of docs/GROWTH_PLAN.md; only the cast cards use this so far.</div>
     </div>
     <div class="box">
@@ -870,6 +873,22 @@
     });
     $('apAuto').textContent = auto ? `Last auto-approval: ${fmt(auto.at)}, ${auto.ok} approved${auto.held ? ', ' + auto.held + ' held for a review (they mention a death)' : ''}${auto.err && auto.err.length ? ' · ' + auto.err.join('; ') : ''}.` : '';
   }
+  // v284: the town registry (docs/GROWTH_PLAN.md step 5)
+  function renderTown(list, places){
+    const sel = $('tnPlace'); if (places && sel.options.length !== places.length){ sel.textContent = ''; places.forEach(p => { const o = document.createElement('option'); o.value = o.textContent = p; sel.appendChild(o); }); }
+    const box = $('tnList'); box.textContent = ''; if (!list) return;
+    if (!list.length){ box.textContent = 'Nobody yet. They are made when the story needs someone (step 6), or here by hand.'; return; }
+    list.forEach(p => { const row = document.createElement('div'); row.style.cssText = 'border-top:1px solid #1c4a2a;padding:4px 0';
+      row.innerHTML = '<b></b> <span class="muted"></span><div class="muted" style="font-size:14px"></div>';
+      row.querySelector('b').textContent = p.name; row.querySelector('span').textContent = `${p.role} · ${p.hours.join('-')}h · ${p.state.toUpperCase()}${p.candidate ? ' · READY TO JOIN THE CAST' : ''} · ${p.scenes} scene${p.scenes === 1 ? '' : 's'}`;
+      row.querySelector('div').textContent = [p.about, ...(p.memory || [])].filter(Boolean).join(' · ');
+      const act = (label, body) => { const b = document.createElement('button'); b.textContent = label; b.style.marginRight = '6px'; b.onclick = async () => { try { render(await api(body)); } catch(e){ alert(e.message); } }; row.appendChild(b); };
+      if (p.state === 'pending') act('Approve', {action: 'townSet', id: p.id, state: 'live'});
+      if (p.state === 'live') act('Into the cast', {action: 'townPromote', id: p.id});
+      if (p.state !== 'cast') act('Take away', {action: 'townSet', id: p.id, state: 'off'});
+      box.appendChild(row); });
+  }
+  $('tnMake').onclick = async () => { try { render(await api({action: 'townMake', place: $('tnPlace').value})); } catch(e){ alert(e.message); } };
   function collapsible(){
     document.querySelectorAll('#main .box').forEach(box => {
       const head = box.firstElementChild;
@@ -908,7 +927,7 @@
     if (!CX) cxLoad();
     if (!AUD) { AUD = {requests: [], decided: [], banned: [], members: 0, max: 6}; audLoad(); }
     DirBar.set(v.status);
-    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderHosts(v.hosts); renderApprove(v.approve, v.castAuto); renderPolls(v.polls); renderSurveys(v.surveys);
+    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderHosts(v.hosts); renderApprove(v.approve, v.castAuto); renderTown(v.town, v.townPlaces); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';
     const wl = $('wish'); wl.textContent = '';

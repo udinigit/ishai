@@ -1,6 +1,6 @@
 # A growing world: more people and places, made when the story asks
 
-Draft 2026-11-21. **Status: steps 1-4 built (v280-v283).** Builds on `docs/WORLD_PLAN.md` (the block kit, the map) and `docs/CAST_PLAN.md` (cards, the review). Read `CLAUDE.md` and `docs/SCENE_GUIDELINES.md` first.
+Draft 2026-11-21. **Status: steps 1-5 built (v280-v284).** Builds on `docs/WORLD_PLAN.md` (the block kit, the map) and `docs/CAST_PLAN.md` (cards, the review). Read `CLAUDE.md` and `docs/SCENE_GUIDELINES.md` first.
 
 ## Decided (2026-11-21)
 - **Approval setting**, one per kind of change: `auto`, `claude` or `director`. Every kind starts on `auto`. This includes the cast cards' growth, which today always waits for a review.
