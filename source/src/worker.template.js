@@ -346,7 +346,7 @@ export default {
         sleep: (() => { try { return sleepHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
         pacing: (() => { try { return pacingHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
-        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(), town: townHealth(), growth: growStepHealth(s, Date.now()), talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (14-22 lines, two halves)",
+        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(), town: townHealth(), growth: { ...growStepHealth(s, Date.now()), waiting: await growWaitN(env) }, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (14-22 lines, two halves)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), auditions: { cardErr: s.audCardErr || null, cardTries: s.audCardTry || {}, readErr: s.audReadErr || null, readTries: s.audReadTry || {}, lifeErr: s.memberErr || null }, life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), when busy " + (env.GEMINI_BACKUP ? "gemini (" + env.GEMINI_BACKUP + ")" : "the other Gemini Flash models") + ", then Cloudflare", hosts: hostsByGemini(s) ? "gemini, backup Cloudflare" : "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
@@ -980,6 +980,7 @@ async function tick(env, force) {
     text: ev.text, with: ev.with || null, lines: ev.lines || [], commentary: ev.commentary || [], unlocks: ev.unlocks || null, src: ev.src || null, art: ev.art || undefined, feel: ev.feel || undefined, then: ev.then || undefined, bathFrom: ev.bathFrom || undefined, holdIt: ev.holdIt || undefined });
   try { await townAfter(env, s, s.events[s.events.length - 1], s.events[s.events.length - 2], storyMs, now); } catch (e) {}   // v284: a scene with a townsperson
   if (ev.need) try { await growNeed(env, s, ev.need, ev.location, storyMs, now); } catch (e) { s.growErr = String(e && e.message || e).slice(0, 200); }   // v286: the story asked for someone or somewhere new
+  try { await statAfter(env, s, s.events[s.events.length - 1], s.events[s.events.length - 2], now); } catch (e) { s.statErr = String(e && e.message || e).slice(0, 200); }   // v287: screen statistics
   // the day's highlights, replayed in Ishai's dreams at night
   { const prevEv = s.events[s.events.length - 2], hl = s.hl || (s.hl = []), lastHl = hl[hl.length - 1];
     const notable = !["sleeping", "waking", "bathroom", "showering"].includes(ev.action) && ev.location !== "offscreen" &&
@@ -5297,7 +5298,7 @@ function applyPlan(s, now) {
 async function directorApi(req, env) {
   const s = await loadState(env);
   await hostsLangLoad(env, s); await approveLoad(env, s); await worldLoad(env, s); await townLoad(env, s);
-  try { GROW_WAIT = await growWaiting(env); } catch (e) { GROW_WAIT = []; }
+  try { GROW_WAIT = await growWaiting(env); GROW_DIR = await growDir(env); GROW_STATS = await statList(env, s); } catch (e) { GROW_WAIT = []; }
   const now = Date.now();
   if (req.method === "POST") {
     let b = {}; try { b = await req.json(); } catch {}
@@ -5346,6 +5347,12 @@ async function directorApi(req, env) {
         : b.action === "townSet" ? await townSet(env, s, String(b.id || ""), String(b.state || ""), now)
         : await (async () => { const p = TOWN_ALL.find(x => x.id === b.id && (x.state === "live")); if (!p) return { error: "no such person on the show" }; await townPromote(env, s, p, now); await townLoad(env, s, true); return { ok: true }; })();
       if (r.error) return json(r, {}, 400);
+    } else if (b.action === "growPause") {   // v287: pause one kind of growth (people / places)
+      if (!["people", "places"].includes(b.kind)) return json({ error: "kind: people or places" }, {}, 400);
+      s.growPause = { ...(s.growPause || {}), [b.kind]: !!b.off };
+    } else if (b.action === "growUndo") {
+      const r = await growUndo(env, s, String(b.id || ""), now); if (r && r.error) return json(r, {}, 400);
+      GROW_WAIT = await growWaiting(env);
     } else if (b.action === "growDecide" || b.action === "growAsk" || b.action === "growOff") {   // v286: what the story asked for: approve / reject a waiting one, ask by hand (a test), growth off
       const r = b.action === "growDecide" ? (await growReview(env, s, [{ id: b.id, verdict: b.verdict }], "director", now))[0]
         : b.action === "growOff" ? (s.growOff = !!b.off, { ok: true })
@@ -5383,7 +5390,7 @@ async function dirStatus(s, env, now, bugs) {
   try { if (env.DB) { await memberTables(env); auditions = ((await env.DB.prepare("SELECT COUNT(*) AS n FROM member WHERE state = 'requested'").first()) || {}).n || 0;
     await audTables(env); auditions += ((await env.DB.prepare("SELECT COUNT(*) AS n FROM aud WHERE state IN ('submitted', 'greenlight')").first()) || {}).n || 0; } } catch (e) {}
   const waiting = { bugs: (bugs || []).filter(b => b.status === "new").length, cast, auditions, art: (s.director || []).filter(g => g.status === "needs-art").length,
-    film: N.filmLate ? 1 : 0, aiError: s.lastError && now - s.lastError.at < 6 * 3600000 ? 1 : 0, autoFix: (N.autoFix ? 1 : 0) + (s.autoFixErr ? 1 : 0) };
+    growth: await growWaitN(env), film: N.filmLate ? 1 : 0, aiError: s.lastError && now - s.lastError.at < 6 * 3600000 ? 1 : 0, autoFix: (N.autoFix ? 1 : 0) + (s.autoFixErr ? 1 : 0) };
   const neurons = neuronsOf(s.usage);
   return { now, clock: last.t ? storyClock(last.t).label : null, loc: last.location || null, place: PLACE_NAME[last.location] || last.location || null, action: last.action || null, with: nm(last.with),
     gemini, neurons, neuronPct: Math.round(neurons / 100), talk: s.talkBrake || null, stuck: s.stuck || 0, waiting, waitingN: Object.values(waiting).reduce((a, b) => a + b, 0) };
@@ -5405,7 +5412,7 @@ function directorView(s, bugs) {
   return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), kitchen: kitchenHealth(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { name: s.cast[s.scene.w]?.name || s.scene.w, type: s.scene.type || null, loc: s.scene.loc || null, lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse().map(dirGoal), lastError: s.lastError || null,
-    approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(), town: townDir(), townPlaces: Object.keys(PLACES).filter(k => townJob(k)), growth: { ...growStepHealth(s, Date.now()), waiting: GROW_WAIT },
+    approve: approveOf(s), castAuto: s.castAuto || null, grown: growHealth(), town: townDir(), townPlaces: Object.keys(PLACES).filter(k => townJob(k)), growth: { ...growStepHealth(s, Date.now()), waiting: GROW_WAIT, grown: GROW_DIR }, stats: GROW_STATS,
     hosts: { style: hostsSports(s) ? "sports" : "classic", writer: hostsByGemini(s) ? "gemini" : "cloudflare", lang: hostsHe(s) ? "he" : "en", by: s.hostsBy || null },
     polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t },
@@ -7443,7 +7450,7 @@ function townDir() { return TOWN_ALL.map(p => ({ id: p.id, name: p.name, role: p
 // blocks): auto puts it live at once, claude / director keep it pending in D1 (town, world_gen state 'pending') for growDecide().
 // The next moments' prompt says what was made (growNote()).
 const CITYMAP = /*__CITY_JSON__*/{};   // story/city.json (CITY is the weekly city timetable)
-let GROW_WAIT = [];
+let GROW_WAIT = [], GROW_DIR = [], GROW_STATS = null;
 const GROW_MAX = { people: 4, places: 1 }, GROW_PENDING_D = 7;
 const GROW_KIND_WORDS = [["nightlife", /karaoke|club|disco|dance ?floor|nightclub/], ["music", /music|jazz|concert|live band|piano bar|record/], ["library", /librar|book/],
   ["arcade", /arcade|bowling|game|billiard|pool hall|escape room/], ["gallery", /galler|art|studio of|exhibit/], ["culture", /museum|theat|cinema|culture|planetarium|synagogue/],
@@ -7631,6 +7638,7 @@ async function growNeed(env, s, need, loc, storyMs, now, force) {
   if (!env.DB || !need) return;
   const day = growDay(now), G = s.grow && s.grow.day === day ? s.grow : (s.grow = { day, people: 0, places: 0, log: ((s.grow && s.grow.log) || []).slice(-20) });
   const key = need.kind === "person" ? "people" : "places", entry = { t: now, kind: need.kind, ask: need.role || need.type, why: need.why || "", at: loc };
+  if ((s.growPause || {})[key] && !force) { entry.state = "paused"; G.log = [...G.log, entry].slice(-20); return; }
   if (G[key] >= GROW_MAX[key] && !force) { entry.state = "over today's limit"; G.log = [...G.log, entry].slice(-20); return; }
   let r;
   if (need.kind === "person") {
@@ -7648,8 +7656,9 @@ async function growNeed(env, s, need, loc, storyMs, now, force) {
 }
 // the writer: what grew lately, and whether it may still ask today
 function growNote(s, now) {
-  const G = s.grow && s.grow.day === growDay(now) ? s.grow : { people: 0, places: 0 }, p = GROW_MAX.people - G.people, q = GROW_MAX.places - G.places;
+  const G = s.grow && s.grow.day === growDay(now) ? s.grow : { people: 0, places: 0 };
   const say = s.growSay && s.growSay.until > now && s.growSay.text ? `\n- ${s.growSay.text}` : "";
+  const P0 = s.growPause || {}; let p = GROW_MAX.people - G.people, q = GROW_MAX.places - G.places; if (P0.people) p = 0; if (P0.places) q = 0;
   return say + (s.growOff ? "" : `\n- "need" (optional, rare): when the story REALLY needs someone or somewhere that doesn't exist yet (never Ishai's home, never someone or somewhere already listed), ask for it on this moment and it exists from the next one. ${p > 0 ? `A person who works at a place: {"kind":"person","role":"a new waiter","at":"<a place id>","why":"..."} (${p} more today). ` : ""}${q > 0 ? `A new place in the city: {"kind":"place","type":"karaoke bar","near":"<a place id or a part of town>","why":"..."} (${q} more today). ` : ""}${p <= 0 && q <= 0 ? "Nothing more today: \"need\" must be null." : "Otherwise null."}`);
 }
 async function growSweep(env, s, now) {   // waiting places and people expire after GROW_PENDING_D days
@@ -7657,4 +7666,86 @@ async function growSweep(env, s, now) {   // waiting places and people expire af
   try { await worldTables(env); await env.DB.prepare("UPDATE world_gen SET state = 'off', changed = ?1 WHERE state = 'pending' AND made < ?2").bind(now, now - GROW_PENDING_D * 86400000).run();
     await townTables(env); await env.DB.prepare("UPDATE town SET state = 'off', changed = ?1 WHERE state = 'pending' AND made < ?2").bind(now, now - GROW_PENDING_D * 86400000).run(); } catch (e) {}
 }
-function growStepHealth(s, now) { const G = s.grow || {}; return { day: G.day || null, people: G.people || 0, places: G.places || 0, max: GROW_MAX, off: !!s.growOff, log: (G.log || []).slice(-8), err: s.growErr || null }; }
+function growStepHealth(s, now) { const G = s.grow && s.grow.day === growDay(now) ? s.grow : {}; return { day: G.day || null, people: G.people || 0, places: G.places || 0, max: GROW_MAX, off: !!s.growOff, pause: s.growPause || {}, log: ((s.grow || {}).log || []).slice(-8), grownPlaces: GROWN.ids.length, townLive: Object.keys(TOWNP).length, err: s.growErr || null, statErr: s.statErr || null }; }
+
+// ==================== Growth step 7 (v287, docs/GROWTH_PLAN.md): health, the director's Growth box, screen statistics ====================
+// D1 screen_stat (kind person|place|host, id, n, mins, lines, first, last): after every moment statAfter() adds, with no AI: the place (n +1 when he
+// arrives there, mins + the moment's len), each person on screen (Ishai, and "with" unless it is a phone call: n +1 when they come into the scene,
+// mins + len) and each speaker's lines (a phone partner's too; never radio/TV), and the hosts' lines. Counting started with v287.
+// The director pauses each kind of growth on its own (s.growPause {people, places}); growUndo() takes a grown place away with the street block made for it.
+let STAT_TABLES = false;
+async function statTables(env) {
+  if (STAT_TABLES || !env.DB) return;
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS screen_stat (kind TEXT NOT NULL, id TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, mins REAL NOT NULL DEFAULT 0, lines INTEGER NOT NULL DEFAULT 0, first INTEGER, last INTEGER, PRIMARY KEY (kind, id))").run();
+  STAT_TABLES = true;
+}
+async function statAfter(env, s, ev, prev, now) {
+  if (!env.DB || !ev || !ev.location || ev.location === "offscreen") return;
+  await statTables(env);
+  const len = Math.max(0, Number(ev.len) || INTERVAL_MIN), place = ev.location, same = prev && prev.location === place;
+  const onOf = e => new Set(["ishai", ...(e && e.with && e.action !== "phoning" ? [e.with] : [])]);
+  const on = onOf(ev), before = same ? onOf(prev) : new Set(), rows = new Map();
+  const add = (kind, id, n, m, l) => { if (!id) return; const k = kind + "|" + id, r = rows.get(k) || { kind, id: String(id).slice(0, 40), n: 0, m: 0, l: 0 }; r.n += n; r.m += m; r.l += l; rows.set(k, r); };
+  add("place", place, same ? 0 : 1, len, 0);
+  for (const id of on) add("person", id, before.has(id) ? 0 : 1, len, 0);
+  for (const l of ev.lines || []) if (l && l.who && !["radio", "tv"].includes(l.who) && !l.x) add("person", l.who, 0, 0, 1);
+  for (const c of ev.commentary || []) if (c && c.who) add("host", c.who, 0, 0, 1);
+  const q = "INSERT INTO screen_stat (kind, id, n, mins, lines, first, last) VALUES (?1, ?2, CASE WHEN ?4 > 0 THEN MAX(?3, 1) ELSE ?3 END, ?4, ?5, ?6, ?6) ON CONFLICT (kind, id) DO UPDATE SET n = n + ?3, mins = mins + ?4, lines = lines + ?5, last = ?6";
+  await env.DB.batch([...rows.values()].map(r => env.DB.prepare(q).bind(r.kind, r.id, r.n, r.m, r.l, now)));
+}
+function statName(s, kind, id) {
+  if (kind === "place") return ({ classroom: "The lecture room", apartment: "His apartment", bathroom: "His bathroom" })[id] || TOWN_PLACE_NAME[id] || (GROWN.ids.includes(id) ? townPlaceName(id) : PLACE_NAME[id] ? PLACE_NAME[id].replace(/^./, c => c.toUpperCase()) : townPlaceName(id)) || id;
+  if (kind === "host") return id.replace(/^./, c => c.toUpperCase());
+  if (id === "ishai") return "Ishai";
+  const c = s.cast[id] || SEED_CAST.find(x => x.id === id), t = TOWN_ALL.find(x => x.id === id);
+  return c ? c.name : t ? t.name : LOCALS[id] ? "a " + LOCALS[id].name.toLowerCase() : /^student\d$/.test(id) ? "a student" : id;
+}
+async function statList(env, s) {
+  if (!env.DB) return null;
+  await statTables(env);
+  const rows = (await env.DB.prepare("SELECT kind, id, n, mins, lines, first, last FROM screen_stat ORDER BY mins DESC, lines DESC LIMIT 300").all()).results || [];
+  const out = { people: [], places: [], hosts: [], since: rows.reduce((a, r) => Math.min(a, r.first || a), Infinity) };
+  for (const r of rows) {
+    const x = { id: r.id, name: statName(s, r.kind, r.id), n: r.n, mins: Math.round(r.mins), avg: r.n ? Math.round(r.mins / r.n * 10) / 10 : null, lines: r.lines, last: r.last,
+      tag: r.kind === "person" ? (TOWN_ALL.some(t => t.id === r.id) || (s.cast[r.id] || {}).from === "town" ? "town" : (s.cast[r.id] || {}).from === "audience" ? "audience" : LOCALS[r.id] ? "local" : null) : r.kind === "place" && GROWN.ids.includes(r.id) ? "grown" : null };
+    (r.kind === "place" ? out.places : r.kind === "host" ? out.hosts : out.people).push(x);
+  }
+  if (!isFinite(out.since)) out.since = null;
+  // everyone and everywhere, also those never on screen yet (zeros)
+  const have = (list, id) => list.some(x => x.id === id), zero = (id, name, tag) => ({ id, name, n: 0, mins: 0, avg: null, lines: 0, last: null, tag: tag || null });
+  const people = ["ishai", ...Object.keys(s.cast), ...TOWN_ALL.filter(t => t.state !== "off" && t.state !== "cast").map(t => t.id), ...Object.keys(LOCALS)];
+  for (const id of people) if (!have(out.people, id)) out.people.push(zero(id, statName(s, "person", id), TOWN_ALL.some(t => t.id === id) ? "town" : LOCALS[id] ? "local" : (s.cast[id] || {}).from || null));
+  for (const id of Object.keys(PLACES)) if (!have(out.places, id) && !["bus", "taxi", "offscreen"].includes(id)) out.places.push(zero(id, statName(s, "place", id), GROWN.ids.includes(id) ? "grown" : null));
+  for (const id of ["zohar", "oren"]) if (!have(out.hosts, id)) out.hosts.push(zero(id, statName(s, "host", id)));
+  for (const x of out.people) { const c = s.cast[x.id]; if (c && c.phoneOnly) x.tag = "phone only"; }
+  return out;
+}
+// everything grown, newest first (all states), for the Growth box
+async function growDir(env) {
+  if (!env.DB) return [];
+  await worldTables(env);
+  return ((await env.DB.prepare("SELECT id, rec, state, by, made, changed FROM world_gen ORDER BY made DESC LIMIT 60").all()).results || []).map(r => {
+    let rec = {}; try { rec = JSON.parse(r.rec); } catch (e) {}
+    const g = rec._grow || {};
+    return { id: r.id, name: rec.name || r.id, kind: (rec.place || {}).kind || "?", district: rec.district || null, state: r.state, by: r.by || null, made: r.made, changed: r.changed,
+      bundle: g.bundle || null, why: g.why || null, type: g.type || null, look: rec.spec ? (rec.spec.ground === "indoor" ? (rec.spec.room || {}).k : rec.spec.ground) : null, desc: (rec.place || {}).desc || null };
+  });
+}
+// take a grown place away, with the street block made for it (when nothing else hangs on that block); a waiting one is rejected
+async function growUndo(env, s, id, now) {
+  const all = await growDir(env), me = all.find(x => x.id === id); if (!me) return { error: id + ": not grown" };
+  if (me.state === "pending") return growDecide(env, s, id, "reject", "director", now);
+  await worldLoad(env, s, true);
+  const r = await growOff(env, s, id, now); if (r.error) return r;
+  for (const b of all.filter(x => x.bundle === id && x.id !== id && x.state === "live")) { const rb = await growOff(env, s, b.id, now); if (rb.error) r.kept = (r.kept || []).concat(b.id); }
+  for (const p of TOWN_ALL.filter(p => p.post.place === id && p.state !== "cast" && p.state !== "off")) await townSet(env, s, p.id, "off", now);   // nobody works at a place that's gone
+  growLogSet(s, id, "taken away by the director");
+  return r;
+}
+async function growWaitN(env) {
+  if (!env.DB) return 0;
+  try { await worldTables(env); await townTables(env);
+    const a = await env.DB.prepare("SELECT COUNT(*) n FROM world_gen WHERE state = 'pending' AND json_extract(rec, '$._grow.bundle') = id").first();
+    const b = await env.DB.prepare("SELECT COUNT(*) n FROM town WHERE state = 'pending'").first();
+    return ((a && a.n) || 0) + ((b && b.n) || 0); } catch (e) { return 0; }
+}

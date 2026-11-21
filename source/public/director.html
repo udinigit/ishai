@@ -67,6 +67,9 @@
   .tab{display:flex;flex-direction:column;gap:14px} .tab[hidden]{display:none}
   .tools{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:6px}
   .tools a{display:block;text-align:center;padding:10px;border:1px solid var(--dim);border-radius:8px;background:var(--faint);color:var(--phos);text-decoration:none}
+  .stt{border-collapse:collapse;width:100%;font-size:16px} .stt th{text-align:left;color:#2a9a4c;cursor:pointer;padding:3px 6px;white-space:nowrap;border-bottom:1px solid #1c4a2a}
+  .stt th.on{color:#4dff7a} .stt td{padding:3px 6px;border-bottom:1px solid #12301c;white-space:nowrap} .stt td:first-child{white-space:normal;min-width:7em} .stt td.r,.stt th.r{text-align:right} .stt tr.zero td{color:#3a6a48}
+  .stt .tg{font-size:12px;border:1px solid #2a9a4c;border-radius:3px;padding:0 3px;margin-left:4px;color:#2a9a4c}
   @media (min-width:1000px){ .wrap{max-width:980px} .tab[data-tab=week],.tab[data-tab=more]{display:grid;grid-template-columns:1fr 1fr;align-items:start} .tab[data-tab=week][hidden],.tab[data-tab=more][hidden]{display:none} }
 </style>
 </head>
@@ -236,6 +239,15 @@
       </div>
     </div>
     </section>
+    <section class="tab" data-tab="stats" hidden>
+    <div class="box">
+      <div class="bar" style="justify-content:space-between"><span style="font-size:24px">On screen</span><span id="stSince" class="muted" style="font-size:16px"></span></div>
+      <div class="bar" style="gap:6px;margin:6px 0"><button id="stPeople">People</button><button id="stPlaces" class="ghost">Places</button><button id="stHosts" class="ghost">Hosts</button>
+        <input id="stFind" placeholder="find" style="width:8em"></div>
+      <div style="overflow-x:auto"><table id="stTable" class="stt"></table></div>
+      <div class="muted" style="font-size:15px;margin-top:6px">Times = how often they came on screen (a person joining a scene, Ishai arriving at a place). Time = minutes on screen, Avg = minutes per time. Lines = spoken lines (a phone call's lines count, but a voice on the phone is not on screen). Everyone and every place is listed, also the ones never seen yet. Tap a column to sort. Counted since v287, with no AI.</div>
+    </div>
+    </section>
     <section class="tab" data-tab="more" hidden>
     <div class="box">
       <div class="bar" style="justify-content:space-between"><span style="font-size:24px">The hosts</span>
@@ -260,7 +272,10 @@
       <div id="grLog" class="muted" style="font-size:15px;margin-top:4px"></div>
       <div class="bar" style="gap:6px;flex-wrap:wrap;margin-top:6px"><select id="grKind" style="width:auto"><option value="place">a place</option><option value="person">a person</option></select>
         <input id="grWhat" placeholder="karaoke bar / a new waiter" style="width:12em"> <input id="grNear" placeholder="near (place or part of town)" style="width:12em">
-        <button id="grAsk">Ask as the story would</button> <button id="grOff" class="ghost">Turn growth off</button></div>
+        <button id="grAsk">Ask as the story would</button></div>
+      <div class="bar" style="gap:6px;flex-wrap:wrap;margin-top:6px"><button id="grPPeople" class="ghost">Pause new people</button> <button id="grPPlaces" class="ghost">Pause new places</button> <button id="grOff" class="ghost">Turn growth off</button></div>
+      <div style="margin-top:10px;font-size:20px">What grew</div>
+      <div id="grDone" style="font-size:16px"></div>
       <div class="muted" style="font-size:16px">AUTO: goes live at once, after the code's own checks (cards show as AUTO under CAST → Reviewed, where you can undo them). CLAUDE: waits for the weekly scheduled review. DIRECTOR: waits for you here. The story may ask for up to 4 new people and 1 new place a day; a new place goes where story/city.json says it fits (behind a free door on the district's street, or on a new street block at its edge). "Ask as the story would" makes one now, past the day's limit.</div>
     </div>
     <div class="box">
@@ -811,6 +826,8 @@
     (AUD && AUD.interviews || []).filter(a => a.state === 'submitted').forEach(a => { const nm = a.name && a.name.first ? `${a.name.first} ${a.name.sur || ''}`.trim() : 'unnamed';
       inboxItem(box, '', `Audition sent · ${nm} · ${a.test ? 'your test' : 'viewer #' + a.short} · ${fmt(a.done)}`, a.card ? `${a.answered} answers. The card and three ways in are ready for you to approve${a.review ? ' (Claude: ' + a.review.verdict + ')' : ''}.` : `${a.answered} answers. The card is being written from them.`,
         [[a.card ? 'Open it' : 'Read the answers', () => { DirBar.tab('cast'); setTimeout(() => { const d = $((a.card ? 'audCard' : 'audAns') + a.n); if (d) { d.open = true; d.scrollIntoView({behavior: 'smooth', block: 'center'}); } }, 400); }]]); });
+    ((v.growth || {}).waiting || []).forEach(x => inboxItem(box, '', `The story asked for ${x.kind === 'place' ? 'a new place' : 'a new person'}: ${x.name}`, x.kind === 'place' ? `a ${x.type || x.spec} in ${x.district}${x.why ? ' · why: ' + x.why : ''} · ${x.desc || ''}` : `${x.role}${x.why ? ' · why: ' + x.why : ''}`,
+      [['Approve', () => act({action: 'growDecide', id: x.id, verdict: 'approve'})], ['Reject', () => act({action: 'growDecide', id: x.id, verdict: 'reject'}), true]]));
     (v.goals || []).filter(g => g.status === 'needs-art').forEach(g => inboxItem(box, '', 'Goal waiting for art: ' + g.goal, 'Art needed: ' + (g.art || '—'),
       [['Release (art is ready)', () => act({action: 'release', id: g.id})]]));
     if (v.filmLate) { const f = v.filmLate; inboxItem(box, 'red', `The film isn't written: ${f.title} (${f.done}${f.of ? ' of ' + f.of : ''} parts), Saturday ${hm(f.at)}`, 'Not ready by Friday noon, an older film comes back instead.',
@@ -908,6 +925,49 @@
       box.appendChild(row); });
     $('grLog').textContent = (g.log || []).length ? `Today ${g.people}/${g.max.people} people, ${g.places}/${g.max.places} places. Lately: ` + g.log.slice().reverse().map(e => `${e.name || e.ask} (${e.kind}${e.district ? ', ' + e.district : e.place ? ', ' + e.place : ''}): ${e.state}`).join(' · ') : `Today ${g.people}/${g.max.people} people, ${g.places}/${g.max.places} places.`;
   }
+  // v287: the Growth box's pauses and what grew; the STATS tab
+  function renderGrown(g){
+    if (!g) return; const P = g.pause || {};
+    $('grPPeople').textContent = P.people ? 'New people paused · resume' : 'Pause new people'; $('grPPeople').dataset.off = P.people ? '1' : '';
+    $('grPPlaces').textContent = P.places ? 'New places paused · resume' : 'Pause new places'; $('grPPlaces').dataset.off = P.places ? '1' : '';
+    const box = $('grDone'); box.textContent = ''; const list = (g.grown || []).filter(x => x.kind === 'story' || !x.bundle || x.bundle === x.id);
+    if (!list.length){ box.textContent = 'Nothing has grown yet.'; return; }
+    list.forEach(x => { const row = document.createElement('div'); row.style.cssText = 'border-top:1px solid #1c4a2a;padding:4px 0' + (x.state === 'off' ? ';opacity:.5' : '');
+      row.innerHTML = '<b></b> <span class="muted"></span><div class="muted" style="font-size:14px"></div>';
+      const blocks = (g.grown || []).filter(b => b.bundle === x.id && b.id !== x.id).map(b => b.name);
+      row.querySelector('b').textContent = x.name;
+      row.querySelector('span').textContent = `${x.kind === 'pass' ? 'street block' : x.look || 'place'}${x.district ? ' in ' + x.district : ''} · ${String(x.state).toUpperCase()} · by ${x.by || '?'} · ${fmt(x.made)}`;
+      row.querySelector('div').textContent = [x.type && 'asked for: ' + x.type, x.why && 'why: ' + x.why, blocks.length && 'with a new street: ' + blocks.join(', ')].filter(Boolean).join(' · ');
+      if (x.state !== 'off'){ const b = document.createElement('button'); b.textContent = x.state === 'pending' ? 'Reject' : 'Take away'; b.className = 'ghost';
+        b.onclick = async () => { if (!confirm(`Take ${x.name} away? Ishai can't go there any more (it stays in the history).`)) return; try { render(await api({action: 'growUndo', id: x.id})); } catch(e){ alert(e.message); } }; row.appendChild(b); }
+      box.appendChild(row); });
+  }
+  $('grPPeople').onclick = async () => { try { render(await api({action: 'growPause', kind: 'people', off: !$('grPPeople').dataset.off})); } catch(e){ alert(e.message); } };
+  $('grPPlaces').onclick = async () => { try { render(await api({action: 'growPause', kind: 'places', off: !$('grPPlaces').dataset.off})); } catch(e){ alert(e.message); } };
+  let ST = null, stKind = 'people', stSort = 'mins', stDir = -1;
+  const mins = m => m == null ? '—' : m < 60 ? m + ' min' : (m / 60).toFixed(m < 600 ? 1 : 0) + ' h';
+  function renderStats(st){
+    if (st) ST = st; if (!ST) return;
+    $('stSince').textContent = ST.since ? 'since ' + fmt(ST.since) : 'counting starts with the next moment';
+    [['stPeople', 'people'], ['stPlaces', 'places'], ['stHosts', 'hosts']].forEach(([id, k]) => $(id).className = stKind === k ? '' : 'ghost');
+    const cols = [['name', 'Name'], ['n', 'Times', 1], ['mins', 'Time', 1], ['avg', 'Avg', 1], ...(stKind !== 'places' ? [['lines', 'Lines', 1]] : []), ['last', 'Last', 1]].filter(c => stKind !== 'hosts' || ['name', 'lines', 'last'].includes(c[0]));
+    const f = $('stFind').value.trim().toLowerCase();
+    const rows = (ST[stKind] || []).filter(x => !f || x.name.toLowerCase().includes(f) || x.id.includes(f))
+      .sort((a, b) => { const nm = x => x.name.replace(/^(a|an|the) /i, '').toLowerCase(); return stSort === 'name' ? stDir * nm(a).localeCompare(nm(b)) : stDir * ((a[stSort] ?? -1) - (b[stSort] ?? -1)) || nm(a).localeCompare(nm(b)); });
+    const t = $('stTable'); t.textContent = ''; const hr = document.createElement('tr');
+    cols.forEach(([k, l, r]) => { const th = document.createElement('th'); th.textContent = l + (stSort === k ? (stDir < 0 ? ' ▾' : ' ▴') : ''); if (r) th.className = 'r'; if (stSort === k) th.classList.add('on');
+      th.onclick = () => { if (stSort === k) stDir = -stDir; else { stSort = k; stDir = k === 'name' ? 1 : -1; } renderStats(); }; hr.appendChild(th); });
+    t.appendChild(hr);
+    rows.forEach(x => { const tr = document.createElement('tr'); if (!x.n && !x.lines) tr.className = 'zero';
+      cols.forEach(([k, , r]) => { const td = document.createElement('td'); if (r) td.className = 'r';
+        if (k === 'name'){ td.textContent = x.name; if (x.tag){ const s = document.createElement('span'); s.className = 'tg'; s.textContent = x.tag; td.appendChild(s); } }
+        else td.textContent = k === 'mins' ? (x.n || x.mins ? mins(x.mins) : '—') : k === 'avg' ? (x.avg == null ? '—' : mins(x.avg)) : k === 'last' ? (x.last ? fmt(x.last) : '—') : (x[k] || 0);
+        tr.appendChild(td); });
+      t.appendChild(tr); });
+    if (!rows.length){ const tr = document.createElement('tr'), td = document.createElement('td'); td.textContent = 'Nothing.'; tr.appendChild(td); t.appendChild(tr); }
+  }
+  [['stPeople', 'people'], ['stPlaces', 'places'], ['stHosts', 'hosts']].forEach(([id, k]) => $(id).onclick = () => { stKind = k; if (k === 'hosts' && stSort !== 'name' && stSort !== 'last') stSort = 'lines'; renderStats(); });
+  $('stFind').oninput = () => renderStats();
   $('grAsk').onclick = async () => { const k = $('grKind').value, what = $('grWhat').value.trim(); if (!what) return;
     const need = k === 'place' ? {kind: 'place', type: what, near: $('grNear').value.trim() || null, why: 'asked on the director page'} : {kind: 'person', role: what, at: $('grNear').value.trim() || null, why: 'asked on the director page'};
     try { render(await api({action: 'growAsk', force: true, need})); } catch(e){ alert(e.message); } };
@@ -934,7 +994,7 @@
   }
   collapsible();
   // ---- tabs and the once-a-minute refresh (docs/DIRECTOR_UI_PLAN.md, step 1) ----
-  const TAB_KEYS = ['now', 'story', 'cast', 'week', 'more'];
+  const TAB_KEYS = ['now', 'story', 'cast', 'week', 'stats', 'more'];
   DirBar.onTab = k => { document.querySelectorAll('#main .tab').forEach(t => t.hidden = t.dataset.tab !== k); if (k === 'cast') { cxArt(); if (CX) cxLoad(); audLoad(); } };
   const hashTab = () => { const h = location.hash.slice(1); return TAB_KEYS.includes(h) ? h : 'now'; };
   window.addEventListener('hashchange', () => { if (!$('main').hidden) DirBar.tab(hashTab()); });
@@ -951,7 +1011,7 @@
     if (!CX) cxLoad();
     if (!AUD) { AUD = {requests: [], decided: [], banned: [], members: 0, max: 6}; audLoad(); }
     DirBar.set(v.status);
-    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderHosts(v.hosts); renderApprove(v.approve, v.castAuto); renderTown(v.town, v.townPlaces); renderGrowth(v.growth); renderPolls(v.polls); renderSurveys(v.surveys);
+    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderHosts(v.hosts); renderApprove(v.approve, v.castAuto); renderTown(v.town, v.townPlaces); renderGrowth(v.growth); renderGrown(v.growth); renderStats(v.stats); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';
     const wl = $('wish'); wl.textContent = '';

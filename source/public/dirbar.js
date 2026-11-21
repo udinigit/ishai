@@ -4,7 +4,7 @@
 // itself (DirBar.set) from its own once-a-minute refresh. Tabs: on /director they switch the page (DirBar.onTab); elsewhere they open /director#<tab>.
 (() => {
   if (window.DirBar) return;
-  const TABS = [['now', 'NOW'], ['story', 'STORY'], ['cast', 'CAST'], ['week', 'WEEK'], ['more', 'MORE']];
+  const TABS = [['now', 'NOW'], ['story', 'STORY'], ['cast', 'CAST'], ['week', 'WEEK'], ['stats', 'STATS'], ['more', 'MORE']];
   const TOOLS = [['/sandbox', 'Sandbox'], ['/builder', 'Builder'], ['/events', 'Events'], ['/map', 'Map']];
   const HERE = location.pathname.replace(/\/+$/, '') || '/', ON_DIR = HERE === '/director';
   const css = document.createElement('style');
