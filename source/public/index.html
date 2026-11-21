@@ -1602,7 +1602,7 @@
   const putPerson = (feet, fn, tag) => put(feet, 'body', fn, tag || 'person');
   // ?zdebug / the sandbox's Depth view: each item's floor line (blue = back, green = people, amber = front, white = other), and in red the
   // overlapping pairs whose order is a guess (the same depth and kind: only the order they were added decides); in orange a lump (2+ people in one item)
-  let ZDEBUG = new URLSearchParams(location.search).has('zdebug'), ZCUR = null, ZLAST = [];
+  let ZDEBUG = (q => q.has('zdebug') && ['sandbox', 'loc', 'preview', 'demo'].some(k => q.has(k)))(new URLSearchParams(location.search)), ZCUR = null, ZLAST = [];
   const zBox = (x, y, w, h) => { if (!ZCUR || w <= 0 || h <= 0) return; const b = ZCUR; b.x0 = Math.min(b.x0, x); b.y0 = Math.min(b.y0, y); b.x1 = Math.max(b.x1, x + w); b.y1 = Math.max(b.y1, y + h); };
   function zFlush(){
     const q = ZQ || []; ZQ = null; const order = q.map((e, i) => [e, i]).sort((a, b) => a[0][0] - b[0][0] || a[1] - b[1]);
