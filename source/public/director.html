@@ -249,6 +249,12 @@
       <div class="muted" style="font-size:16px">Sports: Oren calls the play in short lines, Zohar gives the opinion and drama and sometimes asks Oren something (he answers, or now and then a sarcastic comeback); host lines come during the talk, with more energy when it matters. Classic: Zohar and Oren exactly as they were up to v259 (lines only after the talk). Switching changes the next lines written, within a few minutes.</div>
     </div>
     <div class="box">
+      <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Growth: who approves</span></div>
+      <div id="apRows" style="margin-top:6px">—</div>
+      <div id="apAuto" class="muted" style="font-size:16px;margin-top:4px"></div>
+      <div class="muted" style="font-size:16px">AUTO: goes live at once, after the code's own checks; it shows as AUTO under CAST → Reviewed, where you can undo it. CLAUDE: waits for the weekly scheduled review. DIRECTOR: waits for you (NOW inbox, CAST tab). New street blocks, places, people and promotions come with the next steps of docs/GROWTH_PLAN.md; only the cast cards use this so far.</div>
+    </div>
+    <div class="box">
       <div class="bar" style="justify-content:space-between"><span style="font-size:24px">Viewers' polls</span>
         <span><button id="pollBank" class="ghost">Use a stock poll</button> <button id="pollSkip" class="ghost">Skip this poll</button> <button id="pollsOff" class="ghost">Turn polls off</button></span></div>
       <div id="pollNow" style="margin-top:6px">—</div>
@@ -519,7 +525,7 @@
       d.appendChild(cxReviewBar(p)); pd.appendChild(d); });
     $('cxRevdT').textContent = `Reviewed (undo)` + (v.reviewed.length ? ` (${v.reviewed.length})` : '');
     const rv = $('cxRev'); rv.textContent = v.reviewed.length ? '' : 'Nothing yet.';
-    v.reviewed.forEach(p => { const d = cxEl('div', `#${p.n} ${p.state} by ${p.review ? p.review.by : '—'} (${p.review ? fmt(p.review.at) : ''}): ${cxChange(p).slice(0, 160)}${p.review && p.review.reason ? ' — ' + p.review.reason : ''} `); d.className = 'fl';
+    v.reviewed.forEach(p => { const d = cxEl('div', `#${p.n} ${p.state} by ${p.review ? (p.review.by === 'auto' ? 'AUTO' : p.review.by) : '—'} (${p.review ? fmt(p.review.at) : ''}): ${cxChange(p).slice(0, 160)}${p.review && p.review.reason ? ' — ' + p.review.reason : ''} `); d.className = 'fl';
       if (p.state === 'approved' || p.state === 'edited') d.appendChild(cxBtn('Undo', () => { if (confirm('Undo #' + p.n + '?')) cxDo({action: 'undo', n: p.n}, `#${p.n} undone.`); }, true)); rv.appendChild(d); });
     // people
     const ids = Object.keys(v.names).sort((a, b) => a === 'ishai' ? -1 : b === 'ishai' ? 1 : ((pairOf(v, 'ishai', b) || {}).warmth || 0) - ((pairOf(v, 'ishai', a) || {}).warmth || 0) || N(a).localeCompare(N(b)));
@@ -850,6 +856,20 @@
     $('hostsLangTxt').textContent = he ? 'Hebrew: the AI-written host lines from the next block (a few minutes); the rest stays English.' : 'English.';
     $('hostsLang').onclick = async () => render(await api({action:'hostsLang', lang: he ? 'en' : 'he'}));
   }
+  // v280: who approves what grows (Growth box, MORE)
+  const AP_KINDS = [['cards', 'Cast cards: drafts, growth, histories'], ['people', 'New people in town'], ['promote', 'A townsperson joining the cast'], ['places', 'New places to go in'], ['blocks', 'New street blocks']];
+  function renderApprove(a, auto){
+    if (!a) return; const box = $('apRows'); box.textContent = '';
+    AP_KINDS.forEach(([k, label]) => {
+      const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:8px;margin:4px 0';
+      const l = document.createElement('span'); l.textContent = label; l.style.cssText = 'flex:1;min-width:0';
+      const sel = document.createElement('select'); sel.style.cssText = 'width:auto;flex:none';
+      ['auto', 'claude', 'director'].forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m.toUpperCase(); if (a[k] === m) o.selected = true; sel.appendChild(o); });
+      sel.onchange = async () => { try { render(await api({action: 'approveSet', kind: k, mode: sel.value})); } catch(e){ alert(e.message); } };
+      row.append(l, sel); box.appendChild(row);
+    });
+    $('apAuto').textContent = auto ? `Last auto-approval: ${fmt(auto.at)}, ${auto.ok} approved${auto.held ? ', ' + auto.held + ' held for a review (they mention a death)' : ''}${auto.err && auto.err.length ? ' · ' + auto.err.join('; ') : ''}.` : '';
+  }
   function collapsible(){
     document.querySelectorAll('#main .box').forEach(box => {
       const head = box.firstElementChild;
@@ -888,7 +908,7 @@
     if (!CX) cxLoad();
     if (!AUD) { AUD = {requests: [], decided: [], banned: [], members: 0, max: 6}; audLoad(); }
     DirBar.set(v.status);
-    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderHosts(v.hosts); renderPolls(v.polls); renderSurveys(v.surveys);
+    renderVoices(v.voices); renderCourse(v.course); renderCinema(v.cinema); renderKitchen(v.kitchen); renderHosts(v.hosts); renderApprove(v.approve, v.castAuto); renderPolls(v.polls); renderSurveys(v.surveys);
     $('unlocked').textContent = v.unlocked.length ? v.unlocked.join(', ') : 'none yet';
     $('aiErr').textContent = v.lastError ? `Last AI error (${fmt(v.lastError.at)}): ${v.lastError.msg}. Backup lines are used until it works.` : '';
     const wl = $('wish'); wl.textContent = '';

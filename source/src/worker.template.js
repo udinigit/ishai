@@ -112,6 +112,13 @@ const hostsHe = s => !!s && s.hostsLang === "he";
 // v275: kept in its own KV key, not only in the state: a tick that loaded the state before the switch (or a stale copy in another
 // data center) saved it back and the switch was lost. tick() and the director page read it from here.
 const HOSTS_LANG_KEY = "cfg:hostsLang";
+// who approves what grows (v280, step 1 of docs/GROWTH_PLAN.md; director: MORE → Growth, action "approveSet"): per kind "auto" (live at once,
+// after the code checks; marked AUTO in Reviewed, undo there), "claude" (the weekly scheduled review) or "director" (the director only).
+// Kept in its own KV key like the hosts' language, so a tick that saved an older state can't switch it back. Only "cards" is used so far
+// (the cast cards' drafts, growth and histories, cast_pending); blocks, places, people and promote wait for the later steps.
+const APPROVE_KEY = "cfg:approve", APPROVE_KINDS = ["blocks", "places", "people", "promote", "cards"], APPROVE_MODES = ["auto", "claude", "director"];
+function approveOf(s) { const a = (s && s.approve) || {}; return Object.fromEntries(APPROVE_KINDS.map(k => [k, APPROVE_MODES.includes(a[k]) ? a[k] : "auto"])); }
+async function approveLoad(env, s) { try { const v = await env.ISHAI.get(APPROVE_KEY); if (v) s.approve = approveOf({ approve: JSON.parse(v) }); } catch (e) {} }
 async function hostsLangLoad(env, s) { try { const v = await env.ISHAI.get(HOSTS_LANG_KEY); if (v) s.hostsLang = v === "he" ? "he" : "en"; } catch (e) {} }
 const HOSTS_HE = `LANGUAGE: the hosts speak HEBREW. Write every "say" in natural, spoken, everyday Israeli Hebrew, in Hebrew letters, like two Tel Aviv TV commentators (slang is fine, never translated-sounding English).
   Everything else stays as it is: JSON keys and "who" values in English ("zohar", "oren"), people's names in Hebrew letters (ישי, דנה, נועה, זוהר, אורן...), the show's brands in their Latin spelling (Cooola, ateBite, Café Nahat...).
@@ -337,7 +344,7 @@ export default {
         sleep: (() => { try { return sleepHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
         pacing: (() => { try { return pacingHealth(s, Date.now()); } catch (e) { return { err: String(e && e.message || e) }; } })(),
         homeLife: s.homeLife || null, homeErr: s.homeErr || null, outings: s.outings ? { n: s.outings.n, log: s.outings.log, lastRoll: s.outings.lastRoll || null } : null, outingErr: s.outingErr || null, autoFixErr: s.autoFixErr || null,
-        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (14-22 lines, two halves)",
+        usage: s.usage ? { ...s.usage, neuronsEst: neuronsOf(s.usage) } : null, comingUp: comingUpText(s, Date.now(), 8) || null, drama: { secrets: secretsNow(now).length, hook: !!planFor("hook", now), previously: !!planFor("previously", now) }, hostsStyle: hostsSports(s) ? "sports" : "classic", hostsLang: hostsHe(s) ? "he" : "en", approve: approveOf(s), castAuto: s.castAuto || null, talk: s.talkBrake ? "short (brake: " + s.talkBrake + ")" : "full (14-22 lines, two halves)",
         block: s.queue ? { left: s.queue.items.length, writer: s.queue.writer } : null, course: courseHealth(s), arena: arenaHealth(s), poker: pokerHealth(s), trivia: triviaHealth(s), cinema: cinemaHealth(s), kitchen: kitchenHealth(s), cast: castHealth(s), auditions: { cardErr: s.audCardErr || null, cardTries: s.audCardTry || {}, readErr: s.audReadErr || null, readTries: s.audReadTry || {}, lifeErr: s.memberErr || null }, life: (s.life || []).slice(-6),
         writersSetup: env.GEMINI_API_KEY ? { story: "gemini (" + (s.geminiModel || geminiModel || env.GEMINI_MODEL || "not picked yet") + "), when busy " + (env.GEMINI_BACKUP ? "gemini (" + env.GEMINI_BACKUP + ")" : "the other Gemini Flash models") + ", then Cloudflare", hosts: hostsByGemini(s) ? "gemini, backup Cloudflare" : "Cloudflare, backup gemini", geminiPausedUntil: Date.now() < (s.geminiOutUntil || 0) ? s.geminiOutUntil : null, geminiLastError: (s.geminiErrs || []).slice(-1)[0] || null, geminiErrors: s.geminiErrs || [], hostsLastError: s.hostsErr || null, hostsBy: s.hostsBy || null } : { story: "Cloudflare", hosts: "Cloudflare (in the same reply)" }, lastBlockDrop: s.queueDrop || null,
         writers: s.events.slice(-10).map(e => e.src || "?"),
@@ -861,6 +868,7 @@ async function tick(env, force) {
   const s = await loadState(env); SLEEP_S = s;
   if (!force && pacingWait(s, Date.now())) { const why = sideDue(s, env, Date.now()); if (why) await sideTick(env, s, Date.now(), why); return s; }   // v279: the moment isn't over yet
   await hostsLangLoad(env, s);   // v275: the director's language switch, from its own key
+  await approveLoad(env, s);     // v280: who approves what grows
   const now = Date.now();
   const storyMs = now + DELAY_MIN * 60000;
   const clock = storyClock(storyMs);
@@ -883,7 +891,7 @@ async function tick(env, force) {
   geminiOutUntil = Math.max(geminiOutUntil, s.geminiOutUntil || 0);   // a pause set by another isolate still counts
   // deeper characters: read the store, then the scene keeper (one call per ended scene), the daily expiry, card drafts and the weekly growth
   try { await castLoad(env, s, true);
-    if (!force) { await castKeeperTick(env, s, now); await castMaintain(env, s, now); if (CASTD && !CASTD.queue) { await castWeekTick(env, s, now); await castDraftTick(env, s, now); } }
+    if (!force) { await castKeeperTick(env, s, now); await castMaintain(env, s, now); if (CASTD && !CASTD.queue) { await castWeekTick(env, s, now); await castDraftTick(env, s, now); await castAutoTick(env, s, now); } }
     if (!force) try { await audCardTick(env, s, now); } catch (e) { s.audCardErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // Auditions step 4: a sent Audition's card
     if (!force) try { await audReadTick(env, s, now); } catch (e) { s.audReadErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // steps 5b-5c: the table read and its tuning
     if (!force) try { await memberLifeTick(env, s, now); } catch (e) { s.memberErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // step 6: on the show, and leaving it
@@ -5271,7 +5279,7 @@ function applyPlan(s, now) {
 }
 async function directorApi(req, env) {
   const s = await loadState(env);
-  await hostsLangLoad(env, s);
+  await hostsLangLoad(env, s); await approveLoad(env, s);
   const now = Date.now();
   if (req.method === "POST") {
     let b = {}; try { b = await req.json(); } catch {}
@@ -5312,6 +5320,9 @@ async function directorApi(req, env) {
       s.hostsWriter = b.writer === "cloudflare" ? "cloudflare" : "gemini";
     } else if (b.action === "hostsLang") {   // the hosts' language (v274): "en" or "he" (AI-written host lines only)
       s.hostsLang = b.lang === "he" ? "he" : "en"; await env.ISHAI.put(HOSTS_LANG_KEY, s.hostsLang);
+    } else if (b.action === "approveSet") {   // v280: who approves what grows (auto / claude / director per kind)
+      if (!APPROVE_KINDS.includes(b.kind) || !APPROVE_MODES.includes(b.mode)) return json({ error: "kind: " + APPROVE_KINDS.join("/") + ", mode: " + APPROVE_MODES.join("/") }, {}, 400);
+      s.approve = { ...approveOf(s), [b.kind]: b.mode }; await env.ISHAI.put(APPROVE_KEY, JSON.stringify(s.approve));
     } else if (b.action === "pollsOff") {
       s.pollsOff = !!b.off;
     } else if (b.action === "pollBank") {     // replace the coming poll with a stock one
@@ -5360,6 +5371,7 @@ function directorView(s, bugs) {
   return { voices: { cfg: s.voiceCfg || {}, cast: Object.values(s.cast || {}).filter(Boolean).map(c => ({ id: c.id, name: c.name, look: c.look || null })) }, course: courseDirector(s), kitchen: kitchenHealth(s), cinema: Object.assign(cinemaHealth(s) || {}, { titles: allFilms().map(f => f.title) }), bugs: (bugs || []).slice(-30).reverse(), diag: s.diag || [], scene: s.scene ? { name: s.cast[s.scene.w]?.name || s.scene.w, type: s.scene.type || null, loc: s.scene.loc || null, lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null, world: s.world ? { weather: s.world.weather, shabbat: s.world.shabbat, holidays: s.world.holidays, headlines: s.world.headlines, at: s.world.at, errors: s.world.errors, stations: (s.world.stations || []).length } : null,
     wishlist: Object.entries(s.wishlist || {}).sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ item: k, count: v.count, example: v.example })),
     done: s.done, unlocked: s.unlocked, goals: s.director.slice().reverse().map(dirGoal), lastError: s.lastError || null,
+    approve: approveOf(s), castAuto: s.castAuto || null,
     hosts: { style: hostsSports(s) ? "sports" : "classic", writer: hostsByGemini(s) ? "gemini" : "cloudflare", lang: hostsHe(s) ? "he" : "en", by: s.hostsBy || null },
     polls: { now: s.poll || null, off: !!s.pollsOff, err: s.pollErr || null, log: (s.pollLog || []).slice(-8).reverse() },
     last: last && { text: last.text, location: last.location, action: last.action, created: last.created || last.t },
@@ -5925,7 +5937,21 @@ async function castWeekTick(env, s, now) {
   if (!s.castWeekLeft.length) { s.castWeek = s.lastWeek; s.castWeekLeft = null; }
 }
 
-// ---- the review: approve / edit / reject, one line why; nothing changes a card without it ----
+// ---- v280: with Growth → cards on "auto", proposals are approved at once (by "auto"), up to 20 a tick, the backlog too.
+// A change that speaks of death stays pending for a review (nobody dies). Undo works as for any review. ----
+const CAST_AUTO_HOLD = /\b(dies|died|dying|death|dead|funeral|killed|kills|suicide|murder(ed)?|passed away)\b/i;
+async function castAutoTick(env, s, now) {
+  if (!env.DB || approveOf(s).cards !== "auto") return;
+  try {
+    const rows = (await env.DB.prepare("SELECT n, change FROM cast_pending WHERE state = 'pending' ORDER BY n LIMIT 30").all()).results || [];
+    const ok = rows.filter(r => !CAST_AUTO_HOLD.test(String(r.change || ""))).slice(0, 20);
+    if (!ok.length) return;
+    const res = await castReview(env, s, ok.map(r => ({ n: r.n, verdict: "approve", reason: "Growth: cards on auto" })), "auto", now);
+    s.castAuto = { at: now, ok: res.filter(x => x.ok).length, held: rows.length - ok.length, err: res.filter(x => x.error).map(x => "#" + x.n + " " + x.error).slice(0, 4) };
+  } catch (e) { castErr(s, "auto approve: " + String(e && e.message || e).slice(0, 160)); }
+}
+
+// ---- the review: approve / edit / reject, one line why; nothing changes a card without it (or Growth → cards on auto) ----
 async function castPendingView(env, s, all) {
   await castTables(env);
   const rows = (await env.DB.prepare(all ? "SELECT * FROM cast_pending ORDER BY n DESC LIMIT 60" : "SELECT * FROM cast_pending WHERE state = 'pending' ORDER BY n LIMIT 40").all()).results || [];
@@ -6023,16 +6049,17 @@ async function castApi(req, env, url) {
   }
   if (url.pathname === "/api/cast/pending") {   // the scheduled Claude review (its own token) or the director
     if (!(await castTokenOk(url) || await isDirector(req, env))) return json({ error: "bad token" }, {}, 403);
-    await castLoad(env, s, true);
+    await castLoad(env, s, true); await approveLoad(env, s);
     return json({ rules: CAST_RULES, arcs: (PLAN.arcs || []).map(a => ({ title: a.title, stage: a.stage })), secretsUntil: secretsNow(now).map(x => x.title),
       howToAnswer: 'POST /api/cast/review {"token":"...","reviews":[{"n":12,"verdict":"approve|edit|reject","text":"(edit only: the new wording; for a card, the whole card as JSON)","reason":"one line"}]}',
-      pending: await castPendingView(env, s, false), auditions: await audForReview(env), howToAnswerAuditions: AUD_REVIEW_HOW, auditionTunes: await audTunesForReview(env), howToAnswerTunes: AUD_TUNE_HOW }, { "cache-control": "no-store" });
+      cardsBy: approveOf(s).cards, pending: (!(await isDirector(req, env)) && approveOf(s).cards === "director") ? [] : await castPendingView(env, s, false), auditions: await audForReview(env), howToAnswerAuditions: AUD_REVIEW_HOW, auditionTunes: await audTunesForReview(env), howToAnswerTunes: AUD_TUNE_HOW }, { "cache-control": "no-store" });
   }
   if (url.pathname === "/api/cast/review" && req.method === "POST") {
     const b = await req.json().catch(() => ({}));
     const tok = await castTokenOk(url, b), dir = !tok && await isDirector(req, env);
     if (!tok && !dir) return json({ error: "bad token" }, {}, 403);
-    return json({ results: await castReview(env, s, b.reviews, tok ? "claude" : "director", now), auditions: b.auditions ? await audReviewApply(env, b.auditions, tok ? "claude" : "director", now) : undefined, auditionTunes: b.auditionTunes ? await audTuneReviewApply(env, b.auditionTunes, tok ? "claude" : "director", now) : undefined }, { "cache-control": "no-store" });
+    await approveLoad(env, s);
+    return json({ results: tok && approveOf(s).cards === "director" ? [{ error: "cards are the director's to approve (Growth: cards on director)" }] : await castReview(env, s, b.reviews, tok ? "claude" : "director", now), auditions: b.auditions ? await audReviewApply(env, b.auditions, tok ? "claude" : "director", now) : undefined, auditionTunes: b.auditionTunes ? await audTuneReviewApply(env, b.auditionTunes, tok ? "claude" : "director", now) : undefined }, { "cache-control": "no-store" });
   }
   if (url.pathname === "/api/cast/dir") {   // the director page's Cast box
     if (!await isDirector(req, env)) return json({ error: "director only" }, {}, 403);
