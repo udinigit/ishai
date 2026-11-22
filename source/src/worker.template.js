@@ -340,6 +340,7 @@ export default {
         stuck: s.stuck || 0, scene: s.scene ? { with: nm(s.scene.w), lines: s.scene.lines, target: s.scene.target, leaving: !!s.scene.leaving } : null,
         bugs: JSON.parse(await env.ISHAI.get("bugs") || "[]").filter(x => x.status === "new").slice(-5).map(x => ({ at: x.at, text: x.text.slice(0, 200), screen: x.screen })),
         studio: { lastShowAt: s.show ? s.show.t : null, lastSummaryAt: s.daySum ? s.daySum.at : null, err: s.studioErr || null },
+        tape: await tapeHealth(env, s),
         history: { lastArchived: s.lastArchived || null, weekDue: s.weekDue || null, lastWeek: s.lastWeek || null, err: s.historyErr || null },
         fixLog: (s.fixLog || []).slice(-3), lastError: s.lastError || null, aiOut: now < (s.aiOutUntil || 0) ? { until: s.aiOutUntil, backup: !!env.BACKUP_AI_KEY, sickMoments: s.sickN || 0 } : null, wishlist: Object.entries(s.wishlist || {}).filter(([, v]) => v.reachedAt).map(([k, v]) => ({ item: k, reachedAt: v.reachedAt })),
         artNeeded: (s.director || []).filter(g => g.status === "needs-art").map(g => ({ id: g.id, art: g.art, createdAt: g.createdAt })),
@@ -394,6 +395,8 @@ export default {
       const ep = await episodeGet(env, await loadState(env), String(url.searchParams.get("id") || ""), Date.now());
       return ep ? json(ep, { "cache-control": ep.live ? "public, max-age=60" : "public, max-age=600" }) : json({ error: "no such episode" }, {}, 404);
     }
+    // 8bitTV+ replays: every moment as the page got it, to play back like a recording (docs/REPLAY_PLAN.md)
+    if (url.pathname === "/api/tape") return tapeApi(req, env, url);
     if (url.pathname === "/api/day") {
       if (!(await isDirector(req, env))) return json({ error: "director only" }, {}, 403);
       const date = String(url.searchParams.get("date") || "");
@@ -601,12 +604,16 @@ function mediaOf(e) {
   const t = (e.text || "") + " " + (e.lines || []).map(l => l.say).join(" ");
   return /\bnesflicks\b/i.test(t) ? "nesflicks" : /\brgbeat\b|\bchannel 6\b/i.test(t) ? "rgbeat" : /\b8bittv\b|\bchannel 8\b/i.test(t) ? "8bittv" : /\bboolify\b/i.test(t) ? "boolify" : /\bchannel 9\b/i.test(t) ? "ch9" : /\bradio herzl\b/i.test(t) ? "herzl" : undefined;
 }
+// one moment as the page gets it (/api/state, and the replay tape: docs/REPLAY_PLAN.md)
+function pubEvent(e, dev) {
+  return { id: e.id, t: e.t, len: e.len || undefined, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined, art: e.art || undefined, feel: e.feel || undefined, then: e.then ? { action: e.then.action, text: dev ? e.then.text : "" } : undefined };
+}
 function publicState(s, dev) {
   const last = s.events[s.events.length - 1];
   return {
     day: showDay(s.startedAt, Date.now()),
     build: BUILD, worldV: s.worldV || "", townV: s.townV || "", delayMin: DELAY_MIN, intervalMin: INTERVAL_MIN, cronMin: CRON_MIN, notes: dev ? s.notes : "",
-    events: s.events.slice(-25).map(e => ({ id: e.id, t: e.t, len: e.len || undefined, location: e.location, action: e.action, media: mediaOf(e), ride: e.location === "bus" || e.location === "taxi" ? e.location : /\btaxi\b/i.test(e.text || "") ? "taxi" : /\bbus\b/i.test(e.text || "") ? "bus" : undefined, text: dev ? e.text : "", src: dev ? e.src || null : null, with: e.with || null, lines: e.lines || [], commentary: e.commentary || [], unlocks: e.unlocks || null, delivery: e.delivery || undefined, art: e.art || undefined, feel: e.feel || undefined, then: e.then ? { action: e.then.action, text: dev ? e.then.text : "" } : undefined })),
+    events: s.events.slice(-25).map(e => pubEvent(e, dev)),
     moods: Object.fromEntries(Object.entries(s.castMoods || {}).filter(([, m]) => m.until > Date.now()).map(([id, m]) => [id, { mood: m.mood, tell: m.tell, body: m.body }])),
     talk: (s.talk || []).slice(-80), dev: !!dev,
     studio: s.studio || null, show: s.show || null, call: s.call || null, poll: s.poll && Date.now() < s.poll.closesAt + POLL_SHOW_MIN * 60000 ? pollPublic(s.poll) : null,
@@ -896,7 +903,7 @@ async function tick(env, force) {
   geminiOutUntil = Math.max(geminiOutUntil, s.geminiOutUntil || 0);   // a pause set by another isolate still counts
   // deeper characters: read the store, then the scene keeper (one call per ended scene), the daily expiry, card drafts and the weekly growth
   try { await castLoad(env, s, true);
-    if (!force) { await castKeeperTick(env, s, now); await castMaintain(env, s, now); if (CASTD && !CASTD.queue) { await castWeekTick(env, s, now); await castDraftTick(env, s, now); await castAutoTick(env, s, now); } }
+    if (!force) { await castKeeperTick(env, s, now); await castMaintain(env, s, now); try { await tapeSweep(env, s, now); } catch (e) { s.tapeErr = { at: now, msg: "sweep: " + String(e && e.message || e).slice(0, 180) }; } if (CASTD && !CASTD.queue) { await castWeekTick(env, s, now); await castDraftTick(env, s, now); await castAutoTick(env, s, now); } }
   try { await townWriteTick(env, s, now); } catch (e) {}   // v284: a personality for one new townsperson
   try { await growSweep(env, s, now); } catch (e) {}   // v286: waiting growth expires
     if (!force) try { await audCardTick(env, s, now); } catch (e) { s.audCardErr = { at: now, err: String(e && e.message || e).slice(0, 200) }; }   // Auditions step 4: a sent Audition's card
@@ -981,6 +988,7 @@ async function tick(env, force) {
   try { await townAfter(env, s, s.events[s.events.length - 1], s.events[s.events.length - 2], storyMs, now); } catch (e) {}   // v284: a scene with a townsperson
   if (ev.need) try { await growNeed(env, s, ev.need, ev.location, storyMs, now); } catch (e) { s.growErr = String(e && e.message || e).slice(0, 200); }   // v286: the story asked for someone or somewhere new
   try { await statAfter(env, s, s.events[s.events.length - 1], s.events[s.events.length - 2], now); } catch (e) { s.statErr = String(e && e.message || e).slice(0, 200); }   // v287: screen statistics
+  try { await tapeAfter(env, s, s.events[s.events.length - 1], now); } catch (e) { s.tapeErr = { at: now, msg: String(e && e.message || e).slice(0, 200) }; }   // v292: the replay tape (docs/REPLAY_PLAN.md)
   // the day's highlights, replayed in Ishai's dreams at night
   { const prevEv = s.events[s.events.length - 2], hl = s.hl || (s.hl = []), lastHl = hl[hl.length - 1];
     const notable = !["sleeping", "waking", "bathroom", "showering"].includes(ev.action) && ev.location !== "offscreen" &&
@@ -7751,4 +7759,87 @@ async function growWaitN(env) {
     const a = await env.DB.prepare("SELECT COUNT(*) n FROM world_gen WHERE state = 'pending' AND json_extract(rec, '$._grow.bundle') = id").first();
     const b = await env.DB.prepare("SELECT COUNT(*) n FROM town WHERE state = 'pending'").first();
     return ((a && a.n) || 0) + ((b && b.n) || 0); } catch (e) { return 0; }
+}
+
+// ================= Replay step 1-2 (v292, docs/REPLAY_PLAN.md): the tape =================
+// Every moment is kept in D1 `tape` as the page gets it (pubEvent() with the narration, which only the director gets back),
+// with a snapshot of what else the picture reads then: weather, moods, the looks of whoever is in it, worldV and townV.
+// One INSERT per moment, no AI, no KV writes. Kept TAPE_KEEP_D days in full; after that only the moments an episode uses
+// (tapeSweep(), once a day). /api/tape?date=&from=&to= gives a window plus the moment before it (where he really was).
+const TAPE_KEEP_D = 60, TAPE_MAX_ROWS = 400, TAPE_V = 1;
+let TAPE_TABLES = false;
+async function tapeTables(env) {
+  if (TAPE_TABLES || !env.DB) return;
+  await env.DB.batch([
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS tape (id INTEGER PRIMARY KEY, date TEXT NOT NULL, t INTEGER NOT NULL, len INTEGER, keep INTEGER NOT NULL DEFAULT 0, ev TEXT NOT NULL, snap TEXT)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS tape_t ON tape (t)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS tape_date ON tape (date, t)")]);
+  TAPE_TABLES = true;
+}
+function tapeLook(s, id) {
+  if (!id || id === "ishai") return null;
+  const c = s.cast[id] || SEED_CAST.find(x => x.id === id), t = TOWNP[id] || TOWN_ALL.find(x => x.id === id);
+  const p = c || (t && t.p) || t; if (!p) return null;
+  return { look: p.look || null, workLook: p.workLook || null, post: p.post || null, from: p.from || (t ? "town" : undefined), gender: p.gender || undefined };
+}
+function tapeSnap(s, ev) {
+  const now = Date.now(), ids = new Set([ev.with, ...(ev.lines || []).map(l => l && l.who)].filter(x => x && !["ishai", "radio", "tv", "zohar", "oren"].includes(x)));
+  const looks = {}; for (const id of ids) { const l = tapeLook(s, id); if (l) looks[id] = l; }
+  const moods = Object.fromEntries(Object.entries(s.castMoods || {}).filter(([, m]) => m.until > now).map(([id, m]) => [id, { mood: m.mood, tell: m.tell, body: m.body }]));
+  return { v: TAPE_V, build: BUILD, worldV: s.worldV || "", townV: s.townV || "", weather: s.world && s.world.weather || null, shabbat: s.world && s.world.shabbat || null, moods, looks, unlocked: s.unlocked || [] };
+}
+async function tapeAfter(env, s, e, now) {
+  if (!env.DB || !e || e.id == null) return;
+  await tapeTables(env);
+  const ev = pubEvent(e, true);
+  await env.DB.prepare("INSERT OR REPLACE INTO tape (id, date, t, len, ev, snap) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+    .bind(e.id, dayOfMs(e.t), e.t, e.len || INTERVAL_MIN, JSON.stringify(ev), JSON.stringify(tapeSnap(s, e))).run();
+  s.tapeLast = { id: e.id, at: now };
+}
+function tapeRow(r, dev) {
+  let ev = {}, snap = null; try { ev = JSON.parse(r.ev); } catch (e) {} try { snap = r.snap ? JSON.parse(r.snap) : null; } catch (e) {}
+  if (!dev) { ev.text = ""; ev.src = null; if (ev.then) ev.then.text = ""; }
+  return { ...ev, len: ev.len || r.len || undefined, snap };
+}
+// a window of the tape: the moments that overlap [from, to) plus the one before, oldest first
+async function tapeWindow(env, from, to, dev) {
+  await tapeTables(env);
+  const before = await env.DB.prepare("SELECT * FROM tape WHERE t < ?1 ORDER BY t DESC LIMIT 2").bind(from).all();
+  const inside = await env.DB.prepare("SELECT * FROM tape WHERE t >= ?1 AND t < ?2 ORDER BY t LIMIT ?3").bind(from, to, TAPE_MAX_ROWS).all();
+  // the moment still running at `from` (it started before), and the one before that, which puts him where he was
+  const prev = (before.results || []).reverse();
+  return [...prev, ...(inside.results || [])].map(r => tapeRow(r, dev));
+}
+async function tapeApi(req, env, url) {
+  if (!env.DB) return json({ error: "no database" }, {}, 503);
+  const dev = await isDirector(req, env), q = k => url.searchParams.get(k);
+  const date = String(q("date") || "");
+  let from = Number(q("from")) || 0, to = Number(q("to")) || 0;
+  if (date) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "date=YYYY-MM-DD" }, {}, 400);
+    await tapeTables(env);
+    const b = await env.DB.prepare("SELECT MIN(t) a, MAX(t) z FROM tape WHERE date = ?1").bind(date).first();
+    if (!b || b.a == null) return json({ date, moments: [], from: null, to: null });
+    if (!from) from = b.a; if (!to) to = b.z + 1;
+  }
+  if (!from || !to || to <= from) return json({ error: "date=YYYY-MM-DD and/or from=<ms>&to=<ms>" }, {}, 400);
+  const now = Date.now(), moments = await tapeWindow(env, from, to, dev);
+  // nothing that viewers haven't seen yet: moments play DELAY_MIN after they are written, so the newest ones wait
+  const seen = moments.filter(m => dev || m.t <= now);
+  const past = to < now - 3600000;
+  return json({ date: date || dayOfMs(from), from, to, moments: seen, more: (moments.length - 2) >= TAPE_MAX_ROWS }, { "cache-control": dev ? "no-store" : past ? "public, max-age=300" : "public, max-age=30" });
+}
+// once a day: after TAPE_KEEP_D days only moments an episode uses stay (keep = 1, set by the episode steps)
+async function tapeSweep(env, s, now) {
+  if (!env.DB) return;
+  const day = dayOfMs(now); if (s.tapeSwept === day) return;
+  s.tapeSwept = day;
+  await tapeTables(env);
+  await env.DB.prepare("DELETE FROM tape WHERE keep = 0 AND t < ?1").bind(now - TAPE_KEEP_D * 86400000).run();
+}
+async function tapeHealth(env, s) {
+  const out = { last: s.tapeLast || null, err: s.tapeErr || null, keepDays: TAPE_KEEP_D };
+  if (!env.DB) return { ...out, rows: null };
+  try { await tapeTables(env); const r = await env.DB.prepare("SELECT COUNT(*) n, MIN(date) a, MAX(date) z FROM tape").first(); return { ...out, rows: r.n, first: r.a, lastDay: r.z }; }
+  catch (e) { return { ...out, rows: null, readErr: String(e && e.message || e).slice(0, 160) }; }
 }
