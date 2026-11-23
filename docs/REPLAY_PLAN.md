@@ -24,7 +24,7 @@ inputs and run the same page on an earlier clock, and the picture comes out the 
   and where he was before it, as `joinMoment()` needs), and the snapshots. Public, cached 5 minutes for past days.
 - Today's tape reads the same table (rows are written as moments are made).
 
-## Step 3 — replay mode in the page
+## Step 3 — replay mode in the page — done, v293
 - `/?replay=<date>&at=<ms>[&to=<ms>]`: a mode of index.html, like `/?sandbox` and `/?casting`, loaded in an iframe on the
   studio screen (`#stvLive`), so it never touches the live page's globals (no swapping like `drawMemory()`).
 - The clock: `NOW()` = the replay time (`REPLAY.at + (performance.now() - REPLAY.t0) * REPLAY.speed`); `seek(ms)` restarts

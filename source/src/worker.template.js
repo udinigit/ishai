@@ -7780,7 +7780,7 @@ function tapeLook(s, id) {
   if (!id || id === "ishai") return null;
   const c = s.cast[id] || SEED_CAST.find(x => x.id === id), t = TOWNP[id] || TOWN_ALL.find(x => x.id === id);
   const p = c || (t && t.p) || t; if (!p) return null;
-  return { look: p.look || null, workLook: p.workLook || null, post: p.post || null, from: p.from || (t ? "town" : undefined), gender: p.gender || undefined };
+  return { name: p.name || undefined, look: p.look || null, workLook: p.workLook || null, post: p.post || null, from: p.from || (t ? "town" : undefined), gender: p.gender || undefined };
 }
 function tapeSnap(s, ev) {
   const now = Date.now(), ids = new Set([ev.with, ...(ev.lines || []).map(l => l && l.who)].filter(x => x && !["ishai", "radio", "tv", "zohar", "oren"].includes(x)));
