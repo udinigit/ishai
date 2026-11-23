@@ -7360,11 +7360,26 @@
     const end = REPLAY.ended ? ' · END' : REPLAY.live ? ' · CAUGHT UP' : '';
     el.innerHTML = '⏺ REPLAY · ' + rpLabel(now) + end + ' <button class="rpB" data-d="60000">+1m</button><button class="rpB" data-d="600000">+10m</button><button class="rpB" data-m="1">⏭</button><a class="rpB" href="/">● LIVE</a>';
   }
-  function rpSeek(ms){
+  async function rpSeek(ms){
     if (!REPLAY || !isFinite(ms)) return;
     if (ms < NOW() - 2000){ const u = new URL(location.href); u.searchParams.set('at', Math.floor(ms)); location.replace(u.toString()); return; }   // back in time: start again from there
+    await rpLoad(ms);
     CLOCK_OFFSET = ms - Date['now']();   // forward: frame() sees the jump and joins the moment at that time
     REPLAY.ended = false; rpTick();
+  }
+  // past the tape loaded so far (v294): load the stretch there first (it comes with the moment running then and the one before)
+  async function rpLoad(ms){
+    if (ms <= REPLAY.loadedTo - 60000) return;
+    const to = REPLAY.to ? Math.max(REPLAY.to, ms + 60000) : Math.min(ms + RP_WIN, Date['now']() - 1000);
+    try { const d = await rpFetch(rpUrl(Math.max(REPLAY.loadedTo, ms - 60000), to)); REPLAY.loadedTo = Math.max(REPLAY.loadedTo, to); if (rpAdd(d.moments).length) ingest([...REPLAY.moments.values()], false); } catch(e){}
+  }
+  // a line of a moment (v294, the studio screen): just before it is said; no line (or not known yet): the moment's time, a few seconds in
+  async function rpSeekLine(id, k, t, lead){
+    if (!TL.get(id) && +t) await rpLoad(+t);
+    const e = TL.get(id), it = e && e.plan && k != null ? e.plan.find(x => !x.host && !x.x && x.i === k) : null;
+    const first = e && e.plan ? e.plan.find(x => !x.host && !x.x) : null;
+    const at = e ? e.start + (it ? it.at : first ? first.at : 3000) - Math.max(1200, Math.min(+lead || 0, 20000)) : (+t || 0) + 3000;
+    if (at) rpSeek(at);
   }
   function rpNext(){ const now = NOW(); for (const e of TL.values()) if (!e.dead && e.start > now + 500){ rpSeek(e.start - 1500); return; } }
   async function rpTick(){
@@ -7385,17 +7400,19 @@
   async function startReplay(){
     const q = k => params.get(k), date = /^\d{4}-\d{2}-\d{2}$/.test(q('replay') || '') ? q('replay') : null;
     REPLAY = {date, at: +q('at') || 0, to: +q('to') || 0, moments: new Map(), loadedTo: 0, ended: false, live: false, bare: params.has('bare'), snapId: null};
+    // &mute (the studio screen, v294): the page that holds it speaks; this one only plays the picture
+    if (params.has('mute')) ['say', 'sfx', 'blip', 'key', 'bark', 'setAmbience', 'ring', 'bell', 'prefetch', 'newSong'].forEach(k => { if (typeof Sound[k] === 'function') Sound[k] = () => {}; }), Sound.isOn = () => false;
     demoMode = false; TUNING = true;
     $('stLink').textContent = 'REPLAY'; $('cam').textContent = 'CAM-??'; $('day').textContent = date ? 'REPLAY ' + date.slice(5).split('-').reverse().join('.') : 'REPLAY'; $('studioBtn').hidden = true;
     { const st = document.createElement('style'); st.textContent = '.pvb .rpB{font:inherit;font-size:.85em;margin-left:5px;padding:0 5px;background:#1d2430;color:#ffd36a;border:1px solid #ffd36a;border-radius:4px;cursor:pointer;text-decoration:none;display:inline-block} .pvb .rpB:hover{background:#ffd36a;color:#1d2430}'; document.head.appendChild(st); }
     const rec = document.querySelector('.hud.top .rec'); if (rec && rec.firstChild && rec.childNodes[1]) rec.childNodes[1].textContent = 'REPLAY ';
     if (REPLAY.bare){ const st = document.createElement('style');
-      st.textContent = 'html,body{margin:0;background:#000;overflow:hidden} .wrap>*:not(.cam){display:none!important} .wrap{max-width:none!important;padding:0!important;margin:0!important} .cam{margin:0!important;border:0!important} .pip,.guide,.com,.adb,.callw,.stv,.chan,.pban,.chatC{display:none!important} body>*:not(.wrap){display:none!important}';
+      st.textContent = 'html,body{margin:0;background:#000;overflow:hidden} .wrap>*:not(.cam){display:none!important} .wrap{max-width:none!important;padding:0!important;margin:0!important} .cam{margin:0!important;border:0!important} .pip,.guide,.com,.adb,.callw,.stv,.chan,.pban,.chatC{display:none!important} body>*:not(.wrap){display:none!important}' + (innerWidth < 480 ? ' #say,#say *{font-size:9px!important;line-height:1.1!important} #say{padding:1px 4px!important} .hud,.hud *{font-size:9px!important}' : '');
       document.head.appendChild(st); }
     document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.rpB'); if (!b || b.tagName === 'A') return; e.preventDefault(); e.stopPropagation();
       if (b.dataset.m) rpNext(); else rpSeek(NOW() + (+b.dataset.d || 0)); }, true);
     window.addEventListener('message', e => { if (e.origin !== location.origin || !e.data || !e.data.replayCmd) return; const c = e.data.replayCmd;
-      if (c.seek != null) rpSeek(+c.seek); if (c.next) rpNext(); });
+      if (c.seek != null) rpSeek(+c.seek); if (c.next) rpNext(); if (c.line) rpSeekLine(c.line.id, c.line.k, c.line.t, c.line.lead); });
     // the cast, the voices and the director's narration from the live state (looks are taken back to then by each moment's snapshot)
     try { const s = await (await fetch(API, {cache: 'no-store'})).json(); if (s.dev) enableDev(); setCast(s.cast || []); if (s.voices) Voices.setConfig(s.voices); if (s.course) COURSE = s.course; KITCHEN_PUB = s.kitchen || null; WORLD = s.world || WORLD; } catch(e){}
     await Promise.race([Promise.all([growLoad(), townFetch()]), new Promise(r => setTimeout(r, 6000))]);
@@ -7579,6 +7596,30 @@
     } catch(e){ /* a scene that needs the live state: keep what was drawn */ }
     finally { g = keep.g; HEADS = keep.HEADS; forceHour = keep.forceHour; WORLD = keep.WORLD; drawLater = keep.drawLater; DREAMING = keep.DREAMING; NO_CROWD = keep.NO_CROWD; ZQ = keep.ZQ; UMB = false; }
   }
+  // ---- v294 (docs/REPLAY_PLAN.md steps 4-5): the studio screen plays the moment itself from the tape ----
+  // A chapter (or a Today intro line) that the worker found on the tape (`mid`, `k`, `mt`, `mdate` from epTape()) is shown by a muted,
+  // bare replay page in a frame over the studio screen: the real place, people, movement and the line's bubble, from just before the
+  // clip's line. This page still says the line. Lines in a row about the same moment let it play on. No tape: drawMemory() as before.
+  const RPV = {el: null, ready: false, date: null, mid: null, want: null};
+  addEventListener('message', e => { if (e.origin !== location.origin || !e.data || !RPV.el || e.source !== RPV.el.contentWindow) return;
+    if (e.data.replayReady){ RPV.ready = true; RPV.el.style.visibility = RPV.want ? 'visible' : 'hidden'; if (RPV.want) RPV.el.contentWindow.postMessage({replayCmd: {line: RPV.want}}, location.origin); } });
+  function rpvShow(on){ if (RPV.el) RPV.el.style.visibility = on && RPV.ready ? 'visible' : 'hidden'; if (!on) RPV.mid = null; }
+  function rpvGo(r, preload, lead){
+    if (!r || !r.mid || !r.mdate) return rpvShow(false);
+    if (!preload && RPV.mid === r.mid && RPV.el){ rpvShow(true); return; }   // the same moment: it plays on
+    const want = {id: r.mid, k: r.k == null ? null : r.k, t: r.mt, lead: lead || 0};
+    if (!preload){ RPV.mid = r.mid; RPV.want = want; }
+    if (!RPV.el){ const box = $('stvLiveCv').parentElement, f = document.createElement('iframe');
+      f.title = 'Replay'; f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1;
+      f.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;border:0;pointer-events:none;background:#000;z-index:1;visibility:hidden';
+      if (getComputedStyle(box).position === 'static') box.style.position = 'relative';
+      box.appendChild(f); RPV.el = f; }
+    if (RPV.ready && RPV.date === r.mdate){ if (!preload){ rpvShow(true); RPV.el.contentWindow.postMessage({replayCmd: {line: want}}, location.origin); } return; }
+    if (RPV.date === r.mdate && !RPV.ready) return;   // still loading that day: replayReady sends the wanted line
+    RPV.ready = false; RPV.date = r.mdate; RPV.el.style.visibility = 'hidden';
+    RPV.el.src = '/?replay=' + r.mdate + '&at=' + Math.floor((r.mt || 0) - 15000) + '&bare&mute';
+  }
+  function rpvStop(){ if (RPV.el){ RPV.el.remove(); } RPV.el = null; RPV.ready = false; RPV.date = null; RPV.mid = null; RPV.want = null; }
   // the tiles' pictures: each place once, at noon, empty
   const THUMBS = {};
   function thumbOf(loc){
@@ -7634,7 +7675,9 @@
   const epMs = say => Math.max(2600, String(say).length * 68) + 900;   // about how long a line takes to say, plus a breath
   function epItems(ep){
     const out = [], host = l => ({l, host: true, ms: epMs(l.say)});
-    (ep.intro || []).forEach(l => out.push({...host(l), ch: -1}));
+    (ep.intro || []).forEach(l => out.push({...host(l), ch: -1, rp: l.mid ? l : null}));
+    if (ep.kind === 'today'){ const firstCh = ep.chapters.find(c => c.mid); let next = null;   // v294: Today (so far) never shows the live feed in its intro
+      for (let i = out.length - 1; i >= 0; i--){ if (out[i].rp) next = out[i].rp; else out[i].rp = next || firstCh || null; } }
     ep.chapters.forEach((c, i) => {
       (c.before || []).forEach(l => out.push({...host(l), ch: i}));
       if (c.line) out.push({l: {who: castId(c.line.who), say: c.line.say}, clip: c, ch: i, ms: epMs(c.line.say) + 600});
@@ -7646,7 +7689,7 @@
   // a wait that ends early when the viewer skips or leaves
   const epWait = (P, ms) => new Promise(res => { const end = NOW() + ms; const f = () => { if (P.stop || P.jump != null || NOW() >= end) res(); else setTimeout(f, 100); }; f(); });
   function epStop(){
-    if (!EP) return; EP.stop = true; EP = null; showOn = false; studioWho = null;
+    if (!EP) return; EP.stop = true; EP = null; showOn = false; studioWho = null; rpvStop();
     $('stv').hidden = true; $('stv').classList.remove('ep'); $('epBar').hidden = true; $('stvTagEl').hidden = false; $('stvLiveTag').textContent = '● LIVE · ISHAI';
     try { Sound.hush(); } catch(e){}
   }
@@ -7664,13 +7707,19 @@
       if (P.view){ if (t - memAt > 90 || t < memAt){ memAt = t; drawMemory(P.view, t, {speaker: P.speaker}); } stvLive.drawImage(MEM, 0, 0); } else stvLive.drawImage(cv, 0, 0);
       requestAnimationFrame(anim); }; anim();
     let i = fromCh == null ? 0 : Math.max(0, P.items.findIndex(it => it.ch >= fromCh));   // a tapped moment starts there, PLAY from the intro
+    { const firstRp = P.items.slice(i).map(x => x.rp || (x.ch >= 0 && x.ch < ep.chapters.length ? ep.chapters[x.ch] : null)).find(r => r && r.mid); if (firstRp) rpvGo(firstRp, true); }   // v294: load the tape while the first lines play
     while (i < P.items.length && !P.stop){
       const it = P.items[i];
       $('epNow').textContent = it.ch < 0 ? 'INTRO' : it.ch >= ep.chapters.length ? 'OUTRO' : `${it.ch + 1}/${ep.chapters.length} · ${(ep.chapters[it.ch].date ? chDay(ep.chapters[it.ch].date).split(' ')[0] + ' ' : '') + ep.chapters[it.ch].t} ${chPlace(ep.chapters[it.ch].loc)}`;
       $('epNextM').disabled = !P.items.some(x => x.ch > it.ch && x.ch < ep.chapters.length);
       const chap = it.ch >= 0 && it.ch < ep.chapters.length ? ep.chapters[it.ch] : null;   // the whole chapter shows its moment; intro and outro show him live
       P.view = chap; P.speaker = it.clip ? it.l.who : null;
-      $('stvLiveTag').textContent = chap ? `▶ ${(chap.date ? chDay(chap.date).split(' ')[0] + ' ' : '') + chap.t} · ${chPlace(chap.loc)}` : '● LIVE · ISHAI';
+      // v294: the real moment from the tape; a chapter's clip line is timed to come as this page says it (lead: the host lines before it)
+      const rp = it.rp || (chap && chap.mid ? chap : null);
+      { let lead = 0;
+        if (rp && chap && rp === chap) for (let j = i; j < P.items.length && P.items[j].ch === it.ch && !P.items[j].clip; j++) lead += P.items[j].ms;
+        rpvGo(rp, false, lead); }
+      $('stvLiveTag').textContent = chap ? `▶ ${(chap.date ? chDay(chap.date).split(' ')[0] + ' ' : '') + chap.t} · ${chPlace(chap.loc)}` : rp ? `▶ REPLAY${rp.at ? ' · ' + rp.at : ''}` : '● LIVE · ISHAI';
       Sound.hush(); studioWho = it.host ? it.l.who : null;
       const sp = speaker(it.l.who), row = document.createElement('div'), b = document.createElement('b'), tx = document.createElement('span');
       b.style.color = sp.color; b.style.fontWeight = 'normal'; b.textContent = (it.clip ? '▶ ' : '') + sp.name + ': '; row.append(b, tx); if (it.clip) row.className = 'epClip'; cap.appendChild(row);

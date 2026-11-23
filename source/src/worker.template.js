@@ -392,7 +392,8 @@ export default {
     // 8bitTV+: the recap episodes (docs/STUDIO_PLAN.md)
     if (url.pathname === "/api/episodes") return json(await episodesList(env, await loadState(env), Date.now()), { "cache-control": "public, max-age=120" });
     if (url.pathname === "/api/episode") {
-      const ep = await episodeGet(env, await loadState(env), String(url.searchParams.get("id") || ""), Date.now());
+      let ep = await episodeGet(env, await loadState(env), String(url.searchParams.get("id") || ""), Date.now());
+      if (ep) try { ep = await epTape(env, ep); } catch (e) { ep.tapeErr = String(e && e.message || e).slice(0, 120); }   // v294: each chapter's moment on the replay tape
       return ep ? json(ep, { "cache-control": ep.live ? "public, max-age=60" : "public, max-age=600" }) : json({ error: "no such episode" }, {}, 404);
     }
     // 8bitTV+ replays: every moment as the page got it, to play back like a recording (docs/REPLAY_PLAN.md)
@@ -657,7 +658,7 @@ function basicRecap(s, day, storyMs) {
   const prev = storyClock(storyMs).hour < 12 ? planFor("previously", storyMs) : "";
   if (prev) out.push({ who: "oren", say: ("Previously on Watching Ishai: " + prev).slice(0, 220) });
   else if (s.yesterdaySum) out.push({ who: "oren", say: "Yesterday: " + s.yesterdaySum.text.split(/(?<=\.)\s/)[0] });
-  pickN.forEach((x, i) => out.push({ who: (out.length % 2) ? "oren" : "zohar", say: `${x.time}: ${x.text}`.slice(0, 220) }));
+  pickN.forEach((x, i) => out.push({ who: (out.length % 2) ? "oren" : "zohar", say: `${x.time}: ${x.text}`.slice(0, 220), at: x.time }));   // v294: the line's moment, for Today (so far) in 8bitTV+
   out.push({ who: (out.length % 2) ? "oren" : "zohar", say: `That's the day so far. Once again, ${sp.name}. Back to the cameras.` });
   sponsorUsed(s, sp, [], storyMs);
   return { today: pickN.map(x => `${x.time} ${x.text}`).join(" "), show: { id: "studio-" + Math.floor(storyMs / 3600000) + "-basic", t: storyMs, lines: out, sponsors: [sp.name] } };
@@ -679,7 +680,7 @@ async function studioRecap(env, s, storyMs, day) {
 STRICT: use only facts from the logs below (and, for teasers only, the COMING UP list). Never invent events, people, objects or plans.
 Reply with ONLY JSON:
 {"today":"what happened today so far: 3-6 plain sentences, past tense, neutral, for a text summary",
- "show":[{"who":"zohar"|"oren","say":"..."}],
+ "show":[{"who":"zohar"|"oren","say":"...","at":"HH:MM"}],
  "pip":[{"who":"zohar"|"oren","say":"..."}]}
 "show" is the studio recap, 8-12 lines, alternating hosts, max 30 words each. It is a REAL RECAP that tells viewers what happened, in order:
  THIS RECAP HAS ONE SPONSOR: ${sp.name} (${sp.pitch}). Make up NEW jokes about it: do not just repeat its slogan${oldJokes.length ? `, and do not reuse any of these earlier sponsor lines or their jokes: ${oldJokes.map(j => `"${j}"`).join("; ")}` : ""}.
@@ -688,12 +689,14 @@ Reply with ONLY JSON:
  3) today in time order (morning, midday, afternoon...), ending with the last hour: every line first states a concrete fact from the log (time of day, place, who he was with, what was said or done), THEN may add a short sassy remark. The other host reacts or adds the next fact. No line may be only a joke;
  Write the "today" summary first and base the show on it, so a viewer who missed the day understands it from the show alone.
  3b) if COMING UP lists anything, one line just before the outro teases the next thing in it: its time and its hook, telling viewers to stay tuned or be back then. Never say how it turns out;
+ AT: every "show" line that is about one moment in the logs carries "at": that log line's time exactly as written at its start (HH:MM), so the studio can show that moment while the line is said. Lines about yesterday, the sponsor or what is coming up have no "at".
  4) the LAST line is a sponsor outro: once more ${sp.name}, with a DIFFERENT joke than the intro (the other host may groan at it), then back to the cameras.
 "pip" is a 4-5 line quick version about the last hour only (first line greets: "Live from the studio..."; if COMING UP lists anything, its last line teases the next one with its time).` },
   { role: "user", content: `YESTERDAY (${s.yesterdaySum ? s.yesterdaySum.date : "none"}): ${s.yesterdaySum ? s.yesterdaySum.text : "(no summary)"}\n\n${prev ? `PREVIOUSLY (the producers' line: yesterday's open question): ${prev}\n\n` : ""}TODAY so far:\n${earlier.join("\n") || "(little)"}\n\nLAST HOUR:\n${lastHour.join("\n") || "(quiet)"}\n\nCOMING UP (the producers' plan; Ishai has no idea): ${comingUpText(s, storyMs, 8) || "(nothing planned)"}\n\nJSON only.` }];
   const raw = await runModel(env, messages, 1400, "hosts");
   const o = parseAI(raw); if (!o) return null;
-  const clean = arr => (Array.isArray(arr) ? arr : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 220) }))
+  const times = new Set([...earlier, ...lastHour].map(l => (/^(\d\d:\d\d)/.exec(l) || [])[1]).filter(Boolean));   // v294: "at" only for a time the logs really show
+  const clean = arr => (Array.isArray(arr) ? arr : []).map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 220), at: times.has(String(l?.at || "").trim()) ? String(l.at).trim() : undefined }))
     .filter(l => (l.who === "zohar" || l.who === "oren") && l.say.length > 3);
   const show = clean(o.show).slice(0, 12), pip = clean(o.pip).slice(0, 6), today = String(o.today || "").replace(/\s+/g, " ").trim().slice(0, 900);
   if (show.length < 4 || today.length < 20) return null;
@@ -4318,7 +4321,7 @@ async function archiveDay(env, s, log) {
 const EP_HOSTS = ["zohar", "oren"], EP_V = 2;   // bump EP_V to have every daily episode written again (one a tick)
 function epLines(arr, max) {   // lines as {who, say}; a bare string goes to the hosts in turn
   return (Array.isArray(arr) ? arr : arr ? [arr] : []).map((l, i) => typeof l === "string" ? { who: EP_HOSTS[i % 2], say: l } : l)
-    .map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 240) }))
+    .map(l => ({ who: String(l?.who || "").toLowerCase().trim(), say: String(l?.say || "").replace(/\s+/g, " ").trim().slice(0, 240), at: /^\d\d:\d\d$/.test(String(l?.at || "")) ? l.at : undefined }))
     .filter(l => EP_HOSTS.includes(l.who) && l.say.length > 3).slice(0, max);
 }
 const placeOf = loc => PLACE_NAME[loc] || String(loc || "somewhere");
@@ -7842,4 +7845,38 @@ async function tapeHealth(env, s) {
   if (!env.DB) return { ...out, rows: null };
   try { await tapeTables(env); const r = await env.DB.prepare("SELECT COUNT(*) n, MIN(date) a, MAX(date) z FROM tape").first(); return { ...out, rows: r.n, first: r.a, lastDay: r.z }; }
   catch (e) { return { ...out, rows: null, readErr: String(e && e.message || e).slice(0, 160) }; }
+}
+
+// ================= Replay steps 4-5 (v294, docs/REPLAY_PLAN.md): episodes point at the tape =================
+// epTape() gives each chapter the moment its clip comes from (`mid`, the line `k`, `mt` its time) by finding the clip's line on that
+// day's tape (instr() in D1, so only the matching rows are read), and each intro line with "at" (Today (so far): the hourly recap
+// marks the moment each line is about) the moment at that story time. The page plays those moments on the studio screen
+// (/?replay=...&bare&mute). Moments a past episode uses are kept past TAPE_KEEP_D (keep = 1).
+const tapeNeedle = say => JSON.stringify(String(say || "").slice(0, 48)).slice(1, -1);
+async function epTape(env, ep) {
+  if (!env.DB || !ep || !Array.isArray(ep.chapters)) return ep;
+  await tapeTables(env);
+  const out = { ...ep, chapters: ep.chapters.map(c => ({ ...c })), intro: (ep.intro || []).map(l => ({ ...l })) }, keep = [];
+  for (const c of out.chapters) {
+    const date = c.date || ep.date; if (!date || !c.line || !c.line.say) continue;
+    const rows = (await env.DB.prepare("SELECT id, t, ev FROM tape WHERE date = ?1 AND instr(ev, ?2) > 0 ORDER BY t LIMIT 3").bind(date, tapeNeedle(c.line.say)).all()).results || [];
+    const want = String(c.line.say).slice(0, 48);
+    for (const r of rows) {
+      let ev; try { ev = JSON.parse(r.ev); } catch (e) { continue; }
+      const k = (ev.lines || []).findIndex(l => l && String(l.say || "").startsWith(want));
+      if (k < 0) continue;
+      c.mid = r.id; c.k = k; c.mt = r.t; c.mdate = date; keep.push(r.id); break;
+    }
+  }
+  if (out.intro.some(l => l.at)) {
+    const date = ep.date, rows = date ? ((await env.DB.prepare("SELECT id, t FROM tape WHERE date = ?1 ORDER BY t").bind(date).all()).results || []) : [];
+    const lab = rows.map(r => ({ id: r.id, t: r.t, hm: storyClock(r.t).label.slice(-5) }));
+    for (const l of out.intro) {
+      if (!l.at) continue;
+      const hit = lab.find(r => r.hm === l.at) || [...lab].reverse().find(r => r.hm < l.at);
+      if (hit) { l.mid = hit.id; l.mt = hit.t; l.mdate = date; }
+    }
+  }
+  if (ep.kind !== "today" && keep.length) await env.DB.prepare(`UPDATE tape SET keep = 1 WHERE keep = 0 AND id IN (${keep.map(() => "?").join(",")})`).bind(...keep).run();
+  return out;
 }
