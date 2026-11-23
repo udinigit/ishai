@@ -24,7 +24,7 @@ inputs and run the same page on an earlier clock, and the picture comes out the 
   and where he was before it, as `joinMoment()` needs), and the snapshots. Public, cached 5 minutes for past days.
 - Today's tape reads the same table (rows are written as moments are made).
 
-## Step 3 — replay mode in the page
+## Step 3 — replay mode in the page — done, v293
 - `/?replay=<date>&at=<ms>[&to=<ms>]`: a mode of index.html, like `/?sandbox` and `/?casting`, loaded in an iframe on the
   studio screen (`#stvLive`), so it never touches the live page's globals (no swapping like `drawMemory()`).
 - The clock: `NOW()` = the replay time (`REPLAY.at + (performance.now() - REPLAY.t0) * REPLAY.speed`); `seek(ms)` restarts
@@ -38,7 +38,7 @@ inputs and run the same page on an earlier clock, and the picture comes out the 
   moment can play in a minute or two.
 - The REC / CAM HUD shows `REPLAY · <date> <time>` instead of LIVE.
 
-## Step 4 — episodes play the tape
+## Step 4 — episodes play the tape — done, v294
 - A chapter keeps `from` / `to` (moment ids, or the clip's moment and the next) besides its clip line. `writeDayEpisode()`,
   `basicDayEpisode()` and the weekly episode fill them in; older episodes get them from the tape by time and place.
 - In `playEpisode()` (`epItems()`): the host line before → the studio screen switches to the replay of that stretch → the
@@ -46,7 +46,7 @@ inputs and run the same page on an earlier clock, and the picture comes out the 
 - ⏭ MOMENT seeks to the next chapter's `from`; ← BACK and ✕ LIVE close the iframe.
 - The 30-minute highlights of yesterday: the episode's chapters played back to back with the quiet parts skipped.
 
-## Step 5 — "Today (so far)" from the 📺 STUDIO button shows what the hosts talk about
+## Step 5 — "Today (so far)" from the 📺 STUDIO button shows what the hosts talk about — done, v294
 Only when the viewer opens it from the button (the channel's Today card or `playEpisode('today')`), **not** the studio
 recaps that play by themselves during live watching (`playShow()`, the PiP and the full break keep the live picture).
 - Today the intro of Today (so far) is the hourly recap show (`s.show`), and while it plays the studio screen shows Ishai live.
@@ -67,3 +67,9 @@ recaps that play by themselves during live watching (`playShow()`, the PiP and t
 
 ## Defaults (change any time)
 Keep 60 days in full; replay speed 1×; skip quiet stretches over 20 s; Today (so far)'s general lines show the day's first moment.
+
+## As built (v292-v294)
+- Chapters are not cut into `from`/`to` stretches: `epTape()` finds each clip's line on the tape when the episode is asked for
+  (`mid`, `k`), so old episodes work too. The studio screen plays from just before the clip's line, timed to the host lines before it.
+- The studio frame is muted: the episode page says the lines (browsers don't let a frame start sound without a tap in it).
+- Not built: skipping quiet stretches inside a chapter, the 30-minute highlights of yesterday, a replay speed control.
