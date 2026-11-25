@@ -8944,8 +8944,8 @@
   })();
   if (params.has('syncdebug')) window.__ishaiSync = () => ({loc: actor.loc, x: actor.x, a: actor.action, hidden: actor.hidden, comp: comp.id ? comp.x : null, dog: dog.loc ? dog.x : null, cam: SCENES[actor.loc].cam, ride: !!actor.ride, sw: !!actor.switching, sim: simT});
   // ?casting: the Audition page's casting room (public; docs/AUDITION_PLAN.md). The show's own art on the show's own canvas, nothing else runs:
-  // Ruti Kaspi, the casting director (never part of the story), at her table; the viewer's character walks in through the door to the tape mark.
-  // The Audition page (the parent) sends {cast: {look, phase, dur}}: empty (before the start), enter, talk (Ruti speaks for dur ms: the intro, the goodbye), listen, ask, answer, wild, leave.
+  // Ruth Kaspi, the casting director (never part of the story), at her table; the viewer's character walks in through the door to the tape mark.
+  // The Audition page (the parent) sends {cast: {look, phase, dur}}: empty (before the start), enter, talk (Ruth speaks for dur ms: the intro, the goodbye), listen, ask, answer, wild, leave.
   // ?read: the Audition's table read stage (public, like ?casting): the role's real place, drawn empty, with the character in work clothes
   // at their post, a STAND IN for Ishai (a grey hoodie and a tag, so nobody takes him for Ishai), a TABLE READ banner and a director's
   // chair. The Audition page sends {read: {place, look, extraLook, speaker}}; nothing here touches the show.
@@ -9012,7 +9012,7 @@
       R(167,22,14,12,'#f2f0e6'); R(168,23,12,10,'#fffbe8'); R(173,34,1,56,'#3a3a3e'); R(170,89,7,1,'#3a3a3e');
       R(155,60,1,30,'#2a2a2e'); R(150,90,12,1,'#2a2a2e'); R(152,72,1,18,'#2a2a2e'); R(159,72,1,18,'#2a2a2e');
       R(149,50,15,10,'#2a2a2e'); R(143,52,6,6,'#3a3a40'); R(142,53,1,4,'#6a8aa8'); R(160,51,2,2, Math.floor(now/600)%2 ? '#ff4040' : '#5a1010');
-      // Ruti at her table: she asks (talks), listens, nods and writes after an answer, holds up a card for a wild card
+      // Ruth at her table: she asks (talks), listens, nods and writes after an answer, holds up a card for a wild card
       const asking = ((CS.phase === 'ask' || CS.phase === 'wild') && el < 2600) || (CS.phase === 'talk' && el < (CS.dur || 3000)), after = CS.phase === 'answer' && el > 1500 && el < 4200;
       SPEAKING = asking ? 'castdir' : (CS.phase === 'answer' && el < 1500) ? 'member' : null;
       person(DIR, 26, 58, t, {legs:'sit', face:1, talkPhase: asking, fid: asking ? 'gesture' : after ? 'nod' : undefined, seed: 41});

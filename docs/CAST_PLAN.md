@@ -37,7 +37,7 @@ KV stays as it is (1,000 writes a day). D1's free daily write limit is far highe
   - `imp` is the importance, 1-5.
   - `tags` holds people, places and topics, for the archive search.
   - `state` is `live`, `archived` or `gone`.
-- `cast_fact (who TEXT, k TEXT, v TEXT, at INTEGER, PRIMARY KEY (who, k))`: concrete things ("owes Ishai" → "40 ₪", "sister" → "Ruti", "cough" → "since October, won't see a doctor").
+- `cast_fact (who TEXT, k TEXT, v TEXT, at INTEGER, PRIMARY KEY (who, k))`: concrete things ("owes Ishai" → "40 ₪", "sister" → "Orly", "cough" → "since October, won't see a doctor").
 - `cast_pair (a TEXT, b TEXT, warmth INTEGER, trust INTEGER, tension INTEGER, label TEXT, history TEXT, thread TEXT, at INTEGER, PRIMARY KEY (a, b))`: one row per pair, `a < b`, Ishai included.
   - `warmth`, `trust` and `tension` each run from -5 to +5.
   - `label`: old friends, friends, crush, exes, rivals, family, neighbours, colleagues, strangers...

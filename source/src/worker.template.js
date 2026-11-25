@@ -5750,7 +5750,7 @@ const CAST_SYS = `You keep the memory of the people in "Watching Ishai", a reali
  "wrap":[{"who":"zohar"|"oren","say":"..."}]}
 Rules:
 - notes: each side remembers in their own voice and from their own view (Ishai too: "who":"ishai"). Max 30 words, concrete (what was said or done, a promise, a hurt, a joke they share). imp: 1 trivial (forgotten in days), 2 small, 3 matters, 4 big, 5 life-changing. Add 1-4 notes; edit or drop ONLY notes listed below with their n (an outdated note: edit it; a resolved one: drop it; an archived one that matters again: edit it with "live":true).
-- facts: concrete things that stay true (owes Ishai 40 shekels, sister: Ruti, cough since October). Only what the scene says.
+- facts: concrete things that stay true (owes Ishai 40 shekels, sister: Orly, cough since October). Only what the scene says.
 - pair: how this scene moved the two (mostly 0 or 1 step; 2 only for something big). A new label only for a real change, with labelWhy. thread: what is still open.
 - mood: only a mood the scene clearly shows; "calm" clears it.
 - others: only feelings between OTHER people that the lines reveal, with an exact quote. Usually [].
@@ -6662,7 +6662,7 @@ async function audDirAnswers(env, n) {
 // Step 4: one AI call (Gemini first) turns the answers into a full card (castCardClean(), no secrets: members get none for now)
 // and three ways in (a role kind at a place from AUD_BANK.roles, a link to someone in the cast, the first scene). Claude's
 // weekly review sees it in /api/cast/pending (`auditions`) and answers in /api/cast/review; the director approves (with one
-// way in, edits allowed) or rejects in the Auditions box. Step 5: the viewer gets the offer on the Audition page (Ruti
+// way in, edits allowed) or rejects in the Auditions box. Step 5: the viewer gets the offer on the Audition page (Ruth
 // tells them in the casting room) and accepts or declines within 7 days. Accepting leads to the table read (step 5b,
 // not built yet); nothing joins the cast before the director's green light (step 5c).
 const AUD_ROLES = AUD_BANK.roles;

@@ -364,7 +364,7 @@
         else spr('member_stand', 0, x, 87);
         if (t > 1.7 && t < 4.3) bubble(31, 42, 'Your guilty pleasure?', '#1d2430');
         if (t > 2.2 && t < 4.8) {
-          const y0 = panel(118, 14, {head: 'RUTI ASKS', edge: '#ffd166', edge2: '#ffd166', head2: '#2a2410', w: 70, q: ['Guilty pleasure?'], opts: ['Karaoke', 'Cereal at 2am', 'Reality TV'], sel: t > 3.25 ? 2 : null});
+          const y0 = panel(118, 14, {head: 'RUTH ASKS', edge: '#ffd166', edge2: '#ffd166', head2: '#2a2410', w: 70, q: ['Guilty pleasure?'], opts: ['Karaoke', 'Cereal at 2am', 'Reality TV'], sel: t > 3.25 ? 2 : null});
           if (t < 3.6) { const m = ease(clamp((t - 2.4) / .8)); cursor(lerp(176, 150, m), lerp(96, y0 + 28, m), t > 3.2 && t < 3.35); }
         }
         if (t > 4.4) stamp(96, 36, 'CAST!', 'FIRST SCENE: THURSDAY', '#4dff7a', -.1, RM ? 0 : (1 - clamp((t - 4.4) / .2)) * -50);
