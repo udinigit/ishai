@@ -16,6 +16,20 @@ binding = "DB"
 database_name = "ishai-polls"
 database_id = "7ec762a4-f13b-4409-a290-6b52a4ab29fe"
 
+# Branch previews (`wrangler preview`, run by Cloudflare for branches other than main).
+# They get their own KV and D1 so a preview never touches the live show. No crons in previews.
+[previews.ai]
+binding = "AI"
+
+[[previews.kv_namespaces]]
+binding = "ISHAI"
+id = "4bb2e6e5243b4f1aa32feea93d4f6418"            # ishai-preview-state
+
+[[previews.d1_databases]]
+binding = "DB"
+database_name = "ishai-polls-preview"
+database_id = "9eca33ac-0274-41d4-a35c-1eb801beb846"
+
 [triggers]
 crons = ["*/2 * * * *"]   # every 2 minutes: a run makes a moment only once the last one is over (docs/PACING_PLAN.md)
 
