@@ -398,6 +398,7 @@ export default {
     }
     // 8bitTV+ replays: every moment as the page got it, to play back like a recording (docs/REPLAY_PLAN.md)
     if (url.pathname === "/api/tape") return tapeApi(req, env, url);
+    if (url.pathname === "/api/reel") return reelApi(env, url);   // v295: a day's highlights, about 30 minutes of the tape
     if (url.pathname === "/api/day") {
       if (!(await isDirector(req, env))) return json({ error: "director only" }, {}, 403);
       const date = String(url.searchParams.get("date") || "");
@@ -7879,4 +7880,37 @@ async function epTape(env, ep) {
   }
   if (ep.kind !== "today" && keep.length) await env.DB.prepare(`UPDATE tape SET keep = 1 WHERE keep = 0 AND id IN (${keep.map(() => "?").join(",")})`).bind(...keep).run();
   return out;
+}
+
+// ================= Highlights reel (v295, docs/REPLAY_PLAN.md): a day in about 30 minutes =================
+// /api/reel?date= picks the moments worth watching from that day's tape with no AI and no parsing of the moments in the worker
+// (D1's json_extract / json_array_length): the day episode's clips first, then the talks (the longer, the better), one or two per
+// scene, the first moment with someone new, until about REEL_MIN minutes. The page (/?replay=<date>&reel=1) plays each one from just
+// before its first spoken line to just after its last, cut at REEL_CAP seconds, and jumps to the next.
+const REEL_MIN = 30, REEL_CAP = 180, REEL_SKIP = new Set(["sleeping", "bathroom", "walking"]), REEL_ONCE = new Set(["lecture", "film", "poker", "trivia", "concert", "improv"]);
+async function reelApi(env, url) {
+  if (!env.DB) return json({ error: "no database" }, {}, 503);
+  const date = String(url.searchParams.get("date") || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "date=YYYY-MM-DD" }, {}, 400);
+  await tapeTables(env);
+  const now = Date.now();
+  const rows = ((await env.DB.prepare(`SELECT id, t, len, json_extract(ev, '$.location') loc, json_extract(ev, '$.action') act,
+      json_extract(ev, '$.with') w, json_array_length(ev, '$.lines') n FROM tape WHERE date = ?1 AND t <= ?2 ORDER BY t`).bind(date, now).all()).results || []);
+  if (!rows.length) return json({ date, segs: [], min: 0 });
+  // the day episode's clips (when there is one): the moments the hosts already picked
+  let must = new Set();
+  try { const s = await loadState(env), ep = await episodeGet(env, s, "day-" + date, now); if (ep) { const t = await epTape(env, ep); t.chapters.forEach(c => c.mid && must.add(c.mid)); } } catch (e) {}
+  const est = r => Math.min(REEL_CAP, Math.max(15, (r.n || 0) * 5.5 + 8));   // seconds on screen, about
+  // scenes: a run of moments in one place with the same person
+  let scene = 0, prev = null; for (const r of rows) { if (!prev || prev.loc !== r.loc || (prev.w || "") !== (r.w || "")) scene++; r.scene = scene; r.first = !prev || (prev.w || "") !== (r.w || ""); prev = r; }
+  const score = r => (must.has(r.id) ? 1000 : 0) + (r.n || 0) * 3 + (r.w ? 12 : 0) + (r.first && r.w ? 10 : 0) - (REEL_SKIP.has(r.act) ? 60 : 0) - ((r.n || 0) < 2 ? 40 : 0);
+  const pick = [], perScene = {}; let total = 0;
+  for (const r of [...rows].sort((a, b) => score(b) - score(a))) {
+    if (total >= REEL_MIN * 60) break;
+    const night = REEL_ONCE.has(r.act) ? "n:" + r.act : null;   // a lecture, film, poker or trivia night: one taste of it
+    if (!must.has(r.id) && (score(r) <= 0 || (perScene[r.scene] || 0) >= 2 || (night && perScene[night]))) continue;
+    pick.push(r); perScene[r.scene] = (perScene[r.scene] || 0) + 1; if (night) perScene[night] = 1; total += est(r);
+  }
+  const segs = pick.sort((a, b) => a.t - b.t).map(r => ({ id: r.id, t: r.t, loc: r.loc, act: r.act, with: r.w || null, n: r.n || 0, cap: REEL_CAP, est: Math.round(est(r)), ep: must.has(r.id) || undefined }));
+  return json({ date, segs, min: Math.round(total / 60) }, { "cache-control": date < dayOfMs(now) ? "public, max-age=3600" : "public, max-age=300" });
 }

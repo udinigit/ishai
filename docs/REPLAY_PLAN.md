@@ -72,4 +72,6 @@ Keep 60 days in full; replay speed 1×; skip quiet stretches over 20 s; Today (s
 - Chapters are not cut into `from`/`to` stretches: `epTape()` finds each clip's line on the tape when the episode is asked for
   (`mid`, `k`), so old episodes work too. The studio screen plays from just before the clip's line, timed to the host lines before it.
 - The studio frame is muted: the episode page says the lines (browsers don't let a frame start sound without a tap in it).
-- Not built: skipping quiet stretches inside a chapter, the 30-minute highlights of yesterday, a replay speed control.
+- The 30-minute highlights (v295): `/api/reel?date=` picks the moments, `/?replay=<date>&reel=1` plays them cut together;
+  the channel links it under Today and on each day episode.
+- Not built: skipping quiet stretches inside a chapter of an episode, a replay speed control.

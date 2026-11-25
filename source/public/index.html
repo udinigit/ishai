@@ -278,6 +278,8 @@
   .chHeroT small,.chInfo small,.chTile small{color:#ff9ad0;font-size:.8em} .chHeroT b{display:block;font-weight:normal;font-size:1.25em;color:#ffd36a}
   .chHeroT p{margin:.2em 0 0;opacity:.85;font-size:.9em;max-height:2.6em;overflow:hidden} .chHeroB{display:flex;flex-direction:column;gap:4px;flex:none}
   .chan .chPlay{background:#ffd36a;color:#1a0d2e;border-color:#ffd36a}
+  .chan a.chReel{text-decoration:none;display:inline-block;background:#7af0ff;border-color:#7af0ff;color:#1a0d2e}
+  .chan .chReelRow{display:flex;align-items:center;gap:8px;margin:8px 0 2px;font-size:.85em;color:#cfc6ff}
   .chRowT{margin:4px 0 3px;color:#ffd36a} .chRowT small{color:#9a8bb8;font-size:.75em}
   .chRow{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
   .chan .chTile{flex:none;width:clamp(96px,26vw,150px);text-align:left;padding:4px;display:flex;flex-direction:column;gap:2px;background:#1d1036}
@@ -6134,7 +6136,7 @@
       const p = talkPlan(e, tlLast && (tlLast.ev.location || 'apartment'), tlLast && tlLast.ev), start = Math.max(e.t, tlLast ? tlLast.end : 0);   // a long talk finishes before the next moment starts
       tlLast = {ev: e, start, end: start + p.ms, plan: p.plan, ride: p.ride, thenAt: p.thenAt}; TL.set(e.id, tlLast);
     });
-    while (TL.size > 60) TL.delete(TL.keys().next().value);
+    while (TL.size > (REPLAY ? 600 : 60)) TL.delete(TL.keys().next().value);   // a replay keeps the whole day it loaded (v295)
   }
   const startOf = e => TL.has(e.id) ? TL.get(e.id).start : e.t;
   function release(){
@@ -7358,6 +7360,9 @@
     if (!REPLAY || REPLAY.bare) return;
     const el = $('pvb'), now = NOW(); el.hidden = false; el.style.pointerEvents = 'auto';
     const end = REPLAY.ended ? ' · END' : REPLAY.live ? ' · CAUGHT UP' : '';
+    const R = REPLAY.reel;
+    if (R){ const sg = R.segs[R.i], who = sg && sg.with ? ' · ' + speakerBase(sg.with).name : '';
+      el.innerHTML = (REPLAY.ended ? '★ THAT WAS THE DAY' : `★ HIGHLIGHTS ${R.i + 1}/${R.segs.length} · ${rpLabel(now)}${chEsc(who)}`) + ' <button class="rpB" data-r="-1">⏮</button><button class="rpB" data-r="1">⏭</button><a class="rpB" href="/">● LIVE</a>'; return; }
     el.innerHTML = '⏺ REPLAY · ' + rpLabel(now) + end + ' <button class="rpB" data-d="60000">+1m</button><button class="rpB" data-d="600000">+10m</button><button class="rpB" data-m="1">⏭</button><a class="rpB" href="/">● LIVE</a>';
   }
   async function rpSeek(ms){
@@ -7385,7 +7390,8 @@
   async function rpTick(){
     if (!REPLAY) return;
     const now = NOW(), c = tlNow(); if (c) rpSnap(c.e.ev);
-    if (REPLAY.to && now >= REPLAY.to && !REPLAY.ended){ REPLAY.ended = true; }
+    if (REPLAY.reel) reelTick(now);
+    else if (REPLAY.to && now >= REPLAY.to && !REPLAY.ended){ REPLAY.ended = true; }
     // more tape: an open-ended replay loads the next stretch before it runs out, until it is (nearly) live
     if (!REPLAY.to && !REPLAY.busy && now > REPLAY.loadedTo - 20 * 60000 && !REPLAY.live){
       const to = Math.min(REPLAY.loadedTo + RP_WIN, Date['now']() - 1000);
@@ -7396,6 +7402,38 @@
     }
     rpBar();
     if (parent !== window) parent.postMessage({replay: {t: now, id: c ? c.e.ev.id : null, end: !!REPLAY.ended, live: !!REPLAY.live}}, location.origin);
+  }
+  // ---- the highlights reel (v295): /?replay=<date>&reel=1 plays the moments /api/reel picked, each from just before its first line
+  // to just after its last (at most `cap` seconds), cutting from one to the next ----
+  function reelSpan(sg){
+    const e = TL.get(sg.id); if (!e) return null;
+    const p = (e.plan || []).filter(x => x && isFinite(x.at)), cap = (sg.cap || 180) * 1000;
+    if (!p.length) return {a: e.start + 4000, b: e.start + 18000};
+    const a = e.start + Math.max(0, Math.min(...p.map(x => x.at)) - 3500), b = e.start + Math.max(...p.map(x => x.at + (x.ms || 2500))) + 2200;
+    return {a, b: Math.min(b, a + cap)};
+  }
+  function reelCut(){ const f = document.createElement('div'); f.style.cssText = 'position:absolute;inset:0;background:#000;z-index:30;pointer-events:none;transition:opacity .45s';
+    $('scene').parentElement.appendChild(f); requestAnimationFrame(() => setTimeout(() => { f.style.opacity = '0'; setTimeout(() => f.remove(), 500); }, 250)); }
+  function reelGo(i){
+    const R = REPLAY.reel; if (!R) return;
+    i = Math.max(0, Math.min(i, R.segs.length - 1));
+    const sp = reelSpan(R.segs[i]); if (!sp) return;
+    if (sp.a < NOW() - 2000){ const u = new URL(location.href); u.searchParams.set('at', Math.floor(sp.a - 1)); u.searchParams.set('seg', i); location.replace(u.toString()); return; }   // back: reload there
+    R.i = i; R.end = sp.b; REPLAY.ended = false; reelCut(); rpSeek(sp.a);
+  }
+  function reelTick(now){
+    const R = REPLAY.reel; if (!R || REPLAY.ended || !R.end || now < R.end) return;
+    if (R.i + 1 >= R.segs.length){ REPLAY.ended = true; if (parent !== window) parent.postMessage({replay: {end: true}}, location.origin); return; }
+    reelGo(R.i + 1);
+  }
+  async function reelStart(date){
+    let d = null; try { const r = await fetch('/api/reel?date=' + date); if (r.ok) d = await r.json(); } catch(e){}
+    const segs = (d && d.segs || []).filter(sg => TL.get(sg.id));
+    if (!segs.length) return;
+    REPLAY.reel = {segs, i: 0, end: 0};
+    const want = Math.max(0, Math.min(segs.length - 1, +params.get('seg') || 0)), sp = reelSpan(segs[want]);
+    if (want && sp && Math.abs(sp.a - NOW()) < 3000){ REPLAY.reel.i = want; REPLAY.reel.end = sp.b; return; }   // reloaded here by ⏮
+    reelGo(want);
   }
   async function startReplay(){
     const q = k => params.get(k), date = /^\d{4}-\d{2}-\d{2}$/.test(q('replay') || '') ? q('replay') : null;
@@ -7410,7 +7448,7 @@
       st.textContent = 'html,body{margin:0;background:#000;overflow:hidden} .wrap>*:not(.cam){display:none!important} .wrap{max-width:none!important;padding:0!important;margin:0!important} .cam{margin:0!important;border:0!important} .pip,.guide,.com,.adb,.callw,.stv,.chan,.pban,.chatC{display:none!important} body>*:not(.wrap){display:none!important}' + (innerWidth < 480 ? ' #say,#say *{font-size:9px!important;line-height:1.1!important} #say{padding:1px 4px!important} .hud,.hud *{font-size:9px!important}' : '');
       document.head.appendChild(st); }
     document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.rpB'); if (!b || b.tagName === 'A') return; e.preventDefault(); e.stopPropagation();
-      if (b.dataset.m) rpNext(); else rpSeek(NOW() + (+b.dataset.d || 0)); }, true);
+      if (b.dataset.r) reelGo(REPLAY.reel.i + (+b.dataset.r)); else if (b.dataset.m) rpNext(); else rpSeek(NOW() + (+b.dataset.d || 0)); }, true);
     window.addEventListener('message', e => { if (e.origin !== location.origin || !e.data || !e.data.replayCmd) return; const c = e.data.replayCmd;
       if (c.seek != null) rpSeek(+c.seek); if (c.next) rpNext(); if (c.line) rpSeekLine(c.line.id, c.line.k, c.line.t, c.line.lead); });
     // the cast, the voices and the director's narration from the live state (looks are taken back to then by each moment's snapshot)
@@ -7418,7 +7456,7 @@
     await Promise.race([Promise.all([growLoad(), townFetch()]), new Promise(r => setTimeout(r, 6000))]);
     let d;
     try {
-      if (date && !REPLAY.at){ d = await rpFetch('/api/tape?date=' + date); REPLAY.at = d.from || 0; if (!REPLAY.to) REPLAY.to = d.to || 0; REPLAY.loadedTo = d.to || 0; }
+      if (date && (!REPLAY.at || params.has('reel'))){ d = await rpFetch('/api/tape?date=' + date); REPLAY.at = REPLAY.at || d.from || 0; if (!REPLAY.to) REPLAY.to = d.to || 0; REPLAY.loadedTo = d.to || 0; }   // the reel always has the whole day
       else { if (!REPLAY.at) REPLAY.at = Date['now']() - 3600000;
         const to = REPLAY.to || Math.min(REPLAY.at + RP_WIN, Date['now']() - 1000); d = await rpFetch(rpUrl(REPLAY.at, to)); REPLAY.loadedTo = to; }
     } catch(e){ d = {moments: []}; }
@@ -7428,6 +7466,7 @@
     const list = [...REPLAY.moments.values()].sort((a, b) => a.t - b.t), first = [...list].reverse().find(m => m.t <= REPLAY.at) || list[0];
     rpSnap(first);
     ingest(list, true);
+    if (params.has('reel') && date) await reelStart(date);
     setInterval(rpTick, 1000); rpTick();
     if (parent !== window) parent.postMessage({replayReady: {at: REPLAY.at, to: REPLAY.to || null, n: list.length}}, location.origin);
   }
@@ -7646,6 +7685,7 @@
     chEl.querySelectorAll('[data-f]').forEach(b => b.classList.toggle('on', b.dataset.f === CH.filter));
     chBody.innerHTML = (today ? `<div class="chHero" data-id="today"${thumbOf(today.loc) ? ` style="background-image:linear-gradient(90deg,rgba(29,16,54,.95) 45%,rgba(29,16,54,.55)),url(${thumbOf(today.loc)})"` : ''}><div class="chHeroT"><small>● ${chEsc(chWhen(today))}</small><b>TODAY (SO FAR)</b><p>${chEsc(today.desc)}</p></div>
         <div class="chHeroB"><button class="chPlay" data-play="today">▶ PLAY</button><button data-info="today">ⓘ INFO</button></div></div>` : '') +
+      (() => { const y = L.find(e => e.kind === 'day' && e.date); return y && CH.filter !== 'week' ? `<div class="chReelRow"><a class="chPlay chReel" href="/?replay=${chEsc(y.date)}&reel=1">★ ${chEsc(chDay(y.date).split(' ')[0].toUpperCase())} IN 30 MINUTES</a><span>the best moments of the day, as they happened</span></div>` : ''; })() +
       `<div class="chRowT">${CH.filter === 'week' ? 'WEEKLY RECAPS' : CH.filter === 'day' ? 'DAILY RECAPS' : 'ALL EPISODES'} <small>newest first</small></div>` +
       (rest.length ? `<div class="chRow">${rest.map(e => `<button class="chTile ${e.kind}" data-info="${chEsc(e.id)}"><span class="chThumb"${thumbOf(e.loc) ? ` style="background-image:url(${thumbOf(e.loc)})"` : ''}><i>${e.kind === 'week' ? 'WEEK' : chEsc(chDay(e.date).split(' ')[0])}</i><b>${e.kind === 'week' ? chEsc(chDay(e.to, {weekday: undefined})) : chEsc(chDay(e.date, {weekday: undefined}))}</b><em>${chEsc(chPlace(e.loc))}</em></span>
           <span class="chTT">${chEsc(e.title)}</span><small>${chEsc(chWhen(e))} · ~${chMins(e)} MIN</small></button>`).join('')}</div>`
@@ -7658,7 +7698,7 @@
     if (!ep){ chBody.innerHTML = '<div class="chMsg">This episode is not ready yet.</div><button class="chBack" data-browse="1">← BACK</button>'; return; }
     chBody.innerHTML = `<button class="chBack" data-browse="1">← BACK</button>
       <div class="chInfo"><small>${chEsc(chWhen(card || ep))} · ${ep.chapters.length} MOMENTS · ~${epLen(ep)} MIN</small><h3>${chEsc(ep.title)}</h3><p>${chEsc(ep.desc)}</p>
-      <button class="chPlay" data-play="${chEsc(id)}">▶ PLAY</button>
+      <button class="chPlay" data-play="${chEsc(id)}">▶ PLAY</button>${ep.kind === 'day' && ep.date ? ` <a class="chPlay chReel" href="/?replay=${chEsc(ep.date)}&reel=1">★ THE DAY IN 30 MIN</a>` : ''}
       <ol class="chChaps">${ep.chapters.map((c, i) => `<li data-play="${chEsc(id)}" data-ch="${i}"><b>${chEsc(c.date ? chDay(c.date).split(' ')[0] + ' ' : '')}${chEsc(c.t)}</b> ${chEsc(chPlace(c.loc))}${c.with ? ' · ' + chEsc(c.with) : ''}${c.line ? `<br><span>${chEsc(c.line.who)}: “${chEsc(c.line.say)}”</span>` : ''}</li>`).join('')}</ol></div>`;
     CH.ep = ep;
   }
