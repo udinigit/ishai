@@ -111,7 +111,7 @@ Good enough for a free show; nothing is worth cheating hard for.
 - Ishai doesn't comment on the Wild unless the story wants him to. New streets appear through Growth as they do today.
 
 ## Build steps
-0. **One level, auto only, director only.** The platformer engine in the page (`/?wild` test mode, like `/?casting`): scrolling ground from a seed, the commander and 4 crew following, bugs, nests, the flag, win / retreat / lost. Sandbox control to start a run with any seed.
+0. **One level, auto only, director only.** The platformer engine in the page (`/?wild` test mode, like `/?casting`): scrolling ground from a seed, the commander and 4 soldiers following, bugs, nests, the flag, win / retreat / lost. Sandbox control to start a run with any seed.
 1. **Orders and direct control.** Group, send, split, hold, retreat, take control; phone buttons.
 2. **Balance.** Scripted test players (none / sensible / expert / bad) run many seeds in the sandbox; tune until the bands are close to 30 / 50 / 70 / 95.
 3. **Roster and runs.** D1 tables, 8 commanders, busy locks, ranks, `/api/wild` (start a run, send a result), the checks above. Still director only.
